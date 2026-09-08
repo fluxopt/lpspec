@@ -465,7 +465,9 @@ class Runs:
     """
 
     key_name: str
-    meta: pl.DataFrame
+    #: ``(key, status, termination_condition, objective)``, in slice order —
+    #: how every slice terminated, whether or not it produced an answer.
+    objective: pl.DataFrame
     #: Per slice, not concatenated. Joining them is the reader's work so a
     #: sweep pays it for the names actually read, and so the concatenated copy
     #: never exists beside the pieces it was built from.
@@ -476,14 +478,56 @@ class Runs:
     _no_expressions: dict[str, str] = field(repr=False, default_factory=dict)
     _original: _OriginalIndex | None = field(repr=False, default=None)
 
-    @property
-    def objective(self) -> pl.DataFrame:
-        """``(key, status, termination_condition, objective)``, in slice order."""
-        return self.meta
+    @classmethod
+    def _folded(
+        cls, key_name: str, original: _OriginalIndex | None, answered: Generator[tuple[Any, _Answer], None, None]
+    ) -> Runs:
+        """Every slice's answer absorbed, in the order they arrive.
+
+        The stream is closed here, which is what releases the serial branch's
+        model when a fold is abandoned part way; a reason a slice could not
+        produce something is kept from the *first* slice that gave one, since
+        a later slice's silence is not a second reason.
+
+        Args:
+            key_name: What to call the column holding each slice's key.
+            original: The way back to the sliced dimension, or ``None`` where
+                the axis re-indexed nothing.
+            answered: ``(key, answer)`` per slice, in slice order.
+        """
+        rows: list[dict[str, Any]] = []
+        primals: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
+        duals: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
+        expressions: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
+        no_duals: str | None = None
+        no_expressions: dict[str, str] = {}
+        with closing(answered) as stream:
+            for key, answer in stream:
+                no_duals = no_duals or answer.no_duals
+                for name, reason in answer.no_expressions.items():
+                    no_expressions.setdefault(name, reason)
+                rows.append({key_name: key, **answer.meta._asdict()})
+                for into, produced in (
+                    (primals, answer.primals),
+                    (duals, answer.duals),
+                    (expressions, answer.expressions),
+                ):
+                    for name, frame in produced.items():
+                        into[name].append(frame.select(pl.lit(key).alias(key_name), pl.all()))
+        return cls(
+            key_name=key_name,
+            objective=pl.DataFrame(rows),
+            _primals=dict(primals),
+            _duals=dict(duals),
+            _expressions=dict(expressions),
+            _no_duals=no_duals,
+            _no_expressions=no_expressions,
+            _original=original,
+        )
 
     @property
     def keys(self) -> list[Any]:
-        return self.meta[self.key_name].to_list()
+        return self.objective[self.key_name].to_list()
 
     def _read(
         self, held: Mapping[str, list[pl.DataFrame]], kind: str, name: str, absent: str | None = None
@@ -494,7 +538,7 @@ class Runs:
         from what the sweep happens to hold.
         """
         if name not in held:
-            raise LpspecError(absent or _nothing_to_read(kind, name, held, self.meta))
+            raise LpspecError(absent or _nothing_to_read(kind, name, held, self.objective))
         return pl.concat(held[name])
 
     def primal(self, name: str, *, original_index: bool = False) -> pl.DataFrame:
@@ -597,10 +641,7 @@ class Runs:
         Raises:
             LpspecError: The sweep holds no variable values at all.
         """
-        wanted = names or tuple(sorted(self._primals))
-        if not wanted:
-            raise LpspecError(_nothing_to_read('variable', 'anything', self._primals, self.meta))
-        return tidy_to_dataset(wanted, self.to_dataarray)
+        return tidy_to_dataset(names or self._variables_held(), self.to_dataarray)
 
     def to_parquet(self, directory: str | Path) -> dict[str, Path]:
         """One parquet file per variable the sweep holds, ``(key, dims…, value)``.
@@ -614,37 +655,47 @@ class Runs:
         Raises:
             LpspecError: The sweep holds no variable values at all.
         """
-        if not self._primals:
-            raise LpspecError(_nothing_to_read('variable', 'anything', self._primals, self.meta))
+        held = self._variables_held()
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         written: dict[str, Path] = {}
-        for name in sorted(self._primals):
+        for name in held:
             path = directory / f'{name}.parquet'
             self.primal(name).write_parquet(path)
             written[name] = path
         return written
 
+    def _variables_held(self) -> tuple[str, ...]:
+        """Every variable some slice produced, sorted — what a bulk export writes.
+
+        Raises:
+            LpspecError: No slice produced any, which both exports refuse
+                rather than writing an empty directory or an empty dataset.
+        """
+        if not self._primals:
+            raise LpspecError(_nothing_to_read('variable', 'anything', self._primals, self.objective))
+        return tuple(sorted(self._primals))
+
     def __len__(self) -> int:
-        return self.meta.height
+        return self.objective.height
 
 
-def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], meta: pl.DataFrame) -> str:
+def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], objective: pl.DataFrame) -> str:
     """Why *name* has no frame.
 
     A sweep keeps everything every slice produced, so a declared name arrives
     here only when no slice produced it; an undeclared name arrives here too,
     and the two are told apart by what the sweep did hold.
     """
-    conditions = ', '.join(sorted(set(meta['termination_condition'].to_list())))
+    conditions = ', '.join(sorted(set(objective['termination_condition'].to_list())))
     if held:
         listed = ', '.join(repr(k) for k in sorted(held))
         return (
             f'no {kind} {name!r} in this sweep — it holds {listed}. '
-            f'If the spec declares it, no slice produced one: all {meta.height} terminated {conditions}.'
+            f'If the spec declares it, no slice produced one: all {objective.height} terminated {conditions}.'
         )
     return (
-        f'this sweep holds no {kind} frames at all — every one of its {meta.height} slices '
+        f'this sweep holds no {kind} frames at all — every one of its {objective.height} slices '
         f'terminated {conditions}. The fold ran; the models did not solve. '
         f'runs.objective carries the status of each slice.'
     )
@@ -746,38 +797,12 @@ def solve_over(
     if not cuts:
         raise DataError('the axis produced no slices')
     solving = {'solver_name': solver_name, 'solver_options': dict(solver_options or {}) or None}
-    rows: list[dict[str, Any]] = []
-    primals: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
-    shadow: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
-    valued: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
-    no_duals: str | None = None
-    no_expressions: dict[str, str] = {}
-
     answered = (
         _serially(program, cuts, solving, plan, keep)
         if executor is None
         else _pooled(executor, workers_share_fs, spec, cuts, solving)
     )
-    with closing(answered) as stream:
-        for key, answer in stream:
-            no_duals = no_duals or answer.no_duals
-            for name, reason in answer.no_expressions.items():
-                no_expressions.setdefault(name, reason)
-            rows.append({key_name: key, **answer.meta._asdict()})
-            for into, produced in ((primals, answer.primals), (shadow, answer.duals), (valued, answer.expressions)):
-                for name, frame in produced.items():
-                    into[name].append(frame.select(pl.lit(key).alias(key_name), pl.all()))
-
-    return Runs(
-        key_name=key_name,
-        meta=pl.DataFrame(rows),
-        _primals=dict(primals),
-        _duals=dict(shadow),
-        _expressions=dict(valued),
-        _no_duals=no_duals,
-        _no_expressions=no_expressions,
-        _original=original,
-    )
+    return Runs._folded(key_name, original, answered)
 
 
 def _serially(

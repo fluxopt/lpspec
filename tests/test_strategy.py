@@ -1124,6 +1124,22 @@ def test_to_parquet_writes_one_file_per_kept_variable(sweep, tmp_path):
     assert pl.read_parquet(written['p']).equals(sweep.primal('p'))
 
 
+@pytest.mark.parametrize('export', ['to_dataset', 'to_parquet'], ids=['to_dataset', 'to_parquet'])
+def test_a_bulk_export_of_a_sweep_that_solved_nothing_is_refused(export, tmp_path):
+    """Neither export writes an empty answer: a sweep every slice of which was
+    infeasible holds no variable frames, and both refuse with the same
+    sentence `primal` gives. `to_dataset` resolves the names before xarray is
+    reached, so a bare install gets the sentence rather than an ImportError."""
+    sources = scenario_sources()
+    sources['load'] = sources['load'].with_columns(pl.col('value') + 1_000)
+    runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
+
+    arguments = (tmp_path / 'sweep',) if export == 'to_parquet' else ()
+    with pytest.raises(lps.LpspecError, match='holds no variable frames at all'):
+        getattr(runs, export)(*arguments)
+    assert not (tmp_path / 'sweep').exists(), 'a refused export leaves no directory behind'
+
+
 def test_a_reader_for_a_name_the_sweep_lacks_fails_the_way_primal_does(sweep):
     """One explanation, reached through every reader."""
     for read in (sweep.to_pandas, sweep.to_dataarray):
@@ -1148,7 +1164,7 @@ def test_a_hand_built_axis_needs_no_class_but_must_name_its_own_key():
 
     runs = lps.solve_over(DISPATCH, base, cuts, key_name='draw')
     assert runs.keys == ['low', 'high']
-    assert runs.meta.columns[0] == 'draw'
+    assert runs.objective.columns[0] == 'draw'
     assert runs.primal('p').columns[0] == 'draw', 'both frames key the same way, or they stop joining'
 
 
