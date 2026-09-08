@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, assert_never
 import numpy as np
 from math_spec import program
 
-from lpspec.errors import DataError, LaneError, null_bounds_message
+from lpspec.errors import DataError, LaneError, LpspecError, null_bounds_message
 from lpspec.lanes import LANES
 from lpspec.linopy import absence
 from lpspec.linopy._notes import note
@@ -245,7 +245,12 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
         return node.value
 
     if isinstance(node, program.Variable):
-        return absence.variable_term(ctx.model.variables[node.name], ctx.program.variable(node.name).absence)
+        variable, declared = ctx.model.variables[node.name], ctx.program.variable(node.name).absence
+        return absence.variable_value(variable, declared) if ctx.solved else absence.variable_term(variable, declared)
+
+    if isinstance(node, program.Dual):
+        assert ctx.solved, 'a dual reached a build — the language keeps one out of the math'
+        return _dual(node.constraint, ctx)
 
     if isinstance(node, program.Parameter):
         return absence.coefficient(ctx.dataset[node.name])
@@ -305,6 +310,32 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
         return _cases(node, ctx)
 
     assert_never(node)
+
+
+def _dual(name: str, ctx: EvaluationContext) -> xr.DataArray:
+    """``dual(name)`` at the solve — linopy's own ``.dual`` on the constraint.
+
+    Refused on a model declaring integrality before linopy is asked: HiGHS
+    hands a MIP back with a dual of zero on every row, and linopy stores it,
+    so the number would be read rather than the absence the other lane
+    reports.
+
+    Raises:
+        LpspecError: A variable declares integrality, so the duals are
+            undefined; or the solver stored none.
+    """
+    discrete = sorted(n for n, v in ctx.program.variables.items() if v.variable_type != 'continuous')
+    if discrete:
+        raise LpspecError(
+            f'named expression reads dual({name}), and duals are undefined for a mixed-integer model: '
+            f'{", ".join(discrete)} declare integrality. Read it off a continuous model.'
+        )
+    try:
+        return ctx.model.constraints[name].dual
+    except AttributeError:
+        raise LpspecError(
+            f'named expression reads dual({name}), and this solve stored no duals — the solver returned none.'
+        ) from None
 
 
 def _in_region(value: Any, mask: xr.DataArray) -> Any:

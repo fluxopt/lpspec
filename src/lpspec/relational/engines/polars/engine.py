@@ -28,7 +28,7 @@ from lpspec.relational.engines.polars.assembly import (
     short_parameters,
 )
 from lpspec.relational.engines.polars.attaching import attach
-from lpspec.relational.engines.polars.compiler import PolarsCompiler
+from lpspec.relational.engines.polars.compiler import PolarsCompiler, Solution
 from lpspec.relational.result import KEEPS, ConstraintRow, Diagnostics, Keep, Result, unknown_keep_message
 
 if TYPE_CHECKING:
@@ -200,6 +200,16 @@ class PolarsEngine:
             'activity travels with the primal: every sink reads it whenever a solution exists, mixed-integer included'
         )
         primals, duals, activities = self._read_back(answer.primal, answer.dual, answer.activity)
+        no_duals = (
+            None
+            if answer.dual is not None
+            else _no_duals_message(
+                self._discrete(),
+                answer.status.termination_condition,
+                sets=self._reformulated_sets(tables is not built),
+                quadratic_rows=self._quadratic_constraints(),
+            )
+        )
         return Result(
             _status=answer.status,
             _objective=answer.objective,
@@ -207,15 +217,8 @@ class PolarsEngine:
             _duals=duals,
             _activities=activities,
             _kept=kept,
-            _expressions=self._expression_readers(answer.primal),
-            _no_duals=None
-            if answer.dual is not None
-            else _no_duals_message(
-                self._discrete(),
-                answer.status.termination_condition,
-                sets=self._reformulated_sets(tables is not built),
-                quadratic_rows=self._quadratic_constraints(),
-            ),
+            _expressions=self._expression_readers(answer.primal, answer.dual, no_duals),
+            _no_duals=no_duals,
         )
 
     def diagnostics(self) -> Diagnostics:
@@ -312,7 +315,9 @@ class PolarsEngine:
             rows(activity),
         )
 
-    def _expression_readers(self, primal: pl.Series | None) -> dict[str, Callable[[], pl.DataFrame]]:
+    def _expression_readers(
+        self, primal: pl.Series | None, dual: pl.Series | None, no_duals: str | None
+    ) -> dict[str, Callable[[], pl.DataFrame]]:
         """One deferred reader per declared named expression — nothing compiled yet.
 
         A closure compiles its expression when it is first called, so a solve
@@ -325,15 +330,13 @@ class PolarsEngine:
         if primal is None:
             return {}
         model = self._model
-        compiler = PolarsCompiler(model.program, model.attached, dict(model.variables))
-        values = pl.DataFrame(
-            {'var_label': pl.int_range(primal.len(), dtype=pl.Int64, eager=True), readback.SOLUTION: primal}
-        ).lazy()
+        solution = Solution(primal, dual, dict(model.constraints), no_duals)
+        compiler = PolarsCompiler(model.program, model.attached, dict(model.variables), solution)
 
         def reader(name: str, expression: program.ExpressionNode) -> Callable[[], pl.DataFrame]:
-            return lambda: readback.expression_frame(name, expression, compiler, values)
+            return lambda: readback.expression_frame(name, expression, compiler)
 
-        return {name: reader(name, e) for name, e in model.program.named_expressions.items()}
+        return {name: reader(name, e.expression) for name, e in model.program.named_expressions.items()}
 
     def _discrete(self) -> list[str]:
         """The variables this model declared as anything but continuous."""

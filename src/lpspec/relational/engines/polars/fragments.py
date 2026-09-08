@@ -226,7 +226,8 @@ class CompiledExpression:
     Three tuples rather than one keyed by kind, because every consumer wants a
     different subset of them and wants it named: a constraint row takes terms
     and constants and refuses quadratics outright, the objective takes all
-    three, and the reader of a named expression takes the affine two.
+    three, and a read of a named expression — every leaf a value by then —
+    the const parts alone.
     """
 
     terms: tuple[TermFragment, ...]
@@ -239,6 +240,24 @@ def constant_scalar(p: TermFragment) -> pl.LazyFrame:
     if not p.dims:
         return p.frame.select(pl.col('cval').sum())
     return p.frame.group_by(p.dims).agg(pl.col('cval').sum())
+
+
+def absence_restrictions(fragments: Sequence[TermFragment]) -> list[Presence]:
+    """The presence frames a constraint's rows — or a read's — have to be contained in.
+
+    Absence propagates into a comparison and drops the row (the absence
+    rules): ``x + y >= 10`` where ``y`` is masked is not ``x >= 10``, it is no
+    constraint at all. Only *variable* absence counts — a sparse parameter's
+    missing rows mean a zero coefficient — which is why the fragment carries
+    :attr:`TermFragment.presences` separately from its frame.
+
+    *Having* no dims is not *having nothing to restrict*: a masked scalar
+    variable restricts every row of every constraint naming it, all or nothing.
+    Each restriction leaves with its key spelled out — the fragment's dims
+    where the presence implied them — since labelling cannot know the
+    fragment it came from.
+    """
+    return [Presence(x.frame, x.keys(p.dims)) for p in fragments for x in p.presences]
 
 
 def propagate_absence(compiled: CompiledExpression) -> CompiledExpression:
@@ -336,10 +355,12 @@ def join_mul(a: TermFragment, c: TermFragment, kind: Kind, divide: bool = False)
     is not whether the divisor is dense but whether it is defined where the
     model divides by it.
 
-    *c* is variable-free, so it contributes no absence: a sparse coefficient
-    zeroes a term, it does not unmake the variable underneath it. The output
-    dims may be wider than ``a.dims``, which is why the presence key travels
-    with the fragment rather than being re-derived from dims here.
+    At a build *c* is variable-free and contributes no absence: a sparse
+    coefficient zeroes a term, it does not unmake the variable underneath it.
+    At a read a const fragment may be a variable at its primal, carrying the
+    presence its term would, so the presences of both sides travel out. The
+    output dims may be wider than ``a.dims``, which is why the presence key
+    travels with the fragment rather than being re-derived from dims here.
     """
     shared = [d for d in a.dims if d in c.dims]
     out_dims = a.dims + tuple(d for d in c.dims if d not in a.dims)
@@ -351,7 +372,14 @@ def join_mul(a: TermFragment, c: TermFragment, kind: Kind, divide: bool = False)
     combined = value / rhs if divide else value * rhs
     out = value_column(kind)
     frame = joined.with_columns(combined.alias(out)).select(*out_dims, *carried_columns(kind))
-    return replace(a, dims=out_dims, frame=frame, kind=kind, region=both_regions(a.region, c.region))
+    return replace(
+        a,
+        dims=out_dims,
+        frame=frame,
+        kind=kind,
+        presences=a.presences + c.presences,
+        region=both_regions(a.region, c.region),
+    )
 
 
 def join_pow(a: TermFragment, b: TermFragment) -> TermFragment:
@@ -371,7 +399,9 @@ def join_pow(a: TermFragment, b: TermFragment) -> TermFragment:
     frame = joined.with_columns(pl.col('cval').pow(pl.col(_RHS)).alias('cval')).select(
         *out_dims, *carried_columns('const')
     )
-    return TermFragment(out_dims, frame, 'const', region=both_regions(a.region, b.region))
+    return TermFragment(
+        out_dims, frame, 'const', presences=a.presences + b.presences, region=both_regions(a.region, b.region)
+    )
 
 
 def join_quad(a: TermFragment, b: TermFragment) -> TermFragment:

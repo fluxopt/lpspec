@@ -23,8 +23,8 @@ from lpspec.relational import sinks
 from lpspec.relational.engines.polars import labels
 from lpspec.relational.engines.polars.compiler import PolarsCompiler
 from lpspec.relational.engines.polars.fragments import (
-    Presence,
     TermFragment,
+    absence_restrictions,
     both_regions,
     constant_scalar,
     join_on,
@@ -32,7 +32,7 @@ from lpspec.relational.engines.polars.fragments import (
 from lpspec.relational.sinks.tables import SENSE
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Iterator
 
     import numpy.typing as npt
     from math_spec.program import ObjectiveSense
@@ -783,24 +783,6 @@ def declares_quadratic(c: program.ConstraintDeclaration) -> bool:
     dual.
     """
     return program.is_quadratic(c.lhs) or program.is_quadratic(c.rhs)
-
-
-def absence_restrictions(terms: Sequence[TermFragment]) -> list[Presence]:
-    """The presence frames a constraint's rows have to be contained in.
-
-    Absence propagates into a comparison and drops the row (the absence
-    rules): ``x + y >= 10`` where ``y`` is masked is not ``x >= 10``, it is no
-    constraint at all. Only *variable* absence counts — a sparse parameter's
-    missing rows mean a zero coefficient — which is why the fragment carries
-    :attr:`TermFragment.presences` separately from its frame.
-
-    *Having* no dims is not *having nothing to restrict*: a masked scalar
-    variable restricts every row of every constraint naming it, all or nothing.
-    Each restriction leaves with its key spelled out — the fragment's dims
-    where the presence implied them — since labelling cannot know the
-    fragment it came from.
-    """
-    return [Presence(x.frame, x.keys(p.dims)) for p in terms for x in p.presences]
 
 
 def _ordered_pair() -> tuple[pl.Expr, pl.Expr]:

@@ -21,7 +21,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from lpspec.errors import DataError, LaneError, LanguageError
+from lpspec.errors import DataError, LaneError, LanguageError, LpspecError
 from lpspec.sources import tidy_sources
 from tests.conftest import EXAMPLES_DIR, schema_of
 from tests.differential import differential
@@ -548,6 +548,8 @@ variables:
 expressions:
   total_gen: sum(p, over=generator)
   spend: sum(p * cost, over=generator)
+  squared: sum(p * p, over=generator)
+  price: dual(balance)
 constraints:
   balance:
     foreach: [snapshot]
@@ -559,7 +561,8 @@ objective:
 
 #: Distinct costs and a load exceeding the cheap generator's capacity make the
 #: dispatch unique, so the two lanes' expression values are comparable exactly
-#: rather than up to an alternative optimum.
+#: rather than up to an alternative optimum. No load sits at a capacity, so the
+#: duals are unique too, which is what lets ``price`` be compared lane to lane.
 EXPRESSION_DATA = {
     'snapshot': [0, 1, 2],
     'generator': ['g1', 'g2'],
@@ -569,11 +572,30 @@ EXPRESSION_DATA = {
 }
 
 
+def test_a_dual_on_a_solve_that_left_none_is_refused_on_this_lane_too(yaml_file):
+    """An integer variable makes duals undefined; linopy stores HiGHS's zeros for a MIP, so the read refuses by the declaration rather than reading a number that means nothing."""
+    path = yaml_file(
+        EXPRESSION_YAML.replace(
+            '    foreach: [snapshot, generator]\n', '    foreach: [snapshot, generator]\n    domain: integer\n'
+        ),
+        'integer.yaml',
+    )
+    built = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
+    built.solve(solver_name='highs')
+    with pytest.raises(LpspecError, match='duals are undefined'):
+        lpspec_linopy.expression(built, path, 'price', dict(EXPRESSION_DATA))
+    assert float(lpspec_linopy.expression(built, path, 'spend', dict(EXPRESSION_DATA)).sum()) > 0, (
+        'the refusal is per entry: the affine one still reads'
+    )
+
+
 @pytest.mark.parametrize(
     'name',
     [
         pytest.param('total_gen', id='referenced-by-a-constraint'),
         pytest.param('spend', id='declared-but-never-referenced'),
+        pytest.param('squared', id='degree-two-in-an-entry-the-math-never-reads'),
+        pytest.param('price', id='reading-a-dual'),
     ],
 )
 def test_the_two_lanes_agree_on_a_named_expression(yaml_file, name):
@@ -581,8 +603,9 @@ def test_the_two_lanes_agree_on_a_named_expression(yaml_file, name):
 
     Including the standalone case: the rules for named expressions guarantees a never-referenced
     expression is parsed and name-checked, and #562 makes it readable — on
-    the eager lane by building the declared expression on the solved model and
-    taking linopy's native `.solution`.
+    the eager lane by evaluating the declared expression at the solved model's
+    `.solution` and `.dual` arrays, which is what lets an entry of any degree,
+    and one reading a dual, be read on both lanes.
     """
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
     with differential(path, EXPRESSION_DATA) as run:

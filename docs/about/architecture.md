@@ -450,7 +450,8 @@ constant at a masked slot
 | --- | --- | --- | --- | --- |
 | `Constant` | a number | one-to-one | a one-row const fragment | the number itself |
 | `Parameter` | a declared name | one-to-one | its table as `(dims…, cval)` | its array, uncovered slots at zero |
-| `Variable` | a declared name | one-to-one | `(dims…, var_label, coeff=1)`, plus where it exists | the variable, carrying its declared `absence:` |
+| `Variable` | a declared name | one-to-one | `(dims…, var_label, coeff=1)`, plus where it exists; at a read, its primal as a const fragment with the same presence | the variable, carrying its declared `absence:`; at a read, its `.solution` |
+| `Dual` | `dual(c)` | one-to-one | at a read only: the constraint's rows beside its share of the dual vector, a const fragment present exactly where a row stands | at a read only: linopy's `.dual` on the constraint |
 | `Negate` | `-x` | one-to-one | the value column negated | `-` |
 | `Add` | `x + y`, `x - y` | one-to-one | the two fragment lists concatenated | `+` |
 | `Multiply` | `x * y` | one-to-one | a join on the shared dims; two variable factors pair into a quadratic fragment | `*` |
@@ -470,6 +471,17 @@ output row reads exactly one of them and neither lane ranks them. What each
 lane must not do is let a region speak outside itself — a region's data is
 owed only where the region applies, and a region empty at a coordinate it does
 not claim must leave the row that the other regions do cover.
+
+**A read is the one walk where every leaf is a number.** A named expression
+is evaluated after the solve, never built: the relational lane compiles a
+variable to its primal and `dual(c)` to the constraint's row duals as const
+fragments, and the eager lane reads `.solution` and `.dual` and does xarray
+arithmetic. That is why the language holds an entry the math never reads to no
+degree and neither lane needs one — a product of two variables, a variable
+under a power, a division by one are arithmetic over values — and why `Dual`
+is the one node a build refuses on sight: the language keeps it out of the
+math, and only a read can answer it. A solve that left no duals refuses the
+read with the sentence `result.dual` gives, and every other entry still reads.
 
 **Neither reduction aggregates**, which is the theme the table repeats: a
 `Sum` drops columns, a `GroupSum` swaps them and a `Window` replicates rows,

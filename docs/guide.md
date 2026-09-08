@@ -104,9 +104,12 @@ Worth knowing before you start, rather than after:
   [#31](https://github.com/fluxopt/lpspec/issues/31), and the workaround is to
   ship the negated column as data.
 - **The math takes degree 2; what stands beside it does not.** The objective
-  and constraints take `variable * variable`; a bound, a named expression and a
-  `piecewise:` link need a variable-free factor. Where a quadratic model can be
-  *solved* is a second question — `check(spec, sink=…)` answers it. →
+  and constraints take `variable * variable`; a bound and a `piecewise:` link
+  need a variable-free factor, and a named expression is checked where the
+  math reads it. One the math never reads is a reported quantity: held to no
+  degree, free to call `dual(c)`, and read back after the solve at whatever
+  degree it was written. Where a quadratic model can be *solved* is a second
+  question — `check(spec, sink=…)` answers it. →
   [The ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/#two-tiers-and-the-ceiling)
 - **Several plausible features are refused on purpose**, with reasons.
   → [the roadmap](about/roadmap.md)

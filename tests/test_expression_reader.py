@@ -14,8 +14,9 @@ import polars as pl
 import pytest
 
 import lpspec as lps
-from lpspec.errors import LpspecError
+from lpspec.errors import DataError, LpspecError
 from lpspec.relational.engines.polars.compiler import PolarsCompiler
+from tests.fixtures import override
 
 SPEC = {
     'dimensions': {
@@ -35,6 +36,10 @@ SPEC = {
         'spend': 'sum(p * cost, over=generator)',
         'answer': '21 * 2',
         'total_cost': 'sum(sum(p * cost, over=generator), over=snapshot)',
+        'squared': 'sum(p * p, over=generator)',
+        'price': 'dual(balance)',
+        'weighted': 'dual(balance) * total_gen',
+        'rational': '1 / (1 + total_gen)',
     },
     'constraints': {
         'balance': {'foreach': ['snapshot'], 'expression': 'total_gen == load'},
@@ -121,7 +126,9 @@ def test_the_frame_carries_exactly_the_dims_the_expression_survives_over(result,
     ],
 )
 def test_an_unknown_name_lists_the_declared_names_and_refuses_strings(result, name):
-    with pytest.raises(KeyError, match=r'answer, spend, total_cost, total_gen') as caught:
+    with pytest.raises(
+        KeyError, match=r'answer, price, rational, spend, squared, total_cost, total_gen, weighted'
+    ) as caught:
         result.expression(name)
     assert 'never an expression string' in str(caught.value), (
         'the refusal must say expression() takes declared names only, not arbitrary expression strings'
@@ -151,6 +158,95 @@ def test_a_masked_coordinate_has_no_row():
         "generator's coordinates have no rows rather than zeros"
     )
     assert frame.height == 3, 'the surviving generator keeps one row per snapshot'
+
+
+def test_an_entry_of_degree_two_reads_the_primal_squared(result):
+    """The language holds an entry the math never reads to no degree, and a read needs none: every variable is a number by then."""
+    primal = result.primal('p')
+    want = primal.with_columns(pl.col('value') ** 2).group_by('snapshot').agg(pl.col('value').sum()).sort('snapshot')
+    got = result.expression('squared')
+    assert got['snapshot'].to_list() == want['snapshot'].to_list(), 'one row per snapshot, in label order'
+    assert got['value'].to_list() == pytest.approx(want['value'].to_list()), (
+        'p * p at the solution is each primal squared, summed over generators'
+    )
+
+
+def test_an_entry_reads_a_constraints_dual(result):
+    assert result.expression('price').equals(result.dual('balance')), (
+        "dual(balance) is the constraint's own dual frame, row for row"
+    )
+
+
+def test_a_dual_multiplies_like_any_number(result):
+    dual = result.dual('balance')
+    load = sources()['load']
+    want = [d * v for d, v in zip(dual['value'], load['value'], strict=True)]
+    assert result.expression('weighted')['value'].to_list() == pytest.approx(want), (
+        'balance pins total_gen to load, so dual(balance) * total_gen is the dual times the load'
+    )
+
+
+def test_a_divisor_that_adds_is_added_up_before_it_divides(result):
+    want = [1 / (1 + v) for v in sources()['load']['value']]
+    assert result.expression('rational')['value'].to_list() == pytest.approx(want), (
+        'no degree rule holds an entry the math never reads, so 1 / (1 + total_gen) is one value per snapshot'
+    )
+
+
+def test_a_dual_on_a_solve_that_left_none_is_refused_by_name():
+    """An integer variable makes duals undefined; the entry reading one is refused with `Result.dual`'s own sentence, and every other entry still reads."""
+    result = lps.solve(override(SPEC, **{'variables.p.domain': 'integer'}), sources())
+    with pytest.raises(LpspecError, match='duals are undefined'):
+        result.expression('price')
+    assert result.expression('spend').height == 3, 'the refusal is per entry, not per result'
+
+
+def test_a_divisor_that_adds_keeps_its_hole():
+    """Adding up a divisor must not invent a zero: a coordinate no piece covers stays null, so the division reports it rather than dividing by it."""
+    spec = override(
+        SPEC,
+        **{
+            'parameters.scale': {'dims': ['snapshot']},
+            'parameters.other': {'dims': ['snapshot']},
+            'expressions.holed': '1 / (scale + other)',
+        },
+    )
+    covered = pl.DataFrame({'snapshot': [0, 1], 'value': [2.0, 3.0]})
+    result = lps.solve(spec, sources() | {'scale': covered, 'other': covered})
+    with pytest.raises(DataError, match='used as a divisor but covers 1 fewer'):
+        result.expression('holed')
+
+
+@pytest.mark.parametrize('crossed', [pytest.param('p * r', id='a-product'), pytest.param('p ** r', id='a-power')])
+def test_a_product_is_absent_where_either_factor_is(crossed):
+    """Presence travels out of a product, and a power, from both sides — as it does out of a quadratic term at a build.
+
+    `r` is masked out at `g2` and is 1 where it exists, so `p * r` and `p ** r`
+    both read `p`; `bonus`, a constant over the same dims, is owed only where
+    the crossed term exists, so the sum over generators reads it at `g1` alone.
+    Losing `r`'s presence would add `bonus` at `g2` back in.
+    """
+    spec = override(
+        SPEC,
+        **{
+            'parameters.r_max': {'dims': ['generator']},
+            'parameters.bonus': {'dims': ['snapshot', 'generator']},
+            'variables.r': {
+                'foreach': ['snapshot', 'generator'],
+                'bounds': {'lower': 1, 'upper': 1},
+                'where': 'r_max > 0',
+            },
+            'expressions.summed_with': f'sum({crossed} + bonus, over=generator)',
+        },
+    )
+    bonus = pl.DataFrame({'snapshot': [0, 0, 1, 1, 2, 2], 'generator': ['g1', 'g2'] * 3, 'value': [10.0] * 6})
+    data = sources() | {'r_max': pl.DataFrame({'generator': ['g1', 'g2'], 'value': [1.0, 0.0]}), 'bonus': bonus}
+    result = lps.solve(spec, data)
+    p = result.primal('p').filter(pl.col('generator') == 'g1').sort('snapshot')
+    want = [v * 1.0 + 10.0 for v in p['value']]
+    assert result.expression('summed_with')['value'].to_list() == pytest.approx(want), (
+        f'the sum reads {crossed} and bonus at g1 only, since r is absent at g2'
+    )
 
 
 def test_a_build_compiles_no_expression_and_a_read_compiles_exactly_one(monkeypatch):

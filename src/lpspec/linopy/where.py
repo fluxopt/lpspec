@@ -53,6 +53,10 @@ class EvaluationContext:
     model: linopy.Model
     dim_coords: Mapping[str, Mapping[str, xr.DataArray]]
     program: program.Program
+    #: Whether *model* is solved and the plan is read at its solution — a
+    #: variable is then its ``.solution`` and ``dual(c)`` the constraint's
+    #: ``.dual`` — rather than built into it.
+    solved: bool = False
 
 
 def evaluate_where(mask: program.Mask | None, ctx: EvaluationContext) -> xr.DataArray:

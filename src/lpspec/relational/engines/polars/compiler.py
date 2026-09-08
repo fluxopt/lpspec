@@ -36,7 +36,9 @@ from lpspec.relational.engines.polars.fragments import (
     CompiledExpression,
     Presence,
     TermFragment,
+    absence_restrictions,
     both_regions,
+    constant_scalar,
     join_mul,
     join_on,
     join_pow,
@@ -54,7 +56,7 @@ from lpspec.relational.engines.polars.predicates import (
 from lpspec.relational.engines.polars.reindex import translate_fragment, window_fragment
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
 
     import numpy.typing as npt
     from polars._typing import JoinStrategy, MaintainOrderJoin
@@ -70,6 +72,37 @@ if TYPE_CHECKING:
 UNIT = '__unit__'
 
 
+def _presence(held: Labelled, dims: tuple[str, ...], label: str) -> pl.LazyFrame:
+    """The coordinates a declaration's rows exist at.
+
+    A **scalar** declaration has none, and ``select()`` over no dims is the
+    empty frame polars cannot represent, so the marker column carries the one
+    bit left: whether the row is there at all. It is renamed from the *label*
+    column, never a ``pl.lit()`` — a select of literals alone is length 1
+    whatever it selects from, so an absent scalar would come back present.
+    """
+    if dims:
+        return held.frame.select(*dims)
+    return held.frame.select(pl.col(label).alias(PRESENT))
+
+
+@dataclass(frozen=True)
+class Solution:
+    """What a solve left, for a compiler reading a named expression at it.
+
+    Attached, a variable compiles to its primal and ``dual(c)`` to the
+    constraint's row duals — const fragments, like a parameter's — so an entry
+    the math never reads is arithmetic over numbers at whatever degree the
+    file wrote it. ``dual`` is ``None`` where the solve left no duals, and
+    ``no_duals`` then says why, which is what reading one raises.
+    """
+
+    primal: pl.Series
+    dual: pl.Series | None
+    constraints: Mapping[str, Labelled]
+    no_duals: str | None
+
+
 @dataclass(frozen=True)
 class PolarsCompiler:
     """Turn plan nodes into polars queries over the model's tidy frames.
@@ -77,12 +110,15 @@ class PolarsCompiler:
     ``data`` is everything attaching produced, frozen. ``variables`` is
     deliberately outside it — the engine's own dict, not a copy, because a
     variable frame appears while its declaration is built and a constraint
-    compiled afterwards has to see it.
+    compiled afterwards has to see it. ``solution`` is set on the compiler a
+    read builds and on no other: with it every variable and every
+    ``dual(c)`` compiles to a value (:class:`Solution`).
     """
 
     program: program.Program
     data: AttachedSources
     variables: Mapping[str, Labelled]
+    solution: Solution | None = None
 
     # ------------------------------------------------------------------
     # frames — the masked coordinate product a declaration is instantiated over
@@ -331,8 +367,12 @@ class PolarsCompiler:
             """``a / b``, where *b* is one variable-free factor.
 
             That it is *one* is ``degree.check_binary``'s answer, given at load
-            with no data attached, so a divisor that adds never reaches a plan.
+            with no data attached, so a divisor that adds never reaches a plan
+            from the math. A read holds an entry to no degree and has every
+            factor as a value, so there *b* is first added up to the one value
+            per coordinate the join wants.
             """
+            b = self._added_up(b)
             assert not (b.terms or b.quads), f'in {context}: a divisor carrying a variable reached the compiler'
             assert len(b.consts) == 1, 'a divisor that adds is refused at load'
             inv = b.consts[0]
@@ -344,11 +384,13 @@ class PolarsCompiler:
         def power(a: CompiledExpression, b: CompiledExpression) -> CompiledExpression:
             """``a ** b``, where neither side carries a variable.
 
-            The language refuses one that does (``math_spec.degree``), before
-            a plan exists to carry it, so a variable under a power is an
+            The language refuses one that does in the math (``math_spec.degree``),
+            before a plan exists to carry it, so a variable under a power is an
             invariant here rather than a refusal — folding its coefficient into
-            a base is what the assert stands in front of.
+            a base is what the assert stands in front of. At a read a variable
+            is its value, and a side that adds is added up first, as a divisor is.
             """
+            a, b = self._added_up(a), self._added_up(b)
             assert not (a.terms or a.quads or b.terms or b.quads), (
                 f'in {context}: a power over variables reached the compiler'
             )
@@ -457,7 +499,14 @@ class PolarsCompiler:
             if isinstance(e, program.Parameter):
                 return CompiledExpression((), (self._parameter_fragment(e.name),))
             if isinstance(e, program.Variable):
-                return CompiledExpression((self._variable_fragment(e.name),), ())
+                if self.solution is None:
+                    return CompiledExpression((self._variable_fragment(e.name),), ())
+                return CompiledExpression((), (self._solved_fragment(e.name),))
+            if isinstance(e, program.Dual):
+                assert self.solution is not None, (
+                    f'in {context}: a dual reached a build — the language keeps one out of the math'
+                )
+                return CompiledExpression((), (self._dual_fragment(e.constraint),))
             if isinstance(e, program.Negate):
                 return map_fragments(ev(e.operand), negate)
             if isinstance(e, program.Add):
@@ -511,27 +560,86 @@ class PolarsCompiler:
         because dims are rewritten downstream while the presence frame is not
         — the hazard :class:`Presence` names.
         """
-        declaration = self.program.variable(name)
-        dims = declaration.dims
+        dims = self.program.variable(name).dims
         frame = self.variables[name].frame.select(*dims, 'var_label', pl.lit(1.0, dtype=pl.Float64).alias('coeff'))
+        return TermFragment(dims, frame, 'term', presences=self._variable_presences(name, dims))
+
+    def _variable_presences(self, name: str, dims: tuple[str, ...]) -> tuple[Presence, ...]:
+        declaration = self.program.variable(name)
         propagates = declaration.where is not None and declaration.absence == 'undefined'
-        presences = (Presence(self._presence(name, dims), dims),) if propagates else ()
-        return TermFragment(dims, frame, 'term', presences=presences)
+        return (Presence(_presence(self.variables[name], dims, 'var_label'), dims),) if propagates else ()
 
-    def _presence(self, name: str, dims: tuple[str, ...]) -> pl.LazyFrame:
-        """The coordinates a masked variable exists at.
+    def _solved_fragment(self, name: str) -> TermFragment:
+        """A variable at its primal — the const fragment a read compiles it to, carrying the presence its term would."""
+        assert self.solution is not None
+        held, dims = self.variables[name], self.program.variable(name).dims
+        frame = held.frame.select(*dims).with_columns(held.share(self.solution.primal).alias('cval'))
+        return TermFragment(dims, frame, 'const', presences=self._variable_presences(name, dims))
 
-        A **scalar** declaration has none, and ``select()`` over no dims is the
-        empty frame polars cannot represent, so the marker column carries the
-        one bit left: whether the row is there at all. It is renamed from a
-        real column, never a ``pl.lit()`` — a select of literals alone is
-        length 1 whatever it selects from, so an absent scalar would come back
-        present.
+    def _dual_fragment(self, name: str) -> TermFragment:
+        """``dual(name)`` at the solve's row duals — one value per row the constraint built, and present exactly there.
+
+        A row a mask or an absent variable unmade has no dual, so unlike a
+        variable's the presence is attached whether or not the declaration is
+        masked: which rows stand is known only once they are built.
+
+        Raises:
+            LpspecError: The solve left no duals — the sentence
+                :meth:`~lpspec.relational.result.Result.dual` gives.
         """
-        frame = self.variables[name].frame
-        if dims:
-            return frame.select(*dims)
-        return frame.select(pl.col('var_label').alias(PRESENT))
+        solution = self.solution
+        assert solution is not None
+        if solution.dual is None:
+            assert solution.no_duals is not None, 'a solve without duals says why'
+            raise LpspecError(solution.no_duals)
+        held, dims = solution.constraints[name], self.program.constraints[name].dims
+        frame = held.frame.select(*dims).with_columns(held.share(solution.dual).alias('cval'))
+        return TermFragment(dims, frame, 'const', presences=(Presence(_presence(held, dims, 'row'), dims),))
+
+    def _added_up(self, compiled: CompiledExpression) -> CompiledExpression:
+        """*compiled* as one const fragment where a read gave it several — a divisor or a power's side that adds.
+
+        Only a read reaches several: at a build the language has refused a
+        divisor or a base that adds, so there the operand passes through and
+        the plan-boundary assert behind it keeps that claim. Null where no
+        piece has a value, so a divisor with a hole still reports it rather
+        than dividing by a zero the fill invented.
+        """
+        if self.solution is None or len(compiled.consts) <= 1:
+            return compiled
+        assert not (compiled.terms or compiled.quads), 'a read compiles every variable to its value'
+        fragments = compiled.consts
+        dims, restrictions = self.spanned(fragments), absence_restrictions(fragments)
+        carrier = self.frame(dims, None)
+        for restriction in restrictions:
+            carrier = restriction.restrict(carrier, restriction.keyed_by or ())
+        added = self.added(fragments, carrier, fill=False)
+        return CompiledExpression((), (TermFragment(dims, added, 'const', presences=tuple(restrictions)),))
+
+    def spanned(self, fragments: Sequence[TermFragment]) -> tuple[str, ...]:
+        """The dims *fragments* carry between them, in declaration order."""
+        union = {d for p in fragments for d in p.dims}
+        return tuple(d for d in self.program.dimensions if d in union)
+
+    def added(self, fragments: Sequence[TermFragment], carrier: pl.LazyFrame, *, fill: bool) -> pl.LazyFrame:
+        """Const *fragments* added per coordinate onto *carrier* — its columns, then ``cval``.
+
+        *carrier* is the coordinate product the sum stands over, one row per
+        coordinate of :meth:`spanned`, restricted by the caller to where every
+        variable under the fragments exists — the rows a constraint over the
+        same expression would keep. A coordinate no fragment has a value at is
+        zero under *fill*, what a read reports, and null without, what a
+        divisor keeps so the hole is reported rather than divided by.
+        """
+        assert fragments, 'an expression compiles to at least one fragment'
+        assert all(p.kind == 'const' for p in fragments), 'a read compiles every variable to its value'
+        columns = [f'__piece {i}__' for i in range(len(fragments))]
+        for p, column in zip(fragments, columns, strict=True):
+            carrier = join_on(carrier, constant_scalar(p).rename({'cval': column}), p.dims, 'left')
+        total = pl.sum_horizontal([pl.col(c).fill_null(0.0) for c in columns])
+        if not fill:
+            total = pl.when(pl.any_horizontal([pl.col(c).is_not_null() for c in columns])).then(total).otherwise(None)
+        return carrier.select(pl.exclude(columns), total.alias('cval'))
 
     # ------------------------------------------------------------------
     # shape operators — one dim rewritten per fragment
