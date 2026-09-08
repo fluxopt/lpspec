@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.306](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.305...v0.0.1-alpha.306) (2026-09-08)
+
+
+### Bug Fixes
+
+* **engine:** a variable declared absence: zero reads as zero under a nonlinear operator ([#1532](https://github.com/fluxopt/lpspec/issues/1532)) ([038af9e](https://github.com/fluxopt/lpspec/commit/038af9e601092a1b5a04602f933fd8208042b34e))
+
 ## [0.0.1-alpha.305](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.304...v0.0.1-alpha.305) (2026-09-08)
 
 
