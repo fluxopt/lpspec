@@ -25,6 +25,7 @@ The caller-facing rules are [docs/reference/sweeps.md](../../docs/reference/swee
 from __future__ import annotations
 
 import io
+import warnings
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from contextlib import closing
@@ -38,9 +39,10 @@ from math_spec.program import Program
 
 from lpspec.api import build, check
 from lpspec.api import solve as _solve
-from lpspec.errors import DataError, LpspecError
+from lpspec.errors import DataError, LpspecError, LpspecWarning, did_you_mean
 from lpspec.frames import as_frame
 from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to_pandas
+from lpspec.sources import least_value
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Mapping, Sequence
@@ -219,6 +221,26 @@ class _OriginalIndex:
         return restored.select(self.dim, *rest, 'value').sort(self.dim, *rest)
 
 
+def _listed(entries: Mapping[str, str]) -> str:
+    return '\n'.join(f'  {label}: {reason}' for label, reason in entries.items())
+
+
+def _least(program: Program, sources: Mapping[str, Any], name: str) -> int:
+    """The least value of parameter *name*, which decides how far its rows read ahead; an empty one reads nowhere.
+
+    Read through :func:`~lpspec.sources.least_value`, so every shape a source
+    may arrive in — a parquet path, a table, a scalar, a ``{label: value}``
+    map, a sequence — is the one door's business rather than this driver's.
+
+    Raises:
+        DataError: *name* is a parameter nothing supplies.
+    """
+    if name not in sources:
+        raise DataError(f"no data provided for parameter '{name}'")
+    least = least_value(name, program.parameter(name), sources[name])
+    return 0 if least is None else int(least)
+
+
 # ---------------------------------------------------------------------------
 # axes — how slices are cut
 # ---------------------------------------------------------------------------
@@ -229,13 +251,37 @@ class EachCoordinate:
     """One slice per coordinate of *dim* — a column the sources carry.
 
     Scenarios, draws, investment periods. Sources carrying *dim* are filtered
-    to one coordinate and the column dropped, so the model never mentions it;
-    every other source passes through untouched. ``ordered=True`` says the
-    coordinates are a sequence, which a ``carry`` needs.
+    to one coordinate and the column dropped, so the model never mentions it —
+    a *dim* the spec declares is refused; every other source passes through
+    untouched. ``ordered=True`` says the coordinates are a sequence, which a
+    ``carry`` needs.
     """
 
     dim: str
     ordered: bool = False
+
+    def _key_name(self) -> str:
+        """The dimension itself: a slice key *is* a coordinate of it."""
+        return self.dim
+
+    def _check_the_program(self, program: Program, sources: Mapping[str, Any]) -> None:
+        """Refuse a sweep over a dimension the spec declares, which nothing would then supply.
+
+        The only thing a coordinate sweep needs of the program, and the reason
+        it needs nothing else: the column is dropped from every source, so a
+        spec that declared it could not be built — and a program that never
+        sees the axis cannot tie it together either.
+
+        Raises:
+            LpspecError: The spec declares *dim*.
+        """
+        del sources
+        if self.dim in program.dimensions:
+            raise LpspecError(
+                f'EachCoordinate({self.dim!r}) drops {self.dim!r} from every source, and the spec declares '
+                f'it, so each slice would build a dimension nothing supplies. A coordinate sweep cuts an '
+                f'axis the model does not have; to cut one it does, window it.'
+            )
 
     def _slices(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Cut], _OriginalIndex | None]:
         """One cut per coordinate, keyed by it. Sources without *dim* pass through.
@@ -260,7 +306,12 @@ class EachWindow:
     ``length > step`` is overlap. Both count coordinates rather than coordinate
     values, so *dim* need only be orderable — datetimes, strings and gapped
     integers all work. The dimension is re-indexed rather than dropped, into a
-    dense ``0..n-1`` column the model addresses by the name ``into`` gives it.
+    dense ``0..n-1`` column the model addresses by the name ``into`` gives it,
+    which the spec has to declare.
+
+    Whether the model *can* be cut this way is asked before it is — the
+    coupling, the reach and the overlap they need are
+    :meth:`_check_the_program`.
     """
 
     dim: str
@@ -282,6 +333,75 @@ class EachWindow:
             raise ValueError('into must name the local index the spec declares — it has no default')
         if self.into == self.dim:
             raise ValueError(f'into={self.into!r} must differ from dim — the local index replaces the global one')
+
+    def _key_name(self) -> str:
+        """Where the window *started* — never ``dim`` itself.
+
+        A column called ``snapshot`` holding window starts would join against
+        real snapshot-indexed data and keep a fraction of it, silently.
+        """
+        return f'{self.dim}_start'
+
+    def _check_the_program(self, program: Program, sources: Mapping[str, Any]) -> None:
+        """Refuse a window the program's rows cannot be whole inside, before one is cut.
+
+        The program answers through
+        :attr:`~math_spec.program.Program.separability` and nothing here walks
+        it: a window needs ``into`` *windowable*, and
+        its lookahead to cover what the rows read ahead. Where a reach is an
+        offset the data decides, the parameter's least value is read off the
+        data and :meth:`~math_spec.program.Separability.resolved` folds it in,
+        so the rule turning a value into a reach stays in the language.
+
+        What the rows read *behind* is not refused: it is what a window's
+        first rows meet the edge policy with, which is the rolling-horizon
+        seed and the caller's to carry. A position the program counts is
+        reported as a warning, every window restarting it.
+
+        Raises:
+            LpspecError: ``into`` names no dimension the spec declares, the
+                program ties the axis together, a reach turns on a lookup, which
+                this driver does not resolve, or the window looks ahead by
+                less than its rows read.
+            DataError: A parameter deciding a reach has no data.
+        """
+        if self.into not in program.dimensions:
+            raise LpspecError(
+                f'EachWindow(into={self.into!r}) names the local index the model addresses a window by, and '
+                f'the spec declares no such dimension. ' + did_you_mean(self.into, program.dimensions)
+            )
+        verdict = program.separability[self.into]
+        named = {reach.name for reach in verdict.undecided if reach.kind == 'offset'}
+        verdict = verdict.resolved({name: _least(program, sources, name) for name in named})
+        if verdict.coupled:
+            raise LpspecError(
+                f"EachWindow('{self.dim}', …, into='{self.into}') cuts '{self.into}', which the model ties "
+                f'together, so no window holds every row whole:\n{_listed(verdict.coupled)}\n'
+                f'Each names the change that would lift it.'
+            )
+        if verdict.undecided:
+            raise LpspecError(
+                f"EachWindow('{self.dim}', …, into='{self.into}') cuts '{self.into}', which the model reaches "
+                f'along through a lookup whose groups a window may cut, and this driver does not resolve a '
+                f'reach the lookup decides:\n'
+                f'{_listed({r.label: f"through the lookup {r.name!r}" for r in verdict.undecided})}\n'
+                f'Cut a dimension the lookup does not group.'
+            )
+        if self.length - self.step < verdict.ahead:
+            raise LpspecError(
+                f'EachWindow(length={self.length}, step={self.step}) looks ahead by '
+                f'{self.length - self.step} coordinate(s), and the model reads {verdict.ahead} ahead along '
+                f"'{self.into}' — a row near a window's end would read past it. Raise length to at least "
+                f'step + {verdict.ahead}.'
+            )
+        if verdict.restarts:
+            warnings.warn(
+                f"the model counts a position along '{self.into}':\n{_listed(verdict.restarts)}\n"
+                f'Every window restarts the count at its first row — what a rolling horizon seeding its '
+                f'opening state means, and once per horizon otherwise.',
+                LpspecWarning,
+                stacklevel=3,
+            )
 
     def _slices(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Cut], _OriginalIndex]:
         """One cut per window, keyed by its **first coordinate**.
@@ -556,6 +676,11 @@ def solve_over(
     The plan then rides down to the slices already parsed, so no slice — and
     no worker — reads the same YAML again.
 
+    **An axis checks itself against the program before it cuts anything.**
+    What a cut needs the program to allow is the axis's own question, so it is
+    asked where the cutting is written — ``_check_the_program`` on each class
+    — and this function neither knows nor repeats the rules.
+
     **It is a fold.** The previous slice's model is released as the loop goes,
     so build peak stays at one slice however many there are; what accumulates
     is the answer.
@@ -587,9 +712,10 @@ def solve_over(
     Raises:
         LpspecError: A carry together with an executor — a carried value makes
             each slice depend on the one before, so they cannot run
-            concurrently — a carry on an unordered axis, or an already-lowered
+            concurrently — a carry on an unordered axis, an already-lowered
             ``Program`` handed to an executor that crosses a process, which a
-            ``Program`` cannot.
+            ``Program`` cannot, or an axis the program does not allow,
+            refused before a slice is cut.
     """
     if isinstance(spec, Program) and executor is not None and _crosses_a_process(executor):
         raise LpspecError(
@@ -601,16 +727,18 @@ def solve_over(
             'carry and executor are mutually exclusive: a carried value makes slice i+1 depend on '
             "slice i's answer, so the slices cannot run concurrently. Drop the executor, or drop the carry."
         )
-    if isinstance(axis, (EachCoordinate, EachWindow)) and carry and not axis.ordered:
-        raise LpspecError(
-            f'carry needs an ordered axis: {axis!r} has no defined "next" slice for a value to move into. '
-            f'EachCoordinate(..., ordered=True) says the coordinates are a sequence.'
-        )
     program = check(spec)
     plan = {p: _CarryRule.resolved(program, p, v, i) for p, (v, i) in (carry or {}).items()}
+
     key_name = _key_column(axis, key_name, program)
 
     if isinstance(axis, (EachCoordinate, EachWindow)):
+        if carry and not axis.ordered:
+            raise LpspecError(
+                f'carry needs an ordered axis: {axis!r} has no defined "next" slice for a value to move '
+                f'into. EachCoordinate(..., ordered=True) says the coordinates are a sequence.'
+            )
+        axis._check_the_program(program, sources)
         cut, original = axis._slices(sources, key_name)
     else:
         cut, original = list(axis), None
@@ -809,23 +937,24 @@ def _key_column(
 ) -> str:
     """What to call the column holding the slice key.
 
-    The class axes know: a coordinate sweep keys on the dimension it cut, a
-    window on where it *started* — never on ``dim`` itself, since a column
-    called ``snapshot`` holding window starts would join against real
-    snapshot-indexed data and keep a fraction of it, silently. A hand-built
-    list knows neither and has to be told.
+    Two rules, both the caller's rather than any axis's: an axis that cannot
+    name its own key has to be told, and no key may be a dimension the spec
+    declares — the slice column would then collide with one the frames already
+    carry. What a class axis calls its key when it is not told is
+    :meth:`EachCoordinate._key_name` and :meth:`EachWindow._key_name`.
+
+    Raises:
+        LpspecError: A hand-built axis with no ``key_name``, or a name the
+            spec declares as a dimension.
     """
     if key_name is None:
-        if isinstance(axis, EachWindow):
-            key_name = f'{axis.dim}_start'
-        elif isinstance(axis, EachCoordinate):
-            key_name = axis.dim
-        else:
+        if not isinstance(axis, (EachCoordinate, EachWindow)):
             raise LpspecError(
                 'a hand-built axis needs key_name=: a list of cuts does not say what its keys are '
                 "coordinates of, and 'slice' would be this library naming your axis for you. Pass "
                 "key_name='draw', key_name='period', or whatever the keys actually are."
             )
+        key_name = axis._key_name()
     if key_name in program.dimensions:
         raise LpspecError(
             f'key_name={key_name!r} is a dimension the spec declares, so the slice key would collide '
