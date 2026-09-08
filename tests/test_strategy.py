@@ -1712,3 +1712,11 @@ def test_a_pooled_sweep_resumes_too(builds, tmp_path):
         )
     assert len(built) == 1, 'the slice without its record is the one submitted'
     assert resumed.keys == ['high', 'low', 'mid'], 'the sweep comes back whole and in order'
+
+
+def test_scan_on_a_spilled_sweep_says_what_it_does_hold(tmp_path):
+    """A name no slice wrote has no directory, and the message lists the
+    names that do — the same sentence the in-memory reader gives."""
+    runs = _spilled(tmp_path)
+    with pytest.raises(lps.LpspecError, match=r"no variable 'nope' in this sweep — it holds 'charge', 'discharge'"):
+        runs.scan('nope')
