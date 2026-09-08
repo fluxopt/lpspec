@@ -192,6 +192,23 @@ The model a plain `n.optimize()` builds, stated in one file. Every declaration i
 | $E$ | `Store_e_nom_ext` over $\mathcal{V}$ — `Store-e_nom` — nominal capacity where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
 | $u$ | `Generator_status` over $\mathcal{T} \times \mathcal{G}$ — `Generator-status` — how much of a committable unit is on: an integer the rows below cap at one, or at the module count where the build is modular |
 
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $\mathit{Generator\_previous\_p}$ | `Generator_previous_p` over $\mathcal{T} \times \mathcal{G}$ — the output a generator carries into a snapshot — nothing at the start of the horizon, which is why a unit that came in running carries no ramp row there |
+| $\mathit{Generator\_ramp\_up\_allowance}$ | `Generator_ramp_up_allowance` over $\mathcal{T} \times \mathcal{G}$ — how far a generator may raise output between two snapshots — its ramp limit of the build while it stays on, plus its start-up ramp in the snapshot it turns on |
+| $\mathit{Generator\_ramp\_down\_allowance}$ | `Generator_ramp_down_allowance` over $\mathcal{T} \times \mathcal{G}$ — how far a generator may lower output between two snapshots — its ramp limit of the build while it stays on, plus its shut-down ramp in the snapshot it turns off |
+| $\mathit{Link\_p\_nom\_effective}$ | `Link_p_nom_effective` over $\mathcal{L}$ — the build a link's limits are taken against — the chosen one where it is extendable, the given one otherwise |
+| $\mathit{StorageUnit\_charge\_carried\_in}$ | `StorageUnit_charge_carried_in` over $\mathcal{T} \times \mathcal{S}$ — the charge a unit opens a snapshot with — its last snapshot's less standing loss where it is cyclic, the given initial charge at the start of the horizon, which no standing loss has touched yet, and the previous snapshot's less standing loss otherwise |
+| $\mathit{Store\_energy\_carried\_in}$ | `Store_energy_carried_in` over $\mathcal{T} \times \mathcal{V}$ — the energy a store opens a snapshot with — its last snapshot's less standing loss where it is cyclic, the given initial energy at the start of the horizon, which no standing loss has touched yet, and the previous snapshot's less standing loss otherwise |
+| $\mathit{Link\_output\_arrival}$ | `Link_output_arrival` over $\mathcal{T} \times \mathcal{O}$ — what a link delivers to an output port at a snapshot — its flow after the port's efficiency, delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not |
+| $\mathit{transmission\_volume\_expansion}$ | `transmission_volume_expansion` over $\mathcal{B}$ — what a `transmission_volume_expansion_limit` row totals — length times the chosen build of the row's branches |
+| $\mathit{transmission\_expansion\_cost}$ | `transmission_expansion_cost` over $\mathcal{B}$ — what a `transmission_expansion_cost_limit` row totals — capital cost times the chosen build of the row's branches |
+| $\mathit{tech\_capacity\_expansion}$ | `tech_capacity_expansion` over $\mathcal{B}$ — what a `tech_capacity_expansion_limit` row totals — the chosen build of the row's carrier-and-bus set |
+| $\mathit{Generator\_previous\_status}$ | `Generator_previous_status` over $\mathcal{T} \times \mathcal{G}$ — the commitment state a generator carries into a snapshot — the state it brought into the horizon at the first, the previous snapshot's after that |
+| $\mathit{Generator\_p\_nom\_effective}$ | `Generator_p_nom_effective` over $\mathcal{G}$ — the build a generator's limits are taken against — the chosen one where it is extendable, the given one otherwise |
+
 $t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
 $t \boxminus_{v} k$ denotes translation with $v$ standing where index $t-k$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $v$ rather than being dropped.
@@ -382,27 +399,27 @@ $$e_{t,v} = \mathit{Store\_energy\_carried\_in}_{t,v} - q_{t,v} \cdot \mathrm{w}
 
 **`GlobalConstraint_transmission_volume_expansion_limit_ub`**
 
-$$\sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{len}^{f}_{b,l} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_volume\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
+$$\mathit{transmission\_volume\_expansion}_{b} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_volume\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
 
 **`GlobalConstraint_transmission_expansion_cost_limit_lb`**
 
-$$\sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{cc}^{f}_{b,l} \ge \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}$$
+$$\mathit{transmission\_expansion\_cost}_{b} \ge \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}$$
 
 **`GlobalConstraint_transmission_expansion_cost_limit_eq`**
 
-$$\sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{cc}^{f}_{b,l} = \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{==}\text{'}$$
+$$\mathit{transmission\_expansion\_cost}_{b} = \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{==}\text{'}$$
 
 **`GlobalConstraint_tech_capacity_expansion_limit_ub`**
 
-$$\sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{m}_{b,g} + \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{m}^{f}_{b,l} + \sum_{s \in \mathcal{S}} H_{s} \cdot \mathrm{m}^{h}_{b,s} + \sum_{v \in \mathcal{V}} E_{v} \cdot \mathrm{m}^{e}_{b,v} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
+$$\mathit{tech\_capacity\_expansion}_{b} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
 
 **`GlobalConstraint_tech_capacity_expansion_limit_lb`**
 
-$$\sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{m}_{b,g} + \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{m}^{f}_{b,l} + \sum_{s \in \mathcal{S}} H_{s} \cdot \mathrm{m}^{h}_{b,s} + \sum_{v \in \mathcal{V}} E_{v} \cdot \mathrm{m}^{e}_{b,v} \ge \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}$$
+$$\mathit{tech\_capacity\_expansion}_{b} \ge \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}$$
 
 **`GlobalConstraint_tech_capacity_expansion_limit_eq`**
 
-$$\sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{m}_{b,g} + \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{m}^{f}_{b,l} + \sum_{s \in \mathcal{S}} H_{s} \cdot \mathrm{m}^{h}_{b,s} + \sum_{v \in \mathcal{V}} E_{v} \cdot \mathrm{m}^{e}_{b,v} = \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{==}\text{'}$$
+$$\mathit{tech\_capacity\_expansion}_{b} = \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{==}\text{'}$$
 
 **`Bus_nodal_balance`**
 
@@ -437,6 +454,18 @@ $$\mathit{Store\_energy\_carried\_in}_{t,v} = \begin{cases} \rho^{e}_{t,v} \cdot
 **`Link_output_arrival`**
 
 $$\mathit{Link\_output\_arrival}_{t,o} = \begin{cases} f_{t \ominus \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{if } \mathrm{cyc}^{f}_{o} \cr f_{t \boxminus_{0} \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace o \in \mathcal{O}$$
+
+**`transmission_volume_expansion`**
+
+$$\mathit{transmission\_volume\_expansion}_{b} = \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{len}^{f}_{b,l} \qquad \forall\thinspace b \in \mathcal{B}$$
+
+**`transmission_expansion_cost`**
+
+$$\mathit{transmission\_expansion\_cost}_{b} = \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{cc}^{f}_{b,l} \qquad \forall\thinspace b \in \mathcal{B}$$
+
+**`tech_capacity_expansion`**
+
+$$\mathit{tech\_capacity\_expansion}_{b} = \sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{m}_{b,g} + \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{m}^{f}_{b,l} + \sum_{s \in \mathcal{S}} H_{s} \cdot \mathrm{m}^{h}_{b,s} + \sum_{v \in \mathcal{V}} E_{v} \cdot \mathrm{m}^{e}_{b,v} \qquad \forall\thinspace b \in \mathcal{B}$$
 
 **`Generator_previous_status`**
 

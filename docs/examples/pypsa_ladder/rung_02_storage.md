@@ -124,6 +124,14 @@ The model a plain `n.optimize()` builds, stated in one file. Every declaration i
 | $e$ | `Store_e` over $\mathcal{T} \times \mathcal{V}$ — `Store-e` — energy held at the end of a snapshot |
 | $q$ | `Store_p` over $\mathcal{T} \times \mathcal{V}$ — `Store-p` — power delivered to the bus; charging is negative |
 
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $\mathit{StorageUnit\_charge\_carried\_in}$ | `StorageUnit_charge_carried_in` over $\mathcal{T} \times \mathcal{S}$ — the charge a unit opens a snapshot with — its last snapshot's less standing loss where it is cyclic, the given initial charge at the start of the horizon, which no standing loss has touched yet, and the previous snapshot's less standing loss otherwise |
+| $\mathit{Store\_energy\_carried\_in}$ | `Store_energy_carried_in` over $\mathcal{T} \times \mathcal{V}$ — the energy a store opens a snapshot with — its last snapshot's less standing loss where it is cyclic, the given initial energy at the start of the horizon, which no standing loss has touched yet, and the previous snapshot's less standing loss otherwise |
+| $\mathit{Link\_output\_arrival}$ | `Link_output_arrival` over $\mathcal{T} \times \mathcal{O}$ — what a link delivers to an output port at a snapshot — its flow after the port's efficiency, delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not |
+
 $t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
 $t \boxminus_{v} k$ denotes translation with $v$ standing where index $t-k$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $v$ rather than being dropped.

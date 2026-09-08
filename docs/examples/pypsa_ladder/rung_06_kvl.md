@@ -104,6 +104,15 @@ The model a plain `n.optimize()` builds, stated in one file. Every declaration i
 | $s$ | `Line_s` over $\mathcal{T} \times \mathcal{K}$ — `Line-s` — PyPSA's `p0`, the flow measured at the `Line_bus0` end: a positive value withdraws there and injects at `Line_bus1`, lossless |
 | $S$ | `Line_s_nom_ext` over $\mathcal{K}$ — `Line-s_nom` — nominal apparent power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
 
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $\mathit{Link\_output\_arrival}$ | `Link_output_arrival` over $\mathcal{T} \times \mathcal{O}$ — what a link delivers to an output port at a snapshot — its flow after the port's efficiency, delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not |
+| $\mathit{transmission\_volume\_expansion}$ | `transmission_volume_expansion` over $\mathcal{B}$ — what a `transmission_volume_expansion_limit` row totals — length times the chosen build of the row's branches |
+| $\mathit{transmission\_expansion\_cost}$ | `transmission_expansion_cost` over $\mathcal{B}$ — what a `transmission_expansion_cost_limit` row totals — capital cost times the chosen build of the row's branches |
+| $\mathit{tech\_capacity\_expansion}$ | `tech_capacity_expansion` over $\mathcal{B}$ — what a `tech_capacity_expansion_limit` row totals — the chosen build of the row's carrier-and-bus set |
+
 $t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
 $t \boxminus_{v} k$ denotes translation with $v$ standing where index $t-k$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $v$ rather than being dropped.
@@ -168,23 +177,23 @@ $$\sum_{k \in \mathcal{K}} s_{t,k} \cdot \mathrm{x}_{k,c} = 0 \qquad \forall\thi
 
 **`GlobalConstraint_transmission_volume_expansion_limit_lb`**
 
-$$\sum_{k \in \mathcal{K}} S_{k} \cdot \mathrm{len}_{b,k} \ge \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_volume\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}$$
+$$\mathit{transmission\_volume\_expansion}_{b} \ge \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_volume\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}$$
 
 **`GlobalConstraint_transmission_volume_expansion_limit_eq`**
 
-$$\sum_{k \in \mathcal{K}} S_{k} \cdot \mathrm{len}_{b,k} = \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_volume\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{==}\text{'}$$
+$$\mathit{transmission\_volume\_expansion}_{b} = \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_volume\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{==}\text{'}$$
 
 **`GlobalConstraint_transmission_expansion_cost_limit_ub`**
 
-$$\sum_{k \in \mathcal{K}} S_{k} \cdot \mathrm{cc}_{b,k} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
+$$\mathit{transmission\_expansion\_cost}_{b} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
 
 **`GlobalConstraint_transmission_expansion_cost_limit_lb`**
 
-$$\sum_{k \in \mathcal{K}} S_{k} \cdot \mathrm{cc}_{b,k} \ge \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}$$
+$$\mathit{transmission\_expansion\_cost}_{b} \ge \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}$$
 
 **`GlobalConstraint_tech_capacity_expansion_limit_ub`**
 
-$$\sum_{k \in \mathcal{K}} S_{k} \cdot \mathrm{m}^{l}_{b,k} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
+$$\mathit{tech\_capacity\_expansion}_{b} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
 
 **`Bus_nodal_balance`**
 
@@ -195,6 +204,18 @@ $$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{Generator\_bus}(g) = n} 
 **`Link_output_arrival`**
 
 $$\mathit{Link\_output\_arrival}_{t,o} = \begin{cases} f_{t \ominus \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{if } \mathrm{cyc}^{f}_{o} \cr f_{t \boxminus_{0} \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace o \in \mathcal{O}$$
+
+**`transmission_volume_expansion`**
+
+$$\mathit{transmission\_volume\_expansion}_{b} = \sum_{k \in \mathcal{K}} S_{k} \cdot \mathrm{len}_{b,k} \qquad \forall\thinspace b \in \mathcal{B}$$
+
+**`transmission_expansion_cost`**
+
+$$\mathit{transmission\_expansion\_cost}_{b} = \sum_{k \in \mathcal{K}} S_{k} \cdot \mathrm{cc}_{b,k} \qquad \forall\thinspace b \in \mathcal{B}$$
+
+**`tech_capacity_expansion`**
+
+$$\mathit{tech\_capacity\_expansion}_{b} = \sum_{k \in \mathcal{K}} S_{k} \cdot \mathrm{m}^{l}_{b,k} \qquad \forall\thinspace b \in \mathcal{B}$$
 
 #### Variable domains
 

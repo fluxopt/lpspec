@@ -39,7 +39,7 @@ OSeMOSYS's UTOPIA: what to build and how hard to run it, 1990-2010, to meet thre
 | $\mathrm{holding\_cost}$ | `holding_cost` over $\mathcal{T} \times \mathcal{Y}$ — discounted fixed cost of holding a unit of capacity through a year |
 | $\mathrm{running\_cost}$ | `running_cost` over $\mathcal{I} \times \mathcal{T} \times \mathcal{M} \times \mathcal{Y}$ — discounted variable cost of a unit of activity |
 | $\mathrm{year\_split}$ | `year_split` over $\mathcal{I} \times \mathcal{Y}$ — share of the year a timeslice stands for |
-| $\mathrm{capacity\_available}$ | `capacity_available` over $\mathcal{T} \times \mathcal{I} \times \mathcal{Y}$ — share of its capacity a technology can offer in a timeslice |
+| $\mathrm{capacity}^{\mathrm{available}}$ | `capacity_available` over $\mathcal{T} \times \mathcal{I} \times \mathcal{Y}$ — share of its capacity a technology can offer in a timeslice |
 | $\mathrm{input\_ratio}$ | `input_ratio` over $\mathcal{T} \times \mathcal{F} \times \mathcal{M} \times \mathcal{Y}$ — fuel a technology consumes per unit of activity |
 | $\mathrm{output\_ratio}$ | `output_ratio` over $\mathcal{T} \times \mathcal{F} \times \mathcal{M} \times \mathcal{Y}$ — fuel a technology produces per unit of activity |
 | $\mathrm{sliced\_demand}$ | `sliced_demand` over $\mathcal{F} \times \mathcal{I} \times \mathcal{Y}$ — demand for a fuel placed on one timeslice |
@@ -58,17 +58,24 @@ OSeMOSYS's UTOPIA: what to build and how hard to run it, 1990-2010, to meet thre
 | $\mathit{activity}$ | `activity` over $\mathcal{I} \times \mathcal{T} \times \mathcal{M} \times \mathcal{Y}$ — how hard a technology runs, per timeslice and mode |
 | $\mathit{build}$ | `build` over $\mathcal{T} \times \mathcal{V}$ — how much capacity is built, and when |
 
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $\mathit{built\_capacity}$ | `built_capacity` over $\mathcal{T} \times \mathcal{Y}$ — capacity standing in a year from every vintage still inside its life. A plant's life is read from data and differs by technology, so the window cannot be a fixed shift — it is an incidence table, the shape the KVL port uses for a cycle basis. |
+| $\mathit{capacity}$ | `capacity` over $\mathcal{T} \times \mathcal{Y}$ — all the capacity standing in a year, including what was already there in 1990 |
+
 Upright is what the model is given — a parameter such as $\mathrm{still\_live}$, a coordinate map, a label — and italic is what the solver chooses, such as $\mathit{activity}$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace v \in \mathcal{V}} \mathit{build}_{t,v} \cdot \mathrm{build}^{\mathrm{cost}}_{t,v} + \sum_{t \in \mathcal{T},\enspace y \in \mathcal{Y}} \left( \sum_{v \in \mathcal{V}} \mathit{build}_{t,v} \cdot \mathrm{still\_live}_{t,y,v} \right) \cdot \mathrm{holding\_cost}_{t,y} + \sum_{t \in \mathcal{T},\enspace i \in \mathcal{I},\enspace m \in \mathcal{M},\enspace y \in \mathcal{Y}} \mathit{activity}_{i,t,m,y} \cdot \mathrm{running\_cost}_{i,t,m,y} + \mathrm{residual\_holding}$$
+$$\min \sum_{t \in \mathcal{T},\enspace v \in \mathcal{V}} \mathit{build}_{t,v} \cdot \mathrm{build}^{\mathrm{cost}}_{t,v} + \sum_{t \in \mathcal{T},\enspace y \in \mathcal{Y}} \mathit{built\_capacity}_{t,y} \cdot \mathrm{holding\_cost}_{t,y} + \sum_{t \in \mathcal{T},\enspace i \in \mathcal{I},\enspace m \in \mathcal{M},\enspace y \in \mathcal{Y}} \mathit{activity}_{i,t,m,y} \cdot \mathrm{running\_cost}_{i,t,m,y} + \mathrm{residual\_holding}$$
 
 #### Subject to
 
 **`within_capacity`**
 
-$$\sum_{m \in \mathcal{M}} \mathit{activity}_{i,t,m,y} \le \left( \sum_{v \in \mathcal{V}} \mathit{build}_{t,v} \cdot \mathrm{still\_live}_{t,y,v} + \mathrm{residual\_capacity}_{t,y} \right) \cdot \mathrm{capacity\_available}_{t,i,y} \qquad \forall\thinspace i \in \mathcal{I},\enspace t \in \mathcal{T},\enspace y \in \mathcal{Y}$$
+$$\sum_{m \in \mathcal{M}} \mathit{activity}_{i,t,m,y} \le \mathit{capacity}_{t,y} \cdot \mathrm{capacity}^{\mathrm{available}}_{t,i,y} \qquad \forall\thinspace i \in \mathcal{I},\enspace t \in \mathcal{T},\enspace y \in \mathcal{Y}$$
 
 **`fuel_balance`**
 
@@ -80,15 +87,25 @@ $$\sum_{i \in \mathcal{I}} \sum_{t \in \mathcal{T}} \sum_{m \in \mathcal{M}} \ma
 
 **`capacity_ceiling`**
 
-$$\sum_{v \in \mathcal{V}} \mathit{build}_{t,v} \cdot \mathrm{still\_live}_{t,y,v} + \mathrm{residual\_capacity}_{t,y} \le \mathrm{max\_capacity}_{t,y} \qquad \forall\thinspace t \in \mathcal{T},\enspace y \in \mathcal{Y}$$
+$$\mathit{capacity}_{t,y} \le \mathrm{max\_capacity}_{t,y} \qquad \forall\thinspace t \in \mathcal{T},\enspace y \in \mathcal{Y}$$
 
 **`capacity_floor`**
 
-$$\sum_{v \in \mathcal{V}} \mathit{build}_{t,v} \cdot \mathrm{still\_live}_{t,y,v} + \mathrm{residual\_capacity}_{t,y} \ge \mathrm{min\_capacity}_{t,y} \qquad \forall\thinspace t \in \mathcal{T},\enspace y \in \mathcal{Y}$$
+$$\mathit{capacity}_{t,y} \ge \mathrm{min\_capacity}_{t,y} \qquad \forall\thinspace t \in \mathcal{T},\enspace y \in \mathcal{Y}$$
 
 **`reserve`**
 
-$$\left( \sum_{t \in \mathcal{T}} \sum_{f \in \mathcal{F}} \sum_{m \in \mathcal{M}} \mathit{activity}_{i,t,m,y} \cdot \mathrm{reserve\_demand}_{t,f,m,y} \right) \cdot \mathrm{reserve\_margin}_{y} \le \sum_{t \in \mathcal{T}} \left( \sum_{v \in \mathcal{V}} \mathit{build}_{t,v} \cdot \mathrm{still\_live}_{t,y,v} + \mathrm{residual\_capacity}_{t,y} \right) \cdot \mathrm{reserve\_tagged}_{t,y} \qquad \forall\thinspace i \in \mathcal{I},\enspace y \in \mathcal{Y}$$
+$$\left( \sum_{t \in \mathcal{T}} \sum_{f \in \mathcal{F}} \sum_{m \in \mathcal{M}} \mathit{activity}_{i,t,m,y} \cdot \mathrm{reserve\_demand}_{t,f,m,y} \right) \cdot \mathrm{reserve\_margin}_{y} \le \sum_{t \in \mathcal{T}} \mathit{capacity}_{t,y} \cdot \mathrm{reserve\_tagged}_{t,y} \qquad \forall\thinspace i \in \mathcal{I},\enspace y \in \mathcal{Y}$$
+
+#### Definitions
+
+**`built_capacity`**
+
+$$\mathit{built\_capacity}_{t,y} = \sum_{v \in \mathcal{V}} \mathit{build}_{t,v} \cdot \mathrm{still\_live}_{t,y,v} \qquad \forall\thinspace t \in \mathcal{T},\enspace y \in \mathcal{Y}$$
+
+**`capacity`**
+
+$$\mathit{capacity}_{t,y} = \mathit{built\_capacity}_{t,y} + \mathrm{residual\_capacity}_{t,y} \qquad \forall\thinspace t \in \mathcal{T},\enspace y \in \mathcal{Y}$$
 
 #### Variable domains
 

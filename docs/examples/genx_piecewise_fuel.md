@@ -71,6 +71,13 @@ GenX's piecewise-fuel case: a day of dispatch for two carbon-capture plants and 
 | $\mathit{shed}$ | `shed` over $\mathcal{T} \times \mathcal{H}$ — demand shed out of a block in an hour |
 | $\mathit{units}$ | `units` over $\mathcal{P}$ — how many units of a plant stand available all day |
 
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $\mathit{started\_recently}$ | `started_recently` over $\mathcal{P} \times \mathcal{H}$ — units started in this hour or the five before it — the day is a representative period that repeats, so the first hour follows the last |
+| $\mathit{shut\_recently}$ | `shut_recently` over $\mathcal{P} \times \mathcal{H}$ — units shut in this hour or the five before it |
+
 Upright is what the model is given — a parameter such as $\mathrm{unit\_size}$, a coordinate map, a label — and italic is what the solver chooses, such as $\mathit{output}$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 $t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
@@ -111,11 +118,11 @@ $$\mathit{committed}_{p,h} - \mathit{committed}_{p,h \ominus 1} = \mathit{starti
 
 **`stay_up_once_started`**
 
-$$\mathit{committed}_{p,h} \ge \mathit{starting}_{p,h} + \mathit{starting}_{p,h \ominus 1} + \mathit{starting}_{p,h \ominus 2} + \mathit{starting}_{p,h \ominus 3} + \mathit{starting}_{p,h \ominus 4} + \mathit{starting}_{p,h \ominus 5} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
+$$\mathit{committed}_{p,h} \ge \mathit{started\_recently}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
 
 **`stay_down_once_shut`**
 
-$$\mathit{units}_{p} - \mathit{committed}_{p,h} \ge \mathit{shutting}_{p,h} + \mathit{shutting}_{p,h \ominus 1} + \mathit{shutting}_{p,h \ominus 2} + \mathit{shutting}_{p,h \ominus 3} + \mathit{shutting}_{p,h \ominus 4} + \mathit{shutting}_{p,h \ominus 5} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
+$$\mathit{units}_{p} - \mathit{committed}_{p,h} \ge \mathit{shut\_recently}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
 
 **`ramp_up`**
 
@@ -140,6 +147,16 @@ $$\mathit{burned}^{\mathrm{starting}}_{p,h} = \mathrm{unit\_size}_{p} \cdot \mat
 **`carbon_budget`**
 
 $$\sum_{p \in \mathcal{P}} \sum_{h \in \mathcal{H}} \left( \mathit{burned}_{p,h} \cdot \mathrm{emitted}_{p} \cdot \mathrm{weight}_{h} + \mathit{burned}^{\mathrm{starting}}_{p,h} \cdot \mathrm{emitted}^{\mathrm{start}}_{p} \cdot \mathrm{weight}_{h} \right) \le \mathrm{carbon\_cap}$$
+
+#### Definitions
+
+**`started_recently`**
+
+$$\mathit{started\_recently}_{p,h} = \mathit{starting}_{p,h} + \mathit{starting}_{p,h \ominus 1} + \mathit{starting}_{p,h \ominus 2} + \mathit{starting}_{p,h \ominus 3} + \mathit{starting}_{p,h \ominus 4} + \mathit{starting}_{p,h \ominus 5} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
+
+**`shut_recently`**
+
+$$\mathit{shut\_recently}_{p,h} = \mathit{shutting}_{p,h} + \mathit{shutting}_{p,h \ominus 1} + \mathit{shutting}_{p,h \ominus 2} + \mathit{shutting}_{p,h \ominus 3} + \mathit{shutting}_{p,h \ominus 4} + \mathit{shutting}_{p,h \ominus 5} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
 
 #### Variable domains
 
