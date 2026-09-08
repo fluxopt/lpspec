@@ -1,8 +1,9 @@
 """The runner: attach data to a YAML spec and execute it. Not a modeling API.
 
 Math is defined in YAML only — there is no Python API for constructing specs,
-and the logical plan is internal. Four verbs: ``check``, ``build`` (YAML +
-sources → a :class:`Model`), ``solve`` and ``write``.
+and the logical plan is internal. Four verbs run a model: ``check``, ``build``
+(YAML + sources → a :class:`Model`), ``solve`` and ``write``. Two carry one:
+``pack`` puts the file and its data in one archive, ``unpack`` takes them out.
 
 This is the relational lane (docs/about/architecture.md): validated at load
 time, lowered to the plan, executed relationally. The same file builds as a
@@ -24,11 +25,15 @@ Example::
 
 from __future__ import annotations
 
+import io
+import tempfile
 import warnings
-from pathlib import Path
+import zipfile
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Literal
 
-from math_spec import advice, to_program
+import polars as pl
+from math_spec import advice, to_program, to_spec
 
 from lpspec.errors import DataError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable
@@ -36,16 +41,17 @@ from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
-from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
+from lpspec.sources import attachable, supplied, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from math_spec import Spec
     from math_spec.program import Program
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep, Result
 
-__all__ = ['build', 'check', 'solve', 'write']
+__all__ = ['build', 'check', 'pack', 'solve', 'unpack', 'write']
 
 
 def _portability(program: Program, sink: str) -> tuple[str | None, list[str]]:
@@ -390,3 +396,103 @@ def write(
     with build(spec, sources) as model:
         model.write(out)
     return out
+
+
+# ---------------------------------------------------------------------------
+# carrying a model: the file and its data in one archive
+# ---------------------------------------------------------------------------
+
+#: The archive's one layout: the file, and one parquet member per source key.
+_MODEL_MEMBER = 'model.yaml'
+_SOURCES_DIR = PurePosixPath('sources')
+
+
+def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Any], out: str | Path) -> Path:
+    """Write *spec* and *sources* as one zip file, to archive or send.
+
+    The archive holds ``model.yaml`` and ``sources/<key>.parquet`` for every
+    key the file declares. The sources go in through the same door
+    :func:`build` reads them, so what is refused there is refused here and
+    nothing is written; a plain-Python shape — a number, a label sequence, a
+    ``{label: value}`` map — is written as the tidy table it stands for.
+    Members are stored uncompressed, because parquet already is.
+
+    Args:
+        spec: A YAML path, a mapping, or a loaded ``Spec`` — as
+            :func:`math_spec.to_spec` takes it. A lowered ``Program`` has no
+            file to write.
+        sources: As :func:`build` takes them.
+        out: Where to write; a ``.zip`` suffix is the convention.
+
+    Returns:
+        The path written.
+
+    Raises:
+        LanguageError: A file the language does not accept.
+        DataError: A source that is missing, unreadable, or the wrong shape.
+    """
+    declared = to_spec(spec)
+    program = to_program(declared)
+    frames = supplied(program, tidy_sources(program, sources))
+    out = Path(out)
+    with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr(_MODEL_MEMBER, declared.to_yaml())
+        for name, frame in frames.items():
+            buffer = io.BytesIO()
+            frame.collect().write_parquet(buffer, compression='zstd')
+            archive.writestr(str(_SOURCES_DIR / f'{name}.parquet'), buffer.getvalue())
+    return out
+
+
+def unpack(path: str | Path) -> tuple[Spec, dict[str, pl.DataFrame]]:
+    """Read an archive :func:`pack` wrote back into what every verb takes.
+
+    ``lps.solve(*lps.unpack(path))`` is the whole round trip. The sources
+    are handed back as they were written and checked where they are attached,
+    so an archive edited by hand is refused by the verb that reads it, with
+    the sentence any other source would get.
+
+    Args:
+        path: The zip file.
+
+    Returns:
+        The model as written, and its sources keyed as the file declares them.
+
+    Raises:
+        LanguageError: A ``model.yaml`` the language does not accept.
+        DataError: A member outside the layout — no ``model.yaml``, or a file
+            that is not ``sources/<key>.parquet``.
+        zipfile.BadZipFile: A file that is not a zip archive.
+    """
+    with zipfile.ZipFile(path) as archive:
+        members = [PurePosixPath(name) for name in archive.namelist() if not name.endswith('/')]
+        strays = [str(m) for m in members if m != PurePosixPath(_MODEL_MEMBER) and not _is_source_member(m)]
+        if strays or PurePosixPath(_MODEL_MEMBER) not in members:
+            raise DataError(_not_an_archive_message(path, strays))
+        spec = _spec_member(archive)
+        sources = {m.stem: pl.read_parquet(io.BytesIO(archive.read(str(m)))) for m in members if _is_source_member(m)}
+    return spec, sources
+
+
+def _is_source_member(member: PurePosixPath) -> bool:
+    return member.parent == _SOURCES_DIR and member.suffix == '.parquet'
+
+
+def _spec_member(archive: zipfile.ZipFile) -> Spec:
+    """``model.yaml`` read by the language's own reader.
+
+    The language reads a path, not a text, and the archive's file must be read
+    by its rules — YAML 1.2 booleans, duplicate keys refused — rather than by a
+    second reader that would disagree with ``lps.check`` on the same bytes. So
+    the member is extracted to a directory that lives for the call.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        return to_spec(archive.extract(_MODEL_MEMBER, directory))
+
+
+def _not_an_archive_message(path: str | Path, strays: list[str]) -> str:
+    found = f'holds {strays}' if strays else "has no 'model.yaml'"
+    return (
+        f'{path} is not a model archive: it {found}. One pack() writes holds exactly '
+        f"'model.yaml' and one 'sources/<key>.parquet' per key the file declares."
+    )

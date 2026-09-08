@@ -47,7 +47,9 @@ will *that* solver take this model.
 Between the two sits `lps.build(spec, sources)`, which attaches and builds
 without solving — what you want when the same built model is solved many times
 with new numbers, and what [`update`](reference/api.md#re-solving-with-new-numbers)
-re-uses. → [Python API](reference/api.md)
+re-uses. `lps.pack(spec, sources, 'model.zip')` puts the file and its data in one
+archive, and `lps.solve(*lps.unpack('model.zip'))` is the whole way back.
+→ [Python API](reference/api.md)
 
 ## Your numbers go in as tables
 

@@ -25,6 +25,8 @@ result.dual('power_balance')
 | `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call — returns a `Result` |
 | `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers — [sweeps](sweeps.md) |
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
+| `lps.pack(spec, sources, out)` | the file and its data as one zip, to archive or send — [below](#archiving-a-model) |
+| `lps.unpack(path)` | the `Spec` and the sources back, in the shape every verb takes |
 | `model.row(name, **coordinate)` | what one built constraint row says — terms, comparison, right-hand side |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document — [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
 | `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable — a wrapper annotates its own signature with them rather than reaching a submodule for the name. The model going *in* is the language's: `math_spec.Spec` or `math_spec.program.Program`, from the package a caller already called to get one |
@@ -424,6 +426,27 @@ The two describe one model and name their columns and rows the same way, so a
 reader holding both files is reading one thing twice. Which to write is the
 reader's, not the model's: LP is the one a person diffs, MPS the one a
 decade-old toolchain accepts.
+
+## Archiving a model
+
+```python
+lps.pack('spec.yaml', sources, 'model.zip')
+result = lps.solve(*lps.unpack('model.zip'))
+```
+
+A model is a file and a mapping of tables, and `pack` writes the two as one zip:
+`model.yaml`, and `sources/<key>.parquet` for every key the file declares. The
+sources go in through the same door `build` reads them, so a model `build`
+refuses is refused here and nothing is written — and a bare label range, a
+`{label: value}` map or a single number is written as the tidy table it stands
+for. Parquet inside rather than text because [the contract](data.md) checks
+dtypes, and `datetime` labels or an `int` column would not survive JSON.
+Members are stored uncompressed; parquet already is.
+
+`unpack` hands back the `Spec` and a `{key: polars.DataFrame}`, checked where
+they are attached — an archive edited by hand gets the same sentence any other
+source would. Anything in the zip outside that layout is refused as not an
+archive `pack` wrote.
 
 ## A spec four ways
 
