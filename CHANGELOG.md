@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.310](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.309...v0.0.1-alpha.310) (2026-09-08)
+
+
+### Bug Fixes
+
+* **strategy:** a sweep takes every source shape solve takes, and a carry that cannot start is refused before a slice is cut ([#1543](https://github.com/fluxopt/lpspec/issues/1543)) ([b56f8f2](https://github.com/fluxopt/lpspec/commit/b56f8f210df0f381c6a188c21a50db01b37543ea))
+
 ## [0.0.1-alpha.309](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.308...v0.0.1-alpha.309) (2026-09-08)
 
 
