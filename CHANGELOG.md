@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.309](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.308...v0.0.1-alpha.309) (2026-09-08)
+
+
+### Refactoring
+
+* **api:** a sweep's slice statuses have one name rather than two ([#1540](https://github.com/fluxopt/lpspec/issues/1540)) ([9dfe10b](https://github.com/fluxopt/lpspec/commit/9dfe10ba86f633d998f2062932e97bdd572f7e53))
+
 ## [0.0.1-alpha.308](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.307...v0.0.1-alpha.308) (2026-09-08)
 
 
