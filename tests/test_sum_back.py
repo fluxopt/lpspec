@@ -189,6 +189,45 @@ def test_a_window_whose_every_width_is_zero_builds_no_row():
         assert run.oracle == pytest.approx(6.0), 'the objective is the demand alone, no window row binding'
 
 
+#: A width declared over the group's own dimension, and one coordinate the
+#: lookup sends nowhere: the width is read through the lookup, so the unmapped
+#: snapshot carries no width at all.
+UNMAPPED_WIDTH = {
+    'dimensions': {'t': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
+    'lookups': {'season_of': {'over': 't', 'into': 'season'}},
+    'parameters': {'w': {'dims': ['season'], 'dtype': 'int'}, 'price': {'dims': ['t']}},
+    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
+    'constraints': {'rolling': {'foreach': ['t'], 'expression': 'sum_back(x, over=t, within=w, by=season_of) <= 4'}},
+    'objective': {'sense': 'maximize', 'expression': 'sum(x * price, over=t)'},
+}
+
+UNMAPPED_WIDTH_SOURCES = {
+    't': pd.Index([0, 1, 2, 3], name='t'),
+    'season': pd.Index(['summer'], name='season'),
+    'season_of': pd.DataFrame({'t': [0, 1, 2], 'season': ['summer'] * 3}),
+    'w': pd.Series([2], index=pd.Index(['summer'], name='season')),
+    'price': pd.Series([1.0, 1.0, 1.0, 1.0], index=pd.Index([0, 1, 2, 3], name='t')),
+}
+
+
+def test_a_width_read_through_a_lookup_that_maps_nothing_there_builds_no_row():
+    """A coordinate in no group has no width, which is a window of nothing.
+
+    Was: the eager lane bounded its lag count with `int(np.max(...))` over the
+    widths, and a width read through the lookup carries the operand's own
+    absence where the lookup mapped nothing — so the bound was `NaN` and the
+    build died on `cannot convert float NaN to integer` while the relational
+    lane solved the file (#1535). A bare width parameter never showed it: the
+    holes are filled with the coefficient zero before the operator sees them,
+    and only the pullback puts them back.
+    """
+    with differential(UNMAPPED_WIDTH, UNMAPPED_WIDTH_SOURCES, lp=True) as run:
+        assert run.engine.diagnostics().rows == 3, 'the snapshot in no season carries no width, so it holds no row'
+        assert run.oracle == pytest.approx(13.0), (
+            'the three seasoned snapshots are capped at 8 between them; the unmapped one reaches its own bound of 5'
+        )
+
+
 @pytest.mark.parametrize('window', ['within=2', "within=2, edge='wrap'"], ids=['acyclic', 'wrap'])
 def test_a_masked_slot_the_window_reaches_is_a_zero_not_an_absence(window: str):
     """The masked slot contributes nothing and takes nothing with it.
