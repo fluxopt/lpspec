@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.307](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.306...v0.0.1-alpha.307) (2026-09-08)
+
+
+### Bug Fixes
+
+* **linopy:** a comparison with its terms on the right builds, and so does a window whose width no lookup reaches ([#1537](https://github.com/fluxopt/lpspec/issues/1537)) ([46e29cc](https://github.com/fluxopt/lpspec/commit/46e29cccbf9e0fa44f41bfa5d1ddbd1f6f2e5085))
+
 ## [0.0.1-alpha.306](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.305...v0.0.1-alpha.306) (2026-09-08)
 
 
