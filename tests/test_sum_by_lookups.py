@@ -14,8 +14,8 @@ the lowering test, which asserts a single ``GroupSum`` carrying both names
 rather than a composition.
 
 **The empty combination.** A (bus, technology) pair no generator sits on is a
-group with no members, and the two lanes reach it by different routes: the
-relational lane never emits a row, the eager lane's unstacked groupby invents
+group with no members, and the two reach it by different routes: the
+relational lane never emits a row, linopy's unstacked groupby invents
 one and fills it with linopy's own ``const: nan``. That NaN does not stay in
 the empty sum — it propagates through whatever the row adds next and takes the
 whole row with it, which is why the row here carries a second term.
@@ -35,7 +35,7 @@ from math_spec.program import GroupSum, Variable
 from lpspec.errors import DimensionError
 from tests.conftest import by_coord, override, raw_of, relation, schema_of
 from tests.differential import RTOL, differential
-from tests.oracle import operators, pd, xr
+from tests.oracle import pd
 from tests.test_compiler import compiler
 
 SPEC = """
@@ -106,12 +106,12 @@ def _inputs():
 
 
 # ---------------------------------------------------------------------------
-# both lanes
+# both
 # ---------------------------------------------------------------------------
 
 
 def test_grouping_through_two_lookups_agrees_across_the_lanes():
-    """The optimum, hand-derived, and the same on both lanes and the LP file.
+    """The optimum, hand-derived, and the same on both and the LP file.
 
     (a, wind) caps `g1` at 10 and (a, sun) caps `g2` at 5, which is 15 of the
     20 demanded at cost 1 and 2. The remaining 5 has to come from bus b, where
@@ -130,13 +130,13 @@ def test_grouping_through_two_lookups_agrees_across_the_lanes():
 
 
 def test_a_combination_no_member_lands_on_is_a_group_of_nothing():
-    """(b, sun) has no generator, and both lanes have to read that the same way.
+    """(b, sun) has no generator, and both have to read that the same way.
 
     An empty group is a zero-length sum, so its row asks `0 <= 1` and binds
     nothing. Tightening that limit to zero must therefore change no answer,
     which catches a lane that quietly summed the wrong members into it.
 
-    A row left with no variables is not built at all, on either lane, so this
+    A row left with no variables is not built at all, on either, so this
     cannot also say whether the row survived — that is what
     :func:`test_an_empty_combination_does_not_take_its_row_with_it` is for.
     """
@@ -151,11 +151,11 @@ def test_a_combination_no_member_lands_on_is_a_group_of_nothing():
 def test_an_empty_combination_does_not_take_its_row_with_it():
     """A row whose group is empty but whose *other* terms are not is still a row.
 
-    The eager lane reaches the combinations no member lands on by unstacking,
+    linopy reaches the combinations no member lands on by unstacking,
     which invents them carrying linopy's own ``_fill_value`` — ``const: nan``.
     Left there, that NaN does not stay in the empty sum: it propagates through
     the addition, and linopy drops the whole row, `headroom` with it, leaving
-    the constraint enforced on one lane and unenforced on the other.
+    the constraint enforced on one of them and unenforced on the other.
 
     `headroom` takes the slack under every limit and is paid for it, so
     (b, sun) is worth 1 if its row exists and 100 if it does not.
@@ -188,43 +188,13 @@ def test_a_declared_order_the_groupby_would_not_pick():
 
     A groupby returns its groups sorted, the dim table keeps the declared
     order, and v1 arithmetic refuses to combine a shared dim ordered two ways.
-    So this model builds on both lanes only because the eager lane puts its
+    So this model builds on both only because linopy puts its
     result back into declared order.
     """
     sources = _inputs()
     assert list(sources['technology']) != sorted(sources['technology']), 'the point of the case is the order'
     with differential(SPEC, sources) as run:
         assert run.oracle == pytest.approx(35.0, rel=RTOL)
-
-
-# ---------------------------------------------------------------------------
-# the eager grouper
-# ---------------------------------------------------------------------------
-
-
-def test_a_grouped_parameter_reads_zero_where_no_member_lands():
-    """The combination the unstack invents is an empty sum, not a NaN.
-
-    A grouped *parameter* comes back as a plain array, and no model reaches
-    this through both lanes — the relational lane refuses a constant side that
-    does not cover its rows — so the arm is held here rather than by a
-    differential. Without it linopy refuses the model outright, naming a NaN
-    the modeller never wrote.
-    """
-    generator = pd.Index(['g1', 'g2'], name='generator')
-    cost = xr.DataArray([1.0, 2.0], coords=[generator])
-    of_bus = xr.DataArray(['a', 'b'], coords=[generator])
-    of_tech = xr.DataArray(['wind', 'sun'], coords=[generator])
-    labels = {'bus': pd.Index(['a', 'b'], name='bus'), 'technology': pd.Index(['wind', 'sun'], name='technology')}
-
-    grouped = operators.operator_grouped_sum(cost, (of_bus, of_tech), into=('bus', 'technology'), labels=labels)
-
-    assert grouped.to_series().to_dict() == {
-        ('a', 'wind'): 1.0,
-        ('a', 'sun'): 0.0,
-        ('b', 'wind'): 0.0,
-        ('b', 'sun'): 2.0,
-    }, 'the two combinations nobody sits at are zero-length sums, and a zero-length sum is 0'
 
 
 # ---------------------------------------------------------------------------

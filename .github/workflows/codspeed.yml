@@ -176,8 +176,8 @@ jobs:
           key: pixi-codspeed-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
           restore-keys: pixi-codspeed-${{ runner.os }}-
 
-      # Leaving `dev` out is the cost control: it resolves linopy from a git
-      # branch, and nothing measured here builds a linopy model. The `codspeed`
+      # Leaving `dev` out is the cost control: it resolves linopy from git,
+      # and nothing measured here builds a linopy model. The `codspeed`
       # environment declares the parquet writer the data generator needs, so
       # dropping it costs nothing this job uses.
       - run: pixi install -e codspeed

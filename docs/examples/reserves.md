@@ -353,7 +353,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
 
 Present is not proven, so each shape carries the one data mutation that must
 move the optimum — held by `tests/test_reserves.py`, alongside the three-way
-agreement (both lanes, the written LP file, and the incidence-matrix reference
+agreement (both consumers, the written LP file, and the incidence-matrix reference
 above; the balance duals are checked too).
 
 | Shape | Where | Idiom | Mutation that moves the optimum |

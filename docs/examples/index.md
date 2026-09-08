@@ -161,11 +161,11 @@ hand.
 model, or a reference implementation hand-written on another stack, each row's
 provenance saying which. Every model on this page is run by the test suite, so
 "there is a test" distinguishes nothing. What the badge marks is narrower, and
-it is the only check that can catch a *shared misreading* — both lanes of the
+it is the only check that can catch a *shared misreading* — both consumers of the
 implementation agreeing on a meaning the modeller did not intend, which passes
 every lpspec-against-lpspec test green.
 
-Even the differential harness compares two lanes consuming the *same resolved
+Even the differential harness compares two implementations consuming the *same resolved
 AST* ([hard rule 1](../about/architecture.md#hard-rules)), which is what makes them
 an oracle for each other and also what they cannot see. This is the net for
 that class, and the evidence behind

@@ -1,9 +1,10 @@
 """Declarative optimisation: YAML math on a streaming engine.
 
 Specs build relationally on polars and stream to the solver — see
-docs/about/architecture.md. linopy is not imported here; with the ``[linopy]``
-extra it is the second lane a file can be built on, and the differential-test
-oracle (``from lpspec import linopy as lpspec_linopy``).
+docs/about/architecture.md. linopy is not imported here, and is no dependency
+of this package's own lane: it reads the same language natively through
+``linopy.Model.from_spec``, which is what the differential suite measures this
+engine against.
 
 Example::
 

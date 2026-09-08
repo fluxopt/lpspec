@@ -4,11 +4,11 @@ The spec half — :class:`LanguageError` and what derives from it, decidable at
 load time with no data bound — belongs to ``math_spec`` and is re-exported here,
 so one ``except`` clause covers the package. The run half is defined here:
 :class:`DataError` is a fine file with the wrong thing attached to it,
-:class:`LaneError` a file one lane cannot build, :class:`NoSolutionError` a
-solve with nothing to read back.
+:class:`LaneError` a file this lane accepts and cannot build,
+:class:`NoSolutionError` a solve with nothing to read back.
 
-A message lives here only where both lanes raise it. One raiser keeps its
-message beside itself.
+A message lives here only where more than one module raises it. One raiser
+keeps its message beside itself.
 """
 
 from __future__ import annotations
@@ -41,11 +41,11 @@ class LpspecWarning(UserWarning):
 
 
 class LaneError(LpspecError):
-    """A lane cannot **build** a spec it accepts — the other one can.
+    """This lane cannot **build** a spec it accepts — linopy builds it.
 
     Not a :class:`LanguageError`: the file is sayable, lowers, and reaches an
-    answer by the other route, so the fix is which lane runs it rather than
-    what the file says.
+    answer through ``linopy.Model.from_spec``, so the fix is which consumer
+    runs it rather than what the file says.
     """
 
 

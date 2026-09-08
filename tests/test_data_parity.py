@@ -1,31 +1,36 @@
-"""Malformed *data*, checked for the same verdict on both lanes.
+"""Malformed *data*, checked for the same verdict here and in linopy.
 
 `test_resolution_parity.py` does this for the language: the same YAML is
-accepted or refused identically, because hard rule 3 says both lanes accept
+accepted or refused identically, because hard rule 3 says both consumers accept
 exactly the same language. Nothing said the same about the same **data**, and
-the checks are written twice — 15 `DataError` sites in `relational/engines/polars/engine.py`
-against 16 in `linopy/loader.py`, with only the wording of two of them shared
-(#351). Two of the cases below diverged when this table was written:
+the checks are written twice — in `relational/engines/polars/engine.py` here
+and in `linopy/spec/attach.py` there, in two packages now (#351). Two of the
+cases below diverged when this table was written:
 
 - an unknown label was **accepted** by the relational lane, worth two thirds of
   the objective on the model here (#350);
-- a duplicated coordinate row raised `DataError` relationally and a bare
-  `ValueError` eagerly — which the error rules name as the failure mode to avoid, "an
+- a duplicated coordinate row raised `DataError` here and a bare
+  `ValueError` there — which the error rules name as the failure mode to avoid, "an
   opaque xarray or solver exception with no pointer back to a YAML
   declaration".
 
-A third pair diverged on a hole in a value column, one lane refusing it as an
+A third pair diverged on a hole in a value column, one of them refusing it as an
 undefined divisor that was not there while the other read it as a missing row.
 
 The table is the contract the decoupling in #351 has to preserve. It is also
 what makes "decoupled" mean something: without it, the next divergence lands
 the way these did — silently, and found by accident.
 
-**Each case carries data twice**, once per lane's preferred shape. That is not
-duplication for its own sake: the relational lane adapts everything to tidy
-polars frames, the eager lane reads pandas/xarray natively because that is what
-linopy wants, and the point of the table is that two *representations* of the
-same mistake get the same answer.
+**Each case carries data twice**, once per package's preferred shape. That is
+not duplication for its own sake: this engine adapts everything to tidy polars
+frames, linopy reads pandas and xarray natively, and the point of the table is
+that two *representations* of the same mistake get the same answer.
+
+**The verdict is refused-or-accepted, not an exception class.** The two
+packages raise their own — `DataError` here, `linopy.spec.SpecDataError` there
+— and which class carries a defect stopped being checkable across the boundary
+when the second implementation stopped being ours. What the table still holds
+is the verdict, which is the part the language decides.
 """
 
 from __future__ import annotations
@@ -39,8 +44,8 @@ import yaml as pyyaml
 
 import lpspec as lps
 from lpspec.errors import DataError
-from tests.differential import both_lanes_refuse
-from tests.oracle import lpspec_linopy, pd  # skips the module without the [linopy] extra
+from tests.differential import both_refuse
+from tests.oracle import pd, spec_oracle  # skips the module without the [linopy] extra
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -56,6 +61,7 @@ SPEC = {
 }
 
 ACCEPTED = 'accepted'
+REFUSED = 'refused'
 
 
 def _tidy(**cols: list[Any]) -> pl.DataFrame:
@@ -63,7 +69,7 @@ def _tidy(**cols: list[Any]) -> pl.DataFrame:
 
 
 def _written(tmp_path: Path, spec: dict) -> Path:
-    """*spec* on disk, because the eager lane only takes a path."""
+    """*spec* on disk, because linopy only takes a path."""
     path = tmp_path / 'model.yaml'
     path.write_text(pyyaml.safe_dump(spec))
     return path
@@ -76,8 +82,11 @@ class Case:
     label: str
     relational: dict[str, Any]
     eager: dict[str, Any]
-    #: `DataError` for a refusal both lanes owe the caller, or `ACCEPTED`.
-    verdict: type[Exception] | str
+    #: `REFUSED` for a defect both packages owe the caller, or `ACCEPTED`.
+    verdict: str
+    #: Marks for the case, which is where a divergence between the two is
+    #: recorded as a strict xfail rather than hidden by loosening the table.
+    marks: Any = ()
 
 
 def _cases() -> list[Case]:
@@ -90,13 +99,13 @@ def _cases() -> list[Case]:
             'parameter missing entirely',
             {**index, 'cost': good_r['cost']},
             {**index, 'cost': good_e['cost']},
-            DataError,
+            REFUSED,
         ),
         Case(
             'bound parameter sparse',
             {**good_r, 'cap': _tidy(f=['a'], value=[5.0])},
             {**good_e, 'cap': pd.Series({'a': 5.0})},
-            DataError,  # a missing bound has no reading, so law 8 refuses rather than guessing
+            REFUSED,  # a missing bound has no reading, so law 8 refuses rather than guessing
         ),
         Case(
             'coefficient sparse',
@@ -104,41 +113,42 @@ def _cases() -> list[Case]:
             {**good_e, 'cost': pd.Series({'a': 1.0})},
             # The ordinary case: a missing row is a zero coefficient (the data-attachment rules).
             ACCEPTED,
+            pytest.mark.xfail(strict=True, reason=spec_oracle.SPARSE_COEFFICIENT),
         ),
         Case(
             'duplicated coordinate row',
             {**good_r, 'cost': _tidy(f=['a', 'a', 'b'], value=[1.0, 9.0, 2.0])},
             {**good_e, 'cost': pd.Series([1.0, 9.0, 2.0], index=pd.Index(['a', 'a', 'b'], name='f'))},
-            # Which value applies is undefined, so neither lane may pick one.
-            DataError,
+            # Which value applies is undefined, so neither may pick one.
+            REFUSED,
         ),
         Case(
             'label the dimension does not have',
             {**good_r, 'cost': _tidy(f=['a', 'zz'], value=[1.0, 2.0])},
             {**good_e, 'cost': pd.Series({'a': 1.0, 'zz': 2.0})},
             # Present and unaddressable is a typo, not sparsity (#350).
-            DataError,
+            REFUSED,
         ),
         Case(
             'a null value',
             {**good_r, 'cost': _tidy(f=['a', 'b'], value=[1.0, None])},
             {**good_e, 'cost': pd.Series({'a': 1.0, 'b': None})},
             # A row claiming the coordinate while its value denies it says both at once.
-            DataError,
+            REFUSED,
         ),
         Case(
             'a NaN value',
             {**good_r, 'cost': _tidy(f=['a', 'b'], value=[1.0, float('nan')])},
             {**good_e, 'cost': pd.Series({'a': 1.0, 'b': float('nan')})},
             # The same hole, in the only spelling pandas has for one.
-            DataError,
+            REFUSED,
         ),
         Case(
             'a hole in a bound',
             {**good_r, 'cap': _tidy(f=['a', 'b'], value=[5.0, None])},
             {**good_e, 'cap': pd.Series({'a': 5.0, 'b': None})},
             # Refused at attach, where `null_bounds_message` caught it at assembly.
-            DataError,
+            REFUSED,
         ),
     ]
 
@@ -148,30 +158,30 @@ CASES = _cases()
 
 @pytest.fixture(scope='module')
 def spec_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """The eager lane only takes a path, so the model has to hit disk once."""
+    """linopy only takes a path, so the model has to hit disk once."""
     path = tmp_path_factory.mktemp('data-parity') / 'm.yaml'
     path.write_text(pyyaml.safe_dump(SPEC))
     return path
 
 
-def _verdict_relational(path: Path, data: dict[str, Any]) -> type[Exception] | str:
+def _verdict_relational(path: Path, data: dict[str, Any]) -> str:
     try:
         lps.solve(path, data)
     except DataError:
-        return DataError
+        return REFUSED
     return ACCEPTED
 
 
-def _verdict_eager(path: Path, data: dict[str, Any]) -> type[Exception] | str:
+def _verdict_eager(path: Path, data: dict[str, Any]) -> str:
     try:
-        m = lpspec_linopy.build(path, data)
+        m = spec_oracle.build(path, data)
         m.solve(solver_name='highs', output_flag=False)
-    except DataError:
-        return DataError
+    except spec_oracle.SpecDataError:
+        return REFUSED
     return ACCEPTED
 
 
-@pytest.mark.parametrize('case', CASES, ids=lambda c: c.label)
+@pytest.mark.parametrize('case', [pytest.param(c, marks=c.marks, id=c.label) for c in CASES])
 def test_both_lanes_reach_the_same_verdict(case: Case, spec_path: Path):
     """And it is the verdict the table names, not merely the same one.
 
@@ -181,8 +191,8 @@ def test_both_lanes_reach_the_same_verdict(case: Case, spec_path: Path):
     relational = _verdict_relational(spec_path, case.relational)
     eager = _verdict_eager(spec_path, case.eager)
 
-    assert relational == case.verdict, f'{case.label}: relational lane'
-    assert eager == case.verdict, f'{case.label}: eager lane'
+    assert relational == case.verdict, f'{case.label}: this engine'
+    assert eager == case.verdict, f'{case.label}: linopy'
 
 
 def test_the_table_covers_both_verdicts():
@@ -190,7 +200,7 @@ def test_the_table_covers_both_verdicts():
     all-refused, would still pass every assertion above.
     """
     verdicts = {c.verdict for c in CASES}
-    assert verdicts == {ACCEPTED, DataError}, f'expected both verdicts to be exercised; got {verdicts}'
+    assert verdicts == {ACCEPTED, REFUSED}, f'expected both verdicts to be exercised; got {verdicts}'
 
 
 def test_a_hole_is_named_where_it_sits_rather_than_as_a_divisor(spec_path: Path):
@@ -199,7 +209,7 @@ def test_a_hole_is_named_where_it_sits_rather_than_as_a_divisor(spec_path: Path)
     The relational lane read a null coefficient in the assembled matrix as an
     undefined divisor, which is the only way one used to arise — so a hole in
     an ordinary coefficient printed `parameter ''`, naming no parameter at all,
-    while the eager lane read the same hole as a missing row and solved. Both
+    while linopy read the same hole as a missing row and solved. Both
     now refuse it at attach, in one sentence, before anything is assembled.
     """
     index = {'f': ['a', 'b']}
@@ -208,14 +218,14 @@ def test_a_hole_is_named_where_it_sits_rather_than_as_a_divisor(spec_path: Path)
 
     with pytest.raises(DataError, match="parameter 'cost'") as relational_error:
         lps.build(spec_path, holed).close()
-    with pytest.raises(DataError, match="parameter 'cost'") as eager_error:
-        lpspec_linopy.build(spec_path, eager)
+    with pytest.raises(spec_oracle.SpecDataError, match="parameter 'cost'") as eager_error:
+        spec_oracle.build(spec_path, eager)
 
     assert 'divisor' not in str(relational_error.value), (
         'the message names the hole, not a divisor the model has not got'
     )
     assert "f='b'" in str(relational_error.value), 'and names the coordinate the hole sits at'
-    assert str(relational_error.value) == str(eager_error.value), 'one defect, one sentence'
+    assert "f='b'" in str(eager_error.value), 'and so does linopy, in its own words'
 
 
 @pytest.mark.parametrize(
@@ -228,16 +238,16 @@ def test_a_hole_is_named_where_it_sits_rather_than_as_a_divisor(spec_path: Path)
     ],
 )
 def test_a_hole_is_refused_in_every_shape_a_source_arrives_in(spec_path: Path, holed: Any):
-    """One source object, both lanes — these four shapes are nobody's dialect.
+    """One source object, both — these four shapes are nobody's dialect.
 
     Each stops being a list of supplied rows at a different line: a dict and a
     sequence are spread over the master coordinates, a scalar is broadcast, a
-    tidy frame is unstacked. The eager lane asks its question at four sites for
+    tidy frame is unstacked. linopy asks its question at four sites for
     that reason, and a guard no test reaches is a guard that rots.
     """
     sources = {'f': ['a', 'b'], 'cost': holed, 'cap': _tidy(f=['a', 'b'], value=[5.0, 5.0])}
 
-    both_lanes_refuse(spec_path, sources, match='no value')
+    both_refuse(spec_path, sources, match='no value')
 
 
 def test_a_hole_in_a_scalar_parameter_is_refused_on_both_lanes(tmp_path: Path):
@@ -245,7 +255,7 @@ def test_a_hole_in_a_scalar_parameter_is_refused_on_both_lanes(tmp_path: Path):
 
     A scalar is the shape where reading a hole as a row would be least visible:
     it broadcasts everywhere, so one unsupplied number reaches every
-    coordinate. The eager lane takes its own branch for it — one row, no index
+    coordinate. linopy takes its own branch for it — one row, no index
     to unstack — which is why the question is asked there separately.
     """
     spec = {
@@ -258,7 +268,7 @@ def test_a_hole_in_a_scalar_parameter_is_refused_on_both_lanes(tmp_path: Path):
     path = _written(tmp_path, spec)
     sources = {'f': ['a', 'b'], 'rate': _tidy(value=[None])}
 
-    both_lanes_refuse(path, sources, match='no value')
+    both_refuse(path, sources, match='no value')
 
 
 #: A model reading a parameter as a position, which is what made the declared
@@ -281,14 +291,14 @@ def _position_sources(lead: Any) -> dict[str, Any]:
 def test_an_int_declaration_takes_no_float_column_so_a_fraction_cannot_arrive(tmp_path: Path):
     """What used to be a value scan is now unrepresentable.
 
-    `by=1.5` once built exactly what `by=1` builds, on both lanes, so the
+    `by=1.5` once built exactly what `by=1` builds, on both, so the
     differential suite agreed with itself on the wrong model. The repair is not
     a scan for fractions: an `int` declaration takes an integer column, and an
     integer column has no fraction to hold.
     """
     path = _written(tmp_path, POSITION_SPEC)
 
-    both_lanes_refuse(path, _position_sources(1.5), match="declared 'int'")
+    both_refuse(path, _position_sources(1.5), match="declared 'int'")
     with lps.solve(path, _position_sources(1)) as run:
         assert run.is_ok, 'and an integer column is the ordinary case'
 
@@ -312,7 +322,7 @@ def test_whole_numbers_serve_a_float_declaration(tmp_path: Path):
 
     with lps.solve(path, integral) as run:
         assert run.is_ok, 'an integer column serves a float declaration'
-    assert lpspec_linopy.build(path, integral) is not None, 'and does so on both lanes'
+    assert spec_oracle.build(path, integral) is not None, 'and does so on both'
 
 
 #: A flag, and the three ways a source may spell one. Only the boolean column
@@ -340,7 +350,7 @@ def test_a_flag_masks_by_its_declaration_rather_than_by_its_storage(tmp_path: Pa
 
     A 1/0 column read as "defined", which is true of every row, so the same
     flags in a different spelling built a model with nothing masked out — no
-    error, on either lane. Now the declaration decides, and a column that is
+    error, on either. Now the declaration decides, and a column that is
     not what it declares does not attach at all.
     """
     path = _written(tmp_path, FLAG_SPEC)
@@ -350,7 +360,7 @@ def test_a_flag_masks_by_its_declaration_rather_than_by_its_storage(tmp_path: Pa
         with lps.solve(path, sources) as run:
             assert run.objective == pytest.approx(1.0), 'the inactive column is masked away'
         return
-    both_lanes_refuse(path, sources, match="declared 'bool'")
+    both_refuse(path, sources, match="declared 'bool'")
 
 
 def test_a_bare_where_on_a_string_parameter_asks_whether_it_has_a_row(tmp_path: Path):
@@ -431,16 +441,16 @@ def test_a_lookup_defect_reads_the_same_on_both_lanes(tmp_path, sources, match):
     """One wording, not two — the same rule `no_index_source_message` follows.
 
     The first two were written twice and drifted: the relational lane named the
-    `sources` key and the eager one a separate argument, for one defect a caller
+    `sources` key and linopy a separate argument, for one defect a caller
     fixes the same way whichever lane they were on. The rest were the same
-    duplication one function further in, where each lane read the index itself
+    duplication one function further in, where each read the index itself
     — and with a map arriving under its own key they are one check in the door
-    both lanes enter, which is what makes the parity structural here rather
+    both enter, which is what makes the parity structural here rather
     than tested into place.
     """
     path = _written(tmp_path, LOOKUP_SPEC)
 
-    both_lanes_refuse(path, sources, match=match)
+    both_refuse(path, sources, match=match)
 
 
 def test_an_index_a_declared_map_is_read_against_is_checked_before_the_read(tmp_path):
@@ -457,7 +467,7 @@ def test_an_index_a_declared_map_is_read_against_is_checked_before_the_read(tmp_
     path = _written(tmp_path, spec)
     sources = {**_P_MAX, **_MAP, 'b': _tidy(b=['n', 'e']), 'g': _tidy(gg=['w', 's'])}
 
-    both_lanes_refuse(path, sources, match="without a 'g' column")
+    both_refuse(path, sources, match="without a 'g' column")
 
 
 def test_a_lookup_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_path):
@@ -465,9 +475,9 @@ def test_a_lookup_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_pa
 
     pandas `nunique()` skips nulls where polars `n_unique()` counts them, so a
     label carrying a null in one row and a real value in another read as
-    single-valued on the eager lane — and the null won, that row being the
+    single-valued on linopy — and the null won, that row being the
     first. The member then belonged to no group, its terms left the constraint
-    that was to hold them, and the model solved: 8.0 against the 3.0 both lanes
+    that was to hold them, and the model solved: 8.0 against the 3.0 both
     give the same index deduplicated.
     """
     spec = {
@@ -481,17 +491,17 @@ def test_a_lookup_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_pa
 
     with lps.solve(path, clean) as run:
         assert run.objective == pytest.approx(3.0), 'both members are on the bus, and the bus caps them'
-    built = lpspec_linopy.build(path, clean)
+    built = spec_oracle.build(path, clean)
     built.solve(solver_name='highs', output_flag=False)
-    assert float(built.objective.value) == pytest.approx(3.0), 'and the eager lane agrees where the index is clean'
+    assert float(built.objective.value) == pytest.approx(3.0), 'and linopy agrees where the index is clean'
 
-    both_lanes_refuse(path, holed, match="null in 'b'")
+    both_refuse(path, holed, match="null in 'b'")
 
 
 def test_a_dimension_index_is_a_table_on_both_lanes(tmp_path):
     """And it may arrive under `sources`, which is where the relational lane looks first.
 
-    The eager lane took its own argument and required a pandas frame, so an index
+    linopy took its own argument and required a pandas frame, so an index
     a caller passed the way the runner documents — a polars table under the
     dimension's own key — was invisible to one of two lanes.
     """
@@ -500,14 +510,14 @@ def test_a_dimension_index_is_a_table_on_both_lanes(tmp_path):
 
     with lps.solve(path, sources) as relational:
         assert relational.is_ok
-    built = lpspec_linopy.build(path, sources)
-    assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'the eager lane read the same index'
+    built = spec_oracle.build(path, sources)
+    assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'linopy read the same index'
 
 
 def test_a_dimension_index_may_be_a_parquet_path_without_pyarrow(tmp_path, monkeypatch):
     """The `[linopy]` extra ships pandas and xarray, and nothing says it ships pyarrow.
 
-    The eager lane read an index path with `polars.read_parquet().to_pandas()`,
+    linopy read an index path with `polars.read_parquet().to_pandas()`,
     which wants pyarrow for anything Arrow-backed — so the way the runner
     documents passing an index, a path under the dimension's own key, raised
     `ModuleNotFoundError: No module named 'pyarrow'` on a supported install.
@@ -524,8 +534,8 @@ def test_a_dimension_index_may_be_a_parquet_path_without_pyarrow(tmp_path, monke
     monkeypatch.setitem(sys.modules, 'pyarrow', None)
     with lps.solve(path, sources) as relational:
         assert relational.is_ok
-    built = lpspec_linopy.build(path, sources)
-    assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'the eager lane read the same path'
+    built = spec_oracle.build(path, sources)
+    assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'linopy read the same path'
 
 
 #: The same shape one column over: a lookup whose *target* is the temporal
@@ -540,6 +550,7 @@ TEMPORAL_LOOKUP_SPEC = {
 }
 
 
+@pytest.mark.xfail(strict=True, reason=spec_oracle.DATETIME_SPELLING)
 @pytest.mark.parametrize('library', ['pandas', 'polars', 'a parquet path'])
 def test_a_lookup_into_a_temporal_dimension_is_one_instant_on_both_lanes(tmp_path, library):
     """A lookup's values are labels of the dimension it targets, in that spelling.
@@ -559,7 +570,7 @@ def test_a_lookup_into_a_temporal_dimension_is_one_instant_on_both_lanes(tmp_pat
     A pandas frame of `datetime.date` and a polars `pl.Date` are the two
     spellings a caller writes by hand. A nanosecond one is a third and is not
     settled here: `datetime[ns]` reaches the relational lane's own join as a
-    key it will not match, and out of pandas both lanes refuse it alike — see
+    key it will not match, and out of pandas both refuse it alike — see
     the follow-ups on #1076.
     """
     import datetime
@@ -583,15 +594,15 @@ def test_a_lookup_into_a_temporal_dimension_is_one_instant_on_both_lanes(tmp_pat
 
     with lps.solve(path, sources) as run:
         assert run.objective == pytest.approx(3.0), 'one day, one cap, both members under it'
-    built = lpspec_linopy.build(path, sources)
+    built = spec_oracle.build(path, sources)
     built.solve(solver_name='highs', output_flag=False)
-    assert float(built.objective.value) == pytest.approx(3.0), 'and the eager lane groups them the same way'
+    assert float(built.objective.value) == pytest.approx(3.0), 'and linopy groups them the same way'
 
 
 def test_a_stray_lookup_value_reads_the_same_over_an_int_labelled_target(tmp_path):
     """One sentence, and the labels in it spelled as the caller wrote them.
 
-    The eager lane took its offending values off a pandas frame and printed
+    linopy took its offending values off a pandas frame and printed
     them as they came, so an `int` dimension read back `np.int64(99)` where the
     relational lane said `99` — one defect, two sentences again, and invisible
     to a table whose every label is a string.
@@ -603,7 +614,7 @@ def test_a_stray_lookup_value_reads_the_same_over_an_int_labelled_target(tmp_pat
     path = _written(tmp_path, spec)
     sources = {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], b=[1, 99])}
 
-    sentence = both_lanes_refuse(path, sources, match=r'not .b. labels')
+    sentence = both_refuse(path, sources, match=r'not .b. labels')
     assert '99.' in sentence, 'the label as the caller wrote it, not as numpy holds it'
 
 
@@ -616,14 +627,14 @@ def test_a_multi_indexed_series_is_refused_on_both_lanes(tmp_path):
     catch the disagreement; refusing the shape removes it, and a tidy frame
     says the same thing in the vocabulary the other five accepted shapes use.
 
-    Refused at `tidy_sources`, which is the one door both lanes enter by, so
+    Refused at `tidy_sources`, which is the one door both enter by, so
     neither can drift a second wording for it.
     """
     path = _written(tmp_path, LOOKUP_SPEC)
     deep = pd.MultiIndex.from_tuples([('w', 0), ('s', 0)], names=['g', 'k'])
     sources = {'p_max': pd.Series([5.0, 5.0], index=deep), **_INDEX, **_MAP}
 
-    sentence = both_lanes_refuse(path, sources, match='MultiIndex is not a source')
+    sentence = both_refuse(path, sources, match='MultiIndex is not a source')
     assert "['g', 'value']" in sentence, 'and it names the tidy frame the caller should pass'
 
 
@@ -651,7 +662,7 @@ def test_a_series_shallower_than_the_declared_dims_is_refused_on_both_lanes(tmp_
     path = _written(tmp_path, spec)
     sources = {'p_max': pd.Series([5.0, 5.0], index=pd.Index(['w', 's']))}
 
-    sentence = both_lanes_refuse(path, sources, match='runs along one dimension')
+    sentence = both_refuse(path, sources, match='runs along one dimension')
     assert "['g', 'b', 'value']" in sentence, 'and it names the table that carries both dims'
 
 
@@ -670,7 +681,7 @@ def test_a_source_key_the_model_does_not_declare_is_refused_on_both_lanes(tmp_pa
     good = {'cost': _tidy(f=['a', 'b'], value=[1.0, 2.0]), 'cap': _tidy(f=['a', 'b'], value=[5.0, 5.0])}
     typo = {**good, 'csot': good['cost']}
 
-    both_lanes_refuse(path, typo, match="Did you mean 'cost'")
+    both_refuse(path, typo, match="Did you mean 'cost'")
 
 
 def test_an_entity_table_is_a_dimension_index_columns_and_all(tmp_path):

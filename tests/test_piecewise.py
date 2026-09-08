@@ -25,7 +25,7 @@ from lpspec.errors import DataError
 from lpspec.sources import tidy_sources
 from tests.conftest import EXAMPLES_DIR, by_coord, override, raw_of, schema_of
 from tests.differential import differential
-from tests.oracle import lpspec_linopy, pd
+from tests.oracle import pd, spec_oracle
 from tests.piecewise_models import CHP_YAML, GATED_YAML, NONCONVEX_YAML, SOS2_SPEC, TWO_DIM_YAML, curve_frame
 
 #: The same model with the hull instead of the curve — `method: convex` and
@@ -273,16 +273,13 @@ def test_the_adjacency_row_survives_at_the_first_breakpoint(nonconvex_inputs):
 
 
 def test_both_lanes_check_the_declarations_a_formulation_emits(tmp_path):
-    """A stray dim is named on the link that carries it, on both lanes.
+    """A stray dim is named on the link that carries it, on both.
 
     A values parameter carrying a dim the links do not is a stray dim in
     generated math — one row per zone where the file reads as one per
-    snapshot. The native lane used to validate the file as written, which made
-    ``lps.check()`` pass on a model ``lpspec_linopy.build`` refused: the same
-    YAML, two answers (hard rule 3). Both refused it once the emitted
-    declarations were judged too — but as a dimension error against
-    ``cost_curve_link1``, a constraint the author never wrote and a different
-    name under ``method: lp``. The block now says it of the link itself.
+    snapshot. It is math-spec's own refusal, raised at lowering, so both
+    consumers meet it in the same words before either attaches a source: the
+    oracle is a different package and this error is not.
     """
     raw = override(
         raw_of(NONCONVEX_YAML),
@@ -296,7 +293,7 @@ def test_both_lanes_check_the_declarations_a_formulation_emits(tmp_path):
     path = tmp_path / 'stray_dim.yaml'
     path.write_text(pyyaml.safe_dump(raw))
     with pytest.raises(PiecewiseExpansionError, match=stray):
-        lpspec_linopy.build(path, {})
+        spec_oracle.build(path, {})
 
 
 # ---------------------------------------------------------------------------
@@ -332,8 +329,8 @@ def test_convex_breakpoints_that_are_not_convex_are_refused(nonconvex_inputs, br
 
 
 def test_the_curvature_guard_also_fires_through_the_relational_adapter(nonconvex_inputs):
-    """`tidy_sources` is the streaming lane's only door for data, so the guard
-    has to live behind it too — not only in the eager loader."""
+    """`tidy_sources` is this lane's only door for data, so the guard has to
+    live behind it too — not only where the curve is read as a frame."""
     data = nonconvex_inputs
     schema = schema_of(CONVEX_SPEC)
 
@@ -362,7 +359,7 @@ def test_a_curve_written_out_of_order_is_the_same_curve(nonconvex_inputs):
     them left behind; what orders the breakpoints is the `bp` index, which is
     ascending here. The guard read the rows as they arrived and refused this
     table as backwards (#1122), where the engine joins it by label and the
-    eager lane builds and solves it.
+    linopy builds and solves it.
     """
     shuffled = {
         **nonconvex_inputs,
@@ -395,7 +392,7 @@ def test_a_breakpoint_dimension_with_no_index_keeps_its_own_message(nonconvex_in
 
 
 def test_the_eager_lane_reads_the_curve_in_the_index_order(nonconvex_inputs, tmp_path):
-    """Which of the two lanes is right, pinned — the loader lays the values out first.
+    """Which of the two is right, pinned — the loader lays the values out first.
 
     So the order the guard walks is the dimension's, and the row order the
     table happened to arrive in is nothing: the shuffled curve binds and the
@@ -410,10 +407,10 @@ def test_the_eager_lane_reads_the_curve_in_the_index_order(nonconvex_inputs, tmp
         'bp_y': pd.Series([55.0, 0.0, 30.0], index=OUT_OF_ORDER_BP),
     }
 
-    lpspec_linopy.build(path, shuffled)  # a row order is not a breakpoint order
+    spec_oracle.build(path, shuffled)  # a row order is not a breakpoint order
 
-    with pytest.raises(PiecewiseExpansionError, match='strictly increasing'):
-        lpspec_linopy.build(path, {**nonconvex_inputs, 'bp': pd.Index([2, 1, 0], name='bp')})
+    with pytest.raises(spec_oracle.SpecDataError, match='strictly increasing'):
+        spec_oracle.build(path, {**nonconvex_inputs, 'bp': pd.Index([2, 1, 0], name='bp')})
 
 
 def test_a_breakpoint_index_that_runs_backwards_is_refused(nonconvex_inputs):
@@ -471,12 +468,12 @@ def test_a_curve_short_of_a_breakpoint_is_refused(ragged_inputs):
 
 
 def test_the_curve_guard_fires_on_the_eager_lane_too(ragged_inputs, tmp_path):
-    """Both lanes take the same sources, so both refuse the same table (hard rule 3)."""
+    """Both take the same sources, so both refuse the same table (hard rule 3)."""
     path = tmp_path / 'two_dim.yaml'
     path.write_text(TWO_DIM_YAML)
 
-    with pytest.raises(DataError, match=r"'bp_x' has no value at"):
-        lpspec_linopy.build(path, dict(ragged_inputs))
+    with pytest.raises(spec_oracle.SpecDataError, match=r"'bp_x' has no value at"):
+        spec_oracle.build(path, dict(ragged_inputs))
 
 
 def test_a_curve_supplied_at_every_breakpoint_passes(ragged_inputs):
@@ -495,7 +492,7 @@ def test_a_curve_supplied_at_every_breakpoint_passes(ragged_inputs):
 
 
 def test_a_dict_shaped_curve_is_read_for_holes_too(ragged_inputs, tmp_path):
-    """The eager lane takes the caller's mapping unspread, so the guard reads that spelling.
+    """linopy takes the caller's mapping unspread, so the guard reads that spelling.
 
     A ``{label: value}`` curve is the one plain-Python shape that can be short:
     a sequence and a single number are dense against the labels they spread
@@ -511,8 +508,8 @@ def test_a_dict_shaped_curve_is_read_for_holes_too(ragged_inputs, tmp_path):
         'bp_y': {0: 0.0, 1: 50.0},
     }
 
-    with pytest.raises(DataError, match=r"'bp_x' has no value at"):
-        lpspec_linopy.build(path, data)
+    with pytest.raises(spec_oracle.SpecDataError, match=r"'bp_x' has no value at"):
+        spec_oracle.build(path, data)
 
 
 def test_a_dimension_with_no_index_keeps_its_own_message(ragged_inputs):
@@ -597,14 +594,21 @@ def short_curve_inputs():
     }
 
 
-@pytest.mark.parametrize('method', ['adjacency', 'convex', 'lp'])
-def test_both_lanes_agree_on_a_masked_curve(short_curve_inputs, method, tmp_path):
-    """Whatever the mask reaches has to reach it on both lanes (hard rule 3).
+@pytest.mark.parametrize(
+    'method',
+    [
+        pytest.param('adjacency', marks=pytest.mark.xfail(strict=True, reason=spec_oracle.SPARSE_COEFFICIENT)),
+        pytest.param('convex', marks=pytest.mark.xfail(strict=True, reason=spec_oracle.SPARSE_COEFFICIENT)),
+        'lp',
+    ],
+)
+def test_both_agree_on_a_masked_curve(short_curve_inputs, method, tmp_path):
+    """Whatever the mask reaches has to reach it on both (hard rule 3).
 
     `lp` is the one whose rows the mask reaches directly, and the one whose
     domain rows sit on each curve's own first and last breakpoint rather than
     the axis'. Testing only the default method left that pair unbuilt on the
-    eager lane, where the constant-side coverage guard refuses a curve its
+    linopy, where the constant-side coverage guard refuses a curve its
     breakpoints stop short of.
     """
     raw = override(raw_of(SHORT_CURVE), **{'piecewise.cost_curve.method': method})
@@ -613,11 +617,11 @@ def test_both_lanes_agree_on_a_masked_curve(short_curve_inputs, method, tmp_path
     path = tmp_path / 'masked.yaml'
     path.write_text(pyyaml.safe_dump(raw))
 
-    built = lpspec_linopy.build(path, short_curve_inputs)
+    built = spec_oracle.build(path, short_curve_inputs)
     built.solve('highs', output_flag=False)
 
     assert float(built.objective.value) == pytest.approx(155.0)
-    assert lps.solve(raw, short_curve_inputs).objective == pytest.approx(155.0), 'and the same on the other lane'
+    assert lps.solve(raw, short_curve_inputs).objective == pytest.approx(155.0), 'and the same on the other'
 
 
 @pytest.mark.parametrize('method', ['adjacency', 'sos2', 'convex', 'lp'])

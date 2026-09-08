@@ -2,7 +2,7 @@
 
 Every other test here compares lpspec against lpspec. Even the differential
 harness compares two lanes consuming the *same resolved AST* (hard rule 1), so
-a **shared misreading** — both lanes agreeing on a meaning the modeller did not
+a **shared misreading** — both agreeing on a meaning the modeller did not
 intend — passes the whole suite green. This is the net for that class.
 
 Each expected objective was published with the model, produced by somebody

@@ -3,7 +3,7 @@
 The AST is closed, which is what makes this different from sampling: at depth
 three over two dimensions the space of spellings is *finite*, so the sweep in
 ``test_expression_sweep.py`` makes the strong claim — every one of them means
-the same on both lanes — rather than "a hundred did".
+the same on both — rather than "a hundred did".
 
 **Built well-formed, not filtered.** Each node carries the dimensions and the
 degree it produces, and the constructors that can fail refuse what the language
@@ -27,7 +27,7 @@ divergence when they are not went unnoticed for as long as the oracle shared it
 (#311). The condition is read off the tree rather than assumed.
 
 **A degree-two node is generated only as an operand, never emitted as a
-case.** The eager lane refuses a quadratic constraint outright (#942), and
+case.** linopy refuses a quadratic constraint outright (#942), and
 every case here is a constraint row, so a degree-two expression would make the
 sweep report a lane limit it already knows about.
 """
@@ -140,7 +140,7 @@ def expressions(depth: int) -> tuple[Node, ...]:
 
     Only those a constraint row can be written from come back: one with no
     variable in it is data, which the language refuses in a constraint, and a
-    quadratic one is a row the eager lane cannot build at all (#942).
+    quadratic one is a row linopy cannot build at all (#942).
     """
     space: tuple[Node, ...] = LEAVES
     for _ in range(depth - 1):
@@ -194,7 +194,7 @@ def _reduction_is_linear(pool: tuple[Node, ...], over: str) -> Iterator[Rewrite]
     """A reduction splits across a sum: ``sum(a + b)`` is ``sum(a) + sum(b)``.
 
     Only while both operands are total, which is what ``pool`` guarantees, and
-    only where the whole is a row the eager lane can build — a degree-two
+    only where the whole is a row linopy can build — a degree-two
     summand is #942's gap rather than a disagreement.
     """
     for a in pool:

@@ -53,14 +53,14 @@ objective:
 
 @pytest.fixture
 def commitment_run(commitment_inputs):
-    """The commitment model solved through both lanes, engine still open."""
+    """The commitment model solved through both, engine still open."""
     data = commitment_inputs
     with differential(COMMITMENT_YAML, data) as run:
         yield run
 
 
 def test_commitment_milp_agrees_and_stays_integral(commitment_inputs):
-    """Both lanes agree, the binaries are integral, and the LP file says so."""
+    """Both agree, the binaries are integral, and the LP file says so."""
     data = commitment_inputs
 
     with differential(COMMITMENT_YAML, data, lp=True) as run:

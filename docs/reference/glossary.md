@@ -59,15 +59,15 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 ## How it runs
 
 **Lane**
-: One of the two ways a spec is executed. The **relational lane** (the default,
-  `lpspec.build`/`solve`) validates at load time, lowers to the plan, and
-  streams relationally on polars. The **linopy lane** (`lpspec.linopy`, needs
-  the `[linopy]` extra) constructs the same spec as a `linopy.Model`. Both
-  accept *exactly* the same language — the reason the differential tests are an
-  oracle rather than a comparison of dialects.
+: How a spec is executed here: `lpspec.build`/`solve` validate at load time,
+  lower to the plan, and stream relationally on polars. There is one, and the
+  word survives because the language has a second consumer — linopy's
+  `Model.from_spec`, in another package, which the differential tests measure
+  this one against. Both accept *exactly* the same language, which is what
+  makes those tests an oracle rather than a comparison of dialects.
 
 **Engine**
-: The relational lane's builder. It fills the model's frames from the attached
+: This lane's builder. It fills the model's frames from the attached
   data and hands them to a sink.
 
 **Sink**

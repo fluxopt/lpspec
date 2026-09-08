@@ -4,8 +4,9 @@ Which sink needs this and why the family rather than a member decides it:
 ``README.md``, *the one uneven stream*.
 
 The formulation is linopy's (``linopy/sos_reformulation.py``), member for
-member, because the lanes are compared against each other and a differently
-relaxed MILP is a different search even where it is the same feasible set. For
+member, because this stream is measured against linopy's own build of the same
+spec and a differently relaxed MILP is a different search even where it is the
+same feasible set. For
 members :math:`x_1 … x_k` in weight order, with :math:`M_i` the tighter of the
 block's ``big_m`` and the member's own upper bound:
 

@@ -3,9 +3,9 @@
 # and nothing else — solves through PyPSA and through this tree's lpspec, and
 # the runner compares them as deep as the engines allow: one objective and one
 # set of prices across the fence everywhere, the two linopy models label for
-# label where `lpspec.linopy` can build. A rung the linopy lane cannot build
-# yet is stamped, not failed, so this job tightens by itself as the lane
-# hardens.
+# label where linopy can build from the file. A rung linopy cannot build
+# yet is stamped, not failed, so this job tightens by itself as linopy's own
+# spec builder hardens.
 #
 # The certificate the runner writes, differential/pypsa/references.json, is
 # committed; the last step fails when a run of this tree would rewrite it, so

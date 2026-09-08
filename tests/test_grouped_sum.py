@@ -1,7 +1,7 @@
 """sum: the transport YAML through both backends, and what coordinates buy.
 
 Three-way differential on examples/transport.yaml:
-  1. eager lpspec_linopy.build + solve (sum via linopy groupby)
+  1. eager spec_oracle.build + solve (sum via linopy groupby)
   2. lowered Program -> PolarsEngine -> the `highs` solver, plus the LP file
   3. hand-built indicator-matrix linopy model (an independent oracle that
      involves no sum at all)
@@ -34,7 +34,7 @@ from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.sources import tidy_sources
 from tests.conftest import EXAMPLES_DIR, override, schema_of
 from tests.differential import RTOL, differential
-from tests.oracle import lpspec_linopy, pd, transport_eager_objective
+from tests.oracle import pd, spec_oracle, transport_eager_objective
 
 TRANSPORT_YAML = EXAMPLES_DIR / 'transport.yaml'
 
@@ -115,8 +115,8 @@ def test_a_mistyped_coordinate_is_refused_on_both_lanes(transport_data):
 
     with pytest.raises(DataError, match="not 'bus' labels"):
         _relationally(data)
-    with pytest.raises(DataError, match="not 'bus' labels"):
-        lpspec_linopy.build(TRANSPORT_YAML, data)
+    with pytest.raises(spec_oracle.SpecDataError, match="not 'bus' labels"):
+        spec_oracle.build(TRANSPORT_YAML, data)
 
 
 def test_a_coordinate_must_be_single_valued(transport_data):
@@ -139,7 +139,7 @@ def test_a_coordinate_must_be_single_valued(transport_data):
 
 def test_a_parameter_carrying_a_coordinate_twice_is_refused(transport_data):
     """A parameter is a function of its dims, so two rows for one coordinate
-    has no answer — and the eager lane will not lay such a source out either.
+    has no answer — and linopy will not lay such a source out either.
 
     The relational lane used to resolve it into a sum, silently, which is a
     divergence between two lanes that are supposed to accept the same thing.
@@ -203,7 +203,7 @@ def _partial_inputs():
             'cap': pd.DataFrame({'item': items, 'value': [5.0, 5.0, 5.0]}),
             'target': pd.DataFrame({'g': ['g0'], 'value': [3.0]}),
         },
-        {  # the same, in the shapes the eager lane is usually fed
+        {  # the same, in the shapes linopy is usually fed
             'cap': pd.Series([5.0, 5.0, 5.0], index=pd.Index(items, name='item')),
             'target': pd.Series([3.0], index=pd.Index(['g0'], name='g')),
             'item': index,
@@ -232,7 +232,7 @@ def test_a_partial_coordinate_places_its_orphans_nowhere(tmp_path):
             'the orphan is still a variable; it just carries no group obligation'
         )
 
-    model = lpspec_linopy.build(path, data)
+    model = spec_oracle.build(path, data)
     model.solve(solver_name='highs', output_flag=False)
     assert float(model.objective.value) == pytest.approx(3.0)
 
@@ -273,7 +273,7 @@ def test_a_grouped_sum_lands_on_the_dimension_it_declares(sources):
 
     A groupby yields only the labels some member points at, and in sorted
     order. Either departure — a bus no generator sits on, or a declared order
-    that is not alphabetical — leaves the eager lane holding a ``bus`` that is
+    that is not alphabetical — leaves linopy holding a ``bus`` that is
     not the model's ``bus``, and linopy v1 refuses the next combination, since
     it aligns on membership and order alike. The relational lane never faces
     the question: it joins on the label and takes its rows from the foreach

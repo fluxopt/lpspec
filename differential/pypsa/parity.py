@@ -20,15 +20,15 @@ locally is the workflow's own line, which installs nothing on disk:
 Per rung, from the same network, three comparisons:
 
 1. **Spec against model** — PyPSA's ``n.optimize.create_model()`` and
-   ``lpspec.linopy.build``, label for label: coefficients, sense, right-hand
+   ``linopy.Model.from_spec``, label for label: coefficients, sense, right-hand
    side, bounds, integrality, objective terms. No solver, so it covers MIP
    and QP alike. The verdict speaks the index table's words: ``equal`` is
    the one block PyPSA builds — **done**; ``region`` is the same rows from
    several ``where:`` blocks — **split**; a difference the file states on
    purpose carries a ``blocks`` reason in ``deviations.yaml`` and comes back
-   **recorded**; ``mismatch`` fails the run. A rung
-   whose file `lpspec.linopy` cannot build yet stamps the error instead —
-   the upstream hardening this gate waits on — and its proof stops at (2).
+   **recorded**; ``mismatch`` fails the run. A rung linopy cannot build from
+   the file yet stamps the error instead — the upstream hardening this gate
+   waits on — and its proof stops at (2).
 2. **One solved objective across the fence** — PyPSA's solve against
    `lpspec.relational`'s, both HiGHS, rtol 1e-9 on the generic spine.
 3. **Coverage** — what the relational lane built per block, each
@@ -54,9 +54,11 @@ The comparison reads linopy's own ``.flat`` export but does not call
 builders lay the same model out differently — PyPSA pads absent ``_term``
 slots with NaN where lpspec writes -0.0, and term order within a row is the
 builder's own. A canonicalizing ``assert`` upstream would shrink this file.
-PyPSA's model is built before `lpspec.linopy` is imported: that import flips
-linopy's global ``semantics`` option to ``v1`` and PyPSA speaks ``legacy``,
-so the option is reset around each PyPSA build.
+PyPSA's model is built before ``tests.spec_oracle`` is imported: that import
+flips linopy's global ``semantics`` option to ``v1`` and PyPSA speaks
+``legacy``, so the option is reset around each PyPSA build. That module is the
+one place the respelling from this package's tables into linopy's containers
+lives, and the differential suite is its other caller.
 
 The stamps are rewritten into `references.json` beside this file on every
 run, so the committed certificate is always what the last run of this tree
@@ -89,6 +91,7 @@ PROJECTIONS = HERE / 'rungs'
 DEVIATIONS = HERE / 'deviations.yaml'
 sys.path.insert(0, str(RUNGS))
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parents[1]))  # the repo root, for tests.spec_oracle
 
 import linopy  # noqa: E402
 import math_spec  # noqa: E402
@@ -698,7 +701,7 @@ def compare(theirs, ours, declared, gc_kinds: dict[str, str]) -> dict[str, objec
 
 def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
     """One rung through everything: the objective across the fence, the model against the model, the coverage."""
-    from lpspec import linopy as lpl
+    from tests import spec_oracle
 
     theirs = pypsa_model(stem)
     n = network(stem)
@@ -761,7 +764,7 @@ def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
     cut = projected(stem, spec, parity, n)
     committed(stem, spec.name, math_spec.to_spec(cut), prepared(cut, n, stem))
     try:
-        ours = lpl.build(spec, sources)
+        ours = spec_oracle.build(spec, sources)
     except Exception as error:
         note = f'{type(error).__name__}: {error}'.splitlines()[0][:200]
         return parity, {'error': note}, parity['matches'] and priced(parity) and shaped(parity)

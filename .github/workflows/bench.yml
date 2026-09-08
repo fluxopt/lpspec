@@ -62,7 +62,7 @@ jobs:
           key: pixi-bench-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
           restore-keys: pixi-bench-${{ runner.os }}-
       # The `bench` environment is the dev one plus the harness: the ladder
-      # measures lpspec against linopy, so both lanes have to be installed.
+      # measures lpspec against linopy, so both arms have to be installed.
       - run: pixi install -e bench
 
       # Generate the parquet inputs once, outside both measured passes, so

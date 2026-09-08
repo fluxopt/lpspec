@@ -55,11 +55,6 @@ import lpspec as lps
 from lpspec.api import Model
 from lpspec.relational.result import Result
 
-try:
-    from lpspec import linopy as linopy_lane
-except ModuleNotFoundError:
-    linopy_lane = None  # bare install, no [linopy] extra
-
 REPO = Path(__file__).resolve().parent.parent
 TRACKED = [
     'README.md',
@@ -77,16 +72,13 @@ TRACKED = [
 #: Anything else (pd, np, network, ...) is external and not our contract.
 ROOTS: dict[str, Any] = {
     'lps': lps,
-    'lpspec_linopy': linopy_lane,
     'result': Result,
     'model': Model,
 }
 
-#: Every root an example may name, whether or not this install can resolve it.
-#: Recognising an example must not depend on the extras: a linopy-lane example
-#: is still one on a bare install, it just cannot be name-checked.
+#: Every root an example may name. Every one resolves on a bare install now
+#: that no root of ours comes from an extra.
 ROOT_NAMES = frozenset(ROOTS)
-ROOTS = {name: obj for name, obj in ROOTS.items() if obj is not None}
 
 
 def _unresolvable(code: str) -> set[str]:
@@ -357,7 +349,7 @@ def test_every_block_is_covered() -> None:
 # module docstrings — where the engine leak actually lived
 # --------------------------------------------------------------------------
 
-DOCSTRING_MODULES = ['src/lpspec/__init__.py', 'src/lpspec/api.py', 'src/lpspec/linopy/__init__.py']
+DOCSTRING_MODULES = ['src/lpspec/__init__.py', 'src/lpspec/api.py']
 
 
 def _docstring_examples(path: Path) -> list[str]:

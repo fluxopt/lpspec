@@ -34,7 +34,7 @@ import lpspec as lps
 from lpspec.errors import PiecewiseExpansionError
 from tests.conftest import override, schema_of
 from tests.differential import RTOL, differential
-from tests.oracle import lpspec_linopy, pd
+from tests.oracle import pd, spec_oracle
 from tests.piecewise_models import LP_SPEC as SPEC
 
 PER_UNIT_SPEC = """
@@ -110,7 +110,7 @@ def _on_the_curve(x: float) -> float:
 
 
 def test_the_cost_lands_on_the_curve_and_both_lanes_agree():
-    """The expansion is schema-level, so both lanes get identical affine rows.
+    """The expansion is schema-level, so both get identical affine rows.
 
     Under minimisation the epigraph binds, so each snapshot's cost is the
     curve read at its load — checked against a numpy interpolation, which is
@@ -390,10 +390,10 @@ def test_a_curve_bound_to_a_path_is_checked_like_one_in_memory(tmp_path):
 
     The guard laid out what it could in process and skipped a path, so this
     concave curve was refused as a frame and reached the solver as parquet,
-    coming back optimal at 155 where the curve says 110 — and the eager lane,
-    which loads a path before the guard runs, refused it all along (#1123).
-    Both lanes now scan it, for the two columns `validate_curve_extent` already
-    pays that I/O for.
+    coming back optimal at 155 where the curve says 110, where linopy — which
+    loads a path before the guard runs — refused it all along (#1123). Both
+    scan it now, for the two columns `validate_curve_extent` already pays that
+    I/O for.
     """
     concave = [0.0, 30.0, 50.0, 60.0]
     sources = _relational(ys=concave)
@@ -401,9 +401,9 @@ def test_a_curve_bound_to_a_path_is_checked_like_one_in_memory(tmp_path):
         sources[name].write_parquet(tmp_path / f'{name}.parquet')
         sources[name] = tmp_path / f'{name}.parquet'
 
-    for lane in (lps.build, lpspec_linopy.build):
-        with pytest.raises(PiecewiseExpansionError, match='exact only for a convex curve'):
-            lane(pyyaml.safe_load(SPEC), sources)
+    for build, refusal in ((lps.build, PiecewiseExpansionError), (spec_oracle.build, spec_oracle.SpecDataError)):
+        with pytest.raises(refusal, match='exact only for a convex curve'):
+            build(pyyaml.safe_load(SPEC), sources)
 
 
 def test_a_concave_curve_is_refused_whatever_the_breakpoints_are_measured_in():

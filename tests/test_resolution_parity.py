@@ -3,7 +3,7 @@
 The rules themselves are math-spec's and are swept there. This module checks
 the thing that actually mattered: that the *eager* lane refuses what the
 relational lane refuses, in the same place, for the same reason. Before
-resolution was a pass, each of these built a model on one lane and raised on
+resolution was a pass, each of these built a model on one of them and raised on
 the other.
 """
 
@@ -18,7 +18,7 @@ import yaml as pyyaml
 import lpspec as lps
 from tests.conftest import DISPATCH_SPEC, dispatch_spec_path, override
 from tests.differential import differential
-from tests.oracle import lpspec_linopy, pd  # skips the module without the [linopy] extra
+from tests.oracle import pd, spec_oracle  # skips the module without the [linopy] extra
 
 
 @pytest.mark.parametrize(
@@ -36,7 +36,7 @@ def test_both_lanes_refuse_the_same_where(tmp_path, dispatch_spec_inputs, where,
     path = dispatch_spec_path(tmp_path, **{'variables.p.where': where})
 
     with pytest.raises(ValueError, match=match):
-        lpspec_linopy.build(path, data)
+        spec_oracle.build(path, data)
 
     with pytest.raises(ValueError, match=match):
         lps.check(path)
@@ -46,7 +46,7 @@ def test_both_lanes_refuse_a_comparison_that_carries_no_variable(tmp_path, dispa
     """A constraint whose two sides are both constants decides nothing (#1171).
 
     Was: the relational lane built the model quietly with no such row, while
-    the eager lane raised linopy's own `TypeError` at build — one language,
+    linopy raised linopy's own `TypeError` at build — one language,
     two answers, and neither of them said what was wrong with the file. It is
     decidable with no data attached, so it is decided where the file is read.
     """
@@ -54,13 +54,13 @@ def test_both_lanes_refuse_a_comparison_that_carries_no_variable(tmp_path, dispa
     path = dispatch_spec_path(tmp_path, **{'constraints.balance.expression': 'p_max <= 1'})
 
     with pytest.raises(ValueError, match='decides nothing'):
-        lpspec_linopy.build(path, data)
+        spec_oracle.build(path, data)
 
     with pytest.raises(ValueError, match='decides nothing'):
         lps.check(path)
 
 
-#: Where-strings that must build *identically* on both lanes. Chosen to cover
+#: Where-strings that must build *identically* on both. Chosen to cover
 #: every resolved predicate type — see the exhaustiveness test below. The dim
 #: comparisons are deliberately always-true: a mask that removes every variable
 #: from a constraint row exposes a separate divergence, pinned below.
@@ -74,7 +74,7 @@ ACCEPTED = [
     'p_max > 0 AND snapshot >= 0',
     'p_max > 0 OR snapshot >= 0',
     #: The literal is folded away at load, so this is `p_max > 0` by the time
-    #: either lane sees it — the claim being that a file may say it.
+    #: either sees it — the claim being that a file may say it.
     'p_max > 0 AND True',
     #: The one position a literal survives to: alone, and false. `True` alone
     #: is no mask at all and arrives as `None`.
@@ -101,16 +101,16 @@ COVERED_ELSEWHERE = {
 
 @pytest.mark.parametrize('where', ACCEPTED)
 def test_both_lanes_build_the_same_model(tmp_path, dispatch_spec_inputs, where):
-    """Both lanes agree on *which* model they built, feasible or not.
+    """Both agree on *which* model they built, feasible or not.
 
     A mask that excludes snapshot 0 leaves the balance row unsatisfiable; that
-    is not the claim here, and neither lane is asked to make every mask
+    is not the claim here, and neither is asked to make every mask
     feasible.
     """
     data = dispatch_spec_inputs
     path = dispatch_spec_path(tmp_path, **{'variables.p.where': where})
 
-    m = lpspec_linopy.build(path, data)
+    m = spec_oracle.build(path, data)
     eager_rows = int((m.variables['p'].labels != -1).sum())
     eager_status = m.solve(solver_name='highs')[1]
 
@@ -167,10 +167,10 @@ def test_a_constraint_row_left_with_no_variables(tmp_path, dispatch_spec_inputs)
     `where: "snapshot > 0"` on `p` leaves `balance` at snapshot 0 with no
     terms. This was an xfail: linopy handed the solver three rows of four while
     the relational lane kept the fourth as `0 == 80` and reported Infeasible —
-    one lane answering a question the other refused.
+    one of them answering a question the other refused.
 
     The rule is now stated at the level the property lives at rather than per
-    provenance, so the lanes reach it independently: linopy's own invariant is
+    provenance, so the two reach it independently: linopy's own invariant is
     the same one (`labels != -1` and at least one var), which is why it needed
     no shim to agree.
 
@@ -180,7 +180,7 @@ def test_a_constraint_row_left_with_no_variables(tmp_path, dispatch_spec_inputs)
     data = dispatch_spec_inputs
     path = dispatch_spec_path(tmp_path, **{'variables.p.where': 'snapshot > 0'})
 
-    m = lpspec_linopy.build(path, data)
+    m = spec_oracle.build(path, data)
     eager_status = m.solve(solver_name='highs')[1]
 
     with lps.build(path, data) as model:
@@ -213,8 +213,8 @@ def test_a_row_over_a_dimension_with_no_members_is_not_built_on_either_lane(sens
     """The same rule as above, reached where the *dimension* is empty (#1108).
 
     A reduction over a set with no members is `0`, so `sum(w, over=k) == 1`
-    is a row about constants alone and neither lane builds it. Was: the
-    relational lane solved, and the eager lane raised linopy's `Both sides of
+    is a row about constants alone and neither builds it. Was: the
+    relational lane solved, and linopy raised linopy's `Both sides of
     the constraint are constant` before any mask could speak — so a component
     library, whose whole shape is one program covering features a given system
     does not use, could not use the oracle lane at all.
@@ -260,7 +260,7 @@ def test_a_block_ranging_over_a_dimension_with_no_members_is_not_built_on_either
 
     Here the sum reduces a full dimension while its term carries the empty
     one, so every row of the result is empty. The relational lane builds
-    zero rows; the eager lane never got that far — linopy's ``sum`` dies in
+    zero rows; linopy never got that far — linopy's ``sum`` dies in
     xarray's stack (``cannot reshape array of size 0``) whenever another
     dimension of the summed expression is empty — which kept every
     cycle-free rung of the PyPSA ladder off the model-for-model comparison.
@@ -299,7 +299,7 @@ BOOL_MASK_SPEC = {
 def test_a_bool_parameter_is_a_mask_on_both_lanes():
     """A bool parameter reads as its own value: true masks in, false masks out,
     and an absent row masks out. Was: the relational lane raised
-    `isfinite(BOOLEAN)` at build, and the eager lane read false as true.
+    `isfinite(BOOLEAN)` at build, and linopy read false as true.
     """
     data = {
         't': [0, 1, 2],
@@ -329,7 +329,7 @@ SCALAR_ROW_SPEC = {
 def test_the_empty_coordinate_builds_on_both_lanes():
     """A scalar row, a scalar column and a scalar value, in one model (#320).
 
-    Was: the eager lane built all three and solved; the relational lane raised
+    Was: linopy built all three and solved; the relational lane raised
     `constraint 'budget_row' has no dims`, and with that guard gone,
     `variable 'slack' has no dims (scalars: use dims of size 1)`. So the same
     file was two languages, against hard rule 3 — and the hint pointed at the
@@ -421,7 +421,7 @@ def test_a_datetime_boundary_is_sayable_on_both_lanes(tmp_path):
         'generator': pd.Index(['wind', 'gas'], name='generator'),
     }
 
-    m = lpspec_linopy.build(path, eager_data)
+    m = spec_oracle.build(path, eager_data)
     m.solve(solver_name='highs')
     eager = float(m.objective.value)
 

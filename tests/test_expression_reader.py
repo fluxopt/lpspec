@@ -1,6 +1,6 @@
 """`Result.expression(name)`: a named expression readable after a solve (#562).
 
-The relational lane only — the differential half, both lanes agreeing on the
+The relational lane only — the differential half, both agreeing on the
 same values, lives in ``test_linopy_lane.py`` with the rest of the oracle
 comparisons. What is pinned here: the value is the one the primal implies, an
 expression no constraint references still reads, the frame's dims are

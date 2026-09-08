@@ -1,7 +1,7 @@
 """The streaming language boundary: out-of-subset constructs are load errors.
 
 There is no runtime fallback — the streaming subset IS the language
-(docs/about/architecture.md), and both lanes are inside it: `lpspec.linopy`
+(docs/about/architecture.md), and both are inside it: `lpspec.linopy`
 builds the same file through the same `to_program` gate.
 Errors must carry the construct and its context, verbatim.
 """
@@ -52,7 +52,7 @@ def test_every_shipped_example_is_inside_the_language(path):
     ],
 )
 def test_inside_the_language(patch):
-    """Each of these lowers, so both lanes accept it."""
+    """Each of these lowers, so both accept it."""
     to_program(schema_of(DISPATCH, **patch))
 
 
@@ -88,7 +88,7 @@ def test_outside_the_language_is_a_load_error(patch, match):
 
 
 def test_an_unknown_operator_names_its_context_and_teaches_the_rewrite():
-    """The message is the whole test: an error that pointed at another lane
+    """The message is the whole test: an error that pointed at anthe other
     would be telling the user to leave the language rather than restate it."""
     patch = {'constraints.power_balance.expression': 'my_helper(p, over=generator) == load'}
     with pytest.raises(LanguageError, match='my_helper') as exc:
@@ -96,5 +96,5 @@ def test_an_unknown_operator_names_its_context_and_teaches_the_rewrite():
 
     reason = str(exc.value)
     assert 'power_balance' in reason, 'the reason carries its context'
-    assert 'escape' in reason, 'and the rewrite, rather than a pointer to another lane'
+    assert 'escape' in reason, 'and the rewrite, rather than a pointer to anthe other'
     assert 'eager' not in reason.lower()

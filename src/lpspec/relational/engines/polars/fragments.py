@@ -177,8 +177,8 @@ def refuse_a_fragment_without_the_dims(p: TermFragment, dims: list[str], context
 
     Two different failures share this shape and must not share a class. A
     **constant part** lacking the dims is a file the language accepts and the
-    eager lane builds — `check` passes, so `LanguageError` would be a lie — and
-    it is reachable from ordinary YAML wherever a scalar is added beside a term.
+    linopy builds — `check` passes, so `LanguageError` would be a lie — and it
+    is reachable from ordinary YAML wherever a scalar is added beside a term.
     A **term** lacking them is not reachable that way: `dims_of` gives every
     term the foreach dims at load, so reaching here means the plan is
     malformed.
@@ -193,8 +193,8 @@ def refuse_a_fragment_without_the_dims(p: TermFragment, dims: list[str], context
             f'frame, so a fragment with no rows for {dims} has no slots for the operator to act on — '
             f'and under a mask, which slots those are is known only to the rows. Declare the parameter '
             f'over {dims} and supply it there: the model is the same and the number is unchanged. '
-            f'The eager lane builds the file as written, so only this lane is short — run it with '
-            f'`lpspec.linopy.build`.'
+            f'linopy builds the file as written, so only this lane is short — run it with '
+            f'`linopy.Model.from_spec`.'
         )
     msg = f'in {context}: {operator} along {dims}, which the expression does not span'
     raise AssertionError(msg)

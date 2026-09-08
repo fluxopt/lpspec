@@ -9,8 +9,8 @@ pandas is already in ``sys.modules``.
 columns, an index being a column wearing a hat. An ``xarray.DataArray`` is a
 dense n-dimensional array rather than a table, and taking one would be this
 package agreeing that a parameter is a rectangle already materialised. xarray
-is what a result is handed back *as* (``to_dataarray``) and what the linopy
-lane builds internally, never what either lane reads.
+is what a result is handed back *as* (``to_dataarray``), never what the engine
+reads.
 """
 
 from __future__ import annotations

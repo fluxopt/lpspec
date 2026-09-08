@@ -192,39 +192,12 @@ def _headings(page: Path) -> set[str]:
 # the error tree
 
 
-# the lane, as a translation
-
-
-def test_the_translation_table_names_every_built_in_operator():
-    """`What a construct becomes` is a copy of the builder, so something checks it.
-
-    The page's own rule, one section up: a copy nobody checks is a copy that
-    rots. What it would rot into is a reader believing the lane translates a
-    construct it no longer has, or — worse for the oracle — missing one it
-    gained, since an operator with no row is an operator nobody wrote down the
-    linopy call for.
-    """
-    from math_spec import BUILTIN_NAMES
-
-    page = (DOCS / 'about' / 'linopy.md').read_text()
-    section = page.split('### What a construct becomes')[1].split('### The same language')[0]
-    expressions = section.split('| In an expression |')[1].split('| A `where:` |')[0]
-    shown = set(re.findall(r'^\| `(\w+)\(', expressions, re.MULTILINE))
-
-    assert shown == set(BUILTIN_NAMES), (
-        f"the translation table shows {sorted(shown)} against the language's "
-        f'{sorted(BUILTIN_NAMES)} — every built-in needs the linopy call it becomes'
-    )
-
-
 def test_the_plan_table_names_every_expression_node():
     """`The plan, node for node` is a copy of two dispatches, so something checks it.
 
-    The same rule the table above answers to, one layer down: a node with no
-    row is a node whose two readings nobody wrote down, and the row is where a
-    reader learns that the lanes agree at all. The fan-in cell is read back
-    off the language, since that column is one the compiler *acts* on rather
-    than merely documents.
+    A node with no row is a node whose reading nobody wrote down. The fan-in
+    cell is read back off the language, since that column is one the compiler
+    *acts* on rather than merely documents.
     """
     from math_spec import program
 

@@ -75,7 +75,7 @@ def data():
 def test_where_the_sum_is_written_decides_what_it_counts(data, expression, expected):
     """Two readings, both sayable, and the bracket is what picks.
 
-    ``differential`` already asserts the two lanes agree; what it cannot know is
+    ``differential`` already asserts the two agree; what it cannot know is
     whether they agree on the *right* number, and before #197 they disagreed in
     exactly this shape. The pairs here are what make the rule readable rather
     than remembered: 32 against 66, and 6400 against 13200, differ only in
@@ -142,24 +142,24 @@ FEASIBILITY_SPEC = {
 
 
 def test_a_model_with_no_objective_is_a_feasibility_problem(tmp_path):
-    """Both lanes build it, and the answer is a point rather than an optimum.
+    """Both build it, and the answer is a point rather than an optimum.
 
     A file with no `objective:` used to lower to `LanguageError: the relational
-    backend requires an objective` while the linopy lane built it happily —
-    the one construct the two lanes disagreed about (#845). Nothing optimises,
+    backend requires an objective` while linopy built it happily —
+    the one construct the two disagreed about (#845). Nothing optimises,
     so the objective value is the zero the sink was handed.
     """
     import yaml as pyyaml
 
     import lpspec as lps
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import spec_oracle
 
     sources = {'g': ['wind', 'gas'], 'cap': {'wind': 40.0, 'gas': 100.0}, 'need': 90.0}
 
     path = tmp_path / 'feasibility.yaml'
     path.write_text(pyyaml.safe_dump(FEASIBILITY_SPEC))
-    eager = lpspec_linopy.build(path, sources)
-    assert 'meet' in eager.constraints, 'the eager lane built the same file'
+    eager = spec_oracle.build(path, sources)
+    assert 'meet' in eager.constraints, 'linopy built the same file'
 
     with lps.solve(FEASIBILITY_SPEC, sources) as result:
         assert result.is_ok, 'the constraints can be met, so this is not a failed solve'

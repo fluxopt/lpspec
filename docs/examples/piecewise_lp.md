@@ -192,7 +192,7 @@ formulation extrapolates along the end segments, where the weight forms cannot
 go at all.
 
 Everything above is emitted as ordinary constraints before the plan exists:
-there is no plan node for a curve and no engine case, so both lanes receive
+there is no plan node for a curve and no engine case, so both consumers receive
 identical affine rows and the LP file agrees with them.
 
 | | what it declares | what it emits |

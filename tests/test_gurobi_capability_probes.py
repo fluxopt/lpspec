@@ -112,7 +112,7 @@ def test_the_gurobi_descriptor_says_what_this_sink_does_with_what_it_measured():
 
     Everything above solved, and this sink now hands gurobipy every one of them
     — the quadratic constraint included, which makes it the only consumer in
-    the package that builds one at all. The linopy lane cannot, which is hard
+    the package that builds one at all. linopy cannot, which is hard
     rule 3's amendment and what ``lanes.LANES`` declares.
     """
     capabilities = SOLVERS['gurobi'].capabilities

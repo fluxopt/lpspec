@@ -101,8 +101,8 @@ def test_shift_drops_the_row_it_has_no_predecessor_for_on_both_lanes(storage_inp
 
     A model that wants one now says so, which is what the declaration rules'
     storage example
-    already did with a complementary ``where``. Both lanes are asserted because
-    they reach the drop differently — the eager lane from linopy's absence
+    already did with a complementary ``where``. Both are asserted because
+    they reach the drop differently — linopy from linopy's absence
     propagation, the relational one from the vacated coordinates leaving the
     presence set.
     """
@@ -158,7 +158,7 @@ def test_a_forward_shift_with_a_zero_edge_keeps_the_far_row_on_both_lanes(storag
 
 #: A mask that removes one interior coordinate, so the operand's own absence
 #: sits where no edge is. `edge: 0` may fill the boundary and nothing else, and
-#: the two are one call to `fillna` apart on the eager lane (#987).
+#: the two are one call to `fillna` apart on linopy (#987).
 MASKED_INTERIOR = masked_operand_spec('link', 'take <= shift(level, over=t, offset=1, edge=0)')
 
 
@@ -269,8 +269,8 @@ def test_a_coordinate_the_lookup_sends_nowhere_is_absent_rather_than_vacated():
     (#969, `sum(by=)`, `at()`), and filling it asserts `take <= 0` where the
     model said nothing.
 
-    Before #1061 the eager lane filled it and the relational one did not, so
-    the lanes reported 4 rows and 3 for the same file.
+    Before #1061 linopy filled it and the relational one did not, so
+    the two reported 4 rows and 3 for the same file.
     """
     with differential(IN_GROUPS_UNMASKED, GROUPLESS_SOURCES, lp=True) as run:
         assert run.engine.diagnostics().rows == 3, (
@@ -392,7 +392,7 @@ def test_a_per_group_offset_translates_each_group_by_its_own_lag():
             'the row is the snapshot, and the period its lag was read at is not a coordinate of it'
         )
         assert run.model.constraints['reads'].size == run.engine.diagnostics().rows == 6, (
-            'one row per snapshot, and the same number of them on both lanes'
+            'one row per snapshot, and the same number of them on both'
         )
         assert _by_t(run.result, 'p') == [0.0, 10.0, 20.0, 0.0, 0.0, 40.0], (
             "each period reaches back its own lead inside its own group, and its opening rows take the edge's zero"
@@ -482,7 +482,7 @@ RAMP_SPEC = override(
 
 
 def test_a_where_on_dimension_coordinates_means_the_same_on_both_lanes():
-    """ROADMAP 5b: `where: "snapshot > 0"` must mean the same on both lanes.
+    """ROADMAP 5b: `where: "snapshot > 0"` must mean the same on both.
 
     The README's ramp example uses exactly this — a time-coupling constraint
     that skips the first snapshot. It used to be eager-only: lowering refused
@@ -505,7 +505,7 @@ def test_a_where_on_dimension_coordinates_means_the_same_on_both_lanes():
         active = int((run.model.constraints['ramp_up'].labels != -1).sum())
         assert active == (n_s - 1) * 2, (
             'the mask must bite: the first snapshot is dropped per generator, and a masked row on '
-            'the eager lane carries label -1'
+            'linopy carries label -1'
         )
 
 
@@ -673,13 +673,13 @@ def test_a_nested_shift_agrees_with_the_oracle(rhs: str):
     """A shift over a shift, in every arrangement of edge and dimension.
 
     `shift` takes any node of the right dim set (the operator rules), so nesting is inside
-    what the language accepts — and the eager lane always built it. The
+    what the language accepts — and linopy always built it. The
     relational lane raised a raw `polars.ColumnNotFoundError` instead, because
     an acyclic inner shift leaves a presence narrower than the fragment and the
     outer one projected the fragment's dims onto it.
 
     The coefficient and the `+ 1` are what make the row bind: without them
-    every variable sits at its upper bound and the lanes agree on an answer
+    every variable sits at its upper bound and the two agree on an answer
     neither of them computed from the shift.
     """
     spec = {
@@ -692,7 +692,7 @@ def test_a_nested_shift_agrees_with_the_oracle(rhs: str):
     data = {'t': [0, 1, 2, 3, 4], 'g': ['a', 'b'], 'c': pd.Series([1.0, 2.0], index=pd.Index(['a', 'b'], name='g'))}
     with differential(spec, data) as run:
         primal = run.result.primal('p')['value'].to_numpy()
-        assert not np.allclose(primal, 5.0), 'nothing binds, so the lanes would agree on an unconstrained model'
+        assert not np.allclose(primal, 5.0), 'nothing binds, so the two would agree on an unconstrained model'
 
 
 @pytest.mark.parametrize('edge', ["'wrap'", '0'], ids=['wrap', 'fill'])

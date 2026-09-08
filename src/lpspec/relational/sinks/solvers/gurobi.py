@@ -151,7 +151,7 @@ class Gurobi(Solver):
     #:
     #: ``quadratic_constraint`` joined them when the stream that carries one
     #: did. This is the only consumer in the package that builds one at all —
-    #: the linopy lane cannot (:data:`lpspec.lanes.LANES`).
+    #: linopy's ``add_constraints`` refuses a ``QuadraticExpression`` outright.
     capabilities = Capabilities(
         supports={
             'integrality': 'native',

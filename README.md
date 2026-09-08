@@ -41,7 +41,7 @@ flowchart LR
     R -->|"no"| ERR["load error<br/>naming the construct + rewrite"]
     R -->|"yes"| S["relational engine<br/>polars"]
     S --> OUT["solver (batched) / LP file"]
-    R -->|"yes, and you asked<br/>for a linopy.Model"| E["lpspec.linopy"]
+    R -->|"yes, and you asked<br/>for a linopy.Model"| E["linopy<br/><i>another package</i>"]
     E --> LS["linopy.Model → solve"]
 
     classDef stream fill:#f0f7f0,stroke:#3a7d44,stroke-width:2px,color:#111
@@ -125,19 +125,20 @@ what it costs.
   goes in an `escape:` island, visible in the file and billed before it runs.
 
 The second use case is taking the same file to [linopy](https://github.com/PyPSA/linopy)
-instead of solving it here. One import decides which lane builds it; the
-language, the data and the refusals are the same either way:
+instead of solving it here. linopy reads the same language natively, so this is
+its call rather than ours:
 
 ```python
-from lpspec import linopy as lpspec_linopy
+import linopy
 
-m = lpspec_linopy.build('spec.yaml', sources={...})  # a linopy.Model you own
+m = linopy.Model.from_spec('spec.yaml', sources={...})  # a linopy.Model you own
 m.solve()
 ```
 
-linopy is **not a runtime dependency**. The lane above ships under the
-`[linopy]` extra, and the same install doubles as the **oracle** every language
-feature is differentially tested against — all three relationships are
+linopy is **not a runtime dependency**, and there is no lane here that wraps it
+— that build is linopy's. What the `[linopy]` extra buys is the **oracle**
+every language feature is differentially tested against, plus `to_pandas` /
+`to_dataarray`; all three relationships are
 [one page](docs/about/linopy.md). There is no routing and no fallback: a
 construct outside the language is a load error naming its rewrite.
 
@@ -165,7 +166,7 @@ rather read it than run it.
 
 ```bash
 pip install lpspec  # the relational engine (polars, highspy)
-pip install "lpspec[linopy]"  # adds linopy + xarray + pandas: the lane, the
+pip install "lpspec[linopy]"  # adds linopy + xarray + pandas: the differential
                               # oracle, and to_pandas / to_dataarray
 pip install "lpspec[gurobi]"  # adds the gurobi sink: solver_name='gurobi'
 pip install "lpspec[xpress]"  # adds the xpress sink: solver_name='xpress'

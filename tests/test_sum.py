@@ -4,10 +4,10 @@ The spelling exists so that an implied reduction can be written down. Where a
 declaration sums for you — an objective is scalar, so every dim in it goes —
 the file says nothing about *which* dims went or where the sum's bracket ends,
 and #1046 is what that costs: the math block and the LP disagreed about a
-model both lanes accepted.
+model both accepted.
 
 So the claim under test is equivalence, not a new capability: ``sum(x)`` and
-the nest that names each dim build one model, on both lanes and through the LP
+the nest that names each dim build one model, on both and through the LP
 file. The reduction is asked for in a **scalar constraint** rather than in the
 objective, because an objective sums what is left over anyway — a bare sum
 there is invisible, and a test that cannot see it certifies nothing.

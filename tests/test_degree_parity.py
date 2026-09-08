@@ -21,14 +21,14 @@ import pytest
 import lpspec as lps
 from lpspec.errors import LanguageError
 from tests.conftest import dispatch_spec_path
-from tests.oracle import lpspec_linopy  # skips the module without the [linopy] extra
+from tests.oracle import spec_oracle  # skips the module without the [linopy] extra
 
 
 #: One entry per way the degree rule can be broken *at build time on both
 #: lanes*. A product of two variables is not among them any more — the
 #: objective and constraints both take one — and the position that still
 #: refuses it, a named expression, is lowered only by ``check``
-#: (``test_language_boundary.py``). What the eager lane refuses about a
+#: (``test_language_boundary.py``). What linopy refuses about a
 #: quadratic *constraint* is not degree but capability, and lives in
 #: ``test_quadratic_constraint.py``. The divisor that adds is affine and
 #: refused all the same, because a quotient is built as one reciprocal factor.
@@ -60,7 +60,7 @@ from tests.oracle import lpspec_linopy  # skips the module without the [linopy] 
 def test_both_lanes_refuse_the_same_expression(tmp_path, dispatch_spec_inputs, patch, match):
     """Not just "both raise": both say the same thing.
 
-    The relational lane prefixes the declaration it was lowering; the eager lane
+    The relational lane prefixes the declaration it was lowering; linopy
     carries that as an ``add_note`` instead, so its message is the bare sentence
     and the relational one ends with it. One source, so this cannot drift into
     two dialects the way the hand-copied ``**`` message could.
@@ -69,7 +69,7 @@ def test_both_lanes_refuse_the_same_expression(tmp_path, dispatch_spec_inputs, p
     path = dispatch_spec_path(tmp_path, **patch)
 
     with pytest.raises(LanguageError, match=match) as eager:
-        lpspec_linopy.build(path, data)
+        spec_oracle.build(path, data)
 
     with pytest.raises(LanguageError, match=match) as relational:
         lps.check(path)
@@ -84,5 +84,5 @@ def test_the_eager_lane_still_accepts_an_affine_product(tmp_path, dispatch_spec_
     """
     data = dispatch_spec_inputs
     path = dispatch_spec_path(tmp_path, **{'objective.expression': 'sum(p * cost)'})
-    model = lpspec_linopy.build(path, data)
+    model = spec_oracle.build(path, data)
     assert model.objective is not None

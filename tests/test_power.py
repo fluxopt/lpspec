@@ -56,7 +56,7 @@ def spec(expression: str, **patch) -> dict:
 )
 def test_both_lanes_reach_one_optimum(expression):
     """The differential oracle, which is the whole reason this is a fold and not
-    a special case: a power is one number per coordinate on either lane."""
+    a special case: a power is one number per coordinate on either."""
     with differential(spec(expression), SOURCES):
         pass
 

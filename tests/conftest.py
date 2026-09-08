@@ -1,7 +1,7 @@
 """Shared fixtures and schema helpers for lpspec tests.
 
 Everything here is linopy-free *and pandas-free at import*, so it loads on a
-bare install. On a bare install (no [linopy] extra) the eager/oracle modules
+bare install. On a bare install (no [linopy] extra) the oracle modules
 skip themselves: they reach the oracle through ``tests.oracle``, whose
 ``importorskip`` guard fires at collection. There is no list of filenames to
 keep in sync here — a module that needs the extra says so by importing it. The
@@ -13,7 +13,7 @@ dependency (it ships with the ``[linopy]`` extra, for the oracle and for
 ``Result.to_pandas``), so a fixture that hands out pandas objects imports it in
 its own body: requesting the fixture is what asks for the dependency, and the
 bare job never requests it. ``dispatch_inputs`` and ``dispatch_frame_inputs``
-are the same numbers in the two shapes — the oracle lane is pandas-native, the
+are the same numbers in the two shapes — the oracle is pandas-native, the
 engine is frame-native, and the module constants are the single source of both.
 """
 
@@ -232,7 +232,7 @@ def dispatch_yaml() -> Path:
 
 @pytest.fixture
 def dispatch_spec_inputs():
-    """``DISPATCH_SPEC``'s data as pandas, index included — one mapping, both lanes."""
+    """``DISPATCH_SPEC``'s data as pandas, index included — one mapping, both."""
     import pandas as pd
 
     return {
@@ -245,7 +245,7 @@ def dispatch_spec_inputs():
 
 
 def dispatch_spec_path(directory: Path, **patch: Any) -> Path:
-    """``DISPATCH_SPEC``, varied and written to disk — the eager lane only takes a path."""
+    """``DISPATCH_SPEC``, varied and written to disk — linopy only takes a path."""
     path = directory / 'model.yaml'
     path.write_text(pyyaml.safe_dump(override(DISPATCH_SPEC, **patch)))
     return path
@@ -474,7 +474,7 @@ def recomputed_row_values(engine, result) -> Any:
     built frames and the primal — and nothing else the solver produced, which
     is what makes agreement with ``result.activity`` a check of the whole chain
     rather than a tautology. For a quadratic row it stands in for the oracle
-    the linopy lane cannot provide.
+    linopy cannot provide.
 
     Scattered rather than ``reduceat``-ed: a purely quadratic row owns no
     linear entries, and ``reduceat`` repeats the previous row on an empty span.
