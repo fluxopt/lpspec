@@ -5,7 +5,7 @@ A plan cannot contain a loop; a *process* may loop over plans
 built from the public verbs — never a language or engine feature.
 
 Every strategy is the same fold: **partition → attach → solve → carry → stitch**.
-Only how slices are cut and whether they couple differs. A serial fold builds
+Only how the sources are sliced and whether the slices couple differs. A serial fold builds
 once and updates each slice (:func:`_serially`); under a process pool it builds
 per slice (:func:`_pooled`), a built model being the one thing that cannot
 cross. Both yield an :class:`_Answer`, and the fold that absorbs them is
@@ -60,7 +60,7 @@ if TYPE_CHECKING:
 _COMPRESSION = 'zstd'
 
 
-class _Cut(NamedTuple):
+class _Slice(NamedTuple):
     """One slice of a sweep: the key, and the sources that build it.
 
     A tuple on purpose: a hand-built axis is a plain list of ``(key, sources)``,
@@ -121,7 +121,7 @@ class _CarryRule:
         carry collapses; everything else passes through, so a myopic pathway
         hands a whole capacity vector forward rather than one number at a time.
         Nothing here reads data, which is why the plan resolves before the axis
-        cuts any.
+        slices any.
         """
         if parameter not in program.parameters:
             raise LpspecError(f'carry writes parameter {parameter!r}, which the spec does not declare')
@@ -211,7 +211,7 @@ class _OriginalIndex:
     *responsible* for — its first ``step``, the rest being lookahead the next
     window recomputes. One-way: the lookahead rows are not in it, so a sliced
     frame cannot be rebuilt from it — slicing stays
-    :meth:`EachWindow._cut`'s business.
+    :meth:`EachWindow._slice`'s business.
     """
 
     local: str
@@ -265,7 +265,7 @@ def _least(program: Program, sources: Mapping[str, Any], name: str) -> int:
 
 
 # ---------------------------------------------------------------------------
-# axes — how slices are cut
+# axes — how the sources are sliced
 # ---------------------------------------------------------------------------
 
 
@@ -287,7 +287,7 @@ class EachCoordinate:
 
         For building one slice alone: ``lps.build(spec, axis.slices(sources)[3][1])``.
         """
-        return list(self._cut(sources, self._key_name())[0])
+        return list(self._slice(sources, self._key_name())[0])
 
     def _key_name(self) -> str:
         """The dimension itself: a slice key *is* a coordinate of it."""
@@ -308,22 +308,22 @@ class EachCoordinate:
         if self.dim in program.dimensions:
             raise LpspecError(
                 f'EachCoordinate({self.dim!r}) drops {self.dim!r} from every source, and the spec declares '
-                f'it, so each slice would build a dimension nothing supplies. A coordinate sweep cuts an '
-                f'axis the model does not have; to cut one it does, window it.'
+                f'it, so each slice would build a dimension nothing supplies. A coordinate sweep slices an '
+                f'axis the model does not have; to slice one it does, window it.'
             )
 
-    def _cut(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Cut], _OriginalIndex | None]:
-        """One cut per coordinate, keyed by it. Sources without *dim* pass through.
+    def _slice(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Slice], _OriginalIndex | None]:
+        """One slice per coordinate, keyed by it. Sources without *dim* pass through.
 
         No :class:`_OriginalIndex`: nothing was re-indexed, so a slice's frames
         already carry the coordinates they were solved over.
         """
         del key_name
         carrying, coordinates = _coordinates(sources, self.dim, 'slice')
-        out: list[_Cut] = []
+        out: list[_Slice] = []
         for key in coordinates:
-            cut = {name: table.filter(pl.col(self.dim) == key).drop(self.dim) for name, table in carrying.items()}
-            out.append(_Cut(key, {**sources, **cut}))
+            filtered = {name: table.filter(pl.col(self.dim) == key).drop(self.dim) for name, table in carrying.items()}
+            out.append(_Slice(key, {**sources, **filtered}))
         return out, None
 
 
@@ -338,7 +338,7 @@ class EachWindow:
     dense ``0..n-1`` column the model addresses by the name ``into`` gives it,
     which the spec has to declare.
 
-    Whether the model *can* be cut this way is asked before it is — the
+    Whether the model *can* be sliced this way is asked before it is — the
     coupling, the reach and the overlap they need are
     :meth:`_check_the_program`.
     """
@@ -355,7 +355,7 @@ class EachWindow:
         Solved as a list it keys by ``key_name=`` and stitches nothing —
         ``original_index`` is the axis's own.
         """
-        return list(self._cut(sources, self._key_name())[0])
+        return list(self._slice(sources, self._key_name())[0])
 
     def __post_init__(self) -> None:
         if self.length < 1 or self.step < 1:
@@ -379,7 +379,7 @@ class EachWindow:
         return f'{self.dim}_start'
 
     def _check_the_program(self, program: Program, sources: Mapping[str, Any]) -> None:
-        """Refuse a window the program's rows cannot be whole inside, before one is cut.
+        """Refuse a window the program's rows cannot be whole inside, before one is taken.
 
         The program answers through
         :attr:`~math_spec.program.Program.separability` and nothing here walks
@@ -411,14 +411,14 @@ class EachWindow:
         verdict = verdict.resolved({name: _least(program, sources, name) for name in named})
         if verdict.coupled:
             raise LpspecError(
-                f"EachWindow('{self.dim}', …, into='{self.into}') cuts '{self.into}', which the model ties "
+                f"EachWindow('{self.dim}', …, into='{self.into}') slices '{self.into}', which the model ties "
                 f'together, so no window holds every row whole:\n{_listed(verdict.coupled)}\n'
                 f'Each names the change that would lift it.'
             )
         if verdict.undecided:
             raise LpspecError(
-                f"EachWindow('{self.dim}', …, into='{self.into}') cuts '{self.into}', which the model reaches "
-                f'along through a lookup whose groups a window may cut, and this driver does not resolve a '
+                f"EachWindow('{self.dim}', …, into='{self.into}') slices '{self.into}', which the model reaches "
+                f'along through a lookup whose groups a window may split, and this driver does not resolve a '
                 f'reach the lookup decides:\n'
                 f'{_listed({r.label: f"through the lookup {r.name!r}" for r in verdict.undecided})}\n'
                 f'Cut a dimension the lookup does not group.'
@@ -439,15 +439,15 @@ class EachWindow:
                 stacklevel=3,
             )
 
-    def _cut(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Cut], _OriginalIndex]:
-        """One cut per window, keyed by its **first coordinate**.
+    def _slice(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Slice], _OriginalIndex]:
+        """One slice per window, keyed by its **first coordinate**.
 
         Keyed by the coordinate rather than the window's position, which is
         what names a window in the caller's own terms. Sources without *dim*
         pass through untouched.
 
         The filter leads because it is what a scan can push down; the
-        re-indexing that follows is over a frame already cut to one window.
+        re-indexing that follows is over a frame already filtered to one window.
 
         **A window owns its first ``step`` coordinates**, and the
         :class:`_OriginalIndex` records which — the rest is lookahead the next window
@@ -456,12 +456,12 @@ class EachWindow:
         keeps all of it and nothing is dropped off the tail.
         """
         carrying, coordinates = _coordinates(sources, self.dim, 'window')
-        out: list[_Cut] = []
+        out: list[_Slice] = []
         owned: list[dict[str, Any]] = []
         for start in range(0, len(coordinates), self.step):
             window = coordinates[start : start + self.length]
             local = {coordinate: position for position, coordinate in enumerate(window)}
-            cut = {
+            filtered = {
                 name: (
                     table.filter(pl.col(self.dim).is_in(window))
                     .with_columns(pl.col(self.dim).replace_strict(local, return_dtype=pl.Int64).alias(self.into))
@@ -469,7 +469,7 @@ class EachWindow:
                 )
                 for name, table in carrying.items()
             }
-            out.append(_Cut(window[0], {**sources, **cut, self.into: range(len(window))}))
+            out.append(_Slice(window[0], {**sources, **filtered, self.into: range(len(window))}))
             owned.extend(
                 {key_name: window[0], self.into: position, self.dim: coordinate}
                 for position, coordinate in enumerate(window[: self.step])
@@ -773,7 +773,7 @@ def solve_over(
             included; the axis filters the tables that carry it and passes
             the rest through.
         axis: :class:`EachCoordinate`, :class:`EachWindow`, or a list of
-            ``(key, sources)`` cut by hand.
+            ``(key, sources)`` written by hand.
         carry: ``{parameter: (variable, index)}`` — one slice's answer copied
             into the next slice's data. The first slice takes the parameter
             from *sources*, its seed.
@@ -800,7 +800,7 @@ def solve_over(
             an executor; a key that collides with a column the frames carry;
             a ``Program`` handed to an executor that crosses a process; an
             axis the program does not allow. All refused before a slice is
-            cut, and every one answerable from the declarations before a
+            taken, and every one answerable from the declarations before a
             source is read.
         DataError: No source carries the axis, or the axis produced no
             slices.
@@ -827,18 +827,18 @@ def solve_over(
     if isinstance(axis, (EachCoordinate, EachWindow)):
         _check_the_carry(plan, axis, sources)
         axis._check_the_program(program, sources)
-        cut, original = axis._cut(sources, key_name)
+        sliced, original = axis._slice(sources, key_name)
     else:
-        cut, original = list(axis), None
-        _check_the_carry(plan, axis, cut[0][1] if cut else {})
-    cuts = [_Cut(*entry) for entry in cut]
-    if not cuts:
+        sliced, original = list(axis), None
+        _check_the_carry(plan, axis, sliced[0][1] if sliced else {})
+    slices = [_Slice(*entry) for entry in sliced]
+    if not slices:
         raise DataError('the axis produced no slices')
     solving = {'solver_name': solver_name, 'solver_options': dict(solver_options or {}) or None}
     answered = (
-        _serially(program, cuts, solving, plan, keep)
+        _serially(program, slices, solving, plan, keep)
         if executor is None
-        else _pooled(executor, workers_share_fs, program, parsed, cuts, solving)
+        else _pooled(executor, workers_share_fs, program, parsed, slices, solving)
     )
     return Runs._folded(key_name, original, answered)
 
@@ -888,7 +888,7 @@ def _check_the_carry(plan: Mapping[str, _CarryRule], axis: Any, first: Mapping[s
 
 def _serially(
     program: Program,
-    cuts: Sequence[_Cut],
+    slices: Sequence[_Slice],
     solving: Mapping[str, Any],
     plan: Mapping[str, _CarryRule],
     keep: Keep,
@@ -900,7 +900,7 @@ def _serially(
     previous model before it starts, so the fold holds one slice's model
     however many there are.
 
-    **A slice that names something else is rebuilt, not updated.** A cut is
+    **A slice that names something else is rebuilt, not updated.** A slice is
     *total* where ``update`` is partial by construction: the two agree only
     while every slice names the same sources, which the class axes guarantee
     and a hand-built list does not. Compared by *name* — values are what a
@@ -915,10 +915,10 @@ def _serially(
     named: frozenset[str] | None = None
     state: dict[str, Any] = {}
     try:
-        for position, cut in enumerate(cuts):
-            sources = {**cut.sources, **state}
+        for position, current in enumerate(slices):
+            sources = {**current.sources, **state}
             names = frozenset(sources)
-            with _named_slice(cut.key, position, len(cuts)):
+            with _named_slice(current.key, position, len(slices)):
                 if model is not None and names == named:
                     before = model.diagnostics()
                     model.update(sources)
@@ -928,16 +928,16 @@ def _serially(
                     model, named, before = build(program, sources), names, None
                 result = model.solve(**solving, keep=keep)
                 answer = _answers(result, program, _slice_cost(model.diagnostics(), before))
-            yield cut.key, answer
-            if plan and position < len(cuts) - 1:
+            yield current.key, answer
+            if plan and position < len(slices) - 1:
                 if not answer.primals:
                     raise LpspecError(
-                        f'slice {cut.key!r} ({position + 1} of {len(cuts)}) terminated '
-                        f'{answer.meta.termination_condition}, so slice {cuts[position + 1].key!r} has no '
+                        f'slice {current.key!r} ({position + 1} of {len(slices)}) terminated '
+                        f'{answer.meta.termination_condition}, so slice {slices[position + 1].key!r} has no '
                         f'{sorted({rule.variable for rule in plan.values()})} to start from. A carried sweep '
                         f'stops at the first slice that leaves nothing to carry; the {position} before it solved.'
                     )
-                state = {p: rule.value_from(answer.primals, p, cut.key) for p, rule in plan.items()}
+                state = {p: rule.value_from(answer.primals, p, current.key) for p, rule in plan.items()}
     finally:
         if model is not None:
             model.close()
@@ -963,7 +963,7 @@ def _pooled(
     workers_share_fs: bool | None,
     program: Program,
     parsed: Spec | Program,
-    cuts: Sequence[_Cut],
+    slices: Sequence[_Slice],
     solving: Mapping[str, Any],
 ) -> Generator[tuple[Any, _Answer], None, None]:
     """The same, from slices built independently and possibly elsewhere.
@@ -984,17 +984,17 @@ def _pooled(
         executor.submit(
             _run_slice,
             parsed if crosses else program,
-            _encode(cut.sources, memo, workers_share_fs=shared) if crosses else dict(cut.sources),
+            _encode(current.sources, memo, workers_share_fs=shared) if crosses else dict(current.sources),
             crosses,
             call,
         )
-        for cut in cuts
+        for current in slices
     ]
-    for position, (cut, future) in enumerate(zip(cuts, futures, strict=True)):
-        with _named_slice(cut.key, position, len(cuts)):
+    for position, (current, future) in enumerate(zip(slices, futures, strict=True)):
+        with _named_slice(current.key, position, len(slices)):
             answer = future.result()
         yield (
-            cut.key,
+            current.key,
             replace(
                 answer,
                 primals=_decode(answer.primals),
@@ -1085,7 +1085,7 @@ def _key_column(
     if key_name is None:
         if not isinstance(axis, (EachCoordinate, EachWindow)):
             raise LpspecError(
-                'a hand-built axis needs key_name=: a list of cuts does not say what its keys are '
+                'a hand-built axis needs key_name=: a list of slices does not say what its keys are '
                 "coordinates of, and 'slice' would be this library naming your axis for you. Pass "
                 "key_name='draw', key_name='period', or whatever the keys actually are."
             )
@@ -1191,7 +1191,7 @@ def _table(obj: Any) -> pl.LazyFrame | None:
 
     ``None`` for a source that is not a table — a number, a ``{label: value}``
     map, a bare sequence — which carries no column and so no axis, and passes
-    through every cut as it is.
+    through every slice as it is.
     """
     if isinstance(obj, (str, Path)):
         return pl.scan_parquet(obj)
@@ -1199,7 +1199,7 @@ def _table(obj: Any) -> pl.LazyFrame | None:
 
 
 def _coordinates(sources: Mapping[str, Any], dim: str, verb: str) -> tuple[dict[str, pl.LazyFrame], list[Any]]:
-    """The sources a slice has to filter, by name, and the ordered coordinates to cut.
+    """The sources a slice has to filter, by name, and the ordered coordinates to slice.
 
     *carrying* is derived rather than declared: a source that carries the slice
     key and is *not* filtered produces a duplicate-coordinate error at attach

@@ -1154,20 +1154,20 @@ def test_a_hand_built_axis_needs_no_class_but_must_name_its_own_key():
     else's draw.
     """
     base = scenario_sources()
-    cuts = [(name, {**base, 'load': _draw(base, name)}) for name in ('low', 'high')]
+    slices = [(name, {**base, 'load': _draw(base, name)}) for name in ('low', 'high')]
 
     with pytest.raises(lps.LpspecError, match='hand-built axis needs key_name='):
-        lps.solve_over(DISPATCH, base, cuts)
+        lps.solve_over(DISPATCH, base, slices)
 
-    runs = lps.solve_over(DISPATCH, base, cuts, key_name='draw')
+    runs = lps.solve_over(DISPATCH, base, slices, key_name='draw')
     assert runs.keys == ['low', 'high']
     assert runs.objective.columns[0] == 'draw'
     assert runs.primal('p').columns[0] == 'draw', 'both frames key the same way, or they stop joining'
 
 
-#: The second cut of a two-slice hand-built axis, each naming *less* than the
+#: The second slice of a two-slice hand-built axis, each naming *less* than the
 #: first. Neither class axis can produce one — each rewrites a copy of the
-#: whole source mapping every slice, index included — so this is where a cut
+#: whole source mapping every slice, index included — so this is where a slice
 #: being total stops being automatic.
 NARROWED = [
     pytest.param(lambda base: {'load': _draw(base, 'high'), 'snapshot': range(4)}, id='fewer sources'),
@@ -1177,26 +1177,26 @@ NARROWED = [
 
 @pytest.mark.parametrize('second', NARROWED)
 def test_a_hand_built_slice_that_names_less_does_not_inherit_the_last_one(second):
-    """A cut says what the whole model binds, whichever way the sweep runs.
+    """A slice says what the whole model binds, whichever way the sweep runs.
 
     A serial fold updates, and an update is partial by construction — it keeps
-    what the last slice attached. So a cut naming fewer sources, or no index,
+    what the last slice attached. So a slice naming fewer sources, or no index,
     would be answered off the *previous slice's* data, where a pooled fold
-    builds it alone and answers off the cut. The two branches are run against
+    builds it alone and answers off the slice. The two branches are run against
     each other because the failure is a disagreement: either outcome on its own
     reads as an answer.
     """
     base = scenario_sources()
-    cuts = [('low', {**base, 'load': _draw(base, 'low'), 'snapshot': range(4)}), ('high', second(base))]
+    slices = [('low', {**base, 'load': _draw(base, 'low'), 'snapshot': range(4)}), ('high', second(base))]
 
     def fold(executor: object) -> object:
         try:
-            return lps.solve_over(DISPATCH, base, cuts, key_name='draw', executor=executor).objective.to_dicts()
+            return lps.solve_over(DISPATCH, base, slices, key_name='draw', executor=executor).objective.to_dicts()
         except lps.DataError as exc:
             return str(exc)
 
     with ThreadPoolExecutor(2) as pool:
-        assert fold(None) == fold(pool), 'a sweep answers the cut it was given, not the slice before it'
+        assert fold(None) == fold(pool), 'a sweep answers the slice it was given, not the one before it'
 
 
 def test_key_overrides_what_an_axis_derived_and_refuses_a_collision():
@@ -1267,7 +1267,7 @@ def test_a_bad_name_is_reported_without_the_optional_dependency(sweep):
 
 
 # ---------------------------------------------------------------------------
-# the model is asked before it is cut
+# the model is asked before it is sliced
 # ---------------------------------------------------------------------------
 
 
@@ -1420,7 +1420,7 @@ def test_a_source_short_of_a_coordinate_of_the_axis_is_reported():
     """`cost` stops at period 2 while `demand` runs to 3, so period 3 builds
     with no cost at all — and solved to zero without a word. A warning rather
     than a refusal, because absence is how a model masks and the engine
-    reports sparsity the same way; but it is said before a slice is cut,
+    reports sparsity the same way; but it is said before a slice is taken,
     naming the source, the coordinate it lacks, and a source that has it.
     """
     sources = myopic_sources()
@@ -1464,10 +1464,10 @@ def test_a_failing_slice_is_named(make_executor):
     fifty-window traceback learns which window without counting.
     """
     base = scenario_sources()
-    cuts = [(k, {**base, 'load': _draw(base, k)}) for k in ('low', 'mid')]
-    cuts.append(('bad', {**cuts[0][1], 'load': pl.DataFrame({'snapshot': [0, 1], 'value': [1.0, 2.0]})}))
+    slices = [(k, {**base, 'load': _draw(base, k)}) for k in ('low', 'mid')]
+    slices.append(('bad', {**slices[0][1], 'load': pl.DataFrame({'snapshot': [0, 1], 'value': [1.0, 2.0]})}))
     with _entered(make_executor() if make_executor else None) as executor, pytest.raises(lps.DataError) as raised:
-        lps.solve_over(DISPATCH, base, cuts, key_name='draw', executor=executor)
+        lps.solve_over(DISPATCH, base, slices, key_name='draw', executor=executor)
     assert any("slice 'bad'" in note and '3 of 3' in note for note in raised.value.__notes__), (
         'the note names the slice by key and by position'
     )
@@ -1511,7 +1511,7 @@ def test_an_axis_hands_out_its_slices_so_one_can_be_built_alone():
     """`axis.slices(sources)` is the hand-built list the sweep would have run.
 
     That is what a user with an infeasible window 37 needs: build that one
-    cut alone, write it, read a row of it. And the list is the sweep, so
+    slice alone, write it, read a row of it. And the list is the sweep, so
     solving it hand-built gives the same answers under the axis's own key.
     """
     sources = horizon_sources(12)

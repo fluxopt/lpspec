@@ -18,7 +18,7 @@ runs.primal('p')  # (scenario, snapshot, generator, value)
 |---|---|
 | `lps.EachCoordinate(dim)` | one slice per coordinate of `dim` — scenarios, draws, investment periods. Sources carrying `dim` are filtered to one coordinate and the column dropped, so the model never mentions it — a `dim` the spec *does* declare is refused, every slice would otherwise build a dimension nothing supplies; every other source passes through untouched. The slices run in the coordinates' sorted order, which is the order a `carry` chains them in |
 | `lps.EachWindow(dim, length, step, into)` | one slice per window of consecutive coordinates of `dim`. `length` is what the solver sees, `step` is what the window keeps, and `length > step` is overlap. The dimension is re-indexed rather than dropped, into a dense `0..n-1` column the model addresses by the name `into` gives it, which the spec has to declare |
-| a sequence of `(key, sources)` pairs | a hand-built axis: each cut says what the *whole* model attaches for that slice, and the call must pass `key_name=` |
+| a sequence of `(key, sources)` pairs | a hand-built axis: each slice says what the *whole* model attaches, and the call must pass `key_name=` |
 
 ```python
 runs = lps.solve_over(
@@ -49,13 +49,13 @@ lps.build('window.yaml', slices[37][1]).write('window-37.lp')  # the one that wa
 
 Solved as a list it keys by `key_name=` and stitches nothing —
 `original_index` is the axis's own. Two axes compose the same way: a
-comprehension over one axis's slices, each cut again by the other.
+comprehension over one axis's slices, each sliced again by the other.
 
-**Sources cross a cut in every shape `build` takes.** A table carrying the
+**Sources cross a slice in every shape `build` takes.** A table carrying the
 axis — a frame or a parquet path — is filtered; a number, a `{label: value}`
 map or a bare sequence carries no column and passes through as it is. A
 table carrying the axis that is short of a coordinate another table has is a
-`LpspecWarning` before a slice is cut, naming both: that slice builds the
+`LpspecWarning` before a slice is taken, naming both: that slice builds the
 source empty, and an absent row reads as absent, which is how a model masks
 and so is reported rather than refused.
 
@@ -104,7 +104,7 @@ it: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 | **the lookahead is `t >= step`** | overlapping windows return every row they solved, including the tail the next window recomputes. Keeping only what each window owns is one clause and no special case: `runs.primal('soc').filter(pl.col('t') < step)` |
 | a slice that did not solve | contributes no `primal` rows, so that frame can be shorter than the sweep. `objective` is one row per slice always, and is the record of which slices those were |
 | **a window keys as `<dim>_start`** | `EachWindow('snapshot', …)` drops `snapshot` and re-indexes to `into`, so the key column is `snapshot_start` and holds where each window began |
-| **a hand-built axis names its own key** | a plain list of cuts cannot say what its keys are coordinates *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name anywhere, and is refused only when it collides with a column the frames already carry — a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective` |
+| **a hand-built axis names its own key** | a plain list of slices cannot say what its keys are coordinates *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name anywhere, and is refused only when it collides with a column the frames already carry — a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective` |
 | **what each slice cost is `runs.diagnostics`** | one row per slice, `(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)` — `model.diagnostics()` one dimension wider, its counts and clocks only. `loaded` says the solver took the model from scratch: a serial sweep loads once and pushes values after, so a later `True` is a slice whose data moved a mask; under `executor=` every slice builds alone and every one loads. The clocks are that slice's own seconds, so a slow sweep says which slice and which phase |
 | **a slice that fails says which slice** | the error is the engine's own, untouched, with a note on it — `in slice 'bad' (3 of 3)` — so a fifty-window traceback names the window without anyone counting |
 | **a sweep's memory grows with its answer** | the models are released as the fold goes; the extracted frames accumulate, and nothing bounds them. `to_parquet` copies out frames already in memory: a bridge, not a bound. Whether to bound it, and how, is [#610](https://github.com/fluxopt/lpspec/issues/610) |
@@ -128,7 +128,7 @@ runs = lps.solve_over(
 | **a copy, never arithmetic** | accumulation — `existing += built` — is a derived variable in the YAML, where the math is reviewable |
 | **the two declarations say what is copied** | whichever dimension the *variable* has and the *parameter* does not is the one the carry collapses, and `index` names a coordinate of it. Everything else rides along. So `soc` over `(t, storage)` into `soc_initial` over `(storage)` drops `t` and hands both stores forward, and `total` over `(generator)` into `existing` over `(generator)` drops nothing and needs no index — pass `None` |
 | **the index is explicit, and it is a kept coordinate** | with `EachWindow(…, 48, 24, …)` the state to carry sits at coordinate 23 of `into`, not 47: the rows from `step` on are the lookahead the next window solves again, so an index there is refused, naming 23. An implicit "last" would be correct until overlap is introduced and silently wrong after |
-| **the first slice needs a seed** | `carry` supplies the parameter from the second slice on; the first takes it from `sources`, and a sweep whose sources lack it is refused before a slice is cut, saying so |
+| **the first slice needs a seed** | `carry` supplies the parameter from the second slice on; the first takes it from `sources`, and a sweep whose sources lack it is refused before a slice is taken, saying so |
 | **checked before anything is read** | the dims come from the YAML, so a carry that cannot line up — collapsing two dimensions at once, a parameter over more than the variable is, an index where the sides already match, no seed, an index in the lookahead — raises before the axis has scanned a single source. `check` cannot answer this for you: `carry` is an argument to the call, not part of the model |
 | **the last slice carries nothing** | there is no next slice to read it |
 | **a slice that leaves nothing to carry stops the sweep** | an infeasible window has no level to hand forward, so the next window cannot start. The error names the slice, how it terminated, and the slice left waiting — where a sweep without a carry records the slice in `objective` and goes on |
@@ -190,6 +190,6 @@ Only `scan_parquet` is a reference.)
 | **a partition is a filter on the sources** | not a narrower index: the containment check refuses parameter rows outside the declared coordinates, by design. The axis rewrites the rows and the index it is over in one mapping |
 | **one model, updated per slice** | every slice is the same math over different numbers, so a serial sweep builds once and [updates](api.md#re-solving-with-new-numbers): the YAML is parsed once, the plan lowered once, and a slice whose structure matches the last keeps the loaded solver. A sweep under `executor=` cannot — a built model is the one thing that does not cross a process — so it builds per slice |
 | **`keep=` reaches every slice, and the fold chooses none of them** | it defaults exactly as [`solve`](api.md#how-much-of-the-session-a-solve-keeps) does, to `'solver'`. A fold is where `keep='progress'` has something to carry, consecutive slices differing by one step — but whether carrying pays is a fact about the *model*, and the driver knows no more about that than you do, so it does not decide for you. Under `executor=` it cannot apply at all: a pooled sweep builds per slice, so every slice is a first solve and keeps `'nothing'` |
-| **the model is asked before it is cut** | the plan says what each axis can bear ([`separability`](https://math-spec.readthedocs.io/en/latest/reference/language/reading/#asking-whether-an-axis-can-be-cut)). `EachWindow` needs `into` *windowable*: it refuses a coupling by naming the declaration and the change that would lift it, reads an offset the data decides off the data, requires `length - step` to cover what the rows read ahead, and warns where a `position()` restarts per window. What the rows read *behind* is what a window's first rows meet the edge policy with — the rolling-horizon seed — and is not refused. `EachCoordinate` is not asked: the column it slices is one the spec must not declare, refused where the key is named, so the model never sees the axis |
+| **the model is asked before it is sliced** | the plan says what each axis can bear ([`separability`](https://math-spec.readthedocs.io/en/latest/reference/language/reading/#asking-whether-an-axis-can-be-cut)). `EachWindow` needs `into` *windowable*: it refuses a coupling by naming the declaration and the change that would lift it, reads an offset the data decides off the data, requires `length - step` to cover what the rows read ahead, and warns where a `position()` restarts per window. What the rows read *behind* is what a window's first rows meet the edge policy with — the rolling-horizon seed — and is not refused. `EachCoordinate` is not asked: the column it slices is one the spec must not declare, refused where the key is named, so the model never sees the axis |
 | **the model is parsed once** | `solve_over` validates it up front, so a model outside the language fails before the data is touched. A worker in this process is handed the lowered program; one across a process the validated model, which pickles where a program does not, and lowers it itself. Neither reads the YAML again |
-| **a cut is total** | a cut says what the *whole* model attaches, not what changed since the one before it. The class axes always do; a hand-built list has to keep the rule |
+| **a slice is total** | a slice says what the *whole* model attaches, not what changed since the one before it. The class axes always do; a hand-built list has to keep the rule |
