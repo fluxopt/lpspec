@@ -844,6 +844,38 @@ def test_a_construct_this_lane_cannot_build_is_refused_in_its_own_words():
     )
 
 
+#: The terms on the right of the comparison. The language puts them on neither
+#: side — `ConstraintDeclaration` says which side a consumer gathers them onto
+#: is its own arrangement — and linopy takes them only on the left.
+TERM_ON_THE_RIGHT = {
+    'dimensions': {'g': {'dtype': 'str'}},
+    'parameters': {'cap': {'dims': ['g']}, 'cost': {'dims': ['g']}},
+    'variables': {'p': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'limit': {'foreach': ['g'], 'expression': 'cap >= p'}},
+    'objective': {'sense': 'maximize', 'expression': 'sum(cost * p, over=g)'},
+}
+
+TERM_ON_THE_RIGHT_DATA = {'g': ['a', 'b'], 'cap': {'a': 10.0, 'b': 20.0}, 'cost': {'a': 1.0, 'b': 1.0}}
+
+
+def test_a_constraint_carrying_its_terms_on_the_right_builds_on_both_lanes():
+    """Was: the lane handed the sides to `add_constraints` in declared order,
+    and linopy accepts a term only on the left, so `cap >= p` came back as
+    ``TypeError: `lhs` must be a LinearExpression, Variable, Constraint, tuple,
+    or callable, got DataArray`` — linopy's own sentence, naming neither the
+    file nor the declaration. The relational lane solved it the whole time
+    (#1534).
+
+    The swap has to flip the sense with it, which the objective is what tells:
+    read as `p >= cap` both variables would run to their bound of 100.
+    """
+    with differential(TERM_ON_THE_RIGHT, TERM_ON_THE_RIGHT_DATA) as agreed:
+        assert agreed.oracle == pytest.approx(30.0), 'each generator is capped by its own row, at 10 and at 20'
+        assert set(np.unique(agreed.model.constraints['limit'].sign.values)) == {'<='}, (
+            'the swap flips the sense with it: `cap >= p` is built as `p <= cap`'
+        )
+
+
 def test_a_file_that_declares_no_labels_at_all_is_refused_on_both_lanes():
     """The index is what says which labels exist, on either lane.
 
