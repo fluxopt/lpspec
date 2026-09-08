@@ -161,7 +161,30 @@ def _build_constraints(ctx: EvaluationContext) -> None:
             if _term_free(lhs) and _term_free(rhs):
                 continue
 
-            ctx.model.add_constraints(lhs, _SIGN_MAP[row.sense], rhs, name=name, mask=as_linopy_mask(mask))
+            term, other, sense = _sides(lhs, rhs, row.sense)
+            ctx.model.add_constraints(term, _SIGN_MAP[sense], other, name=name, mask=as_linopy_mask(mask))
+
+
+#: What reading a comparison from its other side does to it.
+_FLIPPED: dict[program.ConstraintSense, program.ConstraintSense] = {'==': '==', '<=': '>=', '>=': '<='}
+
+
+def _sides(lhs: Any, rhs: Any, sense: program.ConstraintSense) -> tuple[Any, Any, program.ConstraintSense]:
+    """The comparison with a term on the left, which is the only side linopy takes one on.
+
+    The language puts the terms on neither side — either may carry them — so a
+    file writing ``cap >= p`` says what ``p <= cap`` says, and both have to build.
+    ``add_constraints`` accepts an expression as its ``lhs`` alone and answers
+    anything else with a ``TypeError`` naming a linopy type, so the swap
+    happens here; reading the row from the other side reverses the comparison,
+    which is the whole of what it costs.
+
+    Reached only once a side is known to carry a term, so the ``rhs`` returned
+    where the ``lhs`` is term-free is the one that does.
+    """
+    if not _term_free(lhs):
+        return lhs, rhs, sense
+    return rhs, lhs, _FLIPPED[sense]
 
 
 def _term_free(side: Any) -> bool:

@@ -179,7 +179,7 @@ def operator_sum_back(array: Any, *, over: str, within: Any, wrap: bool, by: Any
     group's own dim is read through the lookup first (:func:`_per_group`).
     """
     within = _per_group(within, by) if by is not None else within
-    asked = int(np.max(np.asarray(within))) if isinstance(within, xr.DataArray) else int(within)
+    asked = _widest(within)
     widest = max(1, min(asked, int(array.sizes[over])))
     probe = _Edge(wrap=wrap, fill=None)
     groups = _grouped(over, np.asarray(array.indexes[over]), by) if by is not None else None
@@ -197,6 +197,22 @@ def operator_sum_back(array: Any, *, over: str, within: Any, wrap: bool, by: Any
         terms.append(term)
         reached.append(live)
     return _merged(terms).where(reduce(operator.or_, reached))
+
+
+def _widest(within: Any) -> int:
+    """The widest window the data asks for, which bounds how many lags are gathered.
+
+    A coordinate the lookup maps nowhere asks for no window: a width read
+    through one carries the operand's own absence there (:func:`_per_group`),
+    so the maximum skips the holes rather than coming back absent itself, and
+    a width no coordinate carries at all is a window of nothing. The lag loop
+    takes it from there — ``within > lag`` is false at a hole, so the
+    coordinate contributes no term and keeps no row.
+    """
+    if not isinstance(within, xr.DataArray):
+        return int(within)
+    widths = np.asarray(within, dtype=float)
+    return 0 if bool(np.isnan(widths).all()) else int(np.nanmax(widths))
 
 
 def _merged(terms: list[Any]) -> Any:
