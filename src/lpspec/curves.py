@@ -21,6 +21,7 @@ describe a curve the declared method can build.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
@@ -248,12 +249,14 @@ def _coordinates(source: object, dims: Sequence[str], keep_value: bool = False) 
     ``None`` covers both "dense by construction" and "not readable here" — a
     source attaching refuses is refused there, with the message that knows what
     the declaration wanted. *keep_value* keeps the value column too, which the
-    ``points:`` mask is read from rather than merely counted.
+    ``points:`` mask is read from rather than merely counted. A parquet path is
+    read here as it is at attaching, or a ``points:`` parameter supplied as one
+    would derive no mask and its curve would be held to the full grid.
     """
     if isinstance(source, Mapping) and len(dims) == 1:
         keys = pl.LazyFrame({dims[0]: list(source.keys())})
         return keys.with_columns(pl.Series('value', list(source.values())).implode().explode()) if keep_value else keys
-    table = as_frame(source, tuple(dims))
+    table = pl.scan_parquet(source) if isinstance(source, (str, Path)) else as_frame(source, tuple(dims))
     if table is None or not set(dims) <= set(table.collect_schema().names()):
         return None
     columns = [*dims, 'value'] if keep_value else list(dims)

@@ -63,6 +63,28 @@ def test_build_context_manager_and_write(dispatch_yaml, dispatch_frame_inputs, t
     assert solve_written_file(lp) == pytest.approx(objective_direct, rel=1e-9)
 
 
+def test_a_points_parameter_supplied_as_a_parquet_path_keeps_its_own_curve_length(tmp_path):
+    """The mask a ``points:`` parameter derives was read off the caller's object before any path
+    was opened, so a curve supplied as a file was held to the full breakpoint grid and refused for
+    the rows a shorter curve does not have.
+    """
+    from tests.conftest import port_sources, port_spec
+
+    frames = port_sources('piecewise_ragged')
+    paths = {}
+    for name, frame in frames.items():
+        frame.write_parquet(tmp_path / f'{name}.parquet')
+        paths[name] = str(tmp_path / f'{name}.parquet')
+
+    with (
+        lps.solve(port_spec('piecewise_ragged'), paths) as from_paths,
+        lps.solve(port_spec('piecewise_ragged'), frames) as from_frames,
+    ):
+        assert from_paths.objective == pytest.approx(from_frames.objective, rel=1e-9), (
+            'a curve read from a file is the curve read from a frame'
+        )
+
+
 def test_parquet_path_sources(dispatch_yaml, dispatch_frame_inputs, tmp_path):
     sources = dispatch_frame_inputs
     paths = {}
