@@ -25,13 +25,15 @@ The caller-facing rules are [docs/reference/sweeps.md](../../docs/reference/swee
 from __future__ import annotations
 
 import io
+import json
+import os
 import warnings
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 
 import polars as pl
 from math_spec import to_program, to_spec
@@ -44,7 +46,7 @@ from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to
 from lpspec.sources import least_value
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Mapping, Sequence
+    from collections.abc import Generator, Iterable, Mapping, Sequence
 
     import pandas as pd
     import xarray as xr
@@ -53,6 +55,9 @@ if TYPE_CHECKING:
     from lpspec.api import Model
     from lpspec.lanes import Buildable
     from lpspec.relational.result import Diagnostics, Keep
+
+#: A frame lazy or not, going in and coming back out the same way.
+_Frame = TypeVar('_Frame', pl.DataFrame, pl.LazyFrame)
 
 #: Parquet rather than pickle, and not a knob: zstd measured smaller *and*
 #: faster than pickling the frame, on compressible and incompressible data
@@ -218,19 +223,21 @@ class _OriginalIndex:
     dim: str
     owned: pl.DataFrame
 
-    def restore(self, frame: pl.DataFrame, key_name: str) -> pl.DataFrame:
+    def restore(self, frame: _Frame, key_name: str) -> _Frame:
         """*frame* over the dimension the axis sliced, rather than over its slices.
 
         The inner join against ``owned`` is the whole operation: it restores
         the original coordinate, and because a coordinate may appear only once
         under its own index, the lookahead rows have nowhere to go. Sorted on
         the restored dimension, so a sweep reads back in the caller's order.
+        Lazy in, lazy out: a spilled sweep stitches the same way.
 
         Raises:
             LpspecError: *frame* has no ``local`` column — the quantity was
                 reduced over the sliced dimension, so there is no way back.
         """
-        if self.local not in frame.columns:
+        columns = frame.collect_schema().names()
+        if self.local not in columns:
             raise LpspecError(
                 f'cannot read this over {self.dim!r}: the frame has no {self.local!r} column, because the '
                 f'quantity was reduced over the sliced dimension — each row already covers a whole slice, '
@@ -239,9 +246,105 @@ class _OriginalIndex:
                 f'stitched frame.'
             )
         keys = [key_name, self.local]
-        restored = frame.join(self.owned, on=keys, how='inner').drop(keys)
-        rest = [column for column in restored.columns if column not in (self.dim, 'value')]
-        return restored.select(self.dim, *rest, 'value').sort(self.dim, *rest)
+        rest = [column for column in columns if column not in (*keys, 'value')]
+        restored = frame.lazy().join(self.owned.lazy(), on=keys, how='inner').drop(keys)
+        stitched = restored.select(self.dim, *rest, 'value').sort(self.dim, *rest)
+        return stitched if isinstance(frame, pl.LazyFrame) else stitched.collect()  # pyrefly: ignore[bad-return]  — the branch matches the frame's own kind
+
+
+def _keyed(frame: pl.DataFrame, key_name: str, key: Any) -> pl.DataFrame:
+    """*frame* with the slice key prepended — the shape every reader returns."""
+    return frame.select(pl.lit(key).alias(key_name), pl.all())
+
+
+#: What a sweep holds a frame of — the three readers — and what each is a frame of.
+_KINDS = ('primal', 'dual', 'expression')
+_LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expression'}
+
+
+@dataclass(frozen=True)
+class _Spill:
+    """A sweep's answers on disk instead of in memory, one file per slice and name.
+
+    Under ``directory``: ``<kind>/<name>/<position>.parquet`` for the frames,
+    the slice key a column of each; ``objective/`` and ``diagnostics/`` for
+    the record, one row per position. Every file lands under its final name
+    only whole, and the objective file is written last: it is what marks a
+    slice done, so one interrupted part way is solved again rather than read
+    back short. ``sweep.json`` names the key and the keys, so a directory
+    answers for one sweep and another pointed at it is refused.
+    """
+
+    directory: Path
+    key_name: str
+
+    @classmethod
+    def opened(cls, directory: str | Path, key_name: str, keys: Sequence[Any]) -> _Spill:
+        """The directory ready to take this sweep, or refused as another's.
+
+        Raises:
+            LpspecError: The directory holds a sweep keyed differently, or
+                over other keys.
+        """
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        manifest = {'key_name': key_name, 'keys': [str(key) for key in keys]}
+        record = directory / 'sweep.json'
+        if record.exists():
+            found = json.loads(record.read_text())
+            if found != manifest:
+                raise LpspecError(
+                    f'{str(directory)!r} holds a sweep keyed by {found["key_name"]!r} over {found["keys"]}, and '
+                    f'this one is keyed by {key_name!r} over {manifest["keys"]}. A directory holds one sweep: '
+                    f'point to= at an empty one, or delete this one to solve it again.'
+                )
+        else:
+            record.write_text(json.dumps(manifest))
+        return cls(directory, key_name)
+
+    def _file(self, kind: str, position: int, name: str | None = None) -> Path:
+        under = self.directory / kind if name is None else self.directory / kind / name
+        return under / f'{position:06d}.parquet'
+
+    def done(self, position: int) -> bool:
+        return self._file('objective', position).exists()
+
+    def write(self, position: int, key: Any, answer: _Answer) -> _Answer:
+        """*answer*'s frames and record on disk, and the answer with the frames released."""
+        for kind, produced in zip(_KINDS, (answer.primals, answer.duals, answer.expressions), strict=True):
+            for name, frame in produced.items():
+                _whole(_keyed(frame, self.key_name, key), self._file(kind, position, name))
+        _whole(pl.DataFrame([{self.key_name: key, **answer.cost}]), self._file('diagnostics', position))
+        _whole(pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}]), self._file('objective', position))
+        return replace(answer, primals={}, duals={}, expressions={})
+
+    def read_back(self, position: int) -> _Answer:
+        """A done slice's record — meta and cost — with no frames, which stay on disk."""
+        row = pl.read_parquet(self._file('objective', position)).drop(self.key_name).row(0, named=True)
+        cost = pl.read_parquet(self._file('diagnostics', position)).drop(self.key_name).row(0, named=True)
+        return _Answer(_SliceMeta(**row), dict(cost), {}, {}, {}, None, {})
+
+    def primals(self, position: int, names: Iterable[str]) -> dict[str, pl.DataFrame]:
+        """The named primals a done slice wrote, for a carry to read; a name it did not write is absent."""
+        found = {name: self._file('primal', position, name) for name in names}
+        return {name: pl.read_parquet(path).drop(self.key_name) for name, path in found.items() if path.exists()}
+
+    def held(self, kind: str) -> list[str]:
+        under = self.directory / kind
+        return sorted(path.name for path in under.iterdir()) if under.is_dir() else []
+
+    def scan(self, kind: str, name: str) -> pl.LazyFrame | None:
+        """Every slice's frame of *name*, lazily and in slice order, or ``None`` where no slice wrote one."""
+        under = self.directory / kind / name
+        return pl.scan_parquet(sorted(under.glob('*.parquet'))) if under.is_dir() else None
+
+
+def _whole(frame: pl.DataFrame, path: Path) -> None:
+    """*frame* at *path*, arriving whole: written beside it and renamed into place."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    part = path.with_name(path.name + '.part')
+    frame.write_parquet(part)
+    os.replace(part, path)
 
 
 def _listed(entries: Mapping[str, str]) -> str:
@@ -521,23 +624,32 @@ class Runs:
     _no_duals: str | None = field(repr=False, default=None)
     _no_expressions: dict[str, str] = field(repr=False, default_factory=dict)
     _original: _OriginalIndex | None = field(repr=False, default=None)
+    #: Where the frames are instead, for a sweep solved with ``to=``.
+    _spill: _Spill | None = field(repr=False, default=None)
 
     @classmethod
     def _folded(
-        cls, key_name: str, original: _OriginalIndex | None, answered: Generator[tuple[Any, _Answer], None, None]
+        cls,
+        key_name: str,
+        original: _OriginalIndex | None,
+        answered: Generator[tuple[Any, _Answer], None, None],
+        spill: _Spill | None,
     ) -> Runs:
         """Every slice's answer absorbed, in the order they arrive.
 
         The stream is closed here, which is what releases the serial branch's
         model when a fold is abandoned part way; a reason a slice could not
         produce something is kept from the *first* slice that gave one, since
-        a later slice's silence is not a second reason.
+        a later slice's silence is not a second reason. A spilled sweep's
+        answers arrive with their frames already written and released, so
+        the fold absorbs the record alone.
 
         Args:
             key_name: What to call the column holding each slice's key.
             original: The way back to the sliced dimension, or ``None`` where
                 the axis re-indexed nothing.
             answered: ``(key, answer)`` per slice, in slice order.
+            spill: Where the frames went, or ``None`` where they are held.
         """
         rows: list[dict[str, Any]] = []
         costs: list[dict[str, Any]] = []
@@ -559,7 +671,7 @@ class Runs:
                     (expressions, answer.expressions),
                 ):
                     for name, frame in produced.items():
-                        into[name].append(frame.select(pl.lit(key).alias(key_name), pl.all()))
+                        into[name].append(_keyed(frame, key_name, key))
         return cls(
             key_name=key_name,
             objective=pl.DataFrame(rows),
@@ -570,6 +682,7 @@ class Runs:
             _no_duals=no_duals,
             _no_expressions=no_expressions,
             _original=original,
+            _spill=spill,
         )
 
     @property
@@ -583,10 +696,54 @@ class Runs:
 
         *absent* is a reason the fold already knows, which beats one derived
         from what the sweep happens to hold.
+
+        Raises:
+            LpspecError: The sweep was spilled, so nothing is held: the
+                message names :meth:`scan`.
         """
+        self._held_here()
         if name not in held:
             raise LpspecError(absent or _nothing_to_read(kind, name, held, self.objective))
         return pl.concat(held[name])
+
+    def _held_here(self) -> None:
+        if self._spill is not None:
+            raise LpspecError(
+                f'this sweep was spilled to {str(self._spill.directory)!r}, so its frames are on disk rather '
+                f'than in memory: runs.scan(name) reads them back as a LazyFrame, and collecting it is the '
+                f'choice this reader would otherwise make for you.'
+            )
+
+    def scan(self, name: str, kind: str = 'primal', *, original_index: bool = False) -> pl.LazyFrame:
+        """One name's values across every slice as a :class:`polars.LazyFrame`, the slice key prepended.
+
+        The reader for a sweep solved with ``to=``, whose frames are on disk;
+        on one held in memory it is :meth:`primal`, :meth:`dual` or
+        :meth:`expression` made lazy, so the same line reads either.
+
+        Args:
+            name: A variable, a constraint or a named expression the spec
+                declares, as *kind* says.
+            kind: ``primal``, ``dual`` or ``expression`` — the reader this
+                stands in for.
+            original_index: Read over the dimension the axis sliced instead
+                of over the slice key.
+
+        Raises:
+            LpspecError: No slice produced *name*, or a *kind* that names no
+                reader.
+        """
+        if kind not in _KINDS:
+            raise LpspecError(f'scan reads one of {", ".join(_KINDS)}, not {kind!r}')
+        if self._spill is None:
+            reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[kind]
+            return reader(name, original_index=original_index).lazy()
+        frame = self._spill.scan(kind, name)
+        if frame is None:
+            absent = {'primal': None, 'dual': self._no_duals, 'expression': self._no_expressions.get(name)}[kind]
+            held = dict.fromkeys(self._spill.held(kind))
+            raise LpspecError(absent or _nothing_to_read(_LABELS[kind], name, held, self.objective))
+        return self._reindexed(frame, original_index=original_index)
 
     def primal(self, name: str, *, original_index: bool = False) -> pl.DataFrame:
         """One variable's values across every slice, the slice key prepended.
@@ -642,7 +799,7 @@ class Runs:
             original_index=original_index,
         )
 
-    def _reindexed(self, frame: pl.DataFrame, *, original_index: bool) -> pl.DataFrame:
+    def _reindexed(self, frame: _Frame, *, original_index: bool) -> _Frame:
         """*frame* over the dimension the axis sliced, rather than over its slices.
 
         Every axis answers it: :class:`EachCoordinate` and a hand-built axis
@@ -719,6 +876,7 @@ class Runs:
             LpspecError: No slice produced any, which both exports refuse
                 rather than writing an empty directory or an empty dataset.
         """
+        self._held_here()
         if not self._primals:
             raise LpspecError(_nothing_to_read('variable', 'anything', self._primals, self.objective))
         return tuple(sorted(self._primals))
@@ -760,6 +918,7 @@ def solve_over(
     solver_options: Mapping[str, Any] | None = None,
     solver_name: str = 'highs',
     keep: Keep = 'solver',
+    to: str | Path | None = None,
 ) -> Runs:
     """Solve *spec* once per slice of *axis* and fold the answers together.
 
@@ -790,6 +949,12 @@ def solve_over(
         keep: As :meth:`~lpspec.api.Model.solve` takes it, reaching every
             slice. Under an executor every slice is a first solve and keeps
             nothing, whatever was asked.
+        to: A directory to write each slice's frames to as the fold goes,
+            so the sweep's memory stays at one slice however many there
+            are. Read back through :meth:`Runs.scan`. A directory holds
+            one sweep: run the same sweep at it again and the slices already
+            there are not solved again, which is how an interrupted sweep
+            resumes.
 
     Returns:
         Every slice's answers, keyed by slice.
@@ -799,9 +964,9 @@ def solve_over(
             coordinate the next window recomputes, or is asked together with
             an executor; a key that collides with a column the frames carry;
             a ``Program`` handed to an executor that crosses a process; an
-            axis the program does not allow. All refused before a slice is
-            taken, and every one answerable from the declarations before a
-            source is read.
+            axis the program does not allow; a *to* directory holding
+            another sweep. All refused before a slice is taken, and every
+            one answerable from the declarations before a source is read.
         DataError: No source carries the axis, or the axis produced no
             slices.
 
@@ -835,12 +1000,13 @@ def solve_over(
     if not slices:
         raise DataError('the axis produced no slices')
     solving = {'solver_name': solver_name, 'solver_options': dict(solver_options or {}) or None}
+    spill = None if to is None else _Spill.opened(to, key_name, [current.key for current in slices])
     answered = (
-        _serially(program, slices, solving, plan, keep)
+        _serially(program, slices, solving, plan, keep, spill)
         if executor is None
-        else _pooled(executor, workers_share_fs, program, parsed, slices, solving)
+        else _pooled(executor, workers_share_fs, program, parsed, slices, solving, spill)
     )
-    return Runs._folded(key_name, original, answered)
+    return Runs._folded(key_name, original, answered, spill)
 
 
 def _parsed(spec: Buildable) -> tuple[Spec | Program, Program]:
@@ -892,6 +1058,7 @@ def _serially(
     solving: Mapping[str, Any],
     plan: Mapping[str, _CarryRule],
     keep: Keep,
+    spill: _Spill | None,
 ) -> Generator[tuple[Any, _Answer], None, None]:
     """Each slice's answer, off one model updated in place.
 
@@ -910,12 +1077,23 @@ def _serially(
     known until slice ``i``'s frames have been read, and resuming after the
     yield is where that happens. The caller closes this — that is what
     releases the model when a fold is abandoned part way.
+
+    **A slice the spill already holds is read back, not solved**, its frames
+    staying on disk — a carry reads the one it needs from there — and one
+    solved here is written before its answer is yielded, so an abandoned
+    fold leaves every slice it finished.
     """
     model: Model | None = None
     named: frozenset[str] | None = None
     state: dict[str, Any] = {}
     try:
         for position, current in enumerate(slices):
+            if spill is not None and spill.done(position):
+                answer = spill.read_back(position)
+                primals = spill.primals(position, {rule.variable for rule in plan.values()})
+                yield current.key, answer
+                state = _carried(plan, primals, current, position, slices, answer)
+                continue
             sources = {**current.sources, **state}
             names = frozenset(sources)
             with _named_slice(current.key, position, len(slices)):
@@ -928,19 +1106,40 @@ def _serially(
                     model, named, before = build(program, sources), names, None
                 result = model.solve(**solving, keep=keep)
                 answer = _answers(result, program, _slice_cost(model.diagnostics(), before))
+            primals = answer.primals
+            if spill is not None:
+                answer = spill.write(position, current.key, answer)
             yield current.key, answer
-            if plan and position < len(slices) - 1:
-                if not answer.primals:
-                    raise LpspecError(
-                        f'slice {current.key!r} ({position + 1} of {len(slices)}) terminated '
-                        f'{answer.meta.termination_condition}, so slice {slices[position + 1].key!r} has no '
-                        f'{sorted({rule.variable for rule in plan.values()})} to start from. A carried sweep '
-                        f'stops at the first slice that leaves nothing to carry; the {position} before it solved.'
-                    )
-                state = {p: rule.value_from(answer.primals, p, current.key) for p, rule in plan.items()}
+            state = _carried(plan, primals, current, position, slices, answer)
     finally:
         if model is not None:
             model.close()
+
+
+def _carried(
+    plan: Mapping[str, _CarryRule],
+    primals: Mapping[str, pl.DataFrame],
+    current: _Slice,
+    position: int,
+    slices: Sequence[_Slice],
+    answer: _Answer,
+) -> dict[str, Any]:
+    """What the next slice starts from, read out of *primals* — nothing for the last slice, or with no plan.
+
+    Raises:
+        LpspecError: The slice left nothing to carry, having reached no
+            solution, and a next slice is waiting on it.
+    """
+    if not plan or position == len(slices) - 1:
+        return {}
+    if not primals:
+        raise LpspecError(
+            f'slice {current.key!r} ({position + 1} of {len(slices)}) terminated '
+            f'{answer.meta.termination_condition}, so slice {slices[position + 1].key!r} has no '
+            f'{sorted({rule.variable for rule in plan.values()})} to start from. A carried sweep '
+            f'stops at the first slice that leaves nothing to carry; the {position} before it solved.'
+        )
+    return {p: rule.value_from(primals, p, current.key) for p, rule in plan.items()}
 
 
 @contextmanager
@@ -965,6 +1164,7 @@ def _pooled(
     parsed: Spec | Program,
     slices: Sequence[_Slice],
     solving: Mapping[str, Any],
+    spill: _Spill | None,
 ) -> Generator[tuple[Any, _Answer], None, None]:
     """The same, from slices built independently and possibly elsewhere.
 
@@ -975,33 +1175,40 @@ def _pooled(
     exclusive. A worker in this process is handed the lowered program; one
     across a boundary the validated model, which pickles where a program
     does not, and lowers it itself. Neither reads the YAML again.
+
+    A slice the spill already holds is never submitted; one that comes back
+    is written here, by the process that owns the directory.
     """
     crosses = _crosses_a_process(executor)
     shared = _shares_filesystem(executor, workers_share_fs)
     call = dict(solving)
     memo: dict[str, tuple[Any, Any]] = {}
     futures = [
-        executor.submit(
+        None
+        if spill is not None and spill.done(position)
+        else executor.submit(
             _run_slice,
             parsed if crosses else program,
             _encode(current.sources, memo, workers_share_fs=shared) if crosses else dict(current.sources),
             crosses,
             call,
         )
-        for current in slices
+        for position, current in enumerate(slices)
     ]
     for position, (current, future) in enumerate(zip(slices, futures, strict=True)):
+        if future is None:
+            assert spill is not None, 'a slice is skipped only where a spill holds it'
+            yield current.key, spill.read_back(position)
+            continue
         with _named_slice(current.key, position, len(slices)):
             answer = future.result()
-        yield (
-            current.key,
-            replace(
-                answer,
-                primals=_decode(answer.primals),
-                duals=_decode(answer.duals),
-                expressions=_decode(answer.expressions),
-            ),
+        answer = replace(
+            answer,
+            primals=_decode(answer.primals),
+            duals=_decode(answer.duals),
+            expressions=_decode(answer.expressions),
         )
+        yield current.key, spill.write(position, current.key, answer) if spill is not None else answer
 
 
 def _answers(result: Any, program: Program, cost: dict[str, Any]) -> _Answer:
