@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.305](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.304...v0.0.1-alpha.305) (2026-09-08)
+
+
+### Features
+
+* **api:** a named expression is read back at any degree and may read a constraint's dual ([#1529](https://github.com/fluxopt/lpspec/issues/1529)) ([b946506](https://github.com/fluxopt/lpspec/commit/b9465061be5d7003c32607f184ad5906a57c91eb))
+
 ## [0.0.1-alpha.304](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.303...v0.0.1-alpha.304) (2026-09-03)
 
 
