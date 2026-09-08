@@ -450,7 +450,7 @@ constant at a masked slot
 | --- | --- | --- | --- | --- |
 | `Constant` | a number | one-to-one | a one-row const fragment | the number itself |
 | `Parameter` | a declared name | one-to-one | its table as `(dims…, cval)` | its array, uncovered slots at zero |
-| `Variable` | a declared name | one-to-one | `(dims…, var_label, coeff=1)`, plus where it exists; at a read, its primal as a const fragment with the same presence | the variable, carrying its declared `absence:`; at a read, its `.solution` |
+| `Variable` | a declared name | one-to-one | `(dims…, var_label, coeff=1)`, plus where it exists; at a read, its primal as a const fragment with the same presence, a zero at every absent slot under `absence: zero` | the variable, carrying its declared `absence:`; at a read, its `.solution`, filled with zero under `absence: zero` |
 | `Dual` | `dual(c)` | one-to-one | at a read only: the constraint's rows beside its share of the dual vector, a const fragment present exactly where a row stands | at a read only: linopy's `.dual` on the constraint |
 | `Negate` | `-x` | one-to-one | the value column negated | `-` |
 | `Add` | `x + y`, `x - y` | one-to-one | the two fragment lists concatenated | `+` |

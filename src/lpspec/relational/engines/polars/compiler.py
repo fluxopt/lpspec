@@ -570,11 +570,24 @@ class PolarsCompiler:
         return (Presence(_presence(self.variables[name], dims, 'var_label'), dims),) if propagates else ()
 
     def _solved_fragment(self, name: str) -> TermFragment:
-        """A variable at its primal — the const fragment a read compiles it to, carrying the presence its term would."""
+        """A variable at its primal — the const fragment a read compiles it to, carrying the presence its term would.
+
+        Under ``absence: zero`` a masked variable *is* zero where it has no
+        row, and a nonlinear read tells a zero from no row where affine
+        arithmetic cannot — ``0.5 ** x`` is 1 at the one and nothing at the
+        other — so its value is laid over the unmasked coordinate product,
+        zero where the variable is absent. A build's term is right as it is:
+        an absent term contributes nothing to a row either way.
+        """
         assert self.solution is not None
-        held, dims = self.variables[name], self.program.variable(name).dims
-        frame = held.frame.select(*dims).with_columns(held.share(self.solution.primal).alias('cval'))
-        return TermFragment(dims, frame, 'const', presences=self._variable_presences(name, dims))
+        held, declaration = self.variables[name], self.program.variable(name)
+        dims = declaration.dims
+        keys = dims or (UNIT,)
+        rows = held.frame.select(*keys).with_columns(held.share(self.solution.primal).alias('cval'))
+        if declaration.where is not None and declaration.absence == 'zero':
+            everywhere = self.frame(dims, None).select(*keys)
+            rows = join_on(everywhere, rows, keys, 'left').with_columns(pl.col('cval').fill_null(0.0))
+        return TermFragment(dims, rows.select(*dims, 'cval'), 'const', presences=self._variable_presences(name, dims))
 
     def _dual_fragment(self, name: str) -> TermFragment:
         """``dual(name)`` at the solve's row duals — one value per row the constraint built, and present exactly there.
