@@ -70,6 +70,12 @@ Energy and reserve co-optimization on a two-bus grid: an offer is a generator, m
 | $f$ | `f` over $\mathcal{L}$ — flow on a line, signed towards its `line_to` bus |
 | $r$ | `r` over $\mathcal{O}$ — reserve held against an offer |
 
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $\mathit{reserve\_of}$ | `reserve_of` over $\mathcal{G}$ — all the reserve a generator holds, across every offer it made |
+
 Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{max}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
@@ -92,7 +98,7 @@ $$\sum_{o \in \mathcal{O} \thinspace:\thinspace \mathrm{market\_of}(o) = m} r_{o
 
 **`headroom`**
 
-$$p_{g} + \sum_{o \in \mathcal{O} \thinspace:\thinspace \mathrm{gen\_of}(o) = g} r_{o} \le \mathrm{p}^{\mathrm{max}}_{g} \qquad \forall\thinspace g \in \mathcal{G}$$
+$$p_{g} + \mathit{reserve\_of}_{g} \le \mathrm{p}^{\mathrm{max}}_{g} \qquad \forall\thinspace g \in \mathcal{G}$$
 
 **`offer_cap`**
 
@@ -100,7 +106,13 @@ $$r_{o} \le \mathrm{tranche\_frac}_{\mathrm{tranche\_of}(o)} \cdot \mathrm{p}^{\
 
 **`zone_cover`**
 
-$$\sum_{g \in \mathcal{G}} \mathrm{zone\_share}_{g,z} \cdot \left( \sum_{o \in \mathcal{O} \thinspace:\thinspace \mathrm{gen\_of}(o) = g} r_{o} \right) \ge \mathrm{zone\_req}_{z} \qquad \forall\thinspace z \in \mathcal{Z}$$
+$$\sum_{g \in \mathcal{G}} \mathrm{zone\_share}_{g,z} \cdot \mathit{reserve\_of}_{g} \ge \mathrm{zone\_req}_{z} \qquad \forall\thinspace z \in \mathcal{Z}$$
+
+#### Definitions
+
+**`reserve_of`**
+
+$$\mathit{reserve\_of}_{g} = \sum_{o \in \mathcal{O} \thinspace:\thinspace \mathrm{gen\_of}(o) = g} r_{o} \qquad \forall\thinspace g \in \mathcal{G}$$
 
 #### Variable domains
 

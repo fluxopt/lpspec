@@ -31,6 +31,12 @@ The dispatch model of README.md, plus one macro and one named expression — sma
 |---|---|
 | $p$ | `p` over $\mathcal{S} \times \mathcal{G}$ — output of a generator in a snapshot — the `where` drops the retired unit entirely, so the built model is smaller than the coordinate product |
 
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $\mathit{total\_supply}$ | `total_supply` over $\mathcal{S}$ — what the whole fleet produces in a snapshot |
+
 #### Objective
 
 $$\min \sum_{s \in \mathcal{S}} \sum_{g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
@@ -39,7 +45,13 @@ $$\min \sum_{s \in \mathcal{S}} \sum_{g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
 
 **`power_balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{s,g} = \ell_{s} \qquad \forall\thinspace s \in \mathcal{S}$$
+$$\mathit{total\_supply}_{s} = \ell_{s} \qquad \forall\thinspace s \in \mathcal{S}$$
+
+#### Definitions
+
+**`total_supply`**
+
+$$\mathit{total\_supply}_{s} = \sum_{g \in \mathcal{G}} p_{s,g} \qquad \forall\thinspace s \in \mathcal{S}$$
 
 #### Variable domains
 

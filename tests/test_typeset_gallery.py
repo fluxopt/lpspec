@@ -20,7 +20,7 @@ from tools import gallery_math
 
 #: Every format, as a parametrize mark — the same spelling the renderer's own
 #: tests use, duplicated rather than imported because that module travels.
-EVERY_FORMAT = pytest.mark.parametrize('fmt', list(FORMATS.values()), ids=list(FORMATS))
+EVERY_FORMAT = pytest.mark.parametrize('fmt', list(FORMATS))
 
 _OPERATORS = frozenset({r'\sum', r'\min', r'\max', r'\prod', r'\int'})
 _SUBSCRIPTED = re.compile(r'(\\[a-zA-Z]+|[A-Za-z])\s*_\s*(?:\{([^{}]*)\}|(\S))')
@@ -73,7 +73,7 @@ def test_no_format_leaks_another_formats_syntax(name: str, foreign: str):
     earlier version of this test looked for the literal ``\\mathcal{X}``, which
     no model declares, so it passed without ever reading the output.
     """
-    text = '\n'.join(typeset(p, FORMATS[name], standalone=True) for p in TYPESET_PATHS)
+    text = '\n'.join(typeset(p, name, standalone=True) for p in TYPESET_PATHS)
     assert any(mark in text for mark in _FINGERPRINTS[name if name != 'markdown' else 'latex']), (
         f'{name} output contains none of its own syntax — is this test still reading anything?'
     )
@@ -374,4 +374,4 @@ def test_every_committed_symbol_table_still_fits_its_model(table: Path):
     """A sidecar is matched to its model by filename alone, so renaming a
     parameter leaves the table naming nothing; `checked_against` makes that an
     error, run here for every committed pair in its declared notation."""
-    assert typeset(_spec_of(table), FORMATS[SymbolTable.load(table).notation], symbols=table).strip()
+    assert typeset(_spec_of(table), SymbolTable.load(table).notation, symbols=table).strip()

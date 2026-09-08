@@ -101,6 +101,13 @@ The model a plain `n.optimize()` builds, stated in one file. Every declaration i
 | $P$ | `Generator_p_nom_ext` over $\mathcal{G}$ — `Generator-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
 | $F$ | `Link_p_nom_ext` over $\mathcal{L}$ — `Link-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
 
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $\mathit{Link\_output\_arrival}$ | `Link_output_arrival` over $\mathcal{T} \times \mathcal{O}$ — what a link delivers to an output port at a snapshot — its flow after the port's efficiency, delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not |
+| $\mathit{primary\_energy}$ | `primary_energy` over $\mathcal{B}$ — what a `primary_energy` row totals — weighted generator energy, less the charge left in weighted storage at the horizon's end; the initial charge it is compared against is folded into the row's constant |
+
 $t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
 $t \boxminus_{v} k$ denotes translation with $v$ standing where index $t-k$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $v$ rather than being dropped.
@@ -153,7 +160,7 @@ $$\sum_{k \in \mathcal{K}} s_{t,k} \cdot \mathrm{x}_{k,c} = 0 \qquad \forall\thi
 
 **`GlobalConstraint_primary_energy_ub`**
 
-$$\sum_{g \in \mathcal{G}} \sum_{t \in \mathcal{T}} p_{t,g} \cdot \mathrm{w}^{\mathrm{gen}}_{t} \cdot \mathrm{a}_{b,g} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{primary\_energy}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
+$$\mathit{primary\_energy}_{b} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{primary\_energy}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
 
 **`Bus_nodal_balance`**
 
@@ -164,6 +171,10 @@ $$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{Generator\_bus}(g) = n} 
 **`Link_output_arrival`**
 
 $$\mathit{Link\_output\_arrival}_{t,o} = \begin{cases} f_{t \ominus \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{if } \mathrm{cyc}^{f}_{o} \cr f_{t \boxminus_{0} \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace o \in \mathcal{O}$$
+
+**`primary_energy`**
+
+$$\mathit{primary\_energy}_{b} = \sum_{g \in \mathcal{G}} \sum_{t \in \mathcal{T}} p_{t,g} \cdot \mathrm{w}^{\mathrm{gen}}_{t} \cdot \mathrm{a}_{b,g} \qquad \forall\thinspace b \in \mathcal{B}$$
 
 #### Variable domains
 

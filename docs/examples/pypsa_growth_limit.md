@@ -61,6 +61,12 @@ PyPSA's carrier growth limit: how much of a technology may be built in one inves
 | $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot, zero where it does not yet stand |
 | $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — capacity built at a generator |
 
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $\mathit{new\_capacity}$ | `new_capacity` over $\mathcal{E}$ — capacity of the capped carrier first standing in a period: each generator's capacity counted once, in the period it is built, and never again |
+
 Upright is what the model is given — a parameter such as $\mathrm{load}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 $t \boxminus_{v} k$ denotes translation with $v$ standing where index $t-k$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $v$ rather than being dropped.
@@ -81,7 +87,13 @@ $$\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\thinspace 
 
 **`growth_limit`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{build\_period}(g) = e} p^{\mathrm{nom}}_{g} \cdot \mathrm{capped\_carrier}_{\mathrm{gen\_carrier}(g)} - \left( \sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{build\_period}(g) = e \boxminus_{0} 1} p^{\mathrm{nom}}_{g} \cdot \mathrm{capped\_carrier}_{\mathrm{gen\_carrier}(g)} \right) \cdot \mathrm{max\_relative\_growth} \le \mathrm{max\_growth} \qquad \forall\thinspace e \in \mathcal{E}$$
+$$\mathit{new\_capacity}_{e} - \mathit{new\_capacity}_{e \boxminus_{0} 1} \cdot \mathrm{max\_relative\_growth} \le \mathrm{max\_growth} \qquad \forall\thinspace e \in \mathcal{E}$$
+
+#### Definitions
+
+**`new_capacity`**
+
+$$\mathit{new\_capacity}_{e} = \sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{build\_period}(g) = e} p^{\mathrm{nom}}_{g} \cdot \mathrm{capped\_carrier}_{\mathrm{gen\_carrier}(g)} \qquad \forall\thinspace e \in \mathcal{E}$$
 
 #### Variable domains
 

@@ -47,6 +47,13 @@ Least-cost dispatch over a network, where a generator sits on a bus, a line join
 | $p$ | `p` over $\mathcal{S} \times \mathcal{G}$ — output of a generator in a snapshot |
 | $f$ | `f` over $\mathcal{S} \times \mathcal{L}$ — flow on a line, signed towards its `line_to` bus |
 
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $\mathit{gen\_at\_bus}$ | `gen_at_bus` over $\mathcal{S} \times \mathcal{B}$ — what the generators sitting on a bus produce there |
+| $\mathit{net\_inflow}$ | `net_inflow` over $\mathcal{S} \times \mathcal{B}$ — flow arriving at a bus minus flow leaving it, so a negative value is a net export |
+
 #### Objective
 
 $$\min \sum_{s \in \mathcal{S},\enspace g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
@@ -55,7 +62,17 @@ $$\min \sum_{s \in \mathcal{S},\enspace g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
 
 **`balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{s,g} + \sum_{\ell \in \mathcal{L} \thinspace:\thinspace \mathrm{line\_to}(\ell) = b} f_{s,\ell} - \left( \sum_{\ell \in \mathcal{L} \thinspace:\thinspace \mathrm{line\_from}(\ell) = b} f_{s,\ell} \right) = d_{s,b} \qquad \forall\thinspace s \in \mathcal{S},\enspace b \in \mathcal{B}$$
+$$\mathit{gen\_at\_bus}_{s,b} + \mathit{net\_inflow}_{s,b} = d_{s,b} \qquad \forall\thinspace s \in \mathcal{S},\enspace b \in \mathcal{B}$$
+
+#### Definitions
+
+**`gen_at_bus`**
+
+$$\mathit{gen\_at\_bus}_{s,b} = \sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{s,g} \qquad \forall\thinspace s \in \mathcal{S},\enspace b \in \mathcal{B}$$
+
+**`net_inflow`**
+
+$$\mathit{net\_inflow}_{s,b} = \sum_{\ell \in \mathcal{L} \thinspace:\thinspace \mathrm{line\_to}(\ell) = b} f_{s,\ell} - \left( \sum_{\ell \in \mathcal{L} \thinspace:\thinspace \mathrm{line\_from}(\ell) = b} f_{s,\ell} \right) \qquad \forall\thinspace s \in \mathcal{S},\enspace b \in \mathcal{B}$$
 
 #### Variable domains
 
