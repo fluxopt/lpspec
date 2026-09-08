@@ -432,6 +432,9 @@ decade-old toolchain accepts.
 ```python
 lps.pack('spec.yaml', sources, 'model.zip')
 result = lps.solve(*lps.unpack('model.zip', 'model/'))
+
+spec, paths = lps.unpack('model.zip', 'model/')
+frames = {name: pl.read_parquet(path) for name, path in paths.items()}  # in memory, when you want them
 ```
 
 A model is a file and a mapping of tables, and `pack` writes the two as one zip:
