@@ -97,7 +97,7 @@ per group below.
 | `sos:` | `Model.add_sos_constraints(variable, sos_type, sos_dim, big_m)` — the block handed over, not a formulation rebuilt |
 | `constraints:` | `Model.add_constraints(lhs, sign, rhs, name, mask)`, one rule per declaration |
 | `objective:` | `Model.add_objective(expr, sense)`, each additive term summed over the dims it carries |
-| `expressions:` | evaluated on the solved model, and linopy's own `.solution` handed back |
+| `expressions:` | evaluated at the solution — every variable its `.solution`, every `dual(c)` the constraint's `.dual` — as xarray arithmetic, so an entry the math never reads is read at whatever degree it was written |
 
 | In an expression | linopy or xarray |
 |---|---|
@@ -109,6 +109,7 @@ per group below.
 | `at(p, by=lk)` | `.sel({into: lookup})` — xarray's vectorised selection *is* the pullback, and one entry per lookup reads a tuple of labels at once |
 | `shift(x, over=t, offset=n)` | `.shift({t: n})`; `.roll({t: n})` under `edge: wrap`; a `.sel()` gather where the offset differs per entity or `by=` groups it |
 | `sum_back(x, over=t, within=w)` | a sum of `w` scalar gathers, each unreachable position contributing zero; under `by=` each gather reads inside the group, so the window stops at its edge |
+| `dual(c)` | `Model.constraints['c'].dual`, at a read only — the language keeps a dual out of the math, and a solve that stored none refuses the read |
 
 | A `where:` | linopy |
 |---|---|

@@ -9,8 +9,7 @@ from math_spec import program
 
 from lpspec.errors import DataError, LpspecError, sparse_divisor_message, unknown_name_message
 from lpspec.relational.engines.polars import labels
-from lpspec.relational.engines.polars.assembly import absence_restrictions
-from lpspec.relational.engines.polars.fragments import join_on
+from lpspec.relational.engines.polars.fragments import absence_restrictions
 from lpspec.relational.result import ConstraintRow
 
 if TYPE_CHECKING:
@@ -172,58 +171,42 @@ def string_dims(attached: AttachedSources, dims: Sequence[str]) -> list[str]:
     return [d for d in dims if attached.is_enum_encoded(d)]
 
 
-def expression_frame(
-    name: str, expr: program.ExpressionNode, compiler: PolarsCompiler, values: pl.LazyFrame
-) -> pl.DataFrame:
-    """Named expression *expr* evaluated at the primal *values* — ``(dims…, value)``.
+def expression_frame(name: str, expr: program.ExpressionNode, compiler: PolarsCompiler) -> pl.DataFrame:
+    """Named expression *expr* evaluated at the solve *compiler* holds — ``(dims…, value)``.
 
-    A value is ``sum(coeff · value)`` over the expression's term stream plus
-    its constant part: each fragment from :meth:`PolarsCompiler.expression` is
-    joined to the solver's primal vector (a term) or taken as it is (a
-    constant part), aggregated to its own dims, and accumulated over the
-    expression's coordinate product the way a constraint's right-hand side is.
+    Every leaf is a number after a solve: the compiler reads a variable as its
+    primal and ``dual(c)`` as the constraint's row duals, so the expression is
+    const fragments at whatever degree the file wrote it — a product of two
+    variables, a variable under a power, a division by one — each added up
+    per coordinate over the expression's coordinate product the way a
+    constraint's right-hand side is.
 
     The frame answers the way a constraint over the same expression would: a
     coordinate a parameter does not cover contributes zero, a coordinate where
-    a term's variable is absent has no row, and a variable-free expression is
-    one row of ``value``. Dims come back in declaration order and rows in
-    label order over those dims.
+    a variable is absent has no row, and a variable-free expression is one row
+    of ``value``. Dims come back in declaration order and rows in label order
+    over those dims.
 
     Raises:
         DataError: A divisor with no value where the expression divides —
             checked before any sum can read the null as zero.
+        LpspecError: The expression reads a dual and the solve left none.
     """
     context = f"named expression '{name}'"
     compiled = compiler.expression(expr, context)
-    fragments = (*compiled.terms, *compiled.consts)
-    union = {d for p in fragments for d in p.dims}
-    dims = tuple(d for d in compiler.program.dimensions if d in union)
 
-    divisors = sorted(program.divisor_parameters(expr))
+    divisors = [q.divisor for q in program.quotients(expr)]
     if divisors:
-        counts = pl.collect_all([p.frame.select(pl.col(p.value_column).null_count()) for p in fragments])
+        counts = pl.collect_all([p.frame.select(pl.col('cval').null_count()) for p in compiled.consts])
         undefined = sum(count.item() for count in counts)
         if undefined:
-            raise DataError(f'{context}: {sparse_divisor_message(", ".join(divisors), undefined)}')
+            names = sorted({*program.parameters_of(*divisors), *program.variables_of(*divisors)})
+            raise DataError(f'{context}: {sparse_divisor_message(", ".join(names), undefined)}')
 
-    restrictions = absence_restrictions(list(compiled.terms))
-    carrier = labels.frame(compiler, dims, None, _EXPRESSION_ROW, 0, restrictions).lazy()
-
-    total = pl.lit(0.0, dtype=pl.Float64)
-    for i, p in enumerate(fragments):
-        column = f'__piece {i}__'
-        if p.kind != 'const':
-            valued = p.frame.join(values, on='var_label', how='left').select(
-                *p.dims, (pl.col('coeff') * pl.col(SOLUTION)).alias(column)
-            )
-        else:
-            valued = p.frame.select(*p.dims, pl.col('cval').alias(column))
-        aggregated = (
-            valued.group_by(p.dims).agg(pl.col(column).sum()) if p.dims else valued.select(pl.col(column).sum())
-        )
-        carrier = join_on(carrier, aggregated, p.dims, 'left')
-        total = total + pl.col(column).fill_null(0.0)
-
-    out = carrier.select(_EXPRESSION_ROW, *dims, total.alias('value')).collect(engine='streaming')
+    fragments = compiled.consts
+    dims = compiler.spanned(fragments)
+    carrier = labels.frame(compiler, dims, None, _EXPRESSION_ROW, 0, absence_restrictions(fragments)).lazy()
+    added = compiler.added(fragments, carrier, fill=True)
+    out = added.select(_EXPRESSION_ROW, *dims, pl.col('cval').alias('value')).collect(engine='streaming')
     ordered = labels.in_position_order(out, _EXPRESSION_ROW).drop(_EXPRESSION_ROW)
     return ordered.with_columns(pl.col(d).cast(pl.String) for d in string_dims(compiler.data, dims))

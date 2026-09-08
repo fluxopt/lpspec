@@ -239,6 +239,7 @@ def test_the_plan_table_names_every_expression_node():
             program.Constant(1.0),
             program.Parameter('p'),
             x,
+            program.Dual('c'),
             program.Negate(x),
             program.Add(x, x),
             program.Multiply(x, x),

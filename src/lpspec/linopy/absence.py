@@ -36,6 +36,17 @@ def variable_term(variable: Any, absence: str) -> Any:
     return variable.fillna(0) if absence == 'zero' else variable
 
 
+def variable_value(variable: Any, absence: str) -> Any:
+    """The variable's primal as it enters a read, carrying its declared ``absence:``.
+
+    :func:`variable_term`'s two readings over values: a masked slot is NaN,
+    which propagates through the arithmetic the way the absent term takes its
+    row, and ``absence: zero`` fills it.
+    """
+    solution = variable.solution
+    return solution.fillna(0.0) if absence == 'zero' else solution
+
+
 def coefficient(parameter: Any) -> Any:
     """A parameter in a coefficient position, its uncovered slots at zero.
 

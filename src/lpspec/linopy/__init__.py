@@ -123,6 +123,7 @@ def expression(
         LanguageError: A construct the language does not accept, in the file or
             in the expression.
         DataError: A source that does not fit the file.
+        LpspecError: The expression reads a dual and the solve left none.
     """
     with note(f"while reading named expression '{name}' from {_named(spec)}"):
         program = to_program(spec)
@@ -131,13 +132,12 @@ def expression(
                 unknown_name_message('named expression', name, program.named_expressions)
                 + ' expression() takes a name declared under expressions:, never an expression string.'
             )
-        expression = program.named_expressions[name]
+        expression = program.named_expressions[name].expression
         tidy = tidy_sources(program, sources)
         master_coords, dim_coords = dimension_coords(program, tidy)
         dataset = load_parameters(program, tidy, master_coords)
-        value = _eval(expression, EvaluationContext(dataset, master_coords, built, dim_coords, program))
-        if hasattr(value, 'solution'):
-            return value.solution
+        context = EvaluationContext(dataset, master_coords, built, dim_coords, program, solved=True)
+        value = _eval(expression, context)
         if isinstance(value, xarray.DataArray):
             return value
         return xarray.DataArray(float(value))
