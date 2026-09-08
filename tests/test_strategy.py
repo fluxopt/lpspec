@@ -1698,3 +1698,17 @@ def test_every_executor_spills_the_same_files(make_executor, sweep, tmp_path):
         '000001.parquet',
         '000002.parquet',
     ], 'one file per slice, numbered by position'
+
+
+def test_a_pooled_sweep_resumes_too(builds, tmp_path):
+    """A slice the directory holds is never submitted; the pool only sees the
+    ones still to solve, and the fold reads the rest back in order."""
+    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=tmp_path)
+    (tmp_path / 'objective' / '000001.parquet').unlink()
+    built = builds(strategy)
+    with ThreadPoolExecutor(2) as pool:
+        resumed = lps.solve_over(
+            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool, to=tmp_path
+        )
+    assert len(built) == 1, 'the slice without its record is the one submitted'
+    assert resumed.keys == ['high', 'low', 'mid'], 'the sweep comes back whole and in order'
