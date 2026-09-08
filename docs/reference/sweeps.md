@@ -39,17 +39,17 @@ it has no default because the name belongs to the model.
 *"Each calendar month"* has unequal groups, so it is a precomputed column plus
 `EachCoordinate`. What `EachWindow` uniquely offers is **overlap**.
 
-**`axis.cuts(sources)` is the list the axis would run** — the `(key, sources)`
+**`axis.slices(sources)` is the list the axis would run** — the `(key, sources)`
 pairs a hand-built axis takes, so one slice can be built alone:
 
 ```python
-cuts = lps.EachWindow('snapshot', 48, 24, into='t').cuts(sources)
-lps.build('window.yaml', cuts[37][1]).write('window-37.lp')  # the one that was infeasible
+slices = lps.EachWindow('snapshot', 48, 24, into='t').slices(sources)
+lps.build('window.yaml', slices[37][1]).write('window-37.lp')  # the one that was infeasible
 ```
 
 Solved as a list it keys by `key_name=` and stitches nothing —
 `original_index` is the axis's own. Two axes compose the same way: a
-comprehension over one axis's cuts, each cut by the other.
+comprehension over one axis's slices, each cut again by the other.
 
 **Sources cross a cut in every shape `build` takes.** A table carrying the
 axis — a frame or a parquet path — is filtered; a number, a `{label: value}`

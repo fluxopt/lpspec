@@ -211,7 +211,7 @@ class _OriginalIndex:
     *responsible* for — its first ``step``, the rest being lookahead the next
     window recomputes. One-way: the lookahead rows are not in it, so a sliced
     frame cannot be rebuilt from it — slicing stays
-    :meth:`EachWindow._slices`' business.
+    :meth:`EachWindow._cut`'s business.
     """
 
     local: str
@@ -282,12 +282,12 @@ class EachCoordinate:
 
     dim: str
 
-    def cuts(self, sources: Mapping[str, Any]) -> list[tuple[Any, Mapping[str, Any]]]:
+    def slices(self, sources: Mapping[str, Any]) -> list[tuple[Any, Mapping[str, Any]]]:
         """The ``(key, sources)`` list this axis would run — what ``axis=`` takes hand-built.
 
-        For building one slice alone: ``lps.build(spec, axis.cuts(sources)[3][1])``.
+        For building one slice alone: ``lps.build(spec, axis.slices(sources)[3][1])``.
         """
-        return list(self._slices(sources, self._key_name())[0])
+        return list(self._cut(sources, self._key_name())[0])
 
     def _key_name(self) -> str:
         """The dimension itself: a slice key *is* a coordinate of it."""
@@ -312,7 +312,7 @@ class EachCoordinate:
                 f'axis the model does not have; to cut one it does, window it.'
             )
 
-    def _slices(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Cut], _OriginalIndex | None]:
+    def _cut(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Cut], _OriginalIndex | None]:
         """One cut per coordinate, keyed by it. Sources without *dim* pass through.
 
         No :class:`_OriginalIndex`: nothing was re-indexed, so a slice's frames
@@ -348,14 +348,14 @@ class EachWindow:
     step: int
     into: str
 
-    def cuts(self, sources: Mapping[str, Any]) -> list[tuple[Any, Mapping[str, Any]]]:
+    def slices(self, sources: Mapping[str, Any]) -> list[tuple[Any, Mapping[str, Any]]]:
         """The ``(key, sources)`` list this axis would run — what ``axis=`` takes hand-built.
 
-        For building one window alone: ``lps.build(spec, axis.cuts(sources)[37][1])``.
+        For building one window alone: ``lps.build(spec, axis.slices(sources)[37][1])``.
         Solved as a list it keys by ``key_name=`` and stitches nothing —
         ``original_index`` is the axis's own.
         """
-        return list(self._slices(sources, self._key_name())[0])
+        return list(self._cut(sources, self._key_name())[0])
 
     def __post_init__(self) -> None:
         if self.length < 1 or self.step < 1:
@@ -439,7 +439,7 @@ class EachWindow:
                 stacklevel=3,
             )
 
-    def _slices(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Cut], _OriginalIndex]:
+    def _cut(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Cut], _OriginalIndex]:
         """One cut per window, keyed by its **first coordinate**.
 
         Keyed by the coordinate rather than the window's position, which is
@@ -827,7 +827,7 @@ def solve_over(
     if isinstance(axis, (EachCoordinate, EachWindow)):
         _check_the_carry(plan, axis, sources)
         axis._check_the_program(program, sources)
-        cut, original = axis._slices(sources, key_name)
+        cut, original = axis._cut(sources, key_name)
     else:
         cut, original = list(axis), None
         _check_the_carry(plan, axis, cut[0][1] if cut else {})

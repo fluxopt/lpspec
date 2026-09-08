@@ -1507,8 +1507,8 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     assert len(parsed) == 1, f'the model was parsed {len(parsed)} times for three slices'
 
 
-def test_an_axis_hands_out_its_cuts_so_one_slice_can_be_built_alone():
-    """`axis.cuts(sources)` is the hand-built list the sweep would have run.
+def test_an_axis_hands_out_its_slices_so_one_can_be_built_alone():
+    """`axis.slices(sources)` is the hand-built list the sweep would have run.
 
     That is what a user with an infeasible window 37 needs: build that one
     cut alone, write it, read a row of it. And the list is the sweep, so
@@ -1516,14 +1516,14 @@ def test_an_axis_hands_out_its_cuts_so_one_slice_can_be_built_alone():
     """
     sources = horizon_sources(12)
     axis = lps.EachWindow('snapshot', length=6, step=3, into='t')
-    cuts = axis.cuts(sources)
-    assert [key for key, _ in cuts] == [0, 3, 6, 9], 'one cut per window, keyed by where it starts'
+    slices = axis.slices(sources)
+    assert [key for key, _ in slices] == [0, 3, 6, 9], 'one slice per window, keyed by where it starts'
 
-    with lps.build(WINDOW, cuts[1][1]) as model:
+    with lps.build(WINDOW, slices[1][1]) as model:
         assert str(model.row('soc_open', t=0)).startswith('soc_open[t=0]'), 'one window builds alone'
 
     by_axis = lps.solve_over(WINDOW, sources, axis)
-    by_hand = lps.solve_over(WINDOW, sources, cuts, key_name='snapshot_start')
+    by_hand = lps.solve_over(WINDOW, sources, slices, key_name='snapshot_start')
     assert by_hand.objective.equals(by_axis.objective)
     assert by_hand.primal('soc').equals(by_axis.primal('soc'))
 
