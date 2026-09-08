@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.308](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.307...v0.0.1-alpha.308) (2026-09-08)
+
+
+### Features
+
+* **strategy:** a sweep asks the model what a window can bear before it cuts one ([#1514](https://github.com/fluxopt/lpspec/issues/1514)) ([d77cdfb](https://github.com/fluxopt/lpspec/commit/d77cdfb40de132d8d9483d7e547c2fd225a77b2f))
+
 ## [0.0.1-alpha.307](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.306...v0.0.1-alpha.307) (2026-09-08)
 
 
