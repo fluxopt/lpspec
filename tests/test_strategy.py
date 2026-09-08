@@ -330,13 +330,9 @@ def test_a_pooled_fold_builds_per_slice(builds):
 
     Stated as a test because the two branches now differ in more than where
     they run, and a `Model` handed to `_run_slice` would fail in the
-    worker rather than here. Counted at `lpspec.api.build`, which is what a
-    slice reaches through `solve`; the serial branch holds its own reference
-    and is counted at that one.
+    worker rather than here. Counted at the one `build` both branches reach.
     """
-    from lpspec import api
-
-    built = builds(api)
+    built = builds(strategy)
 
     with ThreadPoolExecutor(2) as pool:
         runs = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
@@ -606,7 +602,8 @@ def test_an_expression_no_slice_could_evaluate_carries_its_reason():
         **{'parameters.scale': {'dims': ['t']}, 'expressions.ratio': 'load / scale'},
     )
     sources = {**horizon_sources(12), 'scale': pl.DataFrame({'snapshot': [0], 'value': [2.0]})}
-    runs = lps.solve_over(spec, sources, lps.EachWindow('snapshot', length=6, step=6, into='t'))
+    with pytest.warns(lps.LpspecWarning, match="'scale' has no rows for snapshot 1"):
+        runs = lps.solve_over(spec, sources, lps.EachWindow('snapshot', length=6, step=6, into='t'))
 
     assert runs.primal('p').height > 0, 'the failing expression must not fail the sweep'
     assert runs.expression('spend').height > 0, 'nor take the healthy expression with it'
@@ -763,7 +760,7 @@ def test_a_myopic_pathway_carries_a_whole_vector_with_no_index():
     runs = lps.solve_over(
         MYOPIC,
         myopic_sources(),
-        lps.EachCoordinate('period', ordered=True),
+        lps.EachCoordinate('period'),
         carry={'existing': ('total', None)},
     )
 
@@ -778,7 +775,7 @@ def test_a_myopic_pathway_carries_a_whole_vector_with_no_index():
 
 #: The seven ways a carry cannot line up. Each `id` is the case, so a failure
 #: names it rather than a line number: `-k collapses-two-dimensions`.
-_PERIOD_AXIS = lps.EachCoordinate('period', ordered=True)
+_PERIOD_AXIS = lps.EachCoordinate('period')
 UNSOUND_CARRIES = [
     pytest.param(
         WINDOW, horizon_sources, WINDOW_AXIS, {'soc_initial': ('p', 3)},
@@ -811,9 +808,9 @@ UNSOUND_CARRIES = [
         id='an-index-outside-the-window',
     ),
     pytest.param(
-        DISPATCH, scenario_sources, lps.EachCoordinate('scenario'), {'p_max': ('p', 0)},
-        'needs an ordered axis', None,
-        id='an-unordered-axis',
+        WINDOW, horizon_sources, lps.EachWindow('snapshot', length=6, step=3, into='t'), {'soc_initial': ('soc', 5)},
+        r'is in the lookahead', 'last coordinate kept, 2',
+        id='an-index-in-the-lookahead',
     ),
 ]  # fmt: skip
 
@@ -1381,3 +1378,183 @@ def test_a_coordinate_sweep_over_a_dimension_the_spec_declares_is_refused():
     with no data — the guard that lets a coordinate sweep ask the model nothing else."""
     with pytest.raises(lps.LpspecError, match=r"EachCoordinate\('generator'\) drops 'generator'"):
         lps.solve_over(WINDOW, horizon_sources(8), lps.EachCoordinate('generator'), key_name='g')
+
+
+# ---------------------------------------------------------------------------
+# what a first non-toy sweep runs into
+# ---------------------------------------------------------------------------
+
+
+#: Every shape `build` takes for a source that does not carry the axis: a
+#: number for a scalar parameter, a bare sequence for an index, a
+#: `{label: value}` map. None of them is a table, and none needs to be — the
+#: axis has nothing to filter in them.
+NOT_A_TABLE = [
+    pytest.param(WINDOW, horizon_sources, WINDOW_AXIS, {'soc_initial': 0.0}, id='a-number'),
+    pytest.param(DISPATCH, scenario_sources, lps.EachCoordinate('scenario'), {'snapshot': range(4)}, id='a-bare-index'),
+    pytest.param(DISPATCH, scenario_sources, lps.EachCoordinate('scenario'), {'cost': {'wind': 1.0, 'gas': 50.0}}, id='a-map'),
+]  # fmt: skip
+
+
+@pytest.mark.parametrize(('spec', 'sources', 'axis', 'plain'), NOT_A_TABLE)
+def test_a_sweep_takes_every_source_shape_solve_takes(spec, sources, axis, plain):
+    """The same `sources` dict moves from `solve` to `solve_over` unchanged.
+
+    A source that is not a table cannot carry the axis, so it passes through
+    untouched — and under a process pool it crosses as itself, since a number
+    pickles.
+    """
+    with_tables = sources()
+    as_plain = {**with_tables, **plain}
+    runs = lps.solve_over(spec, as_plain, axis)
+    assert (
+        runs.objective['objective'].to_list()
+        == lps.solve_over(spec, with_tables, axis).objective['objective'].to_list()
+    ), 'a number, a sequence and a map attach exactly as the tables they stand for'
+    with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool:
+        pooled = lps.solve_over(spec, as_plain, axis, executor=pool)
+    assert pooled.objective.equals(runs.objective), 'the plain shapes cross a process as themselves'
+
+
+def test_a_source_short_of_a_coordinate_of_the_axis_is_reported():
+    """`cost` stops at period 2 while `demand` runs to 3, so period 3 builds
+    with no cost at all — and solved to zero without a word. A warning rather
+    than a refusal, because absence is how a model masks and the engine
+    reports sparsity the same way; but it is said before a slice is cut,
+    naming the source, the coordinate it lacks, and a source that has it.
+    """
+    sources = myopic_sources()
+    sources['cost'] = pl.DataFrame({'period': [1, 1, 2, 2], 'generator': GENERATORS * 2, 'value': [1.0, 50.0] * 2})
+    with pytest.warns(lps.LpspecWarning, match=r"'cost' has no rows for period 3, which 'demand' has"):
+        runs = lps.solve_over(MYOPIC, sources, lps.EachCoordinate('period'), carry={'existing': ('total', None)})
+    assert runs.objective['objective'].to_list()[-1] == 0.0, 'the sweep still runs, and period 3 is free'
+
+
+def test_a_carry_with_no_seed_says_the_first_slice_needs_one():
+    """`carry` supplies `soc_initial` from the second slice on; the first has
+    nothing to start from, and the error says so rather than reporting a
+    parameter with no data as if the carry did not exist.
+    """
+    sources = horizon_sources(12)
+    del sources['soc_initial']
+    with pytest.raises(lps.LpspecError, match=r"carry writes 'soc_initial' from the second slice on"):
+        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': ('soc', 3)})
+
+
+def test_a_slice_that_leaves_nothing_to_carry_stops_the_sweep_by_name():
+    """One infeasible window under a carry: the next window has no level to
+    start from, so the sweep cannot go on — and the error names the slice
+    that terminated, how, and the slice left waiting.
+    """
+    sources = horizon_sources(12)
+    sources['load'] = sources['load'].with_columns(
+        pl.when(pl.col('snapshot') == 5).then(10_000.0).otherwise(pl.col('value')).alias('value')
+    )
+    with pytest.raises(lps.LpspecError, match=r'slice 4 .*infeasible') as raised:
+        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': ('soc', 3)})
+    assert 'slice 8' in str(raised.value), 'the message names the slice that had nothing to start from'
+
+
+@pytest.mark.parametrize('make_executor', [pytest.param(None, id='serial'), *EXECUTORS[:2]])
+def test_a_failing_slice_is_named(make_executor):
+    """Slice three of three fails to build, and the traceback says so.
+
+    The error is the engine's own, untouched — the note is added to it, so a
+    caller matching on the message still matches, and one reading a
+    fifty-window traceback learns which window without counting.
+    """
+    base = scenario_sources()
+    cuts = [(k, {**base, 'load': _draw(base, k)}) for k in ('low', 'mid')]
+    cuts.append(('bad', {**cuts[0][1], 'load': pl.DataFrame({'snapshot': [0, 1], 'value': [1.0, 2.0]})}))
+    with _entered(make_executor() if make_executor else None) as executor, pytest.raises(lps.DataError) as raised:
+        lps.solve_over(DISPATCH, base, cuts, key_name='draw', executor=executor)
+    assert any("slice 'bad'" in note and '3 of 3' in note for note in raised.value.__notes__), (
+        'the note names the slice by key and by position'
+    )
+
+
+@pytest.mark.parametrize('key_name', ['value', 'status', 'termination_condition', 'objective'])
+def test_a_key_that_collides_with_a_fixed_column_is_refused(key_name):
+    """`value` collides in every frame a reader returns, and the other three
+    in `objective` — where the key would silently replace the column rather
+    than join it."""
+    with pytest.raises(lps.LpspecError, match=f'key_name={key_name!r} .* column'):
+        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), key_name=key_name)
+
+
+@pytest.mark.parametrize('make_executor', EXECUTORS[:2])
+def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
+    """The model is parsed once per call, whichever executor runs the slices.
+
+    What a worker receives is already parsed — the lowered program in this
+    process, the validated model across one it cannot share — so no slice
+    reads the YAML again. Counted at the language's own front door.
+    """
+    from math_spec import Spec, lowering
+
+    parsed: list[object] = []
+    original = lowering.to_spec
+
+    def spy(model):
+        if not isinstance(model, Spec):
+            parsed.append(model)
+        return original(model)
+
+    monkeypatch.setattr(lowering, 'to_spec', spy)
+    monkeypatch.setattr(strategy, 'to_spec', spy)
+    with _entered(make_executor()) as executor:
+        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor)
+    assert len(parsed) == 1, f'the model was parsed {len(parsed)} times for three slices'
+
+
+def test_an_axis_hands_out_its_cuts_so_one_slice_can_be_built_alone():
+    """`axis.cuts(sources)` is the hand-built list the sweep would have run.
+
+    That is what a user with an infeasible window 37 needs: build that one
+    cut alone, write it, read a row of it. And the list is the sweep, so
+    solving it hand-built gives the same answers under the axis's own key.
+    """
+    sources = horizon_sources(12)
+    axis = lps.EachWindow('snapshot', length=6, step=3, into='t')
+    cuts = axis.cuts(sources)
+    assert [key for key, _ in cuts] == [0, 3, 6, 9], 'one cut per window, keyed by where it starts'
+
+    with lps.build(WINDOW, cuts[1][1]) as model:
+        assert str(model.row('soc_open', t=0)).startswith('soc_open[t=0]'), 'one window builds alone'
+
+    by_axis = lps.solve_over(WINDOW, sources, axis)
+    by_hand = lps.solve_over(WINDOW, sources, cuts, key_name='snapshot_start')
+    assert by_hand.objective.equals(by_axis.objective)
+    assert by_hand.primal('soc').equals(by_axis.primal('soc'))
+
+
+@pytest.mark.parametrize('make_executor', [pytest.param(None, id='serial'), *EXECUTORS])
+def test_a_sweep_reports_what_each_slice_cost(make_executor):
+    """`runs.diagnostics` is one row per slice: the model's size, whether the
+    solver was loaded from scratch, and the seconds each phase took —
+    `Model.diagnostics()` one dimension wider, the same way the readers are.
+
+    A serial sweep updates one model, so after the first slice the solver is
+    pushed values rather than loaded; a pooled sweep builds each slice alone,
+    so every one loads. That difference is the reason the column exists.
+    """
+    with _entered(make_executor() if make_executor else None) as executor:
+        runs = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor)
+    frame = runs.diagnostics
+    assert frame.columns == [
+        'scenario',
+        'columns',
+        'rows',
+        'nonzeros',
+        'loaded',
+        'attach',
+        'build',
+        'handoff',
+        'solve',
+    ], 'the key, then the size, then the one flag, then the clocks in the order the phases run'
+    assert frame['scenario'].to_list() == runs.keys
+    assert frame['columns'].unique().to_list() == [8], 'every slice is the same model over different numbers'
+    assert (frame.select(pl.col('attach', 'build', 'solve') >= 0).to_numpy()).all(), 'a clock is never negative'
+    assert frame['loaded'].to_list() == ([True, False, False] if executor is None else [True] * 3), (
+        'a serial sweep loads the solver once and pushes values after; a pooled one builds every slice cold'
+    )

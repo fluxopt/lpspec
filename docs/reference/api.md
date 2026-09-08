@@ -372,7 +372,9 @@ one has made this engine's bookkeeping part of their model.
 | `timings` | cumulative wall seconds per phase — `attach`, `build`, `handoff`, `solve`, `write` |
 
 It answers after `close()` too: every field is a count, a clock or a small
-frame the model keeps rather than a read of what it releases.
+frame the model keeps rather than a read of what it releases. A sweep's is
+`runs.diagnostics`, the counts and clocks one row per slice —
+[sweeps](sweeps.md#reading-a-sweep).
 
 ## Choosing a solver
 
