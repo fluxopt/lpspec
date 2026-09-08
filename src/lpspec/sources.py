@@ -374,6 +374,31 @@ def _parameter_frame(
     return table if table is not None else _spread(name, obj, p.dims, sources)
 
 
+def least_value(name: str, p: ParameterDeclaration, obj: object) -> float | None:
+    """The least value one parameter's source holds, read without any dimension's labels.
+
+    Every shape :func:`tidy_sources` accepts has a least value that does not
+    depend on where its numbers land, so a caller may ask how small a
+    parameter goes before the indices it is over have been read — which is
+    what lets a sweep resolve how far the model reaches along an axis it is
+    about to cut. Only the two shapes :func:`_spread` places *by position* are
+    read here — a number and a sequence, which it cannot spread without an
+    index; a ``{label: value}`` map carries its own placement and goes through
+    :func:`_parameter_frame` with the rest.
+
+    Returns:
+        The least value, or ``None`` where the source holds no rows.
+
+    Raises:
+        DataError: A shape no reader accepts.
+    """
+    if isinstance(obj, (bool, int, float)):
+        return float(obj)
+    if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes)):
+        return min(map(float, obj), default=None)
+    return _parameter_frame(name, p, obj, {}).select(pl.col('value').min()).collect().item()
+
+
 def _spread(name: str, obj: object, dims: Sequence[str], sources: Mapping[str, pl.LazyFrame]) -> pl.LazyFrame:
     """A parameter written as plain Python, spread over the dims it declares.
 
