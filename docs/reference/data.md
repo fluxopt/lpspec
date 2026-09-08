@@ -41,19 +41,21 @@ it. An unnamed index attaches to the declared dim; a named one attaches by that 
 and a name outside the declared dims raises rather than being overwritten.
 
 **One dimension only.** A `MultiIndex` is refused: an index is a pandas idea
-with no counterpart in the frames both lanes build, and its *depth* is a second
+with no counterpart in the frames this engine builds, and its *depth* is a second
 claim about what the parameter is over, free to disagree with the declaration
 with nothing able to say which was meant. A parameter over two dims arrives as
 a frame carrying both as columns — `series.reset_index()` is the whole change,
 and columns are what the other five shapes on this list already use.
 
 **Tables in, arrays out.** An `xr.DataArray` is a dense n-dimensional array
-rather than a table, and neither lane reads one: pass
+rather than a table, and this engine does not read one: pass
 `array.to_series().reset_index()`. `Result.to_dataarray()` is the way back
 out.
 
-Everything on this list is read by the [linopy lane](../about/linopy.md#3-it-is-a-lane)
-too, so one `sources` mapping goes to either.
+This list is this package's. [linopy](../about/linopy.md#the-same-language-and-the-same-data)
+builds the same file from pandas and xarray instead, under the same *rules* in
+its own reader — so what a `sources` mapping holds differs between them where
+the rules underneath do not.
 
 Nothing on this path imports pandas, xarray or linopy on your behalf.
 
@@ -133,7 +135,7 @@ Sparsity is the absent row.
 | a label outside the dimension's index | names the parameter and the strays |
 | two rows for one coordinate | |
 | a lookup with two values for one label | |
-| a lookup value that is not a label of its target | one wording, checked once for both lanes |
+| a lookup value that is not a label of its target | one wording, checked once at the door |
 | a dimension carrying lookups with no index | |
 | a dimension nothing can supply labels for | names both ways to fix it |
 | a dimension the file declares and the caller also supplies | names the declaration and the colliding key |
@@ -169,5 +171,6 @@ A model that is already built takes new numbers with
 one dimension is [`solve_over`](sweeps.md). Both attach through the rules
 above.
 
-The [linopy lane](../about/linopy.md#the-same-language-and-the-same-data)
-attaches by these same rules, refusals included — it enters by the same door.
+[linopy](../about/linopy.md#the-same-language-and-the-same-data)
+attaches by these same rules, refusals included — in its own reader, in its own
+words, which is what the differential suite checks rather than assumes.

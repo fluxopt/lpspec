@@ -1,4 +1,4 @@
-"""Every expression to a bounded depth on both lanes, and the rewrites that must not move it.
+"""Every expression to a bounded depth on both, and the rewrites that must not move it.
 
 ``test_arithmetic_laws.py`` states the laws a reader should know, chosen by hand.
 This makes the same kind of claim without choosing: the AST is closed, so the
@@ -9,13 +9,13 @@ about the laws rather than a second unrelated fact.
 
 Two claims, and the second is the one the curated file could not make:
 
-**Agreement** — each expression builds to one model on the eager lane and the
+**Agreement** — each expression builds to one model on linopy and the
 relational one, over shapes no model in the corpus writes.
 
 **Invariance** — a rewrite that must not change the meaning does not change the
 answer. ``reduction-is-linear`` is why this exists: ``sum(a + b)`` and
 ``sum(a) + sum(b)`` part company the moment an operand is absent, and while the
-oracle shared the mistake both lanes agreed on the wrong number until somebody
+oracle shared the mistake both agreed on the wrong number until somebody
 wrote that pair down by hand (#311). Agreement alone would not have caught it.
 
 **Depth two here, depth three in its own job.** Depth three is 2,576 expressions
@@ -28,7 +28,7 @@ rule that motivated the sweep gets 480 cases either way rather than the ten
 depth three happened to contain.
 
 A model this fixture makes infeasible or unbounded is skipped rather than failed
-— it says nothing about either lane — and ``test_enough_of_the_sweep_reaches_an_answer``
+— it says nothing about either — and ``test_enough_of_the_sweep_reaches_an_answer``
 is what stops that from quietly becoming every case.
 """
 
@@ -56,7 +56,7 @@ CENSUS_STEP = 20
 #: Of the 56 cases that samples, what answered and what a lane refused when the
 #: floor and the ceiling were measured (#1213). Every refusal today is the
 #: asymmetry #1137 settled — a `sum` acting along a dimension a constant part of
-#: the expression does not carry, which the eager lane builds and the relational
+#: the expression does not carry, which linopy builds and the relational
 #: one refuses by name. That is decided, so the ceiling is a ratchet against it
 #: spreading rather than a countdown to closing it.
 ANSWERS = 38
@@ -93,15 +93,15 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 @dataclass(frozen=True)
 class Answer:
-    """What both lanes said about one expression, or why neither was asked.
+    """What both said about one expression, or why neither was asked.
 
     Two things are not disagreements and must not be failures. A model this
-    fixture makes infeasible or unbounded says nothing about either lane. And a
+    fixture makes infeasible or unbounded says nothing about either. And a
     lane that refuses the expression outright is a gap already filed against it,
     not a divergence — the message names its issue.
 
     Attributes:
-        value: The objective both lanes reached, or None if neither was asked.
+        value: The objective both reached, or None if neither was asked.
         skipped: Why there is no value, in the words the skip reports.
         refused: Whether it was a lane that refused, rather than the fixture.
             The census counts this, so a new gap costs a red suite rather than

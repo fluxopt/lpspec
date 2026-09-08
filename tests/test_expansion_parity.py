@@ -1,10 +1,10 @@
-"""Expansion means the same on both lanes.
+"""Expansion means the same on both.
 
 The rules for `macros:` and `expressions:` are the language's and live with
-its own suite (#1150); *that the two lanes agree about what they expanded to*
+its own suite (#1150); *that the two agree about what they expanded to*
 is a claim about two consumers, so it is asserted here.
 One end-to-end case carries it: both constructs expand to core AST before
-dispatch, so if the lanes agree here they agree at all.
+dispatch, so if the two agree here they agree at all.
 """
 
 from __future__ import annotations

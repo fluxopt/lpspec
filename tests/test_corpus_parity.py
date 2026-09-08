@@ -1,14 +1,14 @@
-"""Every referenced model, built on both lanes.
+"""Every referenced model, built on both.
 
 ``test_ports.py`` asks whether the relational lane reaches an optimum somebody
 else published. This module asks the second question of the same corpus —
-whether the eager linopy lane builds the same model — and it is the same corpus
-because the data is already there: ``port_sources`` hands both lanes the same
+whether linopy builds the same model from the same file — and it is the same corpus
+because the data is already there: ``port_sources`` hands both the same
 tidy frames, so a model added to ``references.json`` is swept here the day it
 lands rather than when someone remembers a glob.
 
-Per model the claim is the strong one, three routes at once: the eager
-objective, the relational objective, and the objective HiGHS reaches re-reading
+Per model the claim is the strong one, three routes at once: linopy's
+objective, this engine's, and the objective HiGHS reaches re-reading
 the written LP file. ``test_ports.py`` supplies the fourth from outside, so a
 model green in both modules has agreed with a published optimum four ways.
 
@@ -26,36 +26,53 @@ import polars as pl
 import pytest
 from math_spec import to_program
 
-from lpspec.errors import LaneError
 from tests.conftest import PORT_REFERENCES, PORTS_DIR, port_sources, port_spec
 from tests.differential import differential
+from tests.oracle import spec_oracle
 
 #: The instance files the ports attach, for a test that needs a column the model
 #: does not declare — ``port_sources`` filters those out, as it should.
 PORTS_DATA = PORTS_DIR / 'data'
 
-#: What the eager lane accepts and cannot build, keyed by model. `LaneError` is
-#: the point of the pair: it pins the xfail to *this* refusal, where the bare
-#: `ValueError` it used to name was satisfied by any bug that raised one.
-#: Strict, so the day linopy grows an objective-constant slot these XPASS, the
-#: suite goes red, and the entry comes out with the check in the same PR.
-LANE_GAPS: dict[str, str] = {
-    'osemosys_utopia': '#894 — linopy has no objective-constant slot',
-}
+#: What the oracle accepts and cannot build, keyed by model — and today that is
+#: nine of the corpus, all of them the same bug upstream. `SpecDataError` is the
+#: point of the pair: it pins each xfail to *that* refusal, where a bare
+#: `ValueError` would be satisfied by any bug that raised one.
+#:
+#: Strict, so the day the over-refusal is fixed these XPASS, the suite goes red,
+#: and the table comes out with it.
+#:
+#: `osemosys_utopia` is on the list twice over: behind the coefficient refusal
+#: sits #894, linopy having no objective-constant slot, which the model reaches
+#: only once the coverage check stops firing first.
+ORACLE_GAPS: dict[str, str] = dict.fromkeys(
+    (
+        'osemosys_utopia',
+        'piecewise_conversion',
+        'piecewise_ragged',
+        'pypsa_ac_dc',
+        'pypsa_multilink',
+        'reserves',
+        'stigler_diet',
+        'telephone_routing',
+        'tsp_mtz',
+    ),
+    spec_oracle.SPARSE_COEFFICIENT,
+)
 
 
 def _case(name: str) -> Any:
-    reason = LANE_GAPS.get(name)
-    marks = [pytest.mark.xfail(reason=reason, raises=LaneError, strict=True)] if reason else []
+    reason = ORACLE_GAPS.get(name)
+    marks = [pytest.mark.xfail(reason=reason, raises=spec_oracle.SpecDataError, strict=True)] if reason else []
     return pytest.param(name, marks=marks, id=name)
 
 
 @pytest.mark.parametrize('name', [_case(n) for n in sorted(PORT_REFERENCES)])
 def test_both_lanes_and_the_lp_file_reach_one_objective(name: str) -> None:
-    """The harness is the whole assertion: it builds both lanes and re-solves the LP.
+    """The harness is the whole assertion: it builds both, and re-solves the LP.
 
     Every port's ``sources`` already carries each dimension's own index table,
-    which is what both lanes read.
+    which is what both read.
 
     **A model whose expansion declares a set skips the file leg**, read off the
     expanded schema rather than a list so it cannot drift — ``method: sos2``
@@ -72,16 +89,16 @@ def test_both_lanes_and_the_lp_file_reach_one_objective(name: str) -> None:
 
 
 def _same_matrix(name: str, run: Any) -> None:
-    """The two lanes wrote the same coefficients, not merely the same shape.
+    """The two wrote the same coefficients, not merely the same shape.
 
-    The strongest cross-lane claim available, and the one duals cannot make: an
+    The strongest cross-implementation claim available, and the one duals cannot make: an
     LP with alternative optima has many optimal primal *and* dual solutions, so
     comparing answers is comparing which vertex a solver happened to reach. The
     matrix has no such freedom — one model, one set of coefficients.
 
     Canonical rather than positional. Each constraint becomes the sorted multiset
     of its rows, each row the sorted multiset of its coefficients, so the
-    comparison survives the two lanes numbering rows and columns differently —
+    comparison survives the two numbering rows and columns differently —
     which they do, each labelling in its own declaration order.
 
     Structure is compared exactly and values approximately, because the two
@@ -97,11 +114,11 @@ def _same_matrix(name: str, run: Any) -> None:
         got = _canonical(tables.matrix_block(block.start, block.start + block.height))
         want = _eager_matrix(run.model, constraint)
         assert [len(r) for r in got] == [len(r) for r in want], (
-            f'{name}.{constraint}: the lanes wrote a different number of terms per row'
+            f'{name}.{constraint}: the two wrote a different number of terms per row'
         )
         flat, expected = [c for r in got for c in r], [c for r in want for c in r]
         assert flat == pytest.approx(expected, rel=1e-9, abs=1e-12), (
-            f'{name}.{constraint}: the lanes wrote different coefficients'
+            f'{name}.{constraint}: the two wrote different coefficients'
         )
 
 
@@ -138,24 +155,24 @@ def _eager_matrix(eager: Any, constraint: str) -> list[tuple[float, ...]]:
 
 
 def _eager_matches_the_recorded_duals(name: str, run: Any) -> None:
-    """The eager lane against the price somebody else published, where there is one.
+    """linopy against the price somebody else published, where there is one.
 
     ``test_ports`` asks this of the relational lane and cannot ask it here: it is
     linopy-free on purpose, for the bare-install job. So the second half of the
     claim lives in this module, where the oracle is already built — and until it
-    did, the eager lane's duals were compared against nothing at all.
+    did, linopy's duals were compared against nothing at all.
 
-    Against the *recording* rather than against the other lane, because two lanes
+    Against the *recording* rather than against the other, because two lanes
     need not agree on a dual: an LP with alternative optima has many, and which
     one HiGHS returns depends on the order the rows reach it (see
     ``differential``). A recorded dual is a claim that this instance has a unique
-    one, so both lanes owe it the same answer.
+    one, so both owe it the same answer.
     """
     _check_recorded_duals(name, PORT_REFERENCES[name], run)
 
 
 def _check_recorded_duals(name: str, entry: dict[str, Any], run: Any) -> None:
-    """*entry*'s recorded duals against the eager lane, split out so a probe can pass a wrong one."""
+    """*entry*'s recorded duals against linopy, split out so a probe can pass a wrong one."""
     recorded = entry.get('duals')
     if not recorded:
         return
@@ -166,7 +183,7 @@ def _check_recorded_duals(name: str, entry: dict[str, Any], run: Any) -> None:
         want = want.with_columns(pl.col(d).cast(got.schema[d]) for d in dims).sort(dims)
         assert got[dims].equals(want[dims]), f'{name}.{constraint}: the eager dual is keyed differently'
         assert got['value'].to_list() == pytest.approx(want['value'].to_list(), rel=entry['rtol'], abs=1e-9), (
-            f'{name}.{constraint}: the eager lane disagrees with {entry["provenance"]}'
+            f'{name}.{constraint}: linopy disagrees with {entry["provenance"]}'
         )
 
 
@@ -185,7 +202,7 @@ def test_the_eager_dual_check_would_notice_a_wrong_price() -> None:
     """The probe the mutation table asked for.
 
     Deleting the comparison above leaves the suite green, because the comparison
-    *is* the assertion — nothing else reads the eager lane's duals. So the guard
+    *is* the assertion — nothing else reads linopy's duals. So the guard
     needs a case that fails on purpose: a recording one entry away from the
     truth, which the check must refuse.
 
@@ -253,7 +270,7 @@ def test_the_two_loss_approximations_are_one_model() -> None:
     as every other committed instance.
 
     Through ``differential``, so the secant instance is held to everything the
-    corpus holds a port to: both lanes, the written LP file, and the coefficient
+    corpus holds a port to: both, the written LP file, and the coefficient
     matrices agreeing entry for entry.
     """
     sources = dict(port_sources('pypsa_losses'))

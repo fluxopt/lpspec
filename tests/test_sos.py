@@ -1,8 +1,8 @@
 """``sos:`` — one construct, three sinks, and one of them without the concept.
 
 The claim has two halves and they need different oracles. That the *language*
-means the same thing on both lanes is `differential`'s job as usual. That the
-**reformulation** is the same feasible set is not something either lane can
+means the same thing on both is `differential`'s job as usual. That the
+**reformulation** is the same feasible set is not something either can
 say, since both would be reformulating: so the optimum is enumerated here
 (:func:`best`), which is tractable because a set over four options has nine
 admissible shapes, and asserted against every sink.
@@ -71,7 +71,7 @@ def spec(sos_type: int, **sos: Any) -> dict[str, Any]:
 
 
 def best(sos_type: int | None, sizes: list[int] = SIZES) -> float:
-    """The optimum by enumeration — the oracle neither lane can be.
+    """The optimum by enumeration — the oracle neither can be.
 
     Every set is independent (nothing couples the sites), and a set admits a
     known family of nonzero patterns: any single member for SOS1, plus any

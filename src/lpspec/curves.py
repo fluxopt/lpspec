@@ -10,8 +10,8 @@ its own subjects, and :func:`~math_spec.program.check_message` words the
 refusal — so what is decided here is only whether the numbers hold them, and
 this module appends what it saw.
 
-Called from :func:`~lpspec.sources.tidy_sources`, so both lanes pass through it
-by entering the one door.
+Called from :func:`~lpspec.sources.tidy_sources`, so nothing enters the engine
+without passing through it.
 
 Separate from ``sources.py`` because the question is different: that module
 asks what shape a caller's table is in, this one asks whether the numbers in it
@@ -105,9 +105,9 @@ def validate_curve_extent(program: Program, sources: Mapping[str, pl.LazyFrame])
 
     A block emits one weight per breakpoint over the whole coordinate product —
     the λ it declares carries no mask — so a values parameter short of a row
-    does not build a shorter curve. Both lanes call this, and both reach it with
-    what :func:`tidy_sources` returned, or would otherwise read that row as a
-    zero coefficient and put a breakpoint at the origin.
+    does not build a shorter curve. Reached with what :func:`tidy_sources`
+    returned, which would otherwise read that row as a zero coefficient and put
+    a breakpoint at the origin.
 
     Args:
         program: The lowered spec — each block's breakpoints, and the

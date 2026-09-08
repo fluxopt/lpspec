@@ -1,7 +1,8 @@
 """linopy, hand-written — the arm a reader means when they see the name.
 
-Not `lpspec.linopy`: that lane read our YAML and measured our own lowering on
-top of linopy's work, which is why it was retired (#1268). Here the model is
+Not the deleted `lpspec.linopy` lane: that read our YAML and measured our own
+lowering on top of linopy's work, which is why it was retired here (#1268)
+before it was deleted outright. Here the model is
 typed out per case in `bench/models/<case>/linopy.py`, the way linopy's own
 docs and this repo's `examples/ports/references/linopy/` write it — the same
 scripts the gallery publishes, which is what makes this arm's formulations

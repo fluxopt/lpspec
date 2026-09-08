@@ -31,7 +31,7 @@ downstream of it.
 **One language, more than one place to run it.** The same file builds natively
 on the relational engine or onto a `linopy.Model` that already exists in memory.
 Not a fallback and not a dialect — one language, so a differential test between
-the two lanes is an oracle rather than a comparison.
+the two implementations is an oracle rather than a comparison.
 
 **A build that streams, with a ceiling you can declare.** The model is frames
 and the build is relational, so nothing dense is ever materialised and peak
@@ -56,7 +56,7 @@ by the number of component *types* while cardinality lives entirely in data.
 **Two durable losses, and they are the price of the closed AST.** One is
 structure that needs the solver's *answer* to decide the next row, inside one
 plan. The other is imperative modeling of any kind. What that price buys is
-load-time validation, two lanes on one language, and a build that streams.
+load-time validation, a second consumer of the same language, and a build that streams.
 Everything else is scheduling.
 
 The specific refusals — data prep, arbitrary array ops, domain helpers,

@@ -234,7 +234,7 @@ def test_a_pattern_that_moves_reloads_the_solver_rather_than_pushing():
 def test_a_shape_operator_moves_a_quadratic_term_like_any_other():
     """A rewrite moves rows between coordinates and never reads what they
     carry: ``shift`` over a product puts two labels through the remap a linear
-    fragment goes through, and both lanes still agree."""
+    fragment goes through, and both still agree."""
     cyclic = {
         'parameters': {'need': {'dims': []}},
         'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},

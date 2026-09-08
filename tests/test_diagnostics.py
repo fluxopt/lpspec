@@ -428,4 +428,4 @@ def test_the_largest_magnitude_agrees_with_the_oracle():
 
     for name, largest in ours.items():
         expected = max(abs(theirs.loc[name, 'min']), abs(theirs.loc[name, 'max']))
-        assert largest == pytest.approx(expected), f"the lanes disagree on the widest coefficient in '{name}'"
+        assert largest == pytest.approx(expected), f"the two disagree on the widest coefficient in '{name}'"

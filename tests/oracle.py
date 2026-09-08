@@ -1,4 +1,4 @@
-"""Guarded access to the linopy lane, used as the differential oracle.
+"""Guarded access to the differential oracle — linopy's own build of a spec.
 
 Importing this module skips the importing test module when the ``[linopy]``
 extra is absent — ``pytest.importorskip`` raises ``Skipped``, and pytest turns
@@ -7,7 +7,9 @@ that into a skipped module at collection time.
 Import the oracle *through here* rather than importing linopy or xarray
 directly, so the guard cannot be bypassed by import ordering: isort sorts a
 bare ``import xarray`` above a first-party import, and it would then blow up
-as a collection error before any guard ran.
+as a collection error before any guard ran. ``tests.spec_oracle`` — the oracle's two
+verbs — imports linopy at module level for that reason and is reached only
+from here.
 
 **pandas is re-exported for the same reason.** It is no longer a runtime
 dependency — it ships with the ``[linopy]`` extra, for the oracle and for
@@ -24,14 +26,19 @@ thing it compares against is the convention we implement. Legacy is the one
 linopy is retiring: it fills every absent slot with 0, so it agrees with a lane
 that keeps a constraint row whose variable is masked, and disagrees with one
 that drops it. Measuring against legacy would pin this package to the behaviour
-v1 classifies as a bug (PyPSA/linopy#712). So the guard below raises rather
-than skipping — a skip would be the worst outcome available, the suite going
-green having quietly stopped checking the lanes against each other on precisely
-the cases the convention changed.
+v1 classifies as a bug (PyPSA/linopy#712) — and ``add_spec`` refuses to build
+under it at all. So the guards below raise rather than skipping: a skip would
+be the worst outcome available, the suite going green having quietly stopped
+checking this engine against the other implementation.
 
-The lane is imported under its own name rather than something shorter, because
-this module re-exports the *real* ``linopy`` too: ``lpspec_linopy`` names the
-module it actually is, and cannot be confused with it.
+**One thing no guard here can check: that both sides lower with the same
+math-spec.** Two versions of the language is two languages, and a differential
+across them reports as a disagreement between implementations what is a
+disagreement between releases. It is checked by resolution rather than at
+runtime — one environment holds one math-spec, and two exact pins that disagree
+fail the install — so what keeps it true is that the two pins move together:
+``[project.dependencies]`` here, and the rev of the ``[linopy]`` extra, whose
+own ``spec`` group names the version the oracle was written against.
 """
 
 from __future__ import annotations
@@ -49,20 +56,22 @@ if 'semantics' not in getattr(linopy.options, '_defaults', {}):
         f'linopy {linopy.__version__} has no options["semantics"], so it cannot speak the v1 '
         f'arithmetic convention this package is written against. The oracle would silently '
         f'measure against the legacy convention instead. Install the pin in pyproject.toml '
-        f'(the [linopy] extra: PyPSA/linopy@master) — `pixi install`.'
+        f'(the [linopy] extra: PyPSA/linopy at the rev it names) — `pixi install`.'
     )
-from lpspec import linopy as lpspec_linopy  # noqa: E402  — must follow the guard above
-from lpspec.linopy import builder, loader, operators, where  # noqa: E402
+if not hasattr(linopy.Model, 'from_spec'):
+    raise RuntimeError(
+        f'linopy {linopy.__version__} has no Model.from_spec, so there is no oracle to measure '
+        f"against: what the differential compares this engine to is linopy's own build of the "
+        f'same spec. Install the pin in pyproject.toml (the [linopy] extra) — `pixi install`.'
+    )
+
+from tests import spec_oracle  # noqa: E402  — must follow the guards above
 
 __all__ = [
-    'builder',
     'linopy',
-    'loader',
-    'lpspec_linopy',
-    'operators',
     'pd',
+    'spec_oracle',
     'transport_eager_objective',
-    'where',
     'xr',
 ]
 

@@ -10,8 +10,8 @@ The failure is loud but names nothing about its cause — an infeasible solve �
 which is why the relabel is the test that matters here, and why an
 out-of-range position is an error rather than a mask that is false everywhere.
 
-Both lanes read the position off the coordinate order they already hold: the
-dim table's ``ord`` relationally, the master index on the eager side. So the
+Both read the position off the coordinate order they already hold: the
+dim table's ``ord`` relationally, the master index on the linopy's side. So the
 one thing a single-lane test could not see is whether the two orders agree,
 which every case below checks differentially.
 """
@@ -85,7 +85,7 @@ def _inputs(snapshots=SNAPSHOTS):
 
 
 # ---------------------------------------------------------------------------
-# both lanes
+# both
 # ---------------------------------------------------------------------------
 
 
@@ -190,10 +190,10 @@ def test_a_position_no_coordinate_occupies_is_an_error_at_bind(tmp_path, positio
     with pytest.raises(DataError, match=r'which has 3 coordinate\(s\)'):
         lps.solve(pyyaml.safe_load(spec), _relational(sources))
 
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import spec_oracle
 
-    with pytest.raises(DataError, match=r'which has 3 coordinate\(s\)'):
-        lpspec_linopy.build(path, sources)
+    with pytest.raises(spec_oracle.SpecDataError, match=r'which has 3 coordinate\(s\)'):
+        spec_oracle.build(path, sources)
 
 
 def test_a_position_along_a_dimension_the_frame_lacks_is_refused():
@@ -258,7 +258,7 @@ objective:
 
 
 def _grouped_sources():
-    """One mapping both lanes take, the lookup arriving as a column of the index.
+    """One mapping both take, the lookup arriving as a column of the index.
 
     Arrow tables rather than pandas: a partial lookup read out of a pandas frame
     arrives as ``float64`` beside an ``i64`` target, which is a binding question
@@ -273,7 +273,7 @@ def _grouped_sources():
 
 
 def _masked(where: str) -> list[int]:
-    """The snapshots *where* selects, agreed by both lanes.
+    """The snapshots *where* selects, agreed by both.
 
     Read off the primal rather than the plan: minimising a positive price holds
     `soc` at zero everywhere the row was not built, so what comes back non-zero
@@ -340,7 +340,7 @@ def test_a_label_space_groups_a_position_like_a_targeted_lookup():
     boundary within each group needs no target axis to land terms on, so a
     map that owns its values groups it as well as one into a dimension. No
     corpus model writes this spelling — every `by=` elsewhere uses a targeted
-    lookup — so without this test either lane could drop the label-space form
+    lookup — so without this test either could drop the label-space form
     and stay green.
     """
     spec = MASK.replace(
@@ -355,7 +355,7 @@ def test_a_label_space_groups_a_position_like_a_targeted_lookup():
             rows = run.result.primal('soc').filter(pl.col('value') > 1e-9)
             return sorted(int(s) for s in rows.select('snapshot').to_series())
 
-    assert masked('position(snapshot, by=block) == 0') == [10, 20], "each block's first snapshot, both lanes agreed"
+    assert masked('position(snapshot, by=block) == 0') == [10, 20], "each block's first snapshot, both agreed"
     assert masked('position(snapshot, by=block) == -1') == [11, 22], 'and the negative spelling counts from each tail'
 
 
@@ -374,10 +374,10 @@ def test_a_group_shorter_than_the_position_is_an_error_at_bind(tmp_path):
     with pytest.raises(DataError, match=r'1 of them are shorter than that'):
         lps.solve(pyyaml.safe_load(spec), sources)
 
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import spec_oracle
 
-    with pytest.raises(DataError, match=r'1 of them are shorter than that'):
-        lpspec_linopy.build(path, sources)
+    with pytest.raises(spec_oracle.SpecDataError, match=r'1 of them are shorter than that'):
+        spec_oracle.build(path, sources)
 
 
 @pytest.mark.parametrize(
@@ -446,7 +446,7 @@ def test_the_seasons_page_number():
     per season allows — the 6 is its own, returned by snapshot 7.
     """
     with differential(SEASONS, _seasons_sources()) as run:
-        assert run.oracle == pytest.approx(74.0, rel=RTOL), 'winter 50 and summer 24, agreed by both lanes'
+        assert run.oracle == pytest.approx(74.0, rel=RTOL), 'winter 50 and summer 24, agreed by both'
         released = by_coord(run.result, 'release', 'snapshot')
         held = by_coord(run.result, 'soc', 'snapshot')
 
@@ -500,7 +500,7 @@ def test_a_bare_partitioned_shift_vacates_each_group_s_first():
     """
     spec = _partitioned('by=season_of')
     with differential(spec, _seasons_sources()) as run:
-        assert run.result.is_ok, 'both lanes reach the same answer with two rows missing from it'
+        assert run.result.is_ok, 'both reach the same answer with two rows missing from it'
     with lps.build(pyyaml.safe_load(spec), _seasons_sources()) as built:
         omitted = {r['constraint']: r['rows_not_built'] for r in built.diagnostics().omissions.to_dicts()}
     assert omitted['season_balance'] == 2, 'one row per season, not one for the horizon'

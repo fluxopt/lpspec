@@ -6,9 +6,9 @@ sources → a :class:`Model`), ``solve`` and ``write``.
 
 This is the relational lane (docs/about/architecture.md): validated at load
 time, lowered to the plan, executed relationally. The same file builds as a
-``linopy.Model`` through ``lpspec.linopy``, on the same call and the same
-sources — which lane a caller wants is theirs to pick, and this one needs no
-optional extra.
+``linopy.Model`` through linopy's own ``Model.from_spec`` — a second consumer
+of the same language, in another package, which is what the differential suite
+measures this one against.
 
 Example::
 
@@ -26,41 +26,31 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from math_spec import advice, to_program
 
 from lpspec.errors import DataError, LpspecError, LpspecWarning
-from lpspec.lanes import LANES, Buildable
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.relational.sinks import solver, writer
-from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
 from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from math_spec import Spec
     from math_spec.program import Program
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep, Result
 
 __all__ = ['build', 'check', 'solve', 'write']
 
-
-def _portability(program: Program, sink: str) -> tuple[str | None, list[str]]:
-    """Why *sink* cannot take *program*, and what it would rewrite if it can.
-
-    The one place a lane is told apart from a sink: what a sink refuses or
-    reformulates is ``relational.sinks``' business, and it may not know a lane
-    exists (docs/about/architecture.md, hard rule 2). A lane rewrites nothing —
-    everything it supports it builds natively — so its second answer is empty.
-    """
-    if (lane := LANES.get(sink)) is not None:
-        missing = lane.missing(required(program))
-        return (lane_cannot_build_message(sink, missing) if missing else None), []
-    refused = sinks.refusal(program, sink)
-    return refused, [] if refused else sinks.relaxations(program, sink)
+#: Anything a verb takes as the spec: a YAML path, a mapping, or a spec the
+#: language has already read — a ``Spec`` from :func:`math_spec.to_spec`, or a
+#: ``Program`` from :func:`lpspec.check`. Each is handed straight to
+#: :func:`math_spec.to_program`.
+Buildable: TypeAlias = 'str | Path | dict[str, Any] | Spec | Program'
 
 
 def check(spec: Buildable, sink: str | None = None) -> Program:
@@ -77,9 +67,9 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
         spec: A YAML path, a mapping, or anything :func:`math_spec.to_program`
             already takes — a ``Spec`` from ``math_spec.to_spec``, or a
             ``Program`` from an earlier call to this.
-        sink: A solver name (``highs``, ``gurobi``, ``xpress``), an output
-            suffix (``.lp``, ``.mps``), or a lane (``linopy``). ``None`` asks
-            only whether the spec is sayable.
+        sink: A solver name (``highs``, ``gurobi``, ``xpress``) or an output
+            suffix (``.lp``, ``.mps``). ``None`` asks only whether the spec is
+            sayable.
 
     Returns:
         The lowered program: what a build reads rows off, and what every verb
@@ -104,7 +94,8 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
     refused: str | None = None
     relaxed: list[str] = []
     if sink is not None:
-        refused, relaxed = _portability(program, sink)
+        refused = sinks.refusal(program, sink)
+        relaxed = [] if refused else sinks.relaxations(program, sink)
     for note in (*notes, *relaxed):
         warnings.warn(note, LpspecWarning, stacklevel=2)
     if refused is not None:

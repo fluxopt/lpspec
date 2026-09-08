@@ -23,7 +23,7 @@ import polars as pl
 import pytest
 
 import lpspec as lps
-from lpspec.errors import LaneError, LpspecError
+from lpspec.errors import LpspecError
 from tests.conftest import recomputed_row_values
 
 gurobipy = pytest.importorskip('gurobipy', reason='a quadratic constraint has no other solver sink')
@@ -266,21 +266,33 @@ def test_the_pair_a_row_holds_is_structure_even_at_the_same_coefficient():
 # ---------------------------------------------------------------------------
 
 
-def test_the_linopy_lane_refuses_it_in_the_languages_own_words(tmp_path):
-    """Hard rule 3's amendment where it bites. Both lanes still *accept* the
-    model — one ``to_program`` gate — and the refusal names the lane and the
-    way round, where linopy's ``NotImplementedError`` names neither."""
-    from tests.oracle import lpspec_linopy
+def test_linopy_cannot_build_one_and_this_engine_can(tmp_path):
+    """Hard rule 3's amendment where it bites: accepting is not building.
 
-    with pytest.raises(LpspecError, match='linopy lane cannot build'):
-        lps.check(SPEC, sink='linopy')
+    The language accepts the model and ``check`` says so with no sink named,
+    so this is not a ceiling question — it is the one construct the oracle
+    cannot construct, ``add_constraints`` refusing a ``QuadraticExpression``
+    outright with no reformulation of it that is exact.
+
+    **The sentence is linopy's now, and it is a bare ``TypeError``.** The
+    deleted lane checked for this before linopy was asked and raised a
+    ``LaneError`` naming the way round; the price of the oracle being another
+    package is that a caller who reaches it directly gets the library
+    exception. What this package still owes them is that ``lps.build`` works,
+    which is the line below.
+    """
+    from tests.oracle import spec_oracle
+
+    lps.check(SPEC)
 
     import yaml as pyyaml
 
     path = tmp_path / 'model.yaml'
     path.write_text(pyyaml.safe_dump(SPEC))
-    with pytest.raises(LaneError, match='linopy lane cannot build'):
-        lpspec_linopy.build(path, SOURCES)
+    with pytest.raises(TypeError, match='QuadraticExpression'):
+        spec_oracle.build(path, SOURCES)
+    with lps.build(SPEC, SOURCES) as model:
+        assert model.diagnostics().rows, 'the engine builds the rows the oracle cannot construct'
 
 
 def test_highs_refuses_it_before_the_build_and_names_who_takes_it():

@@ -18,10 +18,9 @@ import polars as pl
 import pytest
 
 import lpspec as lps
-from lpspec.errors import DataError
 from tests.conftest import by_coord, override
-from tests.differential import RTOL, both_lanes_refuse, differential
-from tests.oracle import pd
+from tests.differential import RTOL, both_refuse, differential
+from tests.oracle import pd, spec_oracle
 
 #: A masked variable broadcast onto a wider frame, then reduced back. `p` is
 #: over (node, tech); `produces` adds `carrier`; the sum removes `tech`. So the
@@ -68,12 +67,13 @@ SPARSE_COEFFICIENT_SPEC = {
 SPARSE_CONSTANT_DATA = {'t': [0, 1, 2], 'w': pd.Series({0: 1.0, 1: 1.0, 2: 1.0}), 'c': pd.Series({1: 4.0, 2: 5.0})}
 
 
+@pytest.mark.xfail(strict=True, reason=spec_oracle.SPARSE_COEFFICIENT)
 def test_a_sparse_coefficient_is_still_a_zero_coefficient():
     """A tidy parameter table is a compressed dense array — where it can be.
 
     Supplying rows only where a *coefficient* is nonzero stays the language's
     sparsity idiom (the data-attachment rules). The uncovered coordinate contributes no term, the
-    row survives, and both lanes agree about it: nothing was invented, the term
+    row survives, and both agree about it: nothing was invented, the term
     simply is not there.
 
     Only the *constant* side lost this reading, and the test below says why.
@@ -93,14 +93,10 @@ def test_a_sparse_constant_side_is_refused_on_both_lanes():
     which binds rather than vanishing, and the solve reports optimal. Nothing in
     the model said so: a table left sparse is compression, not a claim.
 
-    Refused on both lanes, in the same words, because a rule the eager lane did
-    not share would be a parity break rather than a language rule (hard rule 3).
+    Refused by both, because a rule only one of them held would be a parity
+    break rather than a language rule (hard rule 3).
     """
-    with (
-        pytest.raises(DataError, match="parameter 'c' covers 1 fewer"),
-        differential(SPARSE_COEFFICIENT_SPEC, SPARSE_CONSTANT_DATA),
-    ):
-        pass
+    both_refuse(SPARSE_COEFFICIENT_SPEC, SPARSE_CONSTANT_DATA, match="parameter 'c' covers 1 fewer")
 
 
 @pytest.mark.parametrize(
@@ -112,17 +108,17 @@ def test_a_sparse_constant_side_is_refused_on_both_lanes():
     ],
 )
 def test_the_same_hole_is_refused_however_far_it_stands_from_the_row(constraint):
-    """A reduction between the parameter and the row hid the hole from one lane.
+    """A reduction between the parameter and the row hid the hole from one of them.
 
     `sum` reads a missing coordinate as no summand rather than as a gap — the
     relational lane sums each constant piece per coordinate before asking the
     assembled constant for its nulls, so the answer came back complete and
-    `<= 9` stood where the data said nothing. The eager lane asks the
+    `<= 9` stood where the data said nothing. linopy asks the
     parameter, which is the only shape a reduction cannot flatten, and both
     lanes now do (#1465).
     """
     spec = override(SPARSE_COEFFICIENT_SPEC, **{'constraints.cap': constraint})
-    both_lanes_refuse(spec, SPARSE_CONSTANT_DATA, match="parameter 'c' covers 1 fewer")
+    both_refuse(spec, SPARSE_CONSTANT_DATA, match="parameter 'c' covers 1 fewer")
 
 
 def test_a_where_is_the_escape_from_the_constant_side_check():
@@ -275,11 +271,11 @@ def test_a_member_with_no_value_is_still_refused_through_a_group():
     the empty group is written down as a zero where the reason is known — this
     is the case that says the zero is not written down for every absence.
     """
-    with (
-        pytest.raises(DataError, match="parameter 'capacity' covers 1 fewer"),
-        differential(GROUPED_CONSTANT_SPEC, _grouped_constant_sources(capacity=('g1',))),
-    ):
-        pass
+    both_refuse(
+        GROUPED_CONSTANT_SPEC,
+        _grouped_constant_sources(capacity=('g1',)),
+        match="parameter 'capacity' covers 1 fewer",
+    )
 
 
 ABSENT_VARIABLE_SPEC = {
@@ -304,7 +300,7 @@ def test_a_term_whose_variable_is_absent_drops_the_row_on_both_lanes():
     and v1 §12 drops the row instead, so ``x`` is left free at ``f=b`` and bounded only
     by its own declaration.
 
-    The oracle is the point: the eager lane gets this from linopy's own v1
+    The oracle is the point: linopy gets this from linopy's own v1
     semantics, the relational lane from carrying variable presence apart from
     the term stream. Two independent implementations, one answer.
     """
@@ -372,6 +368,7 @@ ABSENT_COEFFICIENT_SPEC = {
 }
 
 
+@pytest.mark.xfail(strict=True, reason=spec_oracle.SPARSE_COEFFICIENT)
 def test_a_sparse_coefficient_on_the_bound_side_still_pins_the_variable():
     """The half of v1 §6's hazard that survives absence propagation.
 

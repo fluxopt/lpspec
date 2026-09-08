@@ -104,11 +104,11 @@ def test_a_literal_width_is_the_last_n_positions():
 def test_an_operand_carrying_a_constant_owes_the_window_of_constants():
     """`x - p` puts a constant beside the variable in every lag, and both add up.
 
-    The eager lane merges the window's lags in one step, and the merge owns
+    linopy merges the window's lags in one step, and the merge owns
     the constant arithmetic the running `+` used to: each lag's constant is
     summed into the row, not concatenated beside it. The right-hand sides are
     pinned as numbers because the differential agreement alone would stay
-    green if both lanes dropped every constant at once.
+    green if both dropped every constant at once.
     """
     spec = {
         'dimensions': {'t': {'dtype': 'int'}},
@@ -181,7 +181,7 @@ ZERO_WIDTH_SOURCES = {
 def test_a_window_whose_every_width_is_zero_builds_no_row():
     """A per-entity width can be zero everywhere, and then no window row is built.
 
-    A min-up-time model on a fleet with no committable unit. The eager lane
+    A min-up-time model on a fleet with no committable unit. linopy
     gathered no lag at all and crashed reducing over nothing (#1306).
     """
     with differential(ZERO_WIDTH, ZERO_WIDTH_SOURCES, lp=True) as run:
@@ -213,7 +213,7 @@ UNMAPPED_WIDTH_SOURCES = {
 def test_a_width_read_through_a_lookup_that_maps_nothing_there_builds_no_row():
     """A coordinate in no group has no width, which is a window of nothing.
 
-    Was: the eager lane bounded its lag count with `int(np.max(...))` over the
+    Was: linopy bounded its lag count with `int(np.max(...))` over the
     widths, and a width read through the lookup carries the operand's own
     absence where the lookup mapped nothing — so the bound was `NaN` and the
     build died on `cannot convert float NaN to integer` while the relational
@@ -429,7 +429,7 @@ def test_a_window_at_the_first_position_is_short_not_empty():
     """The row at the start of the axis survives, holding what it can see.
 
     The lags that reach past the start contribute a zero rather than an
-    absence. Absence propagates in the eager lane, so an unreachable lag added
+    absence. Absence propagates in linopy, so an unreachable lag added
     to a reachable one would annihilate the whole row and leave the first
     positions unconstrained — silently, and only near the edge.
     """

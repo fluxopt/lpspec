@@ -108,8 +108,8 @@ def expanded_ast(schema: Spec) -> None:
     """Stage 2 — macros and named expressions substituted away.
 
     Hard rule 1: the core AST is the whole language. Everything above it is
-    pure substitution, which is why a macro costs nothing and cannot make the
-    two lanes disagree — neither lane ever sees one. A named expression is
+    pure substitution, which is why a macro costs nothing and cannot make two
+    consumers disagree — neither ever sees one. A named expression is
     substituted the same way wherever a constraint uses it, but its name
     survives on the model: stage 6 reads it back at the solution.
 
@@ -133,7 +133,7 @@ def relational_ir(schema: Spec) -> Any:
     needs no data, which is what makes ``lps.check()`` a CI verb for spec
     repositories: compile the math, bind nothing.
     """
-    banner(3, 'a spec -> the program both lanes build from', 'math_spec.to_program')
+    banner(3, 'a spec -> the program every consumer builds from', 'math_spec.to_program')
     program = to_program(schema)
     print('    Program(')
     for name, decl in (*program.variables.items(), *program.constraints.items()):
@@ -217,8 +217,8 @@ def refusals() -> None:
     """Stage 7 — what the language refuses, and which stage catches it.
 
     Every rejection is a product statement: the error names the construct and
-    its rewrite. Never a silent fallback, never a redirect to the other lane —
-    both lanes accept exactly the same language (hard rule 3).
+    its rewrite. Never a silent fallback, never a redirect to another consumer
+    — both accept exactly the same language (hard rule 3).
 
     Each spec is run through ``lps.check()`` — stages 1-3, no data bound — and
     then, only if that passes, through a build. Both are caught by ``check()``,

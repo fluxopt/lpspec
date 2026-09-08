@@ -124,7 +124,7 @@ def _verdict(record: dict) -> str:
         f'**model for model**: {len(structural["equal"])} blocks equal, {len(structural["region"])} documented splits'
         + (f', {len(structural["recorded"])} recorded deviations' if structural.get('recorded') else '')
         if 'equal' in structural
-        else f'objective only — `lpspec.linopy` stops at `{structural["error"]}`'
+        else f'objective only — linopy stops at `{structural["error"]}`'
     )
     shape = parity['structure']['per_name']
     differing = parity['structure']['differences']
@@ -239,7 +239,7 @@ def _deviations(stamped: dict) -> str:
         for name, reason in stamped[stem]['parity']['duals']['negated'].items():
             seen.setdefault(f'{name} (duals, negated)', (reason, []))[1].append(_short(stem))
         for name, reason in stamped[stem]['structural'].get('recorded', {}).items():
-            seen.setdefault(f'{name} (linopy lane)', (reason, []))[1].append(_short(stem))
+            seen.setdefault(f'{name} (linopy model)', (reason, []))[1].append(_short(stem))
     if not seen:
         return 'None recorded.'
     rows = '\n'.join(f'| `{n}` | {r} | {", ".join(dict.fromkeys(rungs))} |' for n, (r, rungs) in sorted(seen.items()))
@@ -278,9 +278,9 @@ def index(stamped: dict) -> str:
         " same network, and compared with PyPSA four ways. The `PyPSA parity` workflow regenerates every page's"
         ' sources from the pinned math-spec on each run and fails on a diff.\n\n'
         '**objective** — one number, both solves · **structure** — the same constraint and variable names, one block each · **size** — the same solver rows, columns and nonzeros'
-        " · **duals** — every constraint's dual, per row · **linopy lane** — the two linopy models, label for label."
+        " · **duals** — every constraint's dual, per row · **linopy model** — the two linopy models, label for label."
         ' ✔ identical · ≠ differs, with the recorded reason · ◌ not comparable yet.\n\n'
-        '| rung | objective | structure | size | duals | linopy lane |\n| --- | --- | --- | --- | --- | --- |\n'
+        '| rung | objective | structure | size | duals | linopy model |\n| --- | --- | --- | --- | --- | --- |\n'
         f'{rows}\n\n'
         '## The four comparisons\n\n'
         "Both sides start from one object, the network the rung's script builds. PyPSA solves it directly;"
@@ -295,12 +295,12 @@ def index(stamped: dict) -> str:
         ' the model handed to HiGHS is the same size on both sides |\n'
         "| **duals** | `result.dual(block)` | `n.model.constraints[name].dual` | every row's dual equal, absolute"
         ' 1e-6 — against the negative where the file writes the row negated; an integer model has none |\n'
-        '| **linopy lane** | `lpspec.linopy.build(file)` | `n.optimize.create_model()` | label for label:'
+        '| **linopy model** | `linopy.Model.from_spec(file)` | `n.optimize.create_model()` | label for label:'
         ' coefficients, sense, right-hand side, bounds, integrality, objective terms |\n\n'
         "Both sides solve one object, the network the rung's script builds — PyPSA directly, lpspec through the"
-        ' file attached to the tables `prep.py` makes of it. A difference in structure, duals or the linopy lane is allowed only'
+        ' file attached to the tables `prep.py` makes of it. A difference in structure, duals or the linopy model is allowed only'
         ' with a reason in `differential/pypsa/deviations.yaml`; the runner fails on one recorded nowhere and on a reason'
-        ' no rung needs. A rung the linopy lane cannot build yet names the blocker instead. Not compared: primals'
+        ' no rung needs. A rung linopy cannot build from the file yet names the blocker instead. Not compared: primals'
         ' (an optimum need not be unique).\n\n'
         'One kind of reason is checked rather than excused. Where the file states a row as PyPSA writes it negated —'
         ' a storage balance with the charge on the left, a ramp written the other way about — the dual is the'

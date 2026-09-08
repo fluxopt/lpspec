@@ -1,9 +1,9 @@
-"""Bind runtime data to a lowered program — the one door both lanes enter.
+"""Bind runtime data to a lowered program — the one door data enters by.
 
 The language says what a parameter *is* — its dims, its dtype — and never where
 its values come from. This is the other half: what the caller passed (parquet
 paths, any table exposing the Arrow PyCapsule protocol, or a plain-Python
-shape) becomes the tidy frames both lanes read by name, and every question
+shape) becomes the tidy frames the engine reads by name, and every question
 about whether that data is usable — is it there, does it carry the declared
 columns, is it single-valued per coordinate, are its labels real, are its values
 present and of the declared type — is asked here, once.
@@ -44,7 +44,7 @@ def attachable(program: Program) -> dict[str, Any]:
 
 
 def tidy_sources(program: Program, data: Mapping[str, object]) -> dict[str, pl.LazyFrame]:
-    """Read the caller's ``sources`` into the frames both lanes build against.
+    """Read the caller's ``sources`` into the frames the engine builds against.
 
     Every source comes back as an in-memory :class:`polars.LazyFrame`: a
     parameter as tidy ``(dims…, value)``, a dimension's index as the table it
@@ -228,7 +228,7 @@ def _column_names(source: Any, dim: str) -> frozenset[str]:
 def _lookup_relations(
     program: Program, data: Mapping[str, object], indices: Mapping[str, pl.LazyFrame]
 ) -> dict[str, pl.LazyFrame]:
-    """Every lookup's map as the ``(over, lookup)`` relation both lanes read.
+    """Every lookup's map as the ``(over, lookup)`` relation the engine reads.
 
     Rows only where the map is defined — a label it leaves out simply has none.
     The keys are checked against ``over``'s labels and, for a lookup with a
@@ -360,13 +360,13 @@ def _parameter_frame(
         raise DataError(
             f"parameter '{name}': an xarray.DataArray is not a source. lpspec reads tables — "
             f'rows under named columns — and hands arrays back rather than taking them. Pass '
-            f'array.to_series().reset_index() for a tidy frame, whose columns attach by name on '
-            f'both lanes. Result.to_dataarray() is the way back out.'
+            f'array.to_series().reset_index() for a tidy frame, whose columns attach by name. '
+            f'Result.to_dataarray() is the way back out.'
         )
     if is_multi_indexed(obj):
         raise DataError(
             f"parameter '{name}': a pandas Series with a MultiIndex is not a source. An index is "
-            f'a pandas idea with no counterpart in the frames both lanes build, and its depth is a '
+            f'a pandas idea with no counterpart in the frames this engine builds, and its depth is a '
             f"second claim about what '{name}' is over. Pass a tidy frame carrying {[*p.dims, 'value']} — "
             f'series.reset_index() is the whole change.'
         )

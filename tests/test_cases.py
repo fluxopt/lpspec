@@ -1,7 +1,7 @@
-"""`cases:` — one quantity, a value per region, on both lanes.
+"""`cases:` — one quantity, a value per region, on both.
 
 The regions of a cased expression are disjoint and total before any data attaches,
-so neither lane ranks them: each builds a region against that region's own mask
+so neither ranks them: each builds a region against that region's own mask
 and adds the results. What the tests below hold is the three things that
 follow, and each of them was wrong in a first cut of this feature:
 
@@ -13,7 +13,7 @@ follow, and each of them was wrong in a first cut of this feature:
   standing for one region is not asked to cover the whole frame, and a hole
   inside the region it does stand for is still refused.
 
-The last two are the pair that can silently disagree between the lanes, which
+The last two are the pair that can silently disagree between the two, which
 is why every case here runs through ``differential``.
 """
 
@@ -27,8 +27,8 @@ import yaml
 
 import lpspec as lps
 from lpspec.errors import DataError
-from tests.differential import RTOL, both_lanes_refuse, differential
-from tests.oracle import lpspec_linopy
+from tests.differential import RTOL, both_refuse, differential
+from tests.oracle import spec_oracle
 
 CAPPED_BY_REGION = {
     'dimensions': {'t': {'dtype': 'int'}},
@@ -59,7 +59,7 @@ CAPPED_SOURCES = {
 
 
 def _frames(sources):
-    """A dimension's labels as a Series and every parameter as a frame, the shape both lanes take."""
+    """A dimension's labels as a Series and every parameter as a frame, the shape both take."""
     import polars as pl
 
     built = {}
@@ -105,22 +105,22 @@ def test_a_constant_side_is_asked_for_data_only_where_its_region_applies(hi, obj
 def test_a_hole_inside_the_region_is_still_refused_on_each_lane(lane):
     """Narrowing the question to the region must not stop it being asked there.
 
-    Asserted lane by lane rather than through ``differential``: either lane
-    refusing satisfies a ``pytest.raises`` around both of them, so a harness
-    that runs the two together cannot tell which one spoke — and the first cut
-    exempted the relational side altogether while the eager side narrowed,
-    which is exactly the divergence that hides behind the shared assertion.
+    Asserted one at a time rather than through ``differential``: either one
+    refusing satisfies a ``pytest.raises`` around both, so a harness that runs
+    the two together cannot tell which spoke — and the first cut exempted this
+    engine altogether while the oracle narrowed, which is exactly the
+    divergence that hides behind the shared assertion.
     """
     sources = _frames(CAPPED_SOURCES | {'hi': {'t': [0], 'value': [40.0]}})
     with tempfile.TemporaryDirectory() as work:
         path = Path(work) / 'capped.yaml'
         path.write_text(yaml.safe_dump(CAPPED_BY_REGION))
-        build = (
-            (lambda: lps.build(path, sources))
+        build, refusal = (
+            ((lambda: lps.build(path, sources)), DataError)
             if lane == 'relational'
-            else (lambda: lpspec_linopy.build(path, dict(sources)))
+            else ((lambda: spec_oracle.build(path, dict(sources))), spec_oracle.SpecDataError)
         )
-        with pytest.raises(DataError, match=r"parameter 'hi' covers 1 fewer coordinate"):
+        with pytest.raises(refusal, match=r"parameter 'hi' covers 1 fewer coordinate"):
             build()
 
 
@@ -139,7 +139,7 @@ def test_a_region_whose_mask_reads_no_dimension(flagged, objective, reads):
     """A scalar `when` names no coordinate set to cut the region down by, so it cuts by its own constant.
 
     A boolean literal is refused at load since alpha.58, so a scalar
-    parameter is the shape that reaches the lanes reading no dimension — and
+    parameter is the shape that reaches the two reading no dimension — and
     only the data decides which of the two regions is the whole frame and
     which is empty. Building a coordinate frame to cross against instead
     returned a row from an empty frame, so both regions landed everywhere and
@@ -219,17 +219,15 @@ def test_a_region_that_claims_no_coordinate_does_not_unmake_the_row():
     Its emptiness there is not the quantity's: ``never_off`` and ``boundary``
     between them carry every unit at the first position. A region's absence
     reaching out of the region it applies to took all four t == 0 rows out of
-    the build, on both lanes and for different reasons — the relational one
-    through the shift's presence, the eager one through a NaN that survived
+    the build, on both and for different reasons — the relational one
+    through the shift's presence, linopy through a NaN that survived
     being multiplied by a false mask.
     """
     with differential(CARRIED_IN, _carried_sources([False, True], [1.0, 0.0])) as run:
         rows = run.result.activity('ramp')
         assert rows.height == 8, 'every (t, g) coordinate has a ramp row, the first position included'
         assert sorted(set(rows.get_column('t'))) == [0, 1, 2, 3], 't == 0 is built like any other position'
-        assert int((run.model.constraints['ramp'].labels == -1).sum()) == 0, (
-            'the eager lane masks out no ramp row either'
-        )
+        assert int((run.model.constraints['ramp'].labels == -1).sum()) == 0, 'linopy masks out no ramp row either'
 
 
 @pytest.mark.parametrize(
@@ -255,7 +253,7 @@ def test_a_region_is_read_and_its_own_data_decides_the_answer(switchable, before
     """Vary the data each region reads and the answer moves — which is the only proof the region is built.
 
     A cased expression that quietly collapsed to one region would still solve,
-    and would still agree lane to lane. What it could not do is respond to
+    and would still agree one against the other. What it could not do is respond to
     ``before`` at the first position while ``switchable`` decides which region
     reads it at all.
     """
@@ -277,11 +275,11 @@ def test_a_region_binding_tighter_makes_the_model_infeasible_on_both_lanes():
         path.write_text(yaml.safe_dump(CARRIED_IN))
 
         relational = lps.solve(path, sources, solver_name='highs').objective
-        eager = lpspec_linopy.build(path, dict(sources))
+        eager = spec_oracle.build(path, dict(sources))
         eager.solve(solver_name='highs', output_flag=False)
 
     assert relational != relational, 'the relational lane reports no objective — peak is held to step 35'
-    assert eager.objective.value != eager.objective.value, 'and the eager lane reaches the same infeasibility'
+    assert eager.objective.value != eager.objective.value, 'and linopy reaches the same infeasibility'
 
 
 def test_a_region_that_claims_nothing_does_not_unmake_the_row():
@@ -294,7 +292,7 @@ def test_a_region_that_claims_nothing_does_not_unmake_the_row():
     ``otherwise`` is left claiming nothing at all, while its ``shift`` with no
     ``edge=`` is still absent at the first position. Letting that presence
     through unrelaxed took every first-position row out of the relational
-    build and left the eager one whole: 3570 against an infeasible model.
+    build and left linopy whole: 3570 against an infeasible model.
     """
     spec = CARRIED_IN | {
         'parameters': CARRIED_IN['parameters'] | {'everywhere': {'dims': [], 'dtype': 'bool'}},
@@ -311,9 +309,7 @@ def test_a_region_that_claims_nothing_does_not_unmake_the_row():
     with differential(spec, sources) as run:
         rows = run.result.activity('ramp')
         assert rows.height == 8, 'every (t, g) coordinate has a ramp row, the first position included'
-        assert int((run.model.constraints['ramp'].labels == -1).sum()) == 0, (
-            'the eager lane masks out no ramp row either'
-        )
+        assert int((run.model.constraints['ramp'].labels == -1).sum()) == 0, 'linopy masks out no ramp row either'
         assert run.oracle == pytest.approx(3990.0, rel=RTOL), (
             'carried is 1 everywhere, so the first position is held to step rather than first_step'
         )
@@ -325,7 +321,7 @@ def test_one_parameter_answering_for_two_regions():
     The pairs a coverage walk collects are ``(name, mask)``, and one parameter
     under two regions makes the names equal and the masks differ. Ordering
     them by the pair rather than by the name asks whether one mask is less
-    than another, which an array answers with an array: the eager lane raised
+    than another, which an array answers with an array: linopy raised
     numpy's ambiguous truth value where the relational lane built.
     """
     spec = CAPPED_BY_REGION | {
@@ -350,7 +346,7 @@ def test_a_divisor_is_asked_for_data_only_where_its_region_applies():
 
     The constant side's rule, one position over: the divisor check walks the
     same tree and had kept its own idea of which rows a piece owes data at, so
-    the eager lane refused a model the relational lane built.
+    linopy refused a model the relational lane built.
     """
     spec = CAPPED_BY_REGION | {
         'expressions': {
@@ -370,7 +366,7 @@ def test_a_divisor_is_asked_for_data_only_where_its_region_applies():
 def test_a_hole_in_a_divisor_inside_its_region_is_still_refused():
     """Narrowing the divisor's question to the region must not stop it being asked there.
 
-    Both lanes, since #1465: the relational one used to read a missing divisor
+    Both, since #1465: the relational one used to read a missing divisor
     row on a constant side as a dropped coefficient wherever it stood, region
     or not, because the piece was summed per coordinate — a sum reading the
     null as zero — before anything asked it for gaps.
@@ -386,7 +382,7 @@ def test_a_hole_in_a_divisor_inside_its_region_is_still_refused():
         'parameters': CAPPED_BY_REGION['parameters'] | {'rate': {'dims': ['t']}},
     }
     sources = _frames(CAPPED_SOURCES | {'rate': {'t': [0], 'value': [2.0]}})
-    both_lanes_refuse(spec, sources, match=r"parameter 'rate' is used as a divisor but covers 1 fewer coordinate")
+    both_refuse(spec, sources, match=r"parameter 'rate' is used as a divisor but covers 1 fewer coordinate")
 
 
 #: `cap` is a *sum* over `g` inside the flagged region, so the region narrows
@@ -431,6 +427,6 @@ def test_a_hole_the_summed_region_reads_is_still_refused():
     both, refused only where the region reaches what it omits.
     """
     holed = {'t': [0, 0, 2], 'g': ['u', 'v', 'u'], 'value': [30.0, 10.0, 30.0]}
-    both_lanes_refuse(
+    both_refuse(
         SUMMED_BY_REGION, _frames(SUMMED_SOURCES | {'hi': holed}), match=r"parameter 'hi' covers 1 fewer coordinate"
     )

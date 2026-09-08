@@ -50,8 +50,7 @@ if TYPE_CHECKING:
     import pandas as pd
     import xarray as xr
 
-    from lpspec.api import Model
-    from lpspec.lanes import Buildable
+    from lpspec.api import Buildable, Model
     from lpspec.relational.result import Keep
 
 #: Parquet rather than pickle, and not a knob: zstd measured smaller *and*

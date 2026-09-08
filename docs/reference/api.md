@@ -454,9 +454,10 @@ bound already means. An empty **list** stays, because a list carries
 cardinality here and zero is one of its values — `foreach: []` is a scalar
 declaration.
 
-## The linopy lane
+## Building a `linopy.Model` instead
 
-`lpspec.linopy.build` / `.expression` (the `[linopy]` extra) build the same YAML
-as a `linopy.Model` instead of attaching it relationally, and read a named
-expression back off a solved one. It is documented with everything else
-about that relationship in [Relationship to linopy](../about/linopy.md#3-it-is-a-lane).
+`linopy.Model.from_spec` builds the same YAML as a `linopy.Model`, and
+`model.spec` reads its named expressions back off a solved one. Both are
+linopy's own — there is no verb here that wraps them. Documented with
+everything else about that relationship in
+[Relationship to linopy](../about/linopy.md#3-it-is-the-other-consumer-of-the-language).

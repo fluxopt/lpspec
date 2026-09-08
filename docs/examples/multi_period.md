@@ -217,7 +217,7 @@ makes the per-period capacity visible rather than incidental:
 2030 peaks at 30 and splits the build — wind is dearer to install but free to
 run. 2050 peaks at 60 with every snapshot weighted four times, so the operating
 term dominates and the whole build goes to wind. Objective **750.0**, agreed
-integer for integer by both lanes.
+integer for integer by both.
 
 The weights are the reason the two periods are comparable at all: a coarse
 snapshot standing for four hours contributes four hours of operating cost, so a

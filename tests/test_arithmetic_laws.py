@@ -3,18 +3,18 @@
 linopy's v1 convention ships formal law tests for the same reason this file
 exists: an arithmetic convention is a set of *equalities between spellings*, and
 nothing else in a test suite checks those. A model can build, solve, and agree
-across both lanes while `a + b` and `b + a` quietly mean different things.
+across both while `a + b` and `b + a` quietly mean different things.
 
 Two kinds of case here, and the second is the point:
 
 **Laws** — spellings that must produce the same model. Each is solved through
-``differential`` (eager lane, relational lane, and the LP file re-solve), so a
+``differential`` (linopy, this engine, and the LP file re-solve), so a
 law holding is six numbers agreeing rather than two.
 
 **Non-laws** — spellings that are equal in ordinary algebra and are *not* equal
 here, because absence is a first-class state. These are asserted to differ, with
 the values written down. They are the ones worth having: ``sum(a + b)`` versus
-``sum(a) + sum(b)`` diverged silently by 40% on one lane for as long as the
+``sum(a) + sum(b)`` diverged silently by 40% on one of them for as long as the
 oracle was blind to it (#311), and no law-shaped test would have caught it —
 only a test that says *these two are supposed to disagree, and by exactly this
 much*.
@@ -38,10 +38,9 @@ from __future__ import annotations
 
 import pytest
 
-from lpspec.errors import DataError
 from tests.conftest import law_data, law_spec, override
-from tests.differential import RTOL, both_lanes_refuse, differential
-from tests.oracle import pd
+from tests.differential import RTOL, both_refuse, differential
+from tests.oracle import pd, spec_oracle
 
 # ---------------------------------------------------------------------------
 # the fixture: `x` total, `y` absent at f=b, `w` a dense coefficient. It is
@@ -73,10 +72,10 @@ def _objective_of(
     foreach: list[str] | None = None,
     also: dict | None = None,
 ) -> float:
-    """Solve *expression* on both lanes and the LP file; return the agreed value.
+    """Solve *expression* on both and the LP file; return the agreed value.
 
     ``differential`` raises if the three disagree, so a number coming back out
-    of here is already a statement that the lanes concur about this spelling.
+    of here is already a statement that the two concur about this spelling.
     """
     with differential(_spec(expression, objective=objective, foreach=foreach, also=also), DATA, lp=True) as run:
         return float(run.result.objective)
@@ -203,7 +202,7 @@ def test_absence_zero_says_at_the_declaration_what_two_blocks_said_at_the_rows()
     constraints under complementary ``where`` clauses. A variable whose absence
     **is** zero should reach that model from one key — and reaching it is the
     claim, not merely matching its number: ``differential`` has already made
-    both lanes and the LP file agree before either figure comes back.
+    both and the LP file agree before either figure comes back.
     """
     minimise_x = 'sum((-1) * x)'
     two_blocks = _objective_of(
@@ -284,7 +283,7 @@ PLAIN_COORDS = {'f': pd.Index(['a', 'b', 'c', 'd'], name='f'), 't': pd.Index([0,
 
 
 def _wide_objective_of(expression: str, *, foreach: list[str]) -> float:
-    """The wide fixture solved through both lanes, for one expression.
+    """The wide fixture solved through both, for one expression.
 
     ``g`` and the lookup that reaches it exist only for the grouped cases:
     the plain fixture passes no ``g`` index, and a target with no index of its
@@ -317,7 +316,7 @@ def test_sum_does_not_distribute_over_addition_either():
 
     #314 routed it through the same absence propagation as `sum` on the argument
     that a group *is* a sum. Nothing tested that, so this is the assertion the
-    change was made on: the two spellings separate, and both lanes agree about
+    change was made on: the two spellings separate, and both agree about
     where they land.
     """
     together = _wide_objective_of('sum(x + y, by=grp) <= 120', foreach=['g', 't'])
@@ -445,22 +444,21 @@ def test_a_sparse_divisor_is_refused_rather_than_read_as_zero():
     Everywhere else a missing parameter row is a zero coefficient (the absence rules), and
     a zeroed term still leaves a row that says something. A divisor has no such
     identity: 0 divides by zero, 1 silently rescales, and dropping the term
-    rewrites what the constraint asserts. Both lanes used to take that last
+    rewrites what the constraint asserts. Both used to take that last
     option and *agree* about it — `x / d <= 10` became vacuous at the uncovered
     coordinate and `x` ran to its bound, objective 120 where the constraint
     reads as 20.
 
     Agreement is why the differential harness could not catch it: this is the
     shape of defect that needs a test saying what the answer *should* be, not
-    that the lanes concur.
+    that the two concur.
     """
-    with pytest.raises(DataError, match='used as a divisor'), differential(DIVISOR_SPEC, SPARSE_D) as run:
-        _ = run.result.objective
+    both_refuse(DIVISOR_SPEC, SPARSE_D, match='used as a divisor')
 
     dense = {'f': ['a', 'b'], 'd': pd.Series([2.0, 5.0], index=pd.Index(['a', 'b'], name='f'))}
     with differential(DIVISOR_SPEC, dense, lp=True) as run:
         assert float(run.result.objective) == pytest.approx(70.0, rel=RTOL), (
-            'covered, the same model builds and the row binds on both lanes'
+            'covered, the same model builds and the row binds on both'
         )
 
 
@@ -481,8 +479,7 @@ def test_a_sparse_divisor_in_the_objective_is_refused_too():
             'objective.expression': 'sum(x / d, over=f)',
         },
     )
-    with pytest.raises(DataError, match='used as a divisor'), differential(spec, SPARSE_D) as run:
-        _ = run.result.objective
+    both_refuse(spec, SPARSE_D, match='used as a divisor')
 
 
 def test_a_sparse_divisor_on_a_constant_side_is_refused_too():
@@ -500,7 +497,7 @@ def test_a_sparse_divisor_on_a_constant_side_is_refused_too():
         **{'parameters.h': {'dims': ['f']}, 'constraints.c.expression': 'x <= h / d'},
     )
     data = SPARSE_D | {'h': pd.Series([10.0, 10.0], index=pd.Index(['a', 'b'], name='f'))}
-    both_lanes_refuse(spec, data, match="parameter 'd' is used as a divisor")
+    both_refuse(spec, data, match="parameter 'd' is used as a divisor")
 
 
 def test_a_sparse_divisor_on_a_constant_side_has_the_same_escape():
@@ -548,7 +545,12 @@ def test_a_divisor_may_be_sparse_where_the_row_is_masked_out():
     ('patch', 'expected'),
     [
         pytest.param({'constraints.c.where': 'd'}, 120.0, id='mask-the-row'),
-        pytest.param({'variables.x.where': 'd'}, 20.0, id='mask-the-variable'),
+        pytest.param(
+            {'variables.x.where': 'd'},
+            20.0,
+            id='mask-the-variable',
+            marks=pytest.mark.xfail(strict=True, reason=spec_oracle.SPARSE_COEFFICIENT),
+        ),
     ],
 )
 def test_a_sparse_divisor_has_an_escape(patch, expected):

@@ -28,7 +28,7 @@ DUAL_RTOL = 1e-9
 
 
 def test_dual_matches_the_eager_lane(dispatch_yaml, dispatch_inputs):
-    """The price at each snapshot, both lanes, same sign and same magnitude."""
+    """The price at each snapshot, both, same sign and same magnitude."""
     data = dispatch_inputs
 
     with differential(dispatch_yaml, data) as run:
@@ -67,11 +67,11 @@ def test_milp_refuses_duals_and_names_the_variable(commitment_inputs):
     the duals of this same model, linopy hands back an array of zeros — the
     ``dual`` entry exists and every value is ``0.0`` — which is a plausible
     number with no signal attached, the ``bug:silent`` class. (On an
-    *unsolved* model the two lanes agree that it must raise: linopy through
+    *unsolved* model the two agree that it must raise: linopy through
     its ``has_optimized_model`` gate, we through ``_require_solution`` — see
     the infeasible test below.)
 
-    Hard rule 3 governs the *language*, and both lanes still accept this
+    Hard rule 3 governs the *language*, and both still accept this
     model and agree on its objective; what differs is a post-solve read-back
     that has no defined answer. #78 fixed the direction: a model with any
     binary or integer variable must raise, naming the reason, not return

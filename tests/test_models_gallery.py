@@ -13,7 +13,7 @@ the page to become a lie:
 - a model, or a declaration in one, says nothing about what it is, so the
   generated legend has an empty `Meaning` column where the reader needs one.
 
-The same trade the linopy lane's v1-absence helpers already make: copying is fine when a
+The same trade the deleted lane's v1-absence helpers made: copying is fine when a
 test asserts it, and rots when nothing does.
 """
 

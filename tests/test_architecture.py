@@ -24,17 +24,6 @@ PKG = REPO / 'src' / 'lpspec'
 FORBIDDEN_RUNTIME = {'linopy', 'xarray'}
 
 
-def _in_linopy_lane(path: Path) -> bool:
-    """The linopy/oracle lane — the ONLY modules allowed to import linopy or
-    xarray at module level (they load only via ``import lpspec.linopy``).
-
-    Structural, not a filename allowlist: membership is "lives under
-    ``linopy/``". A new eager-lane module therefore cannot land outside the
-    fence by being spelled differently.
-    """
-    return 'linopy' in path.relative_to(PKG).parts
-
-
 def _module_level_imports(path: Path) -> set[str]:
     """Top-level (non-lazy, non-TYPE_CHECKING) imported root packages.
 
@@ -182,37 +171,40 @@ def test_the_lane_fences_see_running_code_and_only_running_code():
     assert imported(otherwise) == {'linopy'}, 'the else branch of a TYPE_CHECKING guard does run'
 
 
-def test_runtime_lane_never_imports_linopy_or_xarray():
-    """Hard rule 3: linopy is the eager/oracle lane only — never a runtime import."""
+def test_the_package_never_imports_linopy_or_xarray():
+    """Hard rule 3, with nothing left to exempt.
+
+    linopy used to be a second lane in here, and the modules under
+    ``linopy/`` were the one place allowed to import it. That lane is gone —
+    linopy reads math-spec itself — so the rule is now the whole package
+    against the whole dependency, with no fence to be on the right side of.
+    """
     offenders = {}
     for path in _all_modules():
-        if _in_linopy_lane(path):
-            continue
         bad = _module_level_imports(path) & FORBIDDEN_RUNTIME
         if bad:
             offenders[str(path.relative_to(PKG))] = sorted(bad)
     assert not offenders, (
-        f'runtime modules import linopy-lane packages at module level: {offenders} '
-        f'— make the import lazy or move the module into the linopy lane'
+        f'package modules import linopy or xarray at module level: {offenders} — '
+        f'make the import lazy, and declare it below'
     )
 
 
-#: Modules outside the linopy lane that may reach the oracle *lazily*, with
-#: the reason. Empty, and that is the claim: nothing the streaming lane runs
-#: needs the eager lane's libraries.
+#: Modules that may reach linopy or xarray *lazily*, with the reason. Empty,
+#: and that is the claim: nothing this package runs needs either library.
 LAZY_ORACLE_ALLOWED: dict[str, str] = {}
 
 
 def test_lazy_oracle_imports_stay_on_the_allowlist():
     """Hard rule 3, the half a module-level check cannot see.
 
-    A lazy ``import xarray`` inside a function is still eager-lane code, and
-    it hides in a module the streaming lane imports. Every one has to be
-    declared, so adding another is a decision rather than an accident.
+    A lazy ``import xarray`` inside a function is the same dependency, hidden
+    where the module-level check cannot see it. Every one has to be declared,
+    so adding another is a decision rather than an accident.
     """
     offenders = {}
     for path in _all_modules():
-        if _in_linopy_lane(path) or path.name in LAZY_ORACLE_ALLOWED:
+        if path.name in LAZY_ORACLE_ALLOWED:
             continue
         tree = ast.parse(path.read_text())
         bad = set()
@@ -224,14 +216,13 @@ def test_lazy_oracle_imports_stay_on_the_allowlist():
         if bad:
             offenders[str(path.relative_to(PKG))] = sorted(bad)
     assert not offenders, (
-        f'modules outside the linopy lane reach the oracle lazily: {offenders} — '
-        f'move the code to the linopy lane, or add it to LAZY_ORACLE_ALLOWED with a reason'
+        f'modules reach linopy or xarray lazily: {offenders} — add it to LAZY_ORACLE_ALLOWED with a reason'
     )
 
 
 #: Package modules the engine may import: dependency-free leaves that carry no
 #: YAML, schema or AST knowledge. ``errors.py`` is one — without it there is no
-#: single exception class a caller can catch across both lanes.
+#: single exception class a caller can catch across both.
 #: ``math_spec.program`` is the other and is not this package's at all: the
 #: language writes the plan and the engine reads it, so the vocabulary the two
 #: speak lives upstream of both, and a fence cannot enclose what neither side
@@ -445,10 +436,6 @@ PUBLIC_API = {
     },
 }
 
-#: The linopy lane, which is a surface of its own — deliberately two verbs:
-#: the producer, and the named-expression reader both lanes owe (#562).
-PUBLIC_API_LINOPY = {'build', 'expression'}
-
 
 def test_the_public_surface_is_exactly_what_is_declared():
     """Hard rule 5, in names: the Python surface is narrow, and stays narrow.
@@ -500,26 +487,6 @@ def test_the_public_surface_is_exactly_what_is_declared():
         f'public names outside __all__: {leaked} — a surface that grows by '
         f'accident is not narrow. Import it privately, or declare it.'
     )
-
-
-def test_the_linopy_lane_stays_two_verbs():
-    """The lane constructs a model, and reads back what the file named.
-
-    ``build`` makes a model and ``expression`` evaluates a declared named
-    quantity at its solution — the eager half of a reader both lanes owe
-    (hard rule 3), pure like the producer. What is refused here is a verb that
-    *attaches* to a model something else built: a file references only what it
-    declares (hard rule 5), and the verb that made an exception of that is
-    gone (#845). Read statically: the module imports linopy, and this must run
-    on a bare install.
-    """
-    tree = ast.parse((PKG / 'linopy' / '__init__.py').read_text())
-    declared = next(
-        ast.literal_eval(node.value)
-        for node in tree.body
-        if isinstance(node, ast.Assign) and any(ast.unparse(t) == '__all__' for t in node.targets)
-    )
-    assert set(declared) == PUBLIC_API_LINOPY, f'the linopy lane exports {sorted(declared)}'
 
 
 #: The two sink families. The directory *is* the family, so a member cannot
@@ -696,9 +663,7 @@ def test_every_plan_node_is_handled_by_the_compiler():
 
     Each base is checked against every module that walks it, not against one:
     an expression node answered only in ``predicates.py`` would be as wrong as
-    one answered nowhere, and since the eager lane was moved onto the plan
-    there are *two* expression walkers — a node the linopy builder cannot
-    evaluate is one lane silently refusing at build.
+    one answered nowhere.
     """
     from typing import get_args
 
@@ -707,9 +672,7 @@ def test_every_plan_node_is_handled_by_the_compiler():
     engine_dir = PKG / 'relational' / 'engines' / 'polars'
     walkers = [
         ('program', program.ExpressionNode, engine_dir / 'compiler.py'),
-        ('program', program.ExpressionNode, PKG / 'linopy' / 'builder.py'),
         ('program', program.WhereNode, engine_dir / 'predicates.py'),
-        ('program', program.WhereNode, PKG / 'linopy' / 'where.py'),
     ]
     for qualifier, union, module in walkers:
         source = module.read_text()
@@ -721,8 +684,8 @@ def test_the_model_argument_is_exactly_what_the_language_takes():
     """Every verb here opens a model the way ``to_program`` does, and no other way.
 
     ``Buildable`` is what ``check``, ``build``, ``solve``, ``write``,
-    ``solve_over``, ``Model`` and both linopy-lane verbs annotate their
-    first argument with, and each hands it straight over — so the union is
+    ``solve_over`` and ``Model`` annotate their first argument with, and each
+    hands it straight over — so the union is
     upstream's fact and this is the copy of it. Restated rather than imported
     because math-spec exports no alias for it; checked here so the copy cannot
     quietly narrow, which would refuse a shape the language accepts, or widen,
@@ -738,14 +701,14 @@ def test_the_model_argument_is_exactly_what_the_language_takes():
 
     from math_spec import to_program
 
-    from lpspec.lanes import Buildable
+    from lpspec.api import Buildable
 
     def members(annotation: str) -> set[str]:
         return {part.strip().removeprefix('program.') for part in annotation.split('|')}
 
     upstream = str(inspect.signature(to_program).parameters['spec'].annotation)
     assert members(Buildable) == members(upstream), (
-        f'lpspec.lanes.Buildable is {Buildable!r} and math_spec.to_program takes {upstream!r} — '
+        f'lpspec.api.Buildable is {Buildable!r} and math_spec.to_program takes {upstream!r} — '
         f'every verb passes its model straight to that function, so the two are one union'
     )
 
@@ -780,7 +743,7 @@ def test_every_shape_operator_declares_its_fan_in():
 
     The values are pinned as a truth table rather than derived: fan-in is a
     semantic claim about each operator (which the compiler's absence pass
-    acts on), and an edit that flips one is #1142 over again — the lanes
+    acts on), and an edit that flips one is #1142 over again — the two
     disagreeing about a constant at a masked slot — caught here before any
     differential case has to.
     """
@@ -869,22 +832,18 @@ def _functions(tree: ast.Module) -> dict[str, ast.FunctionDef]:
     return {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
 
 
-def test_both_lanes_dispatch_on_every_plan_node():
-    """Hard rule 3: the same plan, dispatched on by both lanes.
+def test_the_engine_dispatches_on_every_plan_node():
+    """Every node kind the language declares is one the engine answers.
 
-    What used to be compared here was the *keywords* each lane read off a
-    ``FunctionCallNode``, because each lane read them separately and could
-    disagree: measured on ``sum(x, over=t, where=…)`` against a language that
-    declared ``where``, the relational lane never read the key and built as
-    though the clause were not written, while the eager one raised ``TypeError``
-    out of a function signature — a silent wrong answer on one lane, a library
-    exception on the other, and nothing red.
+    The engine keeps no table of operator names: lowering reads the surface
+    once and turns it into a plan node the engine dispatches on, so the way it
+    can fall short is a node kind it does not handle — an operator lowered to a
+    new node upstream and unanswered here.
 
-    Neither lane reads a keyword now, and neither keeps a table of operator
-    names: lowering reads the surface once and turns it into a plan node both
-    lanes dispatch on, so the way they can still disagree is a node kind one of
-    them does not handle — an operator lowered to a new node, built by the
-    engine, and unanswered by the eager evaluator.
+    This used to compare the two against each other, a node one built and
+    the other fell through on being the dialect split hard rule 3 refuses.
+    There is one of them now; that half of the claim is the differential suite\'s,
+    against linopy\'s own build of the same spec.
 
     **Node kinds, not their fields.** A field census reads as stricter and is
     not: matching ``ast.Attribute`` by name credits ``Translate.fill`` for
@@ -896,8 +855,6 @@ def test_both_lanes_dispatch_on_every_plan_node():
     which is what keeps this honest now that the vocabulary is upstream: a node
     math-spec adds arrives with the pin, not with the first model that uses it.
 
-    Read statically: ``linopy/operators.py`` imports xarray at module level,
-    and this must run on a bare install.
     """
     from typing import get_args
 
@@ -924,15 +881,11 @@ def test_both_lanes_dispatch_on_every_plan_node():
                 }
         return found
 
-    lanes = {
-        'relational': dispatched_on(*(PKG / 'relational' / 'engines' / 'polars').glob('*.py')),
-        'eager': dispatched_on(*(PKG / 'linopy').glob('*.py')),
-    }
-    for lane, handled in lanes.items():
-        assert not declared - handled, (
-            f'the {lane} lane dispatches on {sorted(declared - handled)} nowhere — a node kind one '
-            f'lane builds and the other falls through on is the dialect split hard rule 3 refuses'
-        )
+    handled = dispatched_on(*(PKG / 'relational' / 'engines' / 'polars').glob('*.py'))
+    assert not declared - handled, (
+        f'the engine dispatches on {sorted(declared - handled)} nowhere — a node kind the language '
+        f'declares and this package falls through on builds a model that is not the one written'
+    )
 
 
 def test_every_module_is_documented_somewhere():

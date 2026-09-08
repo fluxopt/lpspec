@@ -504,7 +504,7 @@ def test_no_operator_registry_on_this_package():
     """The operator set is closed — there is no way to register more (#38's
     ``escape:`` island replaces the idea).
 
-    This is what makes the two lanes accept the same language, and hence what
+    This is what makes the two accept the same language, and hence what
     makes the differential tests an oracle rather than a comparison of
     dialects (docs/about/architecture.md, "The expressive ceiling"). What
     ``math_spec`` exports is pinned name by name in math-spec's own suite, so

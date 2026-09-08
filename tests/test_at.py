@@ -221,7 +221,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
     with one hour up, which is what makes it bind rather than decorate.
 
     Relational lane only: the differential harness cannot carry a 3-D
-    parameter, because the two lanes take a wide frame and a tidy one
+    parameter, because the two take a wide frame and a tidy one
     respectively (#60). The claim here is about what the language can state,
     and the engine is what states it.
     """
@@ -337,9 +337,9 @@ def test_at_through_a_null_lookup_takes_the_row_with_it():
     case below carries the relational lane, and reads the same answer off the
     row count as well as the objective.
     """
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import spec_oracle
 
-    built = lpspec_linopy.build(DANGLING, _dangling_sources())
+    built = spec_oracle.build(DANGLING, _dangling_sources())
     labels = built.constraints['link'].labels.to_series().to_dict()
     assert labels['f3'] == -1, 'a flow mapping nowhere has no row, and -1 is how linopy spells one that was not built'
     assert labels['f1'] != -1 and labels['f2'] != -1, 'the flows that do map keep theirs'
@@ -351,7 +351,7 @@ def test_at_through_a_null_lookup_takes_the_row_with_it():
 
 
 def test_at_through_a_null_lookup_agrees_between_lanes():
-    """The same model on both lanes, which is what #897 is finally about.
+    """The same model on both, which is what #897 is finally about.
 
     Until #968 the relational lane answered 0.0: the null entry was dropped by
     the join that places the pullback's terms, so the term vanished while its
@@ -481,7 +481,7 @@ def test_a_pullbacks_absence_reaches_a_shift_that_spans_more_dims():
     have. It widens rather than asking, so this builds at all instead of
     failing on a column named `u`.
 
-    Differential, and it is the case that decides both lanes read `edge:` the
+    Differential, and it is the case that decides both read `edge:` the
     same way: an absence that arrived *before* the shift is not the edge, so it
     is not filled, and f3 — mapping nowhere — keeps no row at either t (#987).
     """

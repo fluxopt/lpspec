@@ -284,8 +284,8 @@ is already false by default, which is the cheap side of the same choice
 `bench/models/<case>/linopy.py` is `examples/ports/references/linopy/<case>.py`
 against the ladder's parquet — scripts #681 reviewed for idiom and the docs
 execute, which is what keeps this arm from being a strawman somebody wrote in
-an afternoon. The retired `lpspec.linopy` lane is not this arm and is not
-measured.
+an afternoon. The `lpspec.linopy` lane this arm replaced (#1268) is not this
+arm, was never measured here, and has since been deleted outright.
 
 **A hand-written arm is a model somebody typed twice**, and nothing structural
 stops it being a *different* model that benchmarks beautifully. The eager arm
@@ -444,7 +444,7 @@ verdict off the SQL"), not to cover the language:
 |---|---|---|
 | `dispatch` | pointwise bounds + one `sum` per row | raw throughput, and the case a dense eager broadcast is best at — so our worst ratio |
 | `nodal` | `(snapshot, node, tech)`, `where: installed > 0` | sparsity as it actually occurs — see below |
-| `transport` | three `sum(by=)` joins per row | the mapping-table path, where the eager lane must materialise a bus x generator product |
+| `transport` | three `sum(by=)` joins per row | the mapping-table path, where linopy must materialise a bus x generator product |
 | `sector` | dense snapshots x dense carriers x sparse portfolio | mixed density in one model — the shape a sector-coupled model actually has, and where the sparsity claim is visible |
 | `storage` | a cyclic `shift` recurrence | the self-join, and the only locality class with no eager cost analogue: xarray shifts an array, we join a term stream against itself on `snapshot.ord - 1` |
 | `commitment` | dispatch gated by a binary `u`, `p <= p_max * u` | the MILP — the only case whose `vtype` stream is not all-continuous, so integrality reaches every sink at scale |
@@ -607,9 +607,9 @@ request's base and once against its head — and what it gates on.
 
 memray counts polars' reserved arenas as allocated and does not count the
 interpreter or mapped libraries at all, so the bias points in *opposite*
-directions in the two lanes: the peak ratio is 0.51x by RSS and 0.07x by memray.
+directions in the two arms: the peak ratio is 0.51x by RSS and 0.07x by memray.
 A published cross-library claim built on that would be false the moment a reader
-ran `/usr/bin/time`. Within one lane the same bias sits on both sides of a diff
+ran `/usr/bin/time`. Within one arm the same bias sits on both sides of a diff
 and cancels, leaving a metric that is deterministic and attributable to a call
 stack — which RSS, sensitive to machine load, is not.
 
