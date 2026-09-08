@@ -26,13 +26,11 @@ Example::
 from __future__ import annotations
 
 import io
-import tempfile
 import warnings
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Literal
 
-import polars as pl
 from math_spec import advice, to_program, to_spec
 
 from lpspec.errors import DataError, LpspecError, LpspecWarning
@@ -413,8 +411,9 @@ def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Any], o
     The archive holds ``model.yaml`` and ``sources/<key>.parquet`` for every
     key the file declares. The sources go in through the same door
     :func:`build` reads them, so what is refused there is refused here and
-    nothing is written; a plain-Python shape — a number, a label sequence, a
-    ``{label: value}`` map — is written as the tidy table it stands for.
+    nothing is written. A parquet path is then copied as its own bytes; a
+    table is written as parquet; a plain-Python shape — a number, a label
+    sequence, a ``{label: value}`` map — as the tidy table it stands for.
     Members are stored uncompressed, because parquet already is.
 
     Args:
@@ -438,22 +437,31 @@ def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Any], o
     with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_STORED) as archive:
         archive.writestr(_MODEL_MEMBER, declared.to_yaml())
         for name, frame in frames.items():
-            buffer = io.BytesIO()
-            frame.collect().write_parquet(buffer, compression='zstd')
-            archive.writestr(str(_SOURCES_DIR / f'{name}.parquet'), buffer.getvalue())
+            member = str(_SOURCES_DIR / f'{name}.parquet')
+            given = sources.get(name)
+            if isinstance(given, (str, Path)):
+                archive.write(given, member)
+            else:
+                buffer = io.BytesIO()
+                frame.collect().write_parquet(buffer, compression='zstd')
+                archive.writestr(member, buffer.getvalue())
     return out
 
 
-def unpack(path: str | Path) -> tuple[Spec, dict[str, pl.DataFrame]]:
-    """Read an archive :func:`pack` wrote back into what every verb takes.
+def unpack(path: str | Path, into: str | Path) -> tuple[Spec, dict[str, Path]]:
+    """Extract an archive :func:`pack` wrote into *into*, and hand back what every verb takes.
 
-    ``lps.solve(*lps.unpack(path))`` is the whole round trip. The sources
-    are handed back as they were written and checked where they are attached,
-    so an archive edited by hand is refused by the verb that reads it, with
-    the sentence any other source would get.
+    ``lps.solve(*lps.unpack(path, directory))`` is the whole round trip. The
+    sources come back as the parquet paths they now are, so attaching streams
+    them from disk and nothing is held in memory here; they are checked where
+    they are attached, so an archive edited by hand is refused by the verb
+    that reads it, with the sentence any other source would get.
 
     Args:
         path: The zip file.
+        into: The directory to extract to, created if it does not exist.
+            ``model.yaml`` and ``sources/`` land in it as the archive holds
+            them.
 
     Returns:
         The model as written, and its sources keyed as the file declares them.
@@ -461,33 +469,22 @@ def unpack(path: str | Path) -> tuple[Spec, dict[str, pl.DataFrame]]:
     Raises:
         LanguageError: A ``model.yaml`` the language does not accept.
         DataError: A member outside the layout — no ``model.yaml``, or a file
-            that is not ``sources/<key>.parquet``.
+            that is not ``sources/<key>.parquet``. Nothing is extracted.
         zipfile.BadZipFile: A file that is not a zip archive.
     """
+    into = Path(into)
     with zipfile.ZipFile(path) as archive:
         members = [PurePosixPath(name) for name in archive.namelist() if not name.endswith('/')]
         strays = [str(m) for m in members if m != PurePosixPath(_MODEL_MEMBER) and not _is_source_member(m)]
         if strays or PurePosixPath(_MODEL_MEMBER) not in members:
             raise DataError(_not_an_archive_message(path, strays))
-        spec = _spec_member(archive)
-        sources = {m.stem: pl.read_parquet(io.BytesIO(archive.read(str(m)))) for m in members if _is_source_member(m)}
-    return spec, sources
+        archive.extractall(into)
+    spec = to_spec(into / _MODEL_MEMBER)
+    return spec, {m.stem: into / m for m in members if _is_source_member(m)}
 
 
 def _is_source_member(member: PurePosixPath) -> bool:
     return member.parent == _SOURCES_DIR and member.suffix == '.parquet'
-
-
-def _spec_member(archive: zipfile.ZipFile) -> Spec:
-    """``model.yaml`` read by the language's own reader.
-
-    The language reads a path, not a text, and the archive's file must be read
-    by its rules — YAML 1.2 booleans, duplicate keys refused — rather than by a
-    second reader that would disagree with ``lps.check`` on the same bytes. So
-    the member is extracted to a directory that lives for the call.
-    """
-    with tempfile.TemporaryDirectory() as directory:
-        return to_spec(archive.extract(_MODEL_MEMBER, directory))
 
 
 def _not_an_archive_message(path: str | Path, strays: list[str]) -> str:

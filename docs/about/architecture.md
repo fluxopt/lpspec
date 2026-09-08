@@ -274,7 +274,7 @@ which is the line the count is drawn on.
 | | write an LP or MPS file for anything else | `write` | **yes** |
 | | solve it once per scenario, window or period | `solve_over` over a `EachCoordinate` / `EachWindow` axis | **yes** |
 | | build the same math as a `linopy.Model` | `lpspec.linopy.build` — `lps.build`'s own signature | **yes** |
-| **carry it** | archive or send the file with its data, as one zip | `pack`, attaching through the same door as `build`; `unpack` gives back what every verb takes | **yes** |
+| **carry it** | archive or send the file with its data, as one zip | `pack`, attaching through the same door as `build`; `unpack` extracts it and gives back what every verb takes | **yes** |
 | **read it** | values, shadow prices, the objective | `result.objective` · `.primal` · `.dual`, plus the status pair | — |
 | | the quantity the model named | `result.expression(name)` — lowered on demand at the read, never at build; `lpspec.linopy.expression` on the other lane | — |
 | | bridge out to another library | `.to_pandas` · `.to_dataarray` · `.to_parquet` | — |

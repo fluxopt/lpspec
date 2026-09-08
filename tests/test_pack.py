@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: str, tmp_path: Path) -> None:
     program = to_program(port_spec(name))
     sources = port_sources(name)
-    spec, unpacked = lps.unpack(lps.pack(port_spec(name), sources, tmp_path / 'model.zip'))
+    spec, unpacked = lps.unpack(lps.pack(port_spec(name), sources, tmp_path / 'model.zip'), tmp_path / 'out')
 
     assert set(unpacked) == set(attachable(program)), (
         'the archive holds one member per attachable key — every declared parameter, dimension and lookup, '
@@ -55,7 +55,10 @@ def test_the_round_trip_solves_to_the_same_objective(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'dispatch.zip')
-    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as direct, lps.solve(*lps.unpack(archive)) as unpacked:
+    with (
+        lps.solve(dispatch_yaml, dispatch_frame_inputs) as direct,
+        lps.solve(*lps.unpack(archive, tmp_path / 'out')) as unpacked,
+    ):
         assert unpacked.objective == pytest.approx(direct.objective, rel=1e-9), (
             'the archive builds the model the tables did'
         )
@@ -70,12 +73,14 @@ def test_plain_python_shapes_are_written_as_the_tables_they_stand_for(dispatch_y
         'snapshot': range(DISPATCH_SNAPSHOTS),
         'generator': list(DISPATCH_GENERATORS),
     }
-    _, unpacked = lps.unpack(lps.pack(dispatch_yaml, sources, tmp_path / 'dispatch.zip'))
+    _, unpacked = lps.unpack(lps.pack(dispatch_yaml, sources, tmp_path / 'dispatch.zip'), tmp_path / 'out')
+    cost = pl.read_parquet(unpacked['cost'])
+    snapshot = pl.read_parquet(unpacked['snapshot'])
 
-    assert unpacked['cost'].columns == ['generator', 'value'], 'a positional sequence is spread over its labels'
-    assert unpacked['cost']['value'].to_list() == list(DISPATCH_COST), 'in the order the index declares them'
-    assert unpacked['snapshot'].columns == ['snapshot'], 'a bare label range is written as an index table'
-    assert unpacked['snapshot'].height == DISPATCH_SNAPSHOTS, 'one row per label'
+    assert cost.columns == ['generator', 'value'], 'a positional sequence is spread over its labels'
+    assert cost['value'].to_list() == list(DISPATCH_COST), 'in the order the index declares them'
+    assert snapshot.columns == ['snapshot'], 'a bare label range is written as an index table'
+    assert snapshot.height == DISPATCH_SNAPSHOTS, 'one row per label'
 
 
 def test_the_archive_is_the_file_and_stored_parquet(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
@@ -89,6 +94,32 @@ def test_the_archive_is_the_file_and_stored_parquet(dispatch_yaml: Path, dispatc
         assert to_spec(pyyaml.safe_load(zipped.read('model.yaml'))) == to_spec(dispatch_yaml), (
             'model.yaml is the model the source file declares'
         )
+
+
+def test_a_parquet_path_is_copied_as_its_own_bytes(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
+    """Decoding and re-encoding parquet is byte-identical output for the CPU of a full read (#459)."""
+    load = dispatch_frame_inputs['load'].with_columns(pl.lit('a stray column').alias('note'))
+    path = tmp_path / 'load.parquet'
+    load.write_parquet(path)
+    archive = lps.pack(dispatch_yaml, {**dispatch_frame_inputs, 'load': str(path)}, tmp_path / 'dispatch.zip')
+    with zipfile.ZipFile(archive) as zipped:
+        assert zipped.read('sources/load.parquet') == path.read_bytes(), (
+            'the file travels untouched, stray column included — it is filtered where it attaches, as a path is'
+        )
+
+
+def test_unpack_lays_the_archive_out_in_the_directory(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'dispatch.zip')
+    spec, sources = lps.unpack(archive, tmp_path / 'out')
+
+    assert sources == {k: tmp_path / 'out' / 'sources' / f'{k}.parquet' for k in dispatch_frame_inputs}, (
+        'every source comes back as the path it was extracted to, one per key'
+    )
+    assert all(p.is_file() for p in sources.values()), 'and each path is a file on disk'
+    assert (tmp_path / 'out' / 'model.yaml').is_file(), 'the file lands beside them, as the archive holds it'
+    assert to_spec(tmp_path / 'out' / 'model.yaml') == spec, 'and is the model handed back'
 
 
 def test_a_refused_model_writes_nothing(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
@@ -112,5 +143,6 @@ def test_a_zip_outside_the_layout_is_refused(members: dict[str, bytes], says: st
         for name, data in members.items():
             zipped.writestr(name, data)
     with pytest.raises(lps.DataError) as excinfo:
-        lps.unpack(path)
+        lps.unpack(path, tmp_path / 'out')
     assert says in str(excinfo.value), 'the message names what was found, and the layout one pack() writes'
+    assert not (tmp_path / 'out').exists(), 'nothing is extracted from a zip that is not an archive'
