@@ -183,8 +183,8 @@ def expression_frame(name: str, expr: program.ExpressionNode, compiler: PolarsCo
 
     The frame answers the way a constraint over the same expression would: a
     coordinate a parameter does not cover contributes zero, a coordinate where
-    a variable is absent has no row, and a variable-free expression is one row
-    of ``value``. Dims come back in declaration order and rows in label order
+    a variable is absent has no row — or holds a zero, under ``absence:
+    zero`` — and a variable-free expression is one row of ``value``. Dims come back in declaration order and rows in label order
     over those dims.
 
     Raises:

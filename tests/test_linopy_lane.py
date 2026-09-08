@@ -572,6 +572,34 @@ EXPRESSION_DATA = {
 }
 
 
+#: ``EXPRESSION_YAML`` with ``p`` masked out at the generator whose ``p_max`` is
+#: zero and declared ``absence: zero``, plus one entry only a nonlinear read can
+#: tell apart from an affine one.
+ZERO_ABSENCE_YAML = EXPRESSION_YAML.replace(
+    '    bounds: {lower: 0, upper: p_max}\n',
+    '    bounds: {lower: 0, upper: p_max}\n    where: p_max > 0\n    absence: zero\n',
+).replace(
+    '  spend: sum(p * cost, over=generator)\n',
+    '  spend: sum(p * cost, over=generator)\n  grown: sum(0.5 ** p, over=generator)\n',
+)
+
+ZERO_ABSENCE_DATA = {**EXPRESSION_DATA, 'p_max': pd.Series({'g1': 200.0, 'g2': 0.0})}
+
+
+def test_the_two_lanes_agree_on_an_absent_slot_declared_zero_under_a_nonlinear_read(yaml_file):
+    """`absence: zero` is a zero on both lanes, so `0.5 ** p` reads `0.5 ** 0`, which is 1, at the masked generator on each."""
+    path = yaml_file(ZERO_ABSENCE_YAML, 'zero_absence.yaml')
+    with differential(path, ZERO_ABSENCE_DATA) as run:
+        tidy = run.result.expression('grown')
+        eager = lpspec_linopy.expression(run.model, path, 'grown', dict(ZERO_ABSENCE_DATA))
+        got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
+        want = {int(k): float(v) for k, v in eager.to_series().items()}
+        assert got == pytest.approx(want), 'the two lanes disagree about an absent slot declared zero'
+        assert all(v == pytest.approx(1.0) for v in want.values()), (
+            'each snapshot reads 1, the absent generator as 0.5 ** 0, plus a term below double precision from the present one'
+        )
+
+
 def test_a_dual_on_a_solve_that_left_none_is_refused_on_this_lane_too(yaml_file):
     """An integer variable makes duals undefined; linopy stores HiGHS's zeros for a MIP, so the read refuses by the declaration rather than reading a number that means nothing."""
     path = yaml_file(

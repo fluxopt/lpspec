@@ -249,6 +249,32 @@ def test_a_product_is_absent_where_either_factor_is(crossed):
     )
 
 
+def test_a_variable_declared_zero_is_zero_under_a_nonlinear_read():
+    """`absence: zero` says the quantity *is* zero where the variable has no row.
+
+    Affine arithmetic cannot tell no row from a zero, and neither can a sum a
+    constant reaches — `1 + p` lands the 1 on every coordinate. `0.5 ** p`
+    can: the absent generator contributes `0.5 ** 0`, which is 1, rather
+    than nothing, and the present one a value near zero.
+    """
+    spec = override(
+        SPEC,
+        **{
+            'variables.p.where': 'p_max > 0',
+            'variables.p.absence': 'zero',
+            'expressions.grown': 'sum(0.5 ** p, over=generator)',
+        },
+    )
+    data = sources() | {'p_max': pl.DataFrame({'generator': ['g1', 'g2'], 'value': [200.0, 0.0]})}
+    result = lps.solve(spec, data)
+    p = result.primal('p').sort('snapshot')
+    assert p['generator'].unique().to_list() == ['g1'], 'g2 is masked out, so only g1 has a primal'
+    want = [0.5**v + 1.0 for v in p['value']]
+    assert result.expression('grown')['value'].to_list() == pytest.approx(want), (
+        'the absent generator is a zero under absence: zero, so 0.5 ** 0 counts as 1 in the sum'
+    )
+
+
 def test_a_build_compiles_no_expression_and_a_read_compiles_exactly_one(monkeypatch):
     compiled = []
     original = PolarsCompiler.expression
