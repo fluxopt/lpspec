@@ -729,26 +729,36 @@ def test_the_model_argument_is_exactly_what_the_language_takes():
     quietly narrow, which would refuse a shape the language accepts, or widen,
     which would promise one it does not.
 
-    Textual, and deliberately: the annotations are strings under
-    ``from __future__ import annotations``, and ``get_type_hints`` cannot
-    evaluate upstream's (its ``Path`` is behind ``TYPE_CHECKING``). Splitting
-    on ``|`` holds while every member is a flat name or a subscript — a nested
-    union upstream would need this rewritten rather than merely updated.
+    Textual, and deliberately: upstream's annotation is a string under
+    ``from __future__ import annotations`` that ``get_type_hints`` cannot
+    evaluate (its ``Path`` is behind ``TYPE_CHECKING``), and ours is a ``type``
+    statement whose value would fail the same way, so it is read off the
+    source. Splitting on ``|`` holds while every member is a flat name or a
+    subscript — a nested union upstream would need this rewritten rather than
+    merely updated.
     """
     import inspect
 
     from math_spec import to_program
 
-    from lpspec.lanes import Buildable
-
     def members(annotation: str) -> set[str]:
         return {part.strip().removeprefix('program.') for part in annotation.split('|')}
 
     upstream = str(inspect.signature(to_program).parameters['spec'].annotation)
-    assert members(Buildable) == members(upstream), (
-        f'lpspec.lanes.Buildable is {Buildable!r} and math_spec.to_program takes {upstream!r} — '
+    ours = type_alias_value(PKG / 'lanes.py', 'Buildable')
+    assert members(ours) == members(upstream), (
+        f'lpspec.lanes.Buildable is {ours!r} and math_spec.to_program takes {upstream!r} — '
         f'every verb passes its model straight to that function, so the two are one union'
     )
+
+
+def type_alias_value(path: Path, name: str) -> str:
+    """The right-hand side of ``type <name> = ...`` in *path*, as source text."""
+    module = ast.parse(path.read_text())
+    for node in module.body:
+        if isinstance(node, ast.TypeAlias) and node.name.id == name:
+            return ast.unparse(node.value)
+    raise AssertionError(f'{path} declares no `type {name} = ...`')
 
 
 def test_the_sources_argument_is_one_type_at_every_door():
