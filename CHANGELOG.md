@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.313](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.312...v0.0.1-alpha.313) (2026-09-09)
+
+
+### Refactoring
+
+* **api:** every verb says in its signature what a source and a slice key may be ([#1554](https://github.com/fluxopt/lpspec/issues/1554)) ([3767f7a](https://github.com/fluxopt/lpspec/commit/3767f7afa859d6066c45870af5f2673080d089b4))
+
 ## [0.0.1-alpha.312](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.311...v0.0.1-alpha.312) (2026-09-09)
 
 
