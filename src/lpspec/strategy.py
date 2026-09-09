@@ -35,8 +35,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 
 import polars as pl
-from math_spec import to_program, to_spec
-from math_spec.program import Program
 
 from lpspec.api import build, check
 from lpspec.errors import DataError, LpspecError, LpspecWarning, did_you_mean
@@ -50,7 +48,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
     import xarray as xr
-    from math_spec import Spec
+    from math_spec.program import Program
 
     from lpspec.api import Model
     from lpspec.lanes import Buildable
@@ -993,8 +991,7 @@ def solve_over(
         LpspecError: A carry that cannot line up, has no seed, reads a
             coordinate the next window recomputes, or is asked together with
             an executor; a key that collides with a column the frames carry;
-            a ``Program`` handed to an executor that crosses a process; an
-            axis the program does not allow; a *to* directory holding
+            an axis the program does not allow; a *to* directory holding
             another sweep. All refused before a slice is taken, and every
             one answerable from the declarations before a source is read.
         DataError: No source carries the axis, or the axis produced no
@@ -1005,17 +1002,12 @@ def solve_over(
             coordinate another has — that slice builds it empty — or a
             position the model counts, which every window restarts.
     """
-    if isinstance(spec, Program) and executor is not None and _crosses_a_process(executor):
-        raise LpspecError(
-            'a Program cannot cross a process: pass the spec as the path or mapping it was lowered '
-            'from, and each worker lowers it itself.'
-        )
     if carry and executor is not None:
         raise LpspecError(
             'carry and executor are mutually exclusive: a carried value makes slice i+1 depend on '
             "slice i's answer, so the slices cannot run concurrently. Drop the executor, or drop the carry."
         )
-    parsed, program = _parsed(spec)
+    program = check(spec)
     plan = {p: _CarryRule.resolved(program, p, v, i) for p, (v, i) in (carry or {}).items()}
     key_name = _key_column(axis, key_name, program)
 
@@ -1034,22 +1026,9 @@ def solve_over(
     answered = (
         _serially(program, slices, solving, plan, keep, spill)
         if executor is None
-        else _pooled(executor, workers_share_fs, program, parsed, slices, solving, spill)
+        else _pooled(executor, workers_share_fs, program, slices, solving, spill)
     )
     return Runs._folded(key_name, original, answered, spill)
-
-
-def _parsed(spec: Buildable) -> tuple[Spec | Program, Program]:
-    """*spec* read once: what a worker across a process is handed, and the program this process runs.
-
-    The copy is taken before the lowering, which caches its expansion on the
-    instance it is given — a cache that does not pickle, where a fresh
-    ``Spec`` does.
-    """
-    if isinstance(spec, Program):
-        return spec, spec
-    parsed = to_spec(spec)
-    return parsed.model_copy(), check(parsed)
 
 
 def _check_the_carry(plan: Mapping[str, _CarryRule], axis: Any, first: Mapping[str, Any]) -> None:
@@ -1191,7 +1170,6 @@ def _pooled(
     executor: Any,
     workers_share_fs: bool | None,
     program: Program,
-    parsed: Spec | Program,
     slices: Sequence[_Slice],
     solving: Mapping[str, Any],
     spill: _Spill | None,
@@ -1202,9 +1180,8 @@ def _pooled(
     in the order they were submitted, so a sweep cannot reorder itself under a
     pool. A built model cannot cross a process, so this branch builds per
     slice — the same fact that makes ``carry`` and ``executor`` mutually
-    exclusive. A worker in this process is handed the lowered program; one
-    across a boundary the validated model, which pickles where a program
-    does not, and lowers it itself. Neither reads the YAML again.
+    exclusive. Every worker is handed the lowered program, so none reads the
+    YAML or lowers it again.
 
     A slice the spill already holds is never submitted; one that comes back
     is written here, by the process that owns the directory.
@@ -1218,7 +1195,7 @@ def _pooled(
         if spill is not None and spill.done(position)
         else executor.submit(
             _run_slice,
-            parsed if crosses else program,
+            program,
             _encode(current.sources, memo, workers_share_fs=shared) if crosses else dict(current.sources),
             crosses,
             call,
@@ -1277,7 +1254,7 @@ def _answers(result: Any, program: Program, cost: dict[str, Any]) -> _Answer:
 
 
 def _run_slice(
-    spec: Spec | Program,
+    program: Program,
     encoded: dict[str, Any],
     encode_out: bool,
     call: dict[str, Any],
@@ -1288,7 +1265,6 @@ def _run_slice(
     what it is handed, and a bound method or a lambda over the axis object
     cannot cross.
     """
-    program = to_program(spec)
     with build(program, _decode(encoded)) as model, model.solve(**call) as result:
         answer = _answers(result, program, _slice_cost(model.diagnostics(), None))
         if not encode_out:

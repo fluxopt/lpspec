@@ -985,23 +985,20 @@ def test_a_thread_pool_does_not_encode_for_a_boundary_it_never_crosses(monkeypat
     assert seen, 'a process pool did not encode its sources'
 
 
-def test_a_lowered_program_is_refused_before_a_process_pool_fails_to_pickle_it():
-    """A `Program` holds `MappingProxyType`, which pickle refuses inside the worker
-    with a `TypeError` naming neither the spec nor the fix; a thread pool never
-    pickles, so it takes the program as the serial fold does.
+def test_a_lowered_program_crosses_a_process():
+    """A `Program` is what a worker is handed, under every executor.
+
+    It used to be refused under a pool that crosses a process, because the
+    language sealed its groups behind a `MappingProxyType` that pickle
+    refuses; the seal pickles since math-spec alpha.78, so the worker takes
+    the lowered program and lowers nothing itself.
     """
     program = lps.check(DISPATCH)
-    with (
-        ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool,
-        pytest.raises(lps.LpspecError, match='a Program cannot cross a process'),
-    ):
-        lps.solve_over(program, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
-
-    with ThreadPoolExecutor(2) as pool:
-        runs = lps.solve_over(program, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
-    assert len(runs) == len(lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'))), (
-        'a thread pool takes a Program and answers every slice'
-    )
+    serial = lps.solve_over(program, scenario_sources(), lps.EachCoordinate('scenario'))
+    with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool:
+        pooled = lps.solve_over(program, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
+    assert pooled.objective.equals(serial.objective)
+    assert pooled.primal('p').equals(serial.primal('p'))
 
 
 def test_a_failing_slice_reports_the_real_error_across_a_process_boundary():
@@ -1521,9 +1518,8 @@ def test_a_key_that_collides_with_a_fixed_column_is_refused(key_name):
 def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     """The model is parsed once per call, whichever executor runs the slices.
 
-    What a worker receives is already parsed — the lowered program in this
-    process, the validated model across one it cannot share — so no slice
-    reads the YAML again. Counted at the language's own front door.
+    What a worker receives is the lowered program, so no slice reads the
+    YAML or lowers it again. Counted at the language's own front door.
     """
     from math_spec import Spec, lowering
 
@@ -1536,7 +1532,6 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
         return original(model)
 
     monkeypatch.setattr(lowering, 'to_spec', spy)
-    monkeypatch.setattr(strategy, 'to_spec', spy)
     with _entered(make_executor()) as executor:
         lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor)
     assert len(parsed) == 1, f'the model was parsed {len(parsed)} times for three slices'
