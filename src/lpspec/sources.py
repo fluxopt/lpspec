@@ -14,7 +14,7 @@ The guards that need the numbers rather than the shapes are
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -24,10 +24,12 @@ from lpspec.errors import DataError, did_you_mean
 from lpspec.frames import as_frame, is_dense_array, is_multi_indexed
 
 if TYPE_CHECKING:
-    from math_spec.program import ParameterDeclaration, Program
+    from math_spec.program import DimensionDeclaration, LookupDeclaration, ParameterDeclaration, Program
+
+    from lpspec.lanes import Label, Source
 
 
-def attachable(program: Program) -> dict[str, Any]:
+def attachable(program: Program) -> dict[str, ParameterDeclaration | DimensionDeclaration | LookupDeclaration]:
     """Every name data may be attached to — declared parameters, dimensions and lookups, one flat namespace.
 
     A parameter a ``piecewise:`` expansion emitted is not one: it carries a
@@ -42,7 +44,7 @@ def attachable(program: Program) -> dict[str, Any]:
     }
 
 
-def tidy_sources(program: Program, data: Mapping[str, object]) -> dict[str, pl.LazyFrame]:
+def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.LazyFrame]:
     """Read the caller's ``sources`` into the frames both lanes build against.
 
     Every source comes back as an in-memory :class:`polars.LazyFrame`: a
@@ -156,7 +158,7 @@ def _declared_map_needs_labels_message(dim: str, authors: Iterable[str]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _index(source: object, dim: str, dtype: str) -> pl.LazyFrame:
+def _index(source: Source, dim: str, dtype: str) -> pl.LazyFrame:
     """One dimension's index, read once and held in memory.
 
     Raises:
@@ -184,7 +186,7 @@ _DECLARED: dict[str, pl.DataType] = {
 }
 
 
-def _labels_frame(dim: str, values: object, dtype: str) -> pl.LazyFrame:
+def _labels_frame(dim: str, values: Source, dtype: str) -> pl.LazyFrame:
     """A one-column index frame from a plain sequence of labels.
 
     **An empty index takes the dimension's declared dtype.** polars infers
@@ -193,20 +195,27 @@ def _labels_frame(dim: str, values: object, dtype: str) -> pl.LazyFrame:
     the dimension it belongs to. An empty index is what a driver that grows
     one starts from.
     """
+    if not isinstance(values, Iterable):
+        raise DataError(_not_labels(dim, values))
     try:
-        labels: list[Any] = list(values)  # pyrefly: ignore[bad-argument-type]  — `values` is whatever a caller passed
+        labels = list(values)
         if not labels:
             return pl.LazyFrame(schema={dim: _DECLARED[dtype]})
         return pl.LazyFrame({dim: labels})
     except (TypeError, pl.exceptions.PolarsError) as exc:
-        raise DataError(
-            f"index for dimension '{dim}': cannot read labels out of "
-            f'{type(values).__name__} — pass a sequence of labels, a table '
-            f'polars can read with a {dim!r} column, or a parquet path'
-        ) from exc
+        raise DataError(_not_labels(dim, values)) from exc
 
 
-def _check_lookup_sources(program: Program, data: Mapping[str, object]) -> None:
+def _not_labels(dim: str, values: object) -> str:
+    """One wording for an index nothing can read labels out of."""
+    return (
+        f"index for dimension '{dim}': cannot read labels out of "
+        f'{type(values).__name__} — pass a sequence of labels, a table '
+        f'polars can read with a {dim!r} column, or a parquet path'
+    )
+
+
+def _check_lookup_sources(program: Program, data: Mapping[str, Source]) -> None:
     """Refuse a lookup nothing supplies, and a lookup column carried on an index.
 
     The second is refused rather than filtered, unlike every other stray
@@ -238,14 +247,14 @@ def _unsupplied_lookup_message(lookup: str, over: str, space: str) -> str:
     )
 
 
-def _column_names(source: Any, dim: str) -> frozenset[str]:
+def _column_names(source: Source, dim: str) -> frozenset[str]:
     """What a supplied index carries, or nothing where it is a bare label sequence."""
     table = as_frame(source, (dim,))
     return frozenset(table.collect_schema().names()) if table is not None else frozenset()
 
 
 def _lookup_relations(
-    program: Program, data: Mapping[str, object], indices: Mapping[str, pl.LazyFrame]
+    program: Program, data: Mapping[str, Source], indices: Mapping[str, pl.LazyFrame]
 ) -> dict[str, pl.LazyFrame]:
     """Every lookup's map as the ``(over, lookup)`` relation both lanes read.
 
@@ -320,7 +329,7 @@ def _check_keys_are_labels(rows: pl.LazyFrame, lookup: str, over: str, labels: p
         )
 
 
-def _read_relation(source: object, lookup: str, over: str, space: str) -> pl.LazyFrame:
+def _read_relation(source: Source, lookup: str, over: str, space: str) -> pl.LazyFrame:
     """One supplied relation, read and held to the rules a map has."""
     table = as_frame(source, (over, space))
     if table is None:
@@ -366,7 +375,7 @@ def _read_relation(source: object, lookup: str, over: str, space: str) -> pl.Laz
 
 
 def _parameter_frame(
-    name: str, p: ParameterDeclaration, obj: object, sources: Mapping[str, pl.LazyFrame]
+    name: str, p: ParameterDeclaration, obj: Source, sources: Mapping[str, pl.LazyFrame]
 ) -> pl.LazyFrame:
     """The caller's object for one parameter as a lazy frame, whatever shape it took.
 
@@ -391,7 +400,7 @@ def _parameter_frame(
     return table if table is not None else _spread(name, obj, p.dims, sources)
 
 
-def least_value(name: str, p: ParameterDeclaration, obj: object) -> float | None:
+def least_value(name: str, p: ParameterDeclaration, obj: Source) -> float | None:
     """The least value one parameter's source holds, read without any dimension's labels.
 
     Every shape :func:`tidy_sources` accepts has a least value that does not
@@ -412,11 +421,11 @@ def least_value(name: str, p: ParameterDeclaration, obj: object) -> float | None
     if isinstance(obj, (bool, int, float)):
         return float(obj)
     if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes)):
-        return min(map(float, obj), default=None)
+        return min(map(float, obj), default=None)  # pyrefly: ignore[bad-argument-type]  — a parameter's sequence holds numbers; a label sequence is an index's
     return _parameter_frame(name, p, obj, {}).select(pl.col('value').min()).collect().item()
 
 
-def _spread(name: str, obj: object, dims: Sequence[str], sources: Mapping[str, pl.LazyFrame]) -> pl.LazyFrame:
+def _spread(name: str, obj: Source, dims: Sequence[str], sources: Mapping[str, pl.LazyFrame]) -> pl.LazyFrame:
     """A parameter written as plain Python, spread over the dims it declares.
 
     Three shapes a hand-written spec reaches for and no table library
@@ -440,11 +449,11 @@ def _spread(name: str, obj: object, dims: Sequence[str], sources: Mapping[str, p
     if isinstance(obj, (int, float)):
         return _broadcast(name, pl.lit(float(obj), dtype=pl.Float64), dims, sources)
 
-    if hasattr(obj, '__len__') and not isinstance(obj, (str, bytes)):
+    if isinstance(obj, Collection) and not isinstance(obj, (str, bytes)):
         if len(dims) != 1:
             raise DataError(_wrong_rank(name, 'a sequence runs along one dimension', dims))
         labels = _labels(name, dims[0], sources)
-        values = list(obj)  # pyrefly: ignore[bad-argument-type]  — narrowed by the __len__ test
+        values = list(obj)
         if len(values) != len(labels):
             raise DataError(
                 f"parameter '{name}': {len(values)} values against {len(labels)} "
@@ -477,7 +486,7 @@ def _broadcast(name: str, value: pl.Expr, dims: Sequence[str], sources: Mapping[
     return frame.drop('__one__').with_columns(value.alias('value'))
 
 
-def _labels(name: str, dim: str, sources: Mapping[str, pl.LazyFrame]) -> list[Any]:
+def _labels(name: str, dim: str, sources: Mapping[str, pl.LazyFrame]) -> list[Label]:
     """*dim*'s labels, in index order, for a shape that has none of its own.
 
     Raises:
@@ -600,7 +609,7 @@ def _check_values_are_present(name: str, p: ParameterDeclaration, frame: pl.Data
     )
 
 
-def coordinates_shown(dims: Sequence[str], rows: Iterable[Sequence[Any]]) -> str:
+def coordinates_shown(dims: Sequence[str], rows: Iterable[Sequence[Label]]) -> str:
     """Coordinates as a refusal prints them: ``f='b'; f='c'``."""
     return '; '.join(', '.join(f'{d}={v!r}' for d, v in zip(dims, row, strict=True)) for row in rows)
 

@@ -36,7 +36,7 @@ rather than its prior value.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 try:
     import linopy
@@ -58,14 +58,14 @@ from lpspec.sources import tidy_sources
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from lpspec.lanes import Buildable
+    from lpspec.lanes import Buildable, Source
 
 linopy.options['semantics'] = 'v1'
 
 __all__ = ['build', 'expression']
 
 
-def build(spec: Buildable, sources: Mapping[str, Any]) -> linopy.Model:
+def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
     """Bind *sources* to *spec* and build it as a ``linopy.Model``.
 
     :func:`lpspec.build`'s signature: which lane builds a file is the caller's
@@ -103,7 +103,7 @@ def expression(
     built: linopy.Model,
     spec: Buildable,
     name: str,
-    sources: Mapping[str, Any],
+    sources: Mapping[str, Source],
 ) -> xarray.DataArray:
     """Evaluate named expression *name* of *spec* at *built*'s solution.
 

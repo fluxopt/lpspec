@@ -10,7 +10,7 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
@@ -749,6 +749,42 @@ def test_the_model_argument_is_exactly_what_the_language_takes():
         f'lpspec.lanes.Buildable is {Buildable!r} and math_spec.to_program takes {upstream!r} — '
         f'every verb passes its model straight to that function, so the two are one union'
     )
+
+
+def test_the_sources_argument_is_one_type_at_every_door():
+    """Every verb that takes data annotates it ``Mapping[str, Source]``.
+
+    ``Source`` is the one spelling of what a name in ``sources`` may hold, and
+    it is a copy at each door: a verb that widened it back to ``Any`` would
+    promise a shape the readers refuse, and one that narrowed it would refuse
+    a shape they accept. Textual, like the ``Buildable`` check above, because
+    the annotations are strings. The linopy lane's two verbs are asked in
+    ``tests/test_linopy_lane.py``, where the extra is installed.
+    """
+    import lpspec
+    from lpspec.strategy import EachCoordinate, EachWindow, solve_over
+
+    doors = {
+        'build': lpspec.build,
+        'solve': lpspec.solve,
+        'write': lpspec.write,
+        'pack': lpspec.pack,
+        'Model': lpspec.Model.__init__,
+        'Model.update': lpspec.Model.update,
+        'solve_over': solve_over,
+        'EachCoordinate.slices': EachCoordinate.slices,
+        'EachWindow.slices': EachWindow.slices,
+    }
+    assert sources_annotations(doors) == {'Mapping[str, Source]'}, (
+        f'every door takes sources as Mapping[str, Source], and these do not: {sources_annotations(doors)}'
+    )
+
+
+def sources_annotations(doors: dict[str, Any]) -> set[str]:
+    """What each door annotates ``sources`` with — ``tests/test_linopy_lane.py`` asks the same of the lane's."""
+    import inspect
+
+    return {str(inspect.signature(door).parameters['sources'].annotation) for door in doors.values()}
 
 
 def test_every_piecewise_fact_the_language_carries_is_read_by_the_curve_guard():

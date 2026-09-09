@@ -28,7 +28,7 @@ import io
 import json
 import warnings
 from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -51,8 +51,8 @@ if TYPE_CHECKING:
     from math_spec.program import Program
 
     from lpspec.api import Model
-    from lpspec.lanes import Buildable
-    from lpspec.relational.result import Diagnostics, Keep
+    from lpspec.lanes import Buildable, Label, Source
+    from lpspec.relational.result import Diagnostics, Keep, Result
 
 #: A frame lazy or not, going in and coming back out the same way.
 _Frame = TypeVar('_Frame', pl.DataFrame, pl.LazyFrame)
@@ -70,8 +70,8 @@ class _Slice(NamedTuple):
     and those unpack the same way.
     """
 
-    key: Any
-    sources: Mapping[str, Any]
+    key: Label
+    sources: Mapping[str, Source]
 
 
 class _SliceMeta(NamedTuple):
@@ -158,7 +158,7 @@ class _CarryRule:
             )
         return cls(variable, dropped[0] if dropped else None, index)
 
-    def value_from(self, frames: Mapping[str, pl.DataFrame], parameter: str, key: Any) -> pl.DataFrame:
+    def value_from(self, frames: Mapping[str, pl.DataFrame], parameter: str, key: Label) -> pl.DataFrame:
         """What this rule hands the next slice, read out of one slice's primals.
 
         ``index`` is a **coordinate** of the dropped dimension, never a row
@@ -250,7 +250,7 @@ class _OriginalIndex:
         return stitched if isinstance(frame, pl.LazyFrame) else stitched.collect()  # pyrefly: ignore[bad-return]  — the branch matches the frame's own kind
 
 
-def _keyed(frame: pl.DataFrame, key_name: str, key: Any) -> pl.DataFrame:
+def _keyed(frame: pl.DataFrame, key_name: str, key: Label) -> pl.DataFrame:
     """*frame* with the slice key prepended — the shape every reader returns."""
     return frame.select(pl.lit(key).alias(key_name), pl.all())
 
@@ -272,7 +272,7 @@ class _Spill:
     key_name: str
 
     @classmethod
-    def opened(cls, directory: str | Path, key_name: str, keys: Sequence[Any]) -> _Spill:
+    def opened(cls, directory: str | Path, key_name: str, keys: Sequence[Label]) -> _Spill:
         """The directory ready to take this sweep, or refused as another's.
 
         Raises:
@@ -302,7 +302,7 @@ class _Spill:
     def done(self, position: int) -> bool:
         return self._file('objective', position).exists()
 
-    def write(self, position: int, key: Any, answer: _Answer) -> _Answer:
+    def write(self, position: int, key: Label, answer: _Answer) -> _Answer:
         """*answer*'s frames and record on disk, and the answer with the frames released."""
         for kind, produced in zip(KINDS, (answer.primals, answer.duals, answer.expressions), strict=True):
             for name, frame in produced.items():
@@ -336,7 +336,7 @@ def _listed(entries: Mapping[str, str]) -> str:
     return '\n'.join(f'  {label}: {reason}' for label, reason in entries.items())
 
 
-def _least(program: Program, sources: Mapping[str, Any], name: str) -> int:
+def _least(program: Program, sources: Mapping[str, Source], name: str) -> int:
     """The least value of parameter *name*, which decides how far its rows read ahead; an empty one reads nowhere.
 
     Read through :func:`~lpspec.sources.least_value`, so every shape a source
@@ -370,7 +370,7 @@ class EachCoordinate:
 
     dim: str
 
-    def slices(self, sources: Mapping[str, Any]) -> list[tuple[Any, Mapping[str, Any]]]:
+    def slices(self, sources: Mapping[str, Source]) -> list[tuple[Label, Mapping[str, Source]]]:
         """The ``(key, sources)`` list this axis would run — what ``axis=`` takes hand-built.
 
         For building one slice alone: ``lps.build(spec, axis.slices(sources)[3][1])``.
@@ -381,7 +381,7 @@ class EachCoordinate:
         """The dimension itself: a slice key *is* a coordinate of it."""
         return self.dim
 
-    def _check_the_program(self, program: Program, sources: Mapping[str, Any]) -> None:
+    def _check_the_program(self, program: Program, sources: Mapping[str, Source]) -> None:
         """Refuse a sweep over a dimension the spec declares, which nothing would then supply.
 
         The only thing a coordinate sweep needs of the program, and the reason
@@ -400,7 +400,7 @@ class EachCoordinate:
                 f'axis the model does not have; to slice one it does, window it.'
             )
 
-    def _slice(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Slice], _OriginalIndex | None]:
+    def _slice(self, sources: Mapping[str, Source], key_name: str) -> tuple[list[_Slice], _OriginalIndex | None]:
         """One slice per coordinate, keyed by it. Sources without *dim* pass through.
 
         No :class:`_OriginalIndex`: nothing was re-indexed, so a slice's frames
@@ -436,7 +436,7 @@ class EachWindow:
     step: int
     into: str
 
-    def slices(self, sources: Mapping[str, Any]) -> list[tuple[Any, Mapping[str, Any]]]:
+    def slices(self, sources: Mapping[str, Source]) -> list[tuple[Label, Mapping[str, Source]]]:
         """The ``(key, sources)`` list this axis would run — what ``axis=`` takes hand-built.
 
         For building one window alone: ``lps.build(spec, axis.slices(sources)[37][1])``.
@@ -466,7 +466,7 @@ class EachWindow:
         """
         return f'{self.dim}_start'
 
-    def _check_the_program(self, program: Program, sources: Mapping[str, Any]) -> None:
+    def _check_the_program(self, program: Program, sources: Mapping[str, Source]) -> None:
         """Refuse a window the program's rows cannot be whole inside, before one is taken.
 
         The program answers through
@@ -527,7 +527,7 @@ class EachWindow:
                 stacklevel=3,
             )
 
-    def _slice(self, sources: Mapping[str, Any], key_name: str) -> tuple[list[_Slice], _OriginalIndex]:
+    def _slice(self, sources: Mapping[str, Source], key_name: str) -> tuple[list[_Slice], _OriginalIndex]:
         """One slice per window, keyed by its **first coordinate**.
 
         Keyed by the coordinate rather than the window's position, which is
@@ -671,7 +671,7 @@ class Runs:
         )
 
     @property
-    def keys(self) -> list[Any]:
+    def keys(self) -> list[Label]:
         return self.objective[self.key_name].to_list()
 
     def _read(
@@ -903,7 +903,7 @@ class Runs:
         return self.objective.height
 
 
-def _by_key(frames: Sequence[pl.DataFrame], key_name: str) -> dict[Any, pl.DataFrame]:
+def _by_key(frames: Sequence[pl.DataFrame], key_name: str) -> dict[Label, pl.DataFrame]:
     """One name's held frames by the slice key each carries, the key column dropped.
 
     Held per slice that produced the name, not per slice, so the key is read
@@ -936,12 +936,12 @@ def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], objective
 
 def solve_over(
     spec: Buildable,
-    sources: Mapping[str, Any],
-    axis: Axis | Sequence[tuple[Any, Mapping[str, Any]]],
+    sources: Mapping[str, Source],
+    axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
     *,
     carry: Mapping[str, tuple[str, int | None]] | None = None,
     key_name: str | None = None,
-    executor: Any = None,
+    executor: Executor | None = None,
     workers_share_fs: bool | None = None,
     solver_options: Mapping[str, Any] | None = None,
     solver_name: str = 'highs',
@@ -1031,7 +1031,11 @@ def solve_over(
     return Runs._folded(key_name, original, answered, spill)
 
 
-def _check_the_carry(plan: Mapping[str, _CarryRule], axis: Any, first: Mapping[str, Any]) -> None:
+def _check_the_carry(
+    plan: Mapping[str, _CarryRule],
+    axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
+    first: Mapping[str, Source],
+) -> None:
     """Refuse a carry with no seed, or one that reads what the next window recomputes.
 
     Both are answered before a source is read: the seed is a key of the first
@@ -1152,7 +1156,7 @@ def _carried(
 
 
 @contextmanager
-def _named_slice(key: Any, position: int, count: int) -> Generator[None, None, None]:
+def _named_slice(key: Label, position: int, count: int) -> Generator[None, None, None]:
     """Whatever a slice raises leaves naming the slice, as a note on the exception.
 
     A note rather than a new message: the error stays the engine's own, so a
@@ -1167,7 +1171,7 @@ def _named_slice(key: Any, position: int, count: int) -> Generator[None, None, N
 
 
 def _pooled(
-    executor: Any,
+    executor: Executor,
     workers_share_fs: bool | None,
     program: Program,
     slices: Sequence[_Slice],
@@ -1218,7 +1222,7 @@ def _pooled(
         yield current.key, spill.write(position, current.key, answer) if spill is not None else answer
 
 
-def _answers(result: Any, program: Program, cost: dict[str, Any]) -> _Answer:
+def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
     """One slice's answer, read out of *result*: its meta row, its cost, and its frames.
 
     Read here rather than held, so that what a sweep accumulates is frames and
@@ -1278,7 +1282,7 @@ def _run_slice(
 
 
 def _key_column(
-    axis: Axis | Sequence[tuple[Any, Mapping[str, Any]]],
+    axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
     key_name: str | None,
     program: Program,
 ) -> str:
@@ -1322,7 +1326,7 @@ def _key_column(
 # ---------------------------------------------------------------------------
 
 
-def _shares_filesystem(executor: Any, declared: bool | None) -> bool:
+def _shares_filesystem(executor: Executor, declared: bool | None) -> bool:
     """Whether *executor*'s workers can read this process's paths.
 
     The two stdlib pools are the ones whose deployment is knowable: both run
@@ -1335,7 +1339,7 @@ def _shares_filesystem(executor: Any, declared: bool | None) -> bool:
     return isinstance(executor, ProcessPoolExecutor)
 
 
-def _crosses_a_process(executor: Any) -> bool:
+def _crosses_a_process(executor: Executor) -> bool:
     """Whether a slice's sources have to be encoded to reach *executor*.
 
     A thread pool runs in this process, so encoding would be a parquet round
@@ -1346,7 +1350,7 @@ def _crosses_a_process(executor: Any) -> bool:
 
 
 def _encode(
-    sources: Mapping[str, Any], memo: dict[str, tuple[Any, Any]], *, workers_share_fs: bool = False
+    sources: Mapping[str, Source], memo: dict[str, tuple[Any, Any]], *, workers_share_fs: bool = False
 ) -> dict[str, Any]:
     """Sources in the shape a worker can be handed.
 
@@ -1363,18 +1367,16 @@ def _encode(
     """
     out: dict[str, Any] = {}
     for name, obj in sources.items():
-        is_path = isinstance(obj, (str, Path))
-        if is_path and workers_share_fs:
+        if isinstance(obj, (str, Path)) and workers_share_fs:
             out[name] = obj
             continue
         cached = memo.get(name)
         if cached is not None and cached[0] is obj:
             out[name] = cached[1]
             continue
-        table = None if is_path else as_frame(obj)
-        if is_path:
+        if isinstance(obj, (str, Path)):
             out[name] = Path(obj).read_bytes()
-        elif table is None:
+        elif (table := as_frame(obj)) is None:
             out[name] = obj
         else:
             buffer = io.BytesIO()
@@ -1399,7 +1401,7 @@ def _decode(encoded: Mapping[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _coordinates(sources: Mapping[str, Any], dim: str, verb: str) -> tuple[dict[str, pl.LazyFrame], list[Any]]:
+def _coordinates(sources: Mapping[str, Source], dim: str, verb: str) -> tuple[dict[str, pl.LazyFrame], list[Label]]:
     """The sources a slice has to filter, by name, and the ordered coordinates to slice.
 
     *carrying* is derived rather than declared: a source that carries the slice

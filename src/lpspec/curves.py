@@ -35,11 +35,13 @@ if TYPE_CHECKING:
 
     from math_spec.program import Check, PiecewiseDeclaration, Program
 
+    from lpspec.lanes import Source
+
 _C = TypeVar('_C', bound='Check')
 
 
 def derive_curve_sources(
-    program: Program, sources: dict[str, pl.LazyFrame], data: Mapping[str, object]
+    program: Program, sources: dict[str, pl.LazyFrame], data: Mapping[str, Source]
 ) -> dict[str, pl.LazyFrame]:
     """Fill every parameter a ``piecewise:`` expansion emitted, which no caller can have.
 
@@ -242,16 +244,18 @@ def _required_under_mask(
     return required.select(dims)
 
 
-def _coordinates(source: object, dims: Sequence[str], keep_value: bool = False) -> pl.LazyFrame | None:
+def _coordinates(source: Source | None, dims: Sequence[str], keep_value: bool = False) -> pl.LazyFrame | None:
     """The coordinates *source* carries, or ``None`` where it carries all of them.
 
-    ``None`` covers both "dense by construction" and "not readable here" — a
-    source attaching refuses is refused there, with the message that knows what
-    the declaration wanted. *keep_value* keeps the value column too, which the
+    ``None`` covers "nothing supplied", "dense by construction" and "not
+    readable here" alike — a source attaching refuses is refused there, with
+    the message that knows what the declaration wanted. *keep_value* keeps the value column too, which the
     ``points:`` mask is read from rather than merely counted. A parquet path is
     read here as it is at attaching, or a ``points:`` parameter supplied as one
     would derive no mask and its curve would be held to the full grid.
     """
+    if source is None:
+        return None
     if isinstance(source, Mapping) and len(dims) == 1:
         keys = pl.LazyFrame({dims[0]: list(source.keys())})
         return keys.with_columns(pl.Series('value', list(source.values())).implode().explode()) if keep_value else keys

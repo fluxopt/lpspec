@@ -170,6 +170,7 @@ def test_one_number_stands_for_every_coordinate(dispatch_yaml, dispatch_frame_in
     [
         pytest.param({'p_max': [100.0, 60.0]}, 'one entry per label', id='a-sequence-of-the-wrong-length'),
         pytest.param({'p_max': object()}, 'cannot adapt', id='nothing-table-shaped-at-all'),
+        pytest.param({'snapshot': 3.0}, 'cannot read labels out of float', id='an-index-that-is-one-number'),
     ],
 )
 def test_a_plain_python_source_that_does_not_fit_is_refused(dispatch_yaml, dispatch_frame_inputs, sources, match):
@@ -198,6 +199,14 @@ def test_a_flat_shape_cannot_cover_two_dimensions(source, match):
     """Both carry one axis, and the rewrite is the table that carries both."""
     with pytest.raises(lps.DataError, match=match):
         lps.build(_TWO_DIMS, {'cap': source}).close()
+
+
+def test_a_one_level_series_cannot_cover_two_dimensions():
+    """A pandas Series is a sequence with its index along: one axis, declined the same way."""
+    pandas = pytest.importorskip('pandas')
+    series = pandas.Series([1.0, 2.0], index=pandas.Index(['wind', 'gas'], name='g'))
+    with pytest.raises(lps.DataError, match='a sequence runs along one dimension'):
+        lps.build(_TWO_DIMS, {'cap': series}).close()
 
 
 def test_a_positional_source_needs_the_labels_it_is_written_against():

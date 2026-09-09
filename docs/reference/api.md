@@ -124,7 +124,8 @@ different model. What `sink=` buys is the same sentence before the build.
 `sources` maps declared names to data: parquet paths, or any table exposing the
 Arrow PyCapsule protocol — polars, pandas, pyarrow. A dimension's own key supplies
 dimension labels that neither the sources nor the YAML carries. The exact rules
-are [the data contract](data.md).
+are [the data contract](data.md), and the whole set of shapes is the type
+`lpspec.lanes.Source`, which every verb annotates `sources` with.
 
 ```python
 result = lps.solve(
