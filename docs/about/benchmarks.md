@@ -1,20 +1,17 @@
 # How the benchmarks were taken
 
 This page is the method behind the numbers on the
-[benchmark page](benchmarks-scaling.html), for anyone deciding how far to
-trust a cell there. The results themselves are on that page: five libraries
-over four models, with the numbers under each chart.
+[benchmark page](benchmarks-scaling.html), five libraries over four models with
+the numbers under each chart, for anyone deciding how far to trust a cell there.
 
 **Every published number is the median of a measurement's rounds, and every
 band is the first to the third quartile of the same rounds.** Nine rounds is
-the floor. The number is not the fastest round: that is a best-of-n, and n is
-not equal, because the harness calibrates by duration. It is not the mean
-either. One round in forty of a 20 ms measurement took 1.5 s here, which drags
-a mean to 2.9x its median.
+the floor. The fastest round would be a best-of-n with unequal n, because the
+harness calibrates by duration. The mean would be dragged by the one round in
+forty of a 20 ms measurement that took 1.5 s here, to 2.9x its median.
 
-That choice cost us. Nine cells flipped against lpspec, all on the `gurobi`
-sink (where a built model lands: a solver or a file writer,
-[glossary](../reference/glossary.md#how-it-runs)). There our build alternates
+The median flipped nine cells against lpspec, all on the `gurobi`
+[sink](../reference/glossary.md#how-it-runs): there our build alternates
 between a fast and a slow state round after round, and no other library's
 build does ([#1288](https://github.com/fluxopt/lpspec/issues/1288)).
 
@@ -24,24 +21,20 @@ build does ([#1288](https://github.com/fluxopt/lpspec/issues/1288)).
 uv run --locked bench/reproduce.py
 ```
 
-`bench/reproduce.py.lock` freezes every version, git commits included. Two of
-the five libraries install from git and one of those is a branch, so without
-the lock "the versions that produced this number" is unrepeatable. `--locked`
+`bench/reproduce.py.lock` freezes every version, git commits included: two of
+the five libraries install from git and one of those is a branch. `--locked`
 refuses to start if the resolution has drifted.
 
 Everything the tables are drawn from is in
 [`bench/results`](https://github.com/fluxopt/lpspec/blob/main/bench/results):
-one file per sink and case, because each is measured in a process of its own.
-Each file carries the machine, the versions, the commit and every round of
-every measurement. A case the box could not finish leaves no file behind, so
-the directory holds what ran and nothing else. `pixi run table` prints it as
-one long CSV and commits nothing. The JSON is the archive because it keeps the
-rounds. Re-taking rather than reproducing is `pixi run refresh`, which writes
-the tables into their fences and the chart's data literal into its own.
+one file per sink and case, carrying the machine, the versions, the commit and
+every round of every measurement. A case the box could not finish leaves no
+file behind. `pixi run table` prints the directory as one long CSV and commits
+nothing; the JSON stays the archive because it keeps the rounds.
+`pixi run refresh` re-takes the numbers and writes the tables into their fences
+and the chart's data literal into its own.
 
 ## First model against every model after it
-
-One model is built, then built again in the same process.
 
 <!-- bench:marginal -->
 
@@ -65,9 +58,6 @@ Build only, repeated in one process. **first** is the first recorded round and *
 <!-- bench:/marginal -->
 
 ## The same size, reached by widening
-
-Entity counts x N, snapshots fixed: the same sizes as the ladder, in a
-different shape.
 
 <!-- bench:sweeps -->
 
@@ -96,14 +86,14 @@ Listed so that a claim with no table under it is visible as one.
   publishes them.
 - **The width ladder past `w10`.** `w100` and `w1000` are left out of the
   published run rather than measured and dropped. `transport/w100` on linopy
-  peaks at 14.26 GB, and a measurement holds the model twice, so the cell wants
-  more machine than the box has. The budget cannot stop it either: it projects
-  the next rung linearly off a `w10` cell that took under a gigabyte. What is
-  lost is the runner rather than the rung
+  peaks at 14.26 GB, and a measurement holds the model twice, which is more
+  than the box has. The budget cannot stop it either, because it projects the
+  next rung linearly off a `w10` cell that took under a gigabyte. What is lost
+  is the runner rather than the rung
   ([#1416](https://github.com/fluxopt/lpspec/issues/1416)). The last numbers
   taken there are in [#1285](https://github.com/fluxopt/lpspec/pull/1285), on
   the machine that could hold them: lpspec 0.11 s and 0.59 GB against linopy
-  53.53 s and 14.26 GB at `transport/w100`.
+  53.53 s and 14.26 GB.
 - **Anything about expressiveness.** Four models say nothing about a fifth.
 
 ## Method
@@ -117,12 +107,12 @@ every flag, every default switched off and what it costs.
 
 **Peak carries an allocator cost that only the polars arms pay.** polars
 ships its own jemalloc settings, so a peak measured through it holds pages
-freed and not yet returned. An arm on the system allocator never enters
-jemalloc at all. Our peak moves 12–27% with the decay clock on and off, where
+freed and not yet returned; an arm on the system allocator never enters
+jemalloc. Our peak moves 12–27% with the decay clock on and off, where
 linopy's does not move at three digits
 ([#896](https://github.com/fluxopt/lpspec/issues/896)). It runs against us and
 is left in.
 
 **memray never times anything.** Its tracker slows an allocation-heavy
-engine several-fold and overcounts reserved arenas. Peak RSS is the metric;
-memray is for attribution.
+engine several-fold and overcounts reserved arenas, so peak RSS is the metric
+and memray is for attribution.
