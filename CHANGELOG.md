@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.311](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.310...v0.0.1-alpha.311) (2026-09-09)
+
+
+### Features
+
+* **strategy:** a sweep spills each slice to disk and resumes where it stopped, and every export and bridge reads every kind ([#1547](https://github.com/fluxopt/lpspec/issues/1547)) ([c5b4828](https://github.com/fluxopt/lpspec/commit/c5b48288db32b921794f78938d0489285fdf7386))
+
 ## [0.0.1-alpha.310](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.309...v0.0.1-alpha.310) (2026-09-08)
 
 
