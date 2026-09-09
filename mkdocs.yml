@@ -38,19 +38,25 @@ validation:
 
 nav:
   - Home: index.md
-  - Run a model: guide.md
-  # The three sections this package is *about*, in the order a reader meets
-  # them: the data it binds, the verbs that bind it, and the models that do
-  # both. The language is a dependency and is documented with itself, so it is
-  # one entry near the bottom rather than a section here.
-  - Data:
-      - Preparing the data: examples/data.md
-      - The data contract: reference/data.md
-  - Python API:
-      - The verbs: reference/api.md
-      - Sweeps and rolling horizons: reference/sweeps.md
+  # Arranged by what a page is for — tutorial, how-to guide, reference,
+  # explanation (https://diataxis.fr). `.claude/skills/docs-writing/SKILL.md`
+  # says how one kind is told from another. The folders under `docs/` are older
+  # and follow the subject; the nav is what a reader sees. The model pages and
+  # the ladder are reference in their own form, and stay top-level so the four
+  # reference pages are not lost among sixty.
+  - Tutorials:
+      - Run a model: guide.md
       - Change a model: interactive.ipynb
       - Fix, relax, remove: lifecycle.ipynb
+  - How-to guides:
+      - Preparing the data: examples/data.md
+  - Reference:
+      - The verbs: reference/api.md
+      - Sweeps and rolling horizons: reference/sweeps.md
+      - The data contract: reference/data.md
+      - Glossary: reference/glossary.md
+      # The language is a dependency and is documented with itself.
+      - The language: https://math-spec.readthedocs.io/en/latest/reference/language/
   - Examples:
       - examples/index.md
       - Teaching examples:
@@ -120,8 +126,6 @@ nav:
       - Rung 14: examples/pypsa_ladder/rung_14_stochastic.md
       - Rung 15: examples/pypsa_ladder/rung_15_multi_period.md
       - Rung 16: examples/pypsa_ladder/rung_16_link_delay.md
-  - Glossary: reference/glossary.md
-  - The language: https://math-spec.readthedocs.io/en/latest/reference/language/
   # Everything a reader does not need in order to write or run a model: design
   # notes, measured cost, project direction. One section, so the user path
   # above stays the whole of the top level.
