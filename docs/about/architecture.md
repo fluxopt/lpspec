@@ -224,7 +224,7 @@ and why, is [the roadmap](roadmap.md).
 
 ### The Python surface
 
-**Twenty names, and the count is the feature.** The model is the YAML file;
+**Twenty-one names, and the count is the feature.** The model is the YAML file;
 Python is how you *run* it — so the whole surface is the diagram above written
 out, with nothing that constructs math and nothing that reaches the plan. Names
 are `lpspec.` unless shown otherwise, and what each one *does* is
@@ -274,6 +274,7 @@ which is the line the count is drawn on.
 | | write an LP or MPS file for anything else | `write` | **yes** |
 | | solve it once per scenario, window or period | `solve_over` over a `EachCoordinate` / `EachWindow` axis | **yes** |
 | | build the same math as a `linopy.Model` | `lpspec.linopy.build` — `lps.build`'s own signature | **yes** |
+| **carry it** | archive or send the file with its data, as one zip | `pack`, attaching through the same door as `build`; `unpack` extracts it and gives back what every verb takes | **yes** |
 | **read it** | values, shadow prices, the objective | `result.objective` · `.primal` · `.dual`, plus the status pair | — |
 | | the quantity the model named | `result.expression(name)` — lowered on demand at the read, never at build; `lpspec.linopy.expression` on the other lane | — |
 | | bridge out to another library | `.to_pandas` · `.to_dataarray` · `.to_parquet` | — |
@@ -414,7 +415,7 @@ choice load-bearing in the language's rulebook.
    ([#381](https://github.com/fluxopt/lpspec/issues/381)). The Python surface is
    the runner (`api.py`) and the driver over it (`strategy.py`); the plan is
    internal. The whole of it is
-   [nineteen names](#the-python-surface), pinned by a test — so the surface grows
+   [twenty-one names](#the-python-surface), pinned by a test — so the surface grows
    through a list a reviewer reads, like every other fence here.
 
 ## The plan, node for node
@@ -658,7 +659,7 @@ is structure.
 | Module | Role |
 |---|---|
 | `math_spec` (a dependency) | the whole language: the file is read, expanded, resolved, judged and lowered there, and what crosses into this repository is its two public states — a `Spec`, what the file says, and the `Program` it lowers to — [its own reference](https://math-spec.readthedocs.io/en/latest/reference/language/) |
-| `api.py` | the runner: `check` / `build` / `solve` / `write`, linopy-free |
+| `api.py` | the runner: `check` / `build` / `solve` / `write`, and `pack` / `unpack` carrying a model with its data as one zip; linopy-free |
 | `lanes.py` | above both lanes: `Buildable`, what every verb takes as the spec, and `LANES`, what each lane can build, read by `check` without the extra and by the eager lane when it refuses |
 | `sources.py` | the one door: a caller's data (parquet paths, in-memory tables, plain-Python shapes) read into tidy frames and checked against the declarations — one row per coordinate, labels that exist, values present and of the declared type |
 | `curves.py` | the one guard that needs numbers rather than a schema: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |

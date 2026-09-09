@@ -99,6 +99,26 @@ def tidy_sources(program: Program, data: Mapping[str, object]) -> dict[str, pl.L
     return sources
 
 
+def supplied(program: Program, frames: Mapping[str, pl.LazyFrame]) -> dict[str, pl.LazyFrame]:
+    """:func:`tidy_sources`' frames in the shape it takes back — what an archive holds.
+
+    Two things separate what it returns from what it accepts, and both are
+    undone here: a parameter a ``piecewise:`` block derived is filled rather
+    than supplied, so it is dropped; a lookup's relation comes back with its
+    values under the lookup's own name, and is supplied with them under the
+    dimension they are labels of.
+    """
+    names = {lk.name: lk for _, lk in program.lookups}
+    takes = attachable(program)
+    out: dict[str, pl.LazyFrame] = {}
+    for name, frame in frames.items():
+        if name not in takes:
+            continue
+        lk = names.get(name)
+        out[name] = frame.rename({name: lk.target}) if lk is not None and lk.target is not None else frame
+    return out
+
+
 def unknown_source_keys_message(keys: Iterable[str], known: Iterable[str]) -> str:
     """A source key naming nothing the file declares — a typo, refused rather than ignored."""
     unknown = sorted(keys)
