@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import warnings
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -42,6 +41,7 @@ from math_spec.program import Program
 from lpspec.api import build, check
 from lpspec.errors import DataError, LpspecError, LpspecWarning, did_you_mean
 from lpspec.frames import as_frame
+from lpspec.relational.parquet import KINDS, LABELS, write_whole
 from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to_pandas
 from lpspec.sources import least_value
 
@@ -257,11 +257,6 @@ def _keyed(frame: pl.DataFrame, key_name: str, key: Any) -> pl.DataFrame:
     return frame.select(pl.lit(key).alias(key_name), pl.all())
 
 
-#: What a sweep holds a frame of — the three readers — and what each is a frame of.
-_KINDS = ('primal', 'dual', 'expression')
-_LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expression'}
-
-
 @dataclass(frozen=True)
 class _Spill:
     """A sweep's answers on disk instead of in memory, one file per slice and name.
@@ -311,11 +306,11 @@ class _Spill:
 
     def write(self, position: int, key: Any, answer: _Answer) -> _Answer:
         """*answer*'s frames and record on disk, and the answer with the frames released."""
-        for kind, produced in zip(_KINDS, (answer.primals, answer.duals, answer.expressions), strict=True):
+        for kind, produced in zip(KINDS, (answer.primals, answer.duals, answer.expressions), strict=True):
             for name, frame in produced.items():
-                _whole(_keyed(frame, self.key_name, key), self._file(kind, position, name))
-        _whole(pl.DataFrame([{self.key_name: key, **answer.cost}]), self._file('diagnostics', position))
-        _whole(pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}]), self._file('objective', position))
+                write_whole(_keyed(frame, self.key_name, key), self._file(kind, position, name))
+        write_whole(pl.DataFrame([{self.key_name: key, **answer.cost}]), self._file('diagnostics', position))
+        write_whole(pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}]), self._file('objective', position))
         return replace(answer, primals={}, duals={}, expressions={})
 
     def read_back(self, position: int) -> _Answer:
@@ -337,14 +332,6 @@ class _Spill:
         """Every slice's frame of *name*, lazily and in slice order, or ``None`` where no slice wrote one."""
         under = self.directory / kind / name
         return pl.scan_parquet(sorted(under.glob('*.parquet'))) if under.is_dir() else None
-
-
-def _whole(frame: pl.DataFrame, path: Path) -> None:
-    """*frame* at *path*, arriving whole: written beside it and renamed into place."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    part = path.with_name(path.name + '.part')
-    frame.write_parquet(part)
-    os.replace(part, path)
 
 
 def _listed(entries: Mapping[str, str]) -> str:
@@ -733,8 +720,8 @@ class Runs:
             LpspecError: No slice produced *name*, or a *kind* that names no
                 reader.
         """
-        if kind not in _KINDS:
-            raise LpspecError(f'scan reads one of {", ".join(_KINDS)}, not {kind!r}')
+        if kind not in KINDS:
+            raise LpspecError(f'scan reads one of {", ".join(KINDS)}, not {kind!r}')
         if self._spill is None:
             reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[kind]
             return reader(name, original_index=original_index).lazy()
@@ -742,7 +729,7 @@ class Runs:
         if frame is None:
             absent = {'primal': None, 'dual': self._no_duals, 'expression': self._no_expressions.get(name)}[kind]
             held = dict.fromkeys(self._spill.held(kind))
-            raise LpspecError(absent or _nothing_to_read(_LABELS[kind], name, held, self.objective))
+            raise LpspecError(absent or _nothing_to_read(LABELS[kind], name, held, self.objective))
         return self._reindexed(frame, original_index=original_index)
 
     def primal(self, name: str, *, original_index: bool = False) -> pl.DataFrame:
@@ -834,40 +821,55 @@ class Runs:
     def to_dataset(self, *names: str) -> xr.Dataset:
         """Kept variables as one :class:`xarray.Dataset`; all of them by default.
 
-        Costs more than ``Result``'s does — each variable arrives dense over
-        its own dims *and* over every slice. Name the few you need, or use
-        :meth:`to_parquet`.
+        Variables only: a dual or an expression in the same dataset would
+        collide with a variable of the same name and mean something else per
+        row. Costs more than ``Result``'s does — each variable arrives dense
+        over its own dims *and* over every slice. Name the few you need, or
+        use :meth:`to_parquet`, which writes every kind.
 
         No ``original_index``: this and :meth:`to_parquet` export what the
         sweep *holds*, and the original index is lossy — a bulk export is the
         wrong place to drop the lookahead rows.
 
         Raises:
-            LpspecError: The sweep holds no variable values at all.
+            LpspecError: The sweep holds no variable values at all, or is
+                spilled — its frames are on disk already.
         """
         return tidy_to_dataset(names or self._variables_held(), self.to_dataarray)
 
-    def to_parquet(self, directory: str | Path) -> dict[str, Path]:
-        """One parquet file per variable the sweep holds, ``(key, dims…, value)``.
+    def to_parquet(self, directory: str | Path) -> Path:
+        """Everything the sweep holds, written as ``to=`` would have written it.
 
-        Written in :meth:`primal`'s order, so the same sweep writes the same
-        bytes.
+        The same layout: ``<kind>/<name>/<position>.parquet`` for every
+        primal, dual and expression, the slice key a column of each, with
+        ``objective/``, ``diagnostics/`` and the manifest beside them. So the
+        directory is a spilled sweep: :meth:`scan` reads it, and the call
+        that made this sweep, pointed at it with ``to=``, reads it back
+        without solving a slice.
 
         Returns:
-            Each variable's name, mapped to the file it was written to.
+            The directory.
 
         Raises:
-            LpspecError: The sweep holds no variable values at all.
+            LpspecError: The sweep holds no variable values at all, or is
+                spilled — its frames are in a directory already.
         """
-        held = self._variables_held()
-        directory = Path(directory)
-        directory.mkdir(parents=True, exist_ok=True)
-        written: dict[str, Path] = {}
-        for name in held:
-            path = directory / f'{name}.parquet'
-            self.primal(name).write_parquet(path)
-            written[name] = path
-        return written
+        self._variables_held()
+        spill = _Spill.opened(directory, self.key_name, self.keys)
+        by_key = {
+            kind: {name: _by_key(frames, self.key_name) for name, frames in held.items()}
+            for kind, held in zip(KINDS, (self._primals, self._duals, self._expressions), strict=True)
+        }
+        for position, key in enumerate(self.keys):
+            meta = _SliceMeta(**self.objective.drop(self.key_name).row(position, named=True))
+            cost = self.diagnostics.drop(self.key_name).row(position, named=True)
+            frames = {
+                kind: {name: keyed[key] for name, keyed in names.items() if key in keyed}
+                for kind, names in by_key.items()
+            }
+            answer = _Answer(meta, dict(cost), frames['primal'], frames['dual'], frames['expression'], None, {})
+            spill.write(position, key, answer)
+        return spill.directory
 
     def _variables_held(self) -> tuple[str, ...]:
         """Every variable some slice produced, sorted — what a bulk export writes.
@@ -883,6 +885,16 @@ class Runs:
 
     def __len__(self) -> int:
         return self.objective.height
+
+
+def _by_key(frames: Sequence[pl.DataFrame], key_name: str) -> dict[Any, pl.DataFrame]:
+    """One name's held frames by the slice key each carries, the key column dropped.
+
+    Held per slice that produced the name, not per slice, so the key is read
+    off the frame rather than counted; an empty frame carries none and is
+    left out, which is what the spill would have written for it.
+    """
+    return {frame[key_name][0]: frame.drop(key_name) for frame in frames if frame.height}
 
 
 def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], objective: pl.DataFrame) -> str:

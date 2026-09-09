@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
+from lpspec.relational.parquet import write_whole
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -551,28 +552,48 @@ class Result:
     def to_dataset(self, *names: str) -> xr.Dataset:
         """The named variables as one :class:`xarray.Dataset`; all by default.
 
-        Each arrives dense over its own dims, all at once — on a large model
-        name the few you need, or use :meth:`to_parquet`.
+        Variables only: a dual or an expression in the same dataset would
+        collide with a variable of the same name and mean something else per
+        row. Each arrives dense over its own dims, all at once — on a large
+        model name the few you need, or use :meth:`to_parquet`, which writes
+        every kind.
         """
         wanted = names or tuple(self._readable(self._primals, 'the solution'))
         return tidy_to_dataset(wanted, self.to_dataarray)
 
-    def to_parquet(self, directory: str | Path) -> dict[str, Path]:
-        """Write one parquet file per variable into *directory*.
+    def to_parquet(self, directory: str | Path) -> Path:
+        """Every kind this solve answered with, one file per name, into *directory*.
 
-        Streamed to disk in :meth:`primal`'s order, so the same model and data
-        write the same bytes.
+        ``primal/<name>.parquet`` for every variable, ``dual/<name>.parquet``
+        for every constraint where the duals are defined, and
+        ``expression/<name>.parquet`` for every named expression this data
+        can evaluate — an integer variable leaves the duals out, and an
+        expression that fails on this data is left out, :meth:`expression`
+        still saying why. The primals are streamed to disk in
+        :meth:`primal`'s order, so the same model and data write the same
+        bytes.
 
         Returns:
-            Each variable's name, mapped to the file it was written to.
+            The directory.
+
+        Raises:
+            NoSolutionError: The solve left no values to write.
+            LpspecError: This result was closed.
         """
-        frames = self._readable(self._primals, 'the solution')
+        primals = self._readable(self._primals, 'the solution')
         out = Path(directory)
-        out.mkdir(parents=True, exist_ok=True)
-        written = {name: out / f'{name}.parquet' for name in frames}
-        for name, frame in frames.items():
-            frame.sink_parquet(written[name])
-        return written
+        for name, frame in primals.items():
+            write_whole(frame, out / 'primal' / f'{name}.parquet')
+        if self._no_duals is None:
+            for name, frame in (self._duals or {}).items():
+                write_whole(frame, out / 'dual' / f'{name}.parquet')
+        for name, reader in (self._expressions or {}).items():
+            try:
+                evaluated = reader()
+            except LpspecError:
+                continue
+            write_whole(evaluated, out / 'expression' / f'{name}.parquet')
+        return out
 
     def close(self) -> None:
         """Release what this result holds early. Optional.

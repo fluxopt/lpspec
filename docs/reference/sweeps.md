@@ -92,6 +92,14 @@ window owns and drops the lookahead rows the sweep solved. For the same reason
 `to_dataset` and `to_parquet` have no `original_index` — a bulk export of what
 the sweep holds is the wrong place to lose rows.
 
+**`to_parquet` writes every kind, `to_dataset` the variables.**
+`runs.to_parquet('runs/')` writes what `to=` would have written — every primal,
+dual and expression, one file per slice and name, with the record and the
+manifest — so the directory is a spilled sweep: `scan` reads it, and the call
+that made the sweep, pointed at it with `to=`, reads it back without solving.
+`to_dataset` stays variables only: a dual or an expression in the same dataset
+would collide with a variable of the same name.
+
 Per slice is a partition of a frame you already have, so there is no reader for
 it: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 
@@ -107,7 +115,7 @@ it: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 | **a hand-built axis names its own key** | a plain list of slices cannot say what its keys are coordinates *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name anywhere, and is refused only when it collides with a column the frames already carry — a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective` |
 | **what each slice cost is `runs.diagnostics`** | one row per slice, `(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)` — `model.diagnostics()` one dimension wider, its counts and clocks only. `loaded` says the solver took the model from scratch: a serial sweep loads once and pushes values after, so a later `True` is a slice whose data moved a mask; under `executor=` every slice builds alone and every one loads. The clocks are that slice's own seconds, so a slow sweep says which slice and which phase |
 | **a slice that fails says which slice** | the error is the engine's own, untouched, with a note on it — `in slice 'bad' (3 of 3)` — so a fifty-window traceback names the window without anyone counting |
-| **a sweep's memory grows with its answer, unless it is spilled** | the models are released as the fold goes; the extracted frames accumulate. `to=` writes them out instead — [below](#spilling-a-sweep-to-disk) — and `to_parquet` copies out frames already in memory: a bridge, not a bound |
+| **a sweep's memory grows with its answer, unless it is spilled** | the models are released as the fold goes; the extracted frames accumulate. `to=` writes them out instead — [below](#spilling-a-sweep-to-disk) — and `to_parquet` writes a held sweep out the same way, after the fact |
 
 ## Spilling a sweep to disk
 

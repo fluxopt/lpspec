@@ -1114,11 +1114,31 @@ def test_the_readers_mirror_result_with_the_slice_key_as_one_more_dimension(swee
     assert dataset['p'].dims == ('scenario', 'snapshot', 'generator')
 
 
-def test_to_parquet_writes_one_file_per_kept_variable(sweep, tmp_path):
-    """The bridge out for a sweep too wide to want in one array."""
-    written = sweep.to_parquet(tmp_path / 'sweep')
-    assert set(written) == {'p'}
-    assert pl.read_parquet(written['p']).equals(sweep.primal('p'))
+def test_to_parquet_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(priced, builds, tmp_path):
+    """`to_parquet` is the spill after the fact: the same layout, all three
+    kinds and the record, so `scan` reads it and the same call pointed at it
+    with `to=` reads it back without solving a slice."""
+    out = priced.to_parquet(tmp_path / 'sweep')
+    assert out == tmp_path / 'sweep', 'the directory comes back, not a dict nobody indexes'
+    assert sorted(p.name for p in out.iterdir()) == [
+        'diagnostics',
+        'dual',
+        'expression',
+        'objective',
+        'primal',
+        'sweep.json',
+    ], 'the three kinds, the record, and the manifest'
+    assert sorted(p.name for p in (out / 'expression').iterdir()) == ['spend', 'window_spend'], (
+        'every declared expression the slices evaluated'
+    )
+
+    built = builds(strategy)
+    reopened = _spilled(out)
+    assert built == [], 'a directory the export wrote is a sweep already done'
+    assert reopened.objective.equals(priced.objective)
+    assert reopened.scan('soc').collect().equals(priced.primal('soc'))
+    assert reopened.scan('balance', 'dual').collect().equals(priced.dual('balance'))
+    assert reopened.scan('spend', 'expression').collect().equals(priced.expression('spend'))
 
 
 @pytest.mark.parametrize('export', ['to_dataset', 'to_parquet'], ids=['to_dataset', 'to_parquet'])
@@ -1720,3 +1740,15 @@ def test_scan_on_a_spilled_sweep_says_what_it_does_hold(tmp_path):
     runs = _spilled(tmp_path)
     with pytest.raises(lps.LpspecError, match=r"no variable 'nope' in this sweep — it holds 'charge', 'discharge'"):
         runs.scan('nope')
+
+
+def test_an_export_reads_the_key_off_each_frame_and_skips_an_empty_one(sweep):
+    """A name is held per slice that produced it, not per slice, so an export
+    cannot count positions: it reads the key off each frame, and a frame with
+    no rows — a variable every row of which a slice masked — carries none and
+    is left out, which is what the spill writes for it."""
+    frames = [f for f in sweep._primals['p']]
+    empty = frames[0].clear()
+    by_key = strategy._by_key([empty, *frames], sweep.key_name)
+    assert list(by_key) == ['high', 'low', 'mid'], 'one entry per frame that has rows, keyed by its own key'
+    assert all(sweep.key_name not in frame.columns for frame in by_key.values()), 'the key column is dropped'

@@ -448,7 +448,7 @@ class TestWhatBindRefusesAndWhatItTakes:
         lps.write(spec, sources, odd / 'model.lp')
         result = lps.solve(spec, sources)
         assert result.objective == pytest.approx(3.0)
-        assert set(result.to_parquet(odd / 'solution')) == {'p'}
+        assert (result.to_parquet(odd / 'solution') / 'primal' / 'p.parquet').exists()
 
     def test_a_dictionary_encoded_source_column_binds_like_a_plain_one(self):
         """A `Categorical` dim column is a source encoding, not a different model.

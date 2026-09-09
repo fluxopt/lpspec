@@ -374,14 +374,45 @@ def test_write_suffix_dispatch(dispatch_yaml, dispatch_frame_inputs, tmp_path):
         lps.write(dispatch_yaml, sources, tmp_path / 'm.nc')
 
 
-def test_solution_to_parquet(dispatch_solution, tmp_path):
-    """One file per variable, tidy, streamed straight to disk."""
+def test_solution_to_parquet(dispatch_solution, dispatch_yaml, tmp_path):
+    """Every kind the solve answered with, tidy, streamed straight to disk.
+
+    `<kind>/<name>.parquet`, because the language lets a constraint carry a
+    variable's name and a flat directory could not hold both.
+    """
     assert dispatch_solution.is_ok
-    written = dispatch_solution.to_parquet(tmp_path / 'solution')
-    assert set(written) == {'p'}
-    frame = pl.read_parquet(written['p'])
+    out = dispatch_solution.to_parquet(tmp_path / 'solution')
+    assert out == tmp_path / 'solution'
+    frame = pl.read_parquet(out / 'primal' / 'p.parquet')
     assert set(frame.columns) == {'snapshot', 'generator', 'value'}
     assert frame.height == dispatch_solution.primal('p').height
+    assert {p.stem for p in (out / 'dual').iterdir()} == set(lps.check(dispatch_yaml).constraints), (
+        'one dual file per constraint'
+    )
+
+
+def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
+    """An integer variable leaves the duals undefined and the export leaves
+    them out; an expression that cannot be evaluated on this data is left out
+    the same way, and `expression()` still says why."""
+    spec = {
+        'dimensions': {'t': {'dtype': 'int'}},
+        'parameters': {'load': {'dims': ['t']}, 'scale': {'dims': ['t']}},
+        'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
+        'constraints': {'meet': {'foreach': ['t'], 'expression': 'p >= load'}},
+        'expressions': {'twice': '2 * p', 'ratio': 'p / scale'},
+        'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
+    }
+    sources = {'t': range(2), 'load': [1.5, 2.5], 'scale': pl.DataFrame({'t': [0], 'value': [2.0]})}
+    with lps.solve(spec, sources) as result:
+        out = result.to_parquet(tmp_path)
+        with pytest.raises(lps.LpspecError):
+            result.expression('ratio')
+    assert sorted(p.name for p in out.iterdir()) == ['expression', 'primal'], 'no duals to write, so no dual/'
+    assert [p.name for p in (out / 'expression').iterdir()] == ['twice.parquet'], 'the one that evaluated'
+    assert pl.read_parquet(out / 'expression' / 'twice.parquet')['value'].to_list() == [4.0, 6.0], (
+        'twice the integer dispatch that meets 1.5 and 2.5'
+    )
 
 
 def test_read_back_is_in_label_order_and_stays_there(dispatch_yaml, dispatch_frame_inputs, tmp_path):
@@ -407,7 +438,9 @@ def test_read_back_is_in_label_order_and_stays_there(dispatch_yaml, dispatch_fra
         )
         assert by_declaration.equals(by_declaration.sort('snapshot', 'ord'))
 
-        written = [result.to_parquet(tmp_path / f'solution{i}')['p'].read_bytes() for i in range(3)]
+        written = [
+            (result.to_parquet(tmp_path / f'solution{i}') / 'primal' / 'p.parquet').read_bytes() for i in range(3)
+        ]
         assert len(set(written)) == 1, 'the same solution writes the same bytes'
 
 
