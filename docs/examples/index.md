@@ -162,12 +162,10 @@ combination with others.
 published with the model or from a reference implementation hand-written on
 another stack. The provenance column says which. Every model on this page runs
 in the test suite, so a test alone distinguishes nothing. The badge marks the
-one check that catches a shared misreading: both
+one check that catches a shared misreading, the differential suite's
+[blind spot](../about/linopy.md#2-it-is-the-oracle): both
 [lanes](../reference/glossary.md#how-it-runs) agreeing on a meaning the
-modeller did not intend. The differential harness compares two lanes that
-consume the same resolved AST (abstract syntax tree)
-([hard rule 1](../about/architecture.md#hard-rules)), so such a misreading
-passes every lpspec-against-lpspec test. This table is the evidence behind
+modeller did not intend. This table is the evidence behind
 [the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/#two-tiers-and-the-ceiling).
 
 <!-- references:begin -->

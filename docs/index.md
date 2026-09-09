@@ -244,7 +244,7 @@ is a choice, and **How** shows the one that was made here.
 
     ---
 
-    The recipe from the files an instance arrives in to one frame per
+    The recipe from the files an instance arrives in to one table per
     parameter, and the contract for what attaching accepts and refuses.
 
     [:octicons-arrow-right-24: Preparing the data](howto/data.md) ·

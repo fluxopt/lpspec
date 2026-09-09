@@ -15,14 +15,14 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 
 **Spec**
 : The math before any data: a YAML file, a mapping, or a `Spec` from
-  `math_spec.to_spec`. It declares dimensions, parameters, variables,
-  constraints and objective, carries no numbers, and is what is checked for
-  being *sayable*. Every verb takes it first.
+  `math_spec.to_spec`. It carries no numbers, and every verb takes it first.
+  What it may contain is
+  [the language](https://math-spec.readthedocs.io/en/latest/reference/language/).
 
 **Program**
-: A spec parsed, expanded, validated and *lowered* to the plan. [`check`](api.md)
-  returns one and a build reads rows off one. Still no data. It is
-  `math_spec`'s own type.
+: The spec lowered to the plan a build reads its rows off: what [`check`](api.md)
+  returns, still with no data. The two states are the language's
+  ([reading a loaded model](https://math-spec.readthedocs.io/en/latest/reference/language/reading/#two-states-and-the-difference-between-them)).
 
 **Model**
 : A spec with data attached: what [`build`](api.md) returns (`lpspec.Model`).
@@ -31,7 +31,7 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 
 **Result**
 : One answer read back from a solve: `objective`, `primal(name)`,
-  `dual(name)`, `expression(name)`. It owns its frames, so it outlives its
+  `dual(name)`, `expression(name)`. It owns its tables, so it outlives its
   model.
 
 ## The verbs
@@ -49,13 +49,13 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 : The type alias for a spec argument: `str | Path | dict | Spec | Program`.
 
 **Source**
-: The type alias for one value of `sources`: a parquet path, a table (polars,
-  pandas, any Arrow-capsule table), a `{label: value}` map, a sequence, or one
-  number.
+: The type alias for one value of `sources`. The shapes it covers are
+  [the data contract](data.md#what-a-parameter-accepts).
 
 **Label**
 : One member of a dimension, `wind` say, and its type alias:
-  `int | float | str | datetime`. A sweep's slice key is a label too.
+  `int | float | str | datetime`. A sweep's slice key is a label too, and
+  `EachCoordinate(dim)` slices on one label of `dim` at a time.
 
 ## The data
 
@@ -66,16 +66,18 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 
 **Coordinate**
 : One point of a declaration's dimensions: one snapshot for one generator. A
-  parameter has a value at each coordinate it covers, or no row there.
+  parameter has a value at each coordinate it covers, or no row there. The
+  language calls the dimensions themselves the declaration's *frame*
+  ([named expressions](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions)).
 
-**Frame**
-: A table in memory, polars by default: one column per dimension, a `value`
-  column, one row per coordinate.
+**Table**
+: A polars `DataFrame` with one column per dimension, a `value` column and one
+  row per coordinate: what a parameter arrives as, and what `primal` hands
+  back.
 
 **Mask**
-: The `where:` on a declaration. An excluded coordinate has no row and no
-  column: absent, not zero
-  ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/)).
+: The `where:` on a declaration. What an excluded coordinate means is
+  [absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/).
 
 ## How it runs
 
@@ -83,11 +85,11 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 : One of two ways a spec is executed. The **relational lane** (the default)
   validates at load time, lowers to the plan and streams on polars. The
   **linopy lane** (`lpspec.linopy`, the `[linopy]` extra) builds the same spec
-  as a `linopy.Model`. Both accept exactly the same language, which makes the
-  differential tests an oracle.
+  as a `linopy.Model`. Both accept the same language
+  ([relationship to linopy](../about/linopy.md#2-it-is-the-oracle)).
 
 **Engine**
-: The relational lane's builder: it fills the model's frames from the attached
+: The relational lane's builder: it fills the model's tables from the attached
   data and hands them to a sink.
 
 **Sink**
@@ -106,7 +108,7 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 
 **Tables**
 : The built model as a sink sees it: `cols` (bounds, type), `obj`, `rows`,
-  `matrix` (CSR), `quad` and `sos`, as frames.
+  `matrix` (CSR), `quad` and `sos`.
 
 **keep**
 : How much of a session `model.solve` carries to the next solve: `solver`

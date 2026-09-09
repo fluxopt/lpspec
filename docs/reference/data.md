@@ -41,7 +41,7 @@ index attaches to the declared dimension. A named index attaches by that name,
 and a name outside the declared dimensions raises.
 
 **A `MultiIndex` is refused.** A parameter over two dimensions arrives as a
-frame with both as columns. `series.reset_index()` is the whole change.
+table with both as columns. `series.reset_index()` is the whole change.
 
 **An `xr.DataArray` is refused.** Pass `array.to_series().reset_index()`.
 `Result.to_dataarray()` is the way back out.
@@ -61,25 +61,15 @@ occurrence of each label is its position, and that order is what
 [`shift`](https://math-spec.readthedocs.io/en/latest/reference/language/operators/#shift)
 reads positionally.
 
-**The spec never names the labels.** A declaration says the axis exists and
-what its labels are typed as.
-
 **A dimension nothing supplies raises.** Attach never reads labels out of the
-parameters.
+parameters. Which labels an axis has is data's to say, and that rule is
+[the language's](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/).
 
-**A [map](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#lookups)
-is not an index.** It is a partial relation over the dimension: it may omit
-members, and it arrives in whatever order it was typed. Attach reads a map
-against the labels the index supplied. **Labels go under the dimension's key,
-and each map under its own.**
-
-**Reading a map against the index is not symmetric.** A label no map mentions
-is unmapped. A key matching no label is refused as a typo.
-
-**A map supplied as data is a
-[`(over, <label space>)` table](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#otherwise-it-is-supplied-under-the-lookups-own-name)
-of the rows it has.** An unmapped label is one with no row, the absence rule
-everything else obeys.
+**A map goes under
+[the lookup's own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#the-map-is-supplied-under-the-lookups-own-name)**,
+as a table of the rows it has. Attach reads it against the labels the index
+supplied: a label no row mentions is unmapped, and a key matching no label is
+refused as a typo.
 
 ## What attaching refuses and accepts
 
@@ -94,7 +84,7 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | a declared parameter with no data | names the parameter |
 | a source nothing can be read as a table from | names the shapes that are read |
 | an `xr.DataArray` | names `to_series().reset_index()` |
-| a `pd.Series` with a `MultiIndex` | names the frame and the `reset_index()` that gets there |
+| a `pd.Series` with a `MultiIndex` | names the table and the `reset_index()` that gets there |
 | a `dims: []` parameter whose source has more than one row | one value broadcast everywhere has one row |
 | a dict or a sequence for a parameter over more than one dimension | each runs along one dimension |
 | a sequence whose length is not the dimension's | positional, so one entry per label |

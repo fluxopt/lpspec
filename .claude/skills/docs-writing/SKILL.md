@@ -153,13 +153,13 @@ not
 ## 6. Vocabulary
 
 - **Gloss house vocabulary at first use** — _spec_, _program_, _model_,
-  _result_, _source_, _sink_, _coordinate_, _frame_, _mask_. One clause with a
+  _result_, _source_, _sink_, _coordinate_, _table_, _mask_. One clause with a
   concrete instance: "one point of it, one snapshot for one generator, is a
   coordinate".
 - **Gloss every acronym and domain term at first use**, in parentheses, six
   words or fewer.
 - **One word per concept, for the whole page.** _dims_, _dimensions_ and
-  _frame_ are three words, and a reader counts three ideas. Vary nothing for
+  _axis_ are three words, and a reader counts three ideas. Vary nothing for
   rhythm.
 - **No overloaded words** — do not write "the case in point" beside a `cases:`
   keyword.

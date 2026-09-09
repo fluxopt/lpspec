@@ -16,7 +16,7 @@ The issues are the list, and this page is the argument for what the list is
 
 An optimisation model is math worth reading, and it usually arrives as Python
 that *builds* math. The equations are entangled with the loops, the
-[frames](../reference/glossary.md#the-data) and the library that assembled
+[tables](../reference/glossary.md#the-data) and the library that assembled
 them. A diff then shows scaffolding rather than constraints, and nothing can
 read the model except the program that wrote it. Reviewing such a model means
 reviewing a program.
@@ -30,12 +30,11 @@ understanding the builder. Every rule below follows from that.
 
 **One language, more than one place to run it.** The same file builds natively
 on the relational engine or onto a `linopy.Model` that already exists in
-memory. That is neither a fallback nor a dialect. It is one language, so a
-differential test between the two
-[lanes](../reference/glossary.md#how-it-runs) is an oracle rather than a
-comparison.
+memory. That is neither a fallback nor a dialect: one language, and the second
+[lane](../reference/glossary.md#how-it-runs) is
+[the oracle](linopy.md#2-it-is-the-oracle) for the first.
 
-**A build that streams, with a ceiling you can declare.** The model is frames
+**A build that streams, with a ceiling you can declare.** The model is tables
 and the build is relational, so nothing dense is ever materialised. Peak memory
 tracks the model rather than a number someone guessed. What is missing is the
 *declaration*: there is no way to say "build this within N gigabytes or fail".
@@ -45,7 +44,7 @@ closure already guarantees is safe.
 **A solve that explains itself.** A solved model should tell you why it is
 infeasible, what a row costs and what changed since the last solve. It should
 do so without opening a file no editor can hold. Most of that is a query over
-frames that already exist.
+tables that already exist.
 
 **Component libraries, composed rather than generated.** A fixed set of
 parametrised templates agree on a port/flow convention and merge into one

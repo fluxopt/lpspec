@@ -50,7 +50,10 @@ nav:
       - Fix, relax, remove: lifecycle.ipynb
   - How-to guides:
       - Preparing the data: howto/data.md
-      - Editor completion and offline checking: howto/editor.md
+      # The schema is the language's, so the editor recipe is documented with it.
+      - Editor completion and offline checking: https://math-spec.readthedocs.io/en/latest/installation/#editor-completion-and-offline-checking
+      - Running a sweep in parallel: howto/parallel.md
+      - Debugging a wrong answer: howto/debug.md
   - Reference:
       - The verbs: reference/api.md
       - Sweeps and rolling horizons: reference/sweeps.md

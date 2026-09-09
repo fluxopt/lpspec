@@ -151,7 +151,7 @@ and the check comes out with it
 acting along a dimension that a constant part does not carry**, beside a term
 that does. Take `sum(x * k + d, over=t)` where `d` is a scalar. The relational
 lane compiles a constant part as its own
-[frame](../reference/glossary.md#the-data). A fragment with no rows for `t`
+[table](../reference/glossary.md#the-data). A fragment with no rows for `t`
 has no slots for the operator to act on. Under a mask, only the rows know which
 slots those are. This lane has no such split. The operand is one masked
 expression, so the constant is dropped wherever the term is, and the lane
