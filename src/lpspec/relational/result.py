@@ -584,9 +584,8 @@ class Result:
         out = Path(directory)
         for name, frame in primals.items():
             write_whole(frame, out / 'primal' / f'{name}.parquet')
-        if self._no_duals is None:
-            for name, frame in (self._duals or {}).items():
-                write_whole(frame, out / 'dual' / f'{name}.parquet')
+        for name, frame in (self._duals or {}).items():
+            write_whole(frame, out / 'dual' / f'{name}.parquet')
         for name, reader in (self._expressions or {}).items():
             try:
                 evaluated = reader()
