@@ -1,9 +1,7 @@
 # About
 
-Why the package is shaped the way it is, what it costs, where it came from and
-where it is going. Nothing here is needed to write or run a model — that is
-[the guide](../guide.md), [the API](../reference/api.md) and
-[the language](https://math-spec.readthedocs.io/en/latest/reference/language/).
+Why the package is shaped the way it is, what it costs, where it came from
+and where it is going. Nothing here is needed to write or run a model.
 
 | | |
 |---|---|
@@ -16,7 +14,6 @@ where it is going. Nothing here is needed to write or run a model — that is
 | [Roadmap](roadmap.md) | where it is going, and what it will not become |
 | [Changelog](changelog.md) | every release |
 
-Contributing — the test loop, the CI gates, how to add a solver or a port — is
+Contributing is
 [CONTRIBUTING.md](https://github.com/fluxopt/lpspec/blob/main/CONTRIBUTING.md)
-and [AGENTS.md](https://github.com/fluxopt/lpspec/blob/main/AGENTS.md) in the
-repository.
+and [AGENTS.md](https://github.com/fluxopt/lpspec/blob/main/AGENTS.md).

@@ -108,13 +108,14 @@ pixi run docs        # http://127.0.0.1:8000, live-reloading
 pixi run docs-build  # what CI runs, and what Read the Docs runs
 ```
 
-**What a page is for decides where it goes in the nav.** A tutorial, a how-to
-guide, reference or explanation — the four kinds of
-[Diátaxis](https://diataxis.fr) — and one page is one kind. The rules each kind
-has to meet, and the sentence-level bar, are in
-[the docs-writing skill](.claude/skills/docs-writing/SKILL.md). Design notes,
-measured cost, project direction and the changelog are explanation, under
-`docs/about/`, reachable and out of the way.
+**What a page is for decides where it goes, in the nav and in the tree.** A
+tutorial (`docs/`), a how-to guide (`docs/howto/`), reference
+(`docs/reference/`, and the model pages in `docs/examples/`) or explanation
+(`docs/about/`) — the four kinds of [Diátaxis](https://diataxis.fr) — and one
+page is one kind. The rules each kind has to meet, and the sentence-level bar,
+are in [the docs-writing skill](.claude/skills/docs-writing/SKILL.md). Design
+notes, measured cost, project direction and the changelog are explanation,
+reachable and out of the way.
 
 Three rules on top of that, each enforced, so none has to be remembered:
 

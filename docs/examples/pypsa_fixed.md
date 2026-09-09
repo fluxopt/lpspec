@@ -83,7 +83,7 @@ $$0 \le p^{\mathrm{nom}}_{g} \le \mathrm{p}^{\mathrm{nom,max}}_{g} \qquad \foral
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 

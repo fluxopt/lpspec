@@ -145,7 +145,7 @@ construct outside the language is a load error naming its rewrite.
 
 Start with [**running a model**](docs/guide.md) — a file and your tables to an
 answer, with the language in five links. Then
-[preparing the data](docs/examples/data.md) and
+[preparing the data](docs/howto/data.md) and
 [what attaching refuses](docs/reference/data.md), the
 [Python API](docs/reference/api.md) for the verbs, and
 [the examples](docs/examples/index.md) to browse. What a file may contain is

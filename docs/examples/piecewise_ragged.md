@@ -93,7 +93,7 @@ $$0 \le \mathit{cost\_curve\_lam}_{t,g,b} \le 1 \qquad \forall\thinspace t \in \
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 

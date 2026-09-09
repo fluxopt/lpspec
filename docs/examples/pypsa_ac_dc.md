@@ -133,7 +133,7 @@ $$\mathit{link\_p\_nom}_{i} \ge 0 \qquad \forall\thinspace i \in \mathcal{I}$$
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
