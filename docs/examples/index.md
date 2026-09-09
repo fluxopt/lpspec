@@ -1,18 +1,18 @@
 # Examples
 
-Every model in the repository, what each says, which constructs it exercises,
-and whether an outside optimum checks its answer. Read it to decide whether
-the language can say your model.
+This page lists every model in the repository, which constructs each
+exercises and whether an outside optimum checks its answer, so you can decide
+whether the language can say yours.
 
-Three questions, in the order you probably have them:
+Three questions:
 **[can it say my model?](#can-it-say-my-model)** ·
 **[is it readable?](#every-model)** ·
 **[does it get the right answer?](#does-it-get-the-right-answer)** The first
 and the third are the two tables on this page. The second is each model page,
 where the file sits beside the same model written on another stack.
 
-Every page starts from data in the shape the call wants.
-[Preparing the data](../howto/data.md) is where that shape comes from.
+Every page starts from data in the shape
+[preparing the data](../howto/data.md) produces.
 
 ## Every model
 
@@ -80,23 +80,20 @@ Every page starts from data in the shape the call wants.
 <!-- catalogue:end -->
 
 The three blocks on this page are generated. The catalogue comes from the site
-nav and each page's own opening line. The constructs matrix comes from each
-model's resolved plan. The reference table comes from
-`examples/ports/references.json`, the same file the tests assert against.
+nav and each page's opening line. The constructs matrix comes from each
+model's resolved plan rather than its YAML text. The reference table comes
+from `examples/ports/references.json`, the file the tests assert against.
 `pixi run python -m tools.constructs` regenerates all three, and a test fails
-if any of them is stale.
+if any is stale.
 
-Every page also carries the model **as math**, typeset from the same file the
-engine builds (`pixi run python -m tools.gallery_math`, gated the same way).
-Where a model has a symbol table in `examples/symbols/`, the math block uses
-the notation of that model's prose.
+Every page also carries the model **as math**, typeset from the file the
+engine builds by `pixi run python -m tools.gallery_math` and gated the same
+way. A model with a symbol table in `examples/symbols/` is typeset in the
+notation of its own prose.
 
 ## Can it say my model?
 
-Each row is read off the resolved plan of the model, not its YAML text, so the
-matrix cannot drift from what the engine builds. A model here is one spec (the
-math, as a YAML file) with its data attached; the
-[glossary](../reference/glossary.md) holds the terms.
+A model here is one [spec](../reference/glossary.md) with its data attached.
 
 <!-- constructs:begin -->
 | model | verified | `sum` | `sum(by=)` | `at()` | `shift` | `shift(edge='wrap')` | `where` | `bounds` | `piecewise` | `sos` | MILP |
@@ -149,32 +146,28 @@ math, as a YAML file) with its data attached; the
 | [tsp_mtz](tsp_mtz.md) | **✔** 2085 | **✓** | **✓** | · | · | · | **✓** | **✓** | · | · | **✓** |
 <!-- constructs:end -->
 
-**Every construct has a verified model behind it.** Each column carries at
-least one model whose optimum came from somebody else. The witness for
-`roll / shift` is [ramp limits](pypsa_ramp.md), for integrality
+**Every construct has a verified model behind it**, one whose optimum came
+from somebody else. The witness for `roll / shift` is
+[ramp limits](pypsa_ramp.md), for integrality
 [unit commitment](pypsa_unit_commitment.md), and for `piecewise`
 [economies of scale](transport_pwl.md).
 
-**A tick is a floor, not a ceiling.** It means one verified model exercises
-the construct. It does not mean every shape of the construct is covered, and
-it does not mean constructs are covered in combination.
+**A tick is a floor, not a ceiling.** One verified model exercises the
+construct. It does not cover every shape of the construct, or the construct in
+combination with others.
 
 ## Does it get the right answer?
 
 **✔ means the optimum did not come from lpspec.** It came from a figure
-published with the model, or from a reference implementation hand-written on
+published with the model or from a reference implementation hand-written on
 another stack. The provenance column says which. Every model on this page runs
-in the test suite, so "there is a test" distinguishes nothing. The badge marks
-the one check that can catch a shared misreading: both
-[lanes](../reference/glossary.md#how-it-runs) of the implementation agreeing
-on a meaning the modeller did not intend. Such a misreading passes every
-lpspec-against-lpspec test.
-
-The differential harness compares two lanes that consume the same resolved
-AST (abstract syntax tree)
-([hard rule 1](../about/architecture.md#hard-rules)). That makes the lanes an
-oracle for each other, and it is also what they cannot see. This table is the
-net for that class, and the evidence behind
+in the test suite, so a test alone distinguishes nothing. The badge marks the
+one check that catches a shared misreading: both
+[lanes](../reference/glossary.md#how-it-runs) agreeing on a meaning the
+modeller did not intend. The differential harness compares two lanes that
+consume the same resolved AST (abstract syntax tree)
+([hard rule 1](../about/architecture.md#hard-rules)), so such a misreading
+passes every lpspec-against-lpspec test. This table is the evidence behind
 [the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/#two-tiers-and-the-ceiling).
 
 <!-- references:begin -->
@@ -229,67 +222,57 @@ net for that class, and the evidence behind
 [^transport_dantzig]: examples/ports/references/linopy/transport_dantzig.py — the same LP hand-written in linopy 0.9.0, which reaches 153.675 independently. Secondary: the published figure is what verifies the port.
 <!-- references:end -->
 
-**A `duals` tick means the shadow prices are checked too.** Such a port
-records the reference's shadow prices and is asserted against them. For the
-PyPSA models that is `buses_t.marginal_price`, the nodal price, which is the
-output PyPSA users read most often after the cost.
-
-An objective is one number. A dual vector is where two implementations most
-often disagree quietly: which side of a constraint the price belongs to, and
-what sign an inequality carries. [Dantzig transport](transport_dantzig.md) is
-in that set because both of its constraints are inequalities pointing opposite
-ways. A MILP has no dual solution, and lpspec does not invent one; those are
-the `·` rows.
+**A `duals` tick means the shadow prices are checked too**, against the
+reference's own. For the PyPSA models that is `buses_t.marginal_price`, the
+nodal price. A dual vector is where two implementations most often disagree
+quietly: which side of a constraint the price belongs to, and what sign an
+inequality carries. [Dantzig transport](transport_dantzig.md) is checked
+because both of its constraints are inequalities pointing opposite ways. A
+MILP has no dual solution, and lpspec does not invent one; those are the `·`
+rows.
 
 Adding a port is four files and five rules:
 [CONTRIBUTING.md](https://github.com/fluxopt/lpspec/blob/main/CONTRIBUTING.md#adding-a-ported-model).
 
 ## PyPSA, one feature at a time
 
-Two documents cover PyPSA, and they answer different questions.
-
 **[The PyPSA ladder](pypsa_ladder.md) is the conformance instrument.** It
-holds fifteen networks, each carrying what the one below it did not. Every
-network is solved through PyPSA and through lpspec and compared four ways: the
+holds fifteen networks, each carrying what the one below it did not. Each
+is solved through PyPSA and through lpspec and compared four ways: the
 objective, the constraint and variable names, the size of the model handed to
-the solver, and every constraint's dual. A difference is allowed only with a
-recorded reason; otherwise the run is red. The ladder is generated from the
-runs, and it is where the numbers are.
+the solver, and every constraint's dual. A difference needs a recorded reason
+or the run is red. The numbers are there.
 
-**The PyPSA pages above are the gallery.** Each page shows one idiom, with the
-prose, the model and the data kept together, and a test holds each to an
-optimum that did not come from lpspec. A page shows how something is *said*;
-the ladder shows that it is said *exactly*. A model that cannot be said is a
-row in [the ledger](#ledger--what-a-port-could-not-say) below.
+**The PyPSA pages above are the gallery.** Each shows one idiom, held by a
+test to an optimum that did not come from lpspec. A page shows how something
+is *said*; the ladder shows that it is said *exactly*. What could not be said
+is a row in [the ledger](#ledger--what-a-port-could-not-say).
 
 The first pages grow one network a feature at a time: a transport model, then
-ramp limits, then storage, then a cyclic horizon, then KVL (Kirchhoff's voltage
-law). Four facts about those pages decide what a reader can copy from them.
+ramp limits, storage, a cyclic horizon and KVL (Kirchhoff's voltage law). Four
+facts decide what you can copy from them.
 
-**A ramp limit binds only on a widened instance.** In the transport model the
-links run saturated, which fixes every generator's output exactly. A ramp
-limit on that network can only make it infeasible; it cannot change the
-answer. [Ramp limits](pypsa_ramp.md) widens the ratings first.
+**A ramp limit binds only on a widened instance.** The transport model's links
+run saturated, which fixes every generator's output. A ramp limit there can
+only make it infeasible. [Ramp limits](pypsa_ramp.md) widens the ratings
+first.
 
 **KVL needs no new primitive.** A cycle basis is a sparse `(cycle, line)`
 incidence *parameter*. The constraint is one
 `sum(f * cycle_incidence, over=line) == 0`. A line can belong to several
 cycles, so the incidence is a parameter rather than a declared lookup.
-Computing the basis is a graph algorithm and stays in data preparation, where
-the ceiling puts it.
+Computing the basis is a graph algorithm and stays in data preparation.
 
 **A cyclic horizon deletes a clause rather than adding one.**
 [Cyclic storage](pypsa_cyclic_storage.md) is [storage units](pypsa_storage.md)
-with the boundary equation deleted. `edge='wrap'` is cyclic already, so
-unguarded it wraps onto the last snapshot. The *acyclic* case is the one that
-needs an extra `where` clause.
+with the boundary equation deleted. `edge='wrap'` is cyclic already and
+unguarded wraps onto the last snapshot; the *acyclic* case is the one that
+needs a `where` clause.
 
 **[AC-DC](pypsa_ac_dc.md) is the first model whose generators carry two
-load-bearing coordinates.** A generator sits on a bus *and* burns a carrier.
-The balance groups through the bus, and the CO₂ budget reads an emission rate
-back down through the carrier. The model also carries passive lines and
-controllable links at once, so both branch kinds group onto the same bus
-dimension in one equation.
+load-bearing coordinates.** The balance groups through the bus, and the CO₂
+budget reads an emission rate through the carrier. Passive lines and
+controllable links group onto the same bus dimension in one equation.
 
 ## Ledger — what a port could not say
 
@@ -302,18 +285,16 @@ macro, primitive, or escape.
 | PyPSA transport model | a bound of `-rating` — PyPSA's `p_min_pu = -1` | shipping `neg_rating` as data | **primitive**: bounds as expressions, [#31](https://github.com/fluxopt/lpspec/issues/31). A second model asking for it |
 | Travelling salesman | subtour cuts **generated lazily** inside branch-and-cut, which is how every serious TSP code works | [MTZ](tsp_mtz.md), O(n²) and static | **refused, and correctly**: a solve loop is an algorithm, not a model |
 
-`min_up_time` is no longer a row:
-[minimum up and down times](pypsa_min_up_down.md) says it as
-`sum_back(start_up, over=snapshot, within=min_up_time)`, with each generator's
-own width read off the column.
+[Minimum up and down times](pypsa_min_up_down.md) says `min_up_time` as
+`sum_back(start_up, over=snapshot, within=min_up_time)`, each generator's own
+width read off the column.
 
 Two rows from 33 ports is the current rate.
 
 ### Shapes still without a witness
 
-These are not shapes the language cannot say. They are shapes no *outside*
-model in the corpus has yet been found to need. Each was searched for and not
-found, so each row is a standing request rather than a gap in the language:
+The language can say each of these; no *outside* model in the corpus has yet
+been found to need it. Each row is a standing request, not a gap:
 
 | Shape | Where it was looked for |
 |---|---|
@@ -326,15 +307,14 @@ found, so each row is a standing request rather than a gap in the language:
 A model that needs one of these is worth more to the corpus than one that
 exercises a shape already covered.
 
-**The TSP row is narrower than it reads.** Writing the DFJ
-(Dantzig–Fulkerson–Johnson) subtour rows out in full *is* sayable. The subsets
-go in as data, the way [KVL's cycle basis](pypsa_kvl.md) does, and an 8-city
-instance with all 246 subsets solves to a correct tour. There are 2ⁿ subsets,
-so the full form stops being practical around twenty cities. That is a
-data-size wall, not a ceiling: a data-dependent row count does not rule DFJ
-out, and the cycle basis has one too.
+**The TSP row is narrower than it reads.** The DFJ
+(Dantzig–Fulkerson–Johnson) subtour rows written out in full *are* sayable.
+The subsets go in as data, the way [KVL's cycle basis](pypsa_kvl.md) does, and
+an 8-city instance with all 246 subsets solves to a correct tour. There are 2ⁿ
+subsets, so the full form stops being practical around twenty cities. That is
+a data-size wall, not a ceiling.
 
 **Lazy generation is what the language cannot say.** Solve, find the violated
 subsets, add rows, re-solve: that is an algorithm, and the language describes
-models. Every serious TSP code generates lazily. So lpspec can express a TSP,
-and it is not a good way to solve a large one.
+models. So lpspec can express a TSP, and it is not a good way to solve a large
+one.
