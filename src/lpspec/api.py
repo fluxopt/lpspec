@@ -26,12 +26,14 @@ Example::
 from __future__ import annotations
 
 import io
+import os
 import warnings
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Literal
 
 from math_spec import advice, to_program, to_spec
+from math_spec.program import Program
 
 from lpspec.errors import DataError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable
@@ -45,7 +47,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from math_spec import Spec
-    from math_spec.program import Program
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep, Result
 
@@ -414,12 +415,14 @@ def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Any], o
     nothing is written. A parquet path is then copied as its own bytes; a
     table is written as parquet; a plain-Python shape — a number, a label
     sequence, a ``{label: value}`` map — as the tidy table it stands for.
-    Members are stored uncompressed, because parquet already is.
+    Members are stored uncompressed, because parquet already is. The archive
+    lands whole: written beside *out* and renamed into place, its directory
+    made if it does not exist, and nothing left under either name by a write
+    that did not finish.
 
     Args:
         spec: A YAML path, a mapping, or a loaded ``Spec`` — as
-            :func:`math_spec.to_spec` takes it. A lowered ``Program`` has no
-            file to write.
+            :func:`math_spec.to_spec` takes it.
         sources: As :func:`build` takes them.
         out: Where to write; a ``.zip`` suffix is the convention.
 
@@ -427,24 +430,37 @@ def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Any], o
         The path written.
 
     Raises:
+        LpspecError: A lowered ``Program``, which has no file to write.
         LanguageError: A file the language does not accept.
         DataError: A source that is missing, unreadable, or the wrong shape.
     """
+    if isinstance(spec, Program):
+        raise LpspecError(
+            'pack takes the model as written — a path, a mapping or a Spec — and a lowered Program has no '
+            'file to write. Pass what it was lowered from.'
+        )
     declared = to_spec(spec)
     program = to_program(declared)
     frames = supplied(program, tidy_sources(program, sources))
     out = Path(out)
-    with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_STORED) as archive:
-        archive.writestr(_MODEL_MEMBER, declared.to_yaml())
-        for name, frame in frames.items():
-            member = str(_SOURCES_DIR / f'{name}.parquet')
-            given = sources.get(name)
-            if isinstance(given, (str, Path)):
-                archive.write(given, member)
-            else:
-                buffer = io.BytesIO()
-                frame.collect().write_parquet(buffer, compression='zstd')
-                archive.writestr(member, buffer.getvalue())
+    out.parent.mkdir(parents=True, exist_ok=True)
+    part = out.with_name(out.name + '.part')
+    try:
+        with zipfile.ZipFile(part, 'w', compression=zipfile.ZIP_STORED) as archive:
+            archive.writestr(_MODEL_MEMBER, declared.to_yaml())
+            for name, frame in frames.items():
+                member = str(_SOURCES_DIR / f'{name}.parquet')
+                given = sources.get(name)
+                if isinstance(given, (str, Path)):
+                    archive.write(given, member)
+                else:
+                    buffer = io.BytesIO()
+                    frame.collect().write_parquet(buffer, compression='zstd')
+                    archive.writestr(member, buffer.getvalue())
+    except BaseException:
+        part.unlink(missing_ok=True)
+        raise
+    os.replace(part, out)
     return out
 
 

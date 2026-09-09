@@ -109,9 +109,10 @@ def supplied(program: Program, frames: Mapping[str, pl.LazyFrame]) -> dict[str, 
     dimension they are labels of.
     """
     names = {lk.name: lk for _, lk in program.lookups}
+    takes = attachable(program)
     out: dict[str, pl.LazyFrame] = {}
     for name, frame in frames.items():
-        if name not in attachable(program):
+        if name not in takes:
             continue
         lk = names.get(name)
         out[name] = frame.rename({name: lk.target}) if lk is not None and lk.target is not None else frame

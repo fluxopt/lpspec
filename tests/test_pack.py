@@ -146,3 +146,32 @@ def test_a_zip_outside_the_layout_is_refused(members: dict[str, bytes], says: st
         lps.unpack(path, tmp_path / 'out')
     assert says in str(excinfo.value), 'the message names what was found, and the layout one pack() writes'
     assert not (tmp_path / 'out').exists(), 'nothing is extracted from a zip that is not an archive'
+
+
+def test_a_lowered_program_is_refused_by_name(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
+    """A lowered program has no file to write, and the docstring says so; the refusal says it too."""
+    out = tmp_path / 'dispatch.zip'
+    with pytest.raises(lps.LpspecError, match='a lowered Program has no file to write'):
+        lps.pack(lps.check(dispatch_yaml), dispatch_frame_inputs, out)
+    assert not out.exists(), 'nothing is written'
+
+
+def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path, monkeypatch) -> None:
+    """The archive is written beside its name and renamed into place, so a
+    reader that finds it finds all of it: a parent directory that does not
+    exist is made, and a failure after the archive is open leaves nothing
+    under either name."""
+    from math_spec import Spec
+
+    out = tmp_path / 'nested' / 'dispatch.zip'
+    assert lps.pack(dispatch_yaml, dispatch_frame_inputs, out) == out
+    assert sorted(p.name for p in out.parent.iterdir()) == ['dispatch.zip'], 'the archive alone, no .part beside it'
+
+    def fails(self):
+        raise RuntimeError('the box went away')
+
+    monkeypatch.setattr(Spec, 'to_yaml', fails)
+    later = tmp_path / 'later.zip'
+    with pytest.raises(RuntimeError, match='went away'):
+        lps.pack(dispatch_yaml, dispatch_frame_inputs, later)
+    assert not list(tmp_path.glob('later*')), 'a write that did not finish leaves nothing under either name'
