@@ -1,62 +1,66 @@
 # Roadmap
 
 This page says why lpspec exists, where it is going and what it will not
-become, for anyone about to propose a feature. **No work items live here.** A
-hand-maintained index beside an issue tracker is a second copy that drifts, so
-the issues are the list, grouped under three parents, and this page is the
-argument for what the list is *for*:
+become, for anyone about to propose a feature. **No work items live here.** The
+work is issues, grouped under three parents:
 
 - [Track 1 — primitives](https://github.com/fluxopt/lpspec/issues/470)
 - [Track 2 — the operational surface](https://github.com/fluxopt/lpspec/issues/471)
 - [Track 3 — capabilities, and the degree line](https://github.com/fluxopt/lpspec/issues/472)
+
+A hand-maintained index beside an issue tracker is a second copy that drifts.
+The issues are the list, and this page is the argument for what the list is
+*for*.
 
 ## Why
 
 An optimisation model is math worth reading, and it usually arrives as Python
 that *builds* math. The equations are entangled with the loops, the
 [frames](../reference/glossary.md#the-data) and the library that assembled
-them. A diff then shows scaffolding rather than constraints, nothing can read
-the model except the program that wrote it, and reviewing the model means
+them. A diff then shows scaffolding rather than constraints, and nothing can
+read the model except the program that wrote it. Reviewing such a model means
 reviewing a program.
 
 lpspec makes the math the artifact: a YAML file says what the variables,
-constraints and objective *are*, validated at load time and built at runtime.
-Someone who understands the math can review it without understanding the
-builder. Every rule below follows from that.
+constraints and objective *are*. The file is validated at load time and built
+at runtime. Someone who understands the math can review it without
+understanding the builder. Every rule below follows from that.
 
 ## Where it is going
 
 **One language, more than one place to run it.** The same file builds natively
 on the relational engine or onto a `linopy.Model` that already exists in
-memory, neither a fallback nor a dialect. So a differential test between the
-two [lanes](../reference/glossary.md#how-it-runs) is an oracle rather than a
+memory. That is neither a fallback nor a dialect. It is one language, so a
+differential test between the two
+[lanes](../reference/glossary.md#how-it-runs) is an oracle rather than a
 comparison.
 
 **A build that streams, with a ceiling you can declare.** The model is frames
-and the build is relational, so nothing dense is ever materialised and peak
-memory tracks the model rather than a number someone guessed. What is missing
-is the *declaration*: there is no way to say "build this within N gigabytes or
-fail". The honest version is partition-wise execution, which the locality
+and the build is relational, so nothing dense is ever materialised. Peak memory
+tracks the model rather than a number someone guessed. What is missing is the
+*declaration*: there is no way to say "build this within N gigabytes or fail".
+The honest version is partition-wise execution, which the locality
 closure already guarantees is safe.
 
 **A solve that explains itself.** A solved model should tell you why it is
-infeasible, what a row costs and what changed since the last solve, without
-opening a file no editor can hold. Most of that is a query over frames that
-already exist.
+infeasible, what a row costs and what changed since the last solve. It should
+do so without opening a file no editor can hold. Most of that is a query over
+frames that already exist.
 
 **Component libraries, composed rather than generated.** A fixed set of
 parametrised templates agree on a port/flow convention and merge into one
 [program](../reference/glossary.md#the-chain) before a single build pass.
 **Topology is data.** Wiring a system is rows in a connectivity table, never
-generated YAML, so structure stays bounded by the number of component *types*
+generated YAML. So structure stays bounded by the number of component *types*,
 while cardinality lives in data.
 
 ## What it will not become
 
 **Two durable losses, and they are the price of the closed AST (abstract
-syntax tree):** structure that needs the solver's *answer* to decide the next
-row inside one plan, and imperative modelling of any kind. That price buys
-load-time validation, two lanes on one language, and a build that streams.
+syntax tree).** One is structure that needs the solver's *answer* to decide
+the next row, inside one plan. The other is imperative modelling of any kind.
+That price buys load-time validation, two lanes on one language, and a build
+that streams.
 Everything else is scheduling.
 
 The specific refusals, each with its reason and its rewrite, are in
@@ -71,8 +75,8 @@ itself a reason to add anything.
 subsystem) read-back, a join rather than a scatter; serialisation to parquet;
 elastic relaxation; dualisation, since transposing a COO matrix is swapping two
 column names. Model statistics and coefficient ranges were the first of these
-and already ship: `diagnostics()` gives the range *per declaration*, taken as
-each block is built, which is what naming the badly scaled one costs when the
+and already ship. `diagnostics()` gives the range *per declaration*, taken as
+each block is built. That is what naming the badly scaled one costs when the
 matrix arrives a declaration at a time.
 
 **Ahead of comparable declarative layers:** a sparse-by-construction build with

@@ -1,8 +1,8 @@
 # Decomposition, as evidence
 
 This page shows that the language can express a Benders decomposition and reach
-the right answer, for anyone about to decompose a model in lpspec or to ask for
-a driver that does it for them.
+the right answer, for anyone decomposing a model in lpspec or asking for a
+driver that does it.
 
 **lpspec ships no decomposition driver.** Whether it should is
 [#596](https://github.com/fluxopt/lpspec/issues/596). Every block below is
@@ -86,7 +86,7 @@ The subproblem does not know it is part of anything.
 
 ## The master, where a cut is data
 
-The master keeps the capacity decision and stands in `theta` for the dispatch
+The master keeps the capacity decision. It stands in `theta` for the dispatch
 it can no longer see: one variable holding what operating that capacity will
 cost. Cuts teach the master what `theta` is:
 
@@ -156,7 +156,7 @@ two `pl.concat` calls onto the parameter tables the master already declares.
 ## When the subproblem is infeasible
 
 Below some capacity there is no dispatch at all, and the subproblem is
-infeasible. lpspec hands back **no Farkas ray**: an infeasible solve has no
+infeasible. lpspec hands back **no Farkas ray**. An infeasible solve has no
 readable status, so `dual()` raises rather than returning a vector of zeros
 that looks like an answer.
 
@@ -227,8 +227,8 @@ could write this**, which is the observation that matters most for
 The models are loaded once above the loop, because a cut is a row in a
 parameter table rather than an edit to a file. `lps.solve` accepts what
 `lps.check` returns, a lowered program
-([glossary](../reference/glossary.md#the-chain)), anywhere it accepts a path,
-so parse, validation and lowering are paid once for the run instead of three
+([glossary](../reference/glossary.md#the-chain)), anywhere it accepts a path.
+So parse, validation and lowering are paid once for the run instead of three
 times an iteration. Any driver over a fixed model does the same, and
 `solve_over` already does.
 
@@ -260,7 +260,7 @@ the first optimality cut then closes the gap exactly.
 lpspec can always build the monolith from the same sources, so the example
 solves both and prints the difference: `0.0e+00` above, asserted in
 `tests/test_benders_example.py`. That is the two-lane differential test aimed
-at an algorithm instead of an engine, and it is always available because the
+at an algorithm instead of an engine. It is always available because the
 undecomposed form is another file over the same data.
 
 ## What is deliberately absent

@@ -1,17 +1,18 @@
 # How the benchmarks were taken
 
 This page is the method behind the numbers on the
-[benchmark page](benchmarks-scaling.html), five libraries over four models with
-the numbers under each chart, for anyone deciding how far to trust a cell there.
+[benchmark page](benchmarks-scaling.html), for anyone deciding how far to
+trust a cell there. That page holds the results: five libraries over four
+models, with the numbers under each chart.
 
 **Every published number is the median of a measurement's rounds, and every
 band is the first to the third quartile of the same rounds.** Nine rounds is
 the floor. The fastest round would be a best-of-n with unequal n, because the
-harness calibrates by duration. The mean would be dragged by the one round in
-forty of a 20 ms measurement that took 1.5 s here, to 2.9x its median.
+harness calibrates by duration. A mean would be 2.9x the median here, because
+one round in forty of a 20 ms measurement took 1.5 s.
 
 The median flipped nine cells against lpspec, all on the `gurobi`
-[sink](../reference/glossary.md#how-it-runs): there our build alternates
+[sink](../reference/glossary.md#how-it-runs). There our build alternates
 between a fast and a slow state round after round, and no other library's
 build does ([#1288](https://github.com/fluxopt/lpspec/issues/1288)).
 
@@ -27,10 +28,10 @@ refuses to start if the resolution has drifted.
 
 Everything the tables are drawn from is in
 [`bench/results`](https://github.com/fluxopt/lpspec/blob/main/bench/results):
-one file per sink and case, carrying the machine, the versions, the commit and
-every round of every measurement. A case the box could not finish leaves no
-file behind. `pixi run table` prints the directory as one long CSV and commits
-nothing; the JSON stays the archive because it keeps the rounds.
+one file per sink and case. Each carries the machine, the versions, the commit
+and every round of every measurement. A case the box could not finish leaves
+no file behind. `pixi run table` prints the directory as one long CSV and
+commits nothing; the JSON stays the archive because it keeps the rounds.
 `pixi run refresh` re-takes the numbers and writes the tables into their fences
 and the chart's data literal into its own.
 
@@ -93,7 +94,7 @@ Listed so that a claim with no table under it is visible as one.
   ([#1416](https://github.com/fluxopt/lpspec/issues/1416)). The last numbers
   taken there are in [#1285](https://github.com/fluxopt/lpspec/pull/1285), on
   the machine that could hold them: lpspec 0.11 s and 0.59 GB against linopy
-  53.53 s and 14.26 GB.
+  53.53 s and 14.26 GB at `transport/w100`.
 - **Anything about expressiveness.** Four models say nothing about a fifth.
 
 ## Method
@@ -107,12 +108,12 @@ every flag, every default switched off and what it costs.
 
 **Peak carries an allocator cost that only the polars arms pay.** polars
 ships its own jemalloc settings, so a peak measured through it holds pages
-freed and not yet returned; an arm on the system allocator never enters
+freed and not yet returned. An arm on the system allocator never enters
 jemalloc. Our peak moves 12–27% with the decay clock on and off, where
 linopy's does not move at three digits
 ([#896](https://github.com/fluxopt/lpspec/issues/896)). It runs against us and
 is left in.
 
 **memray never times anything.** Its tracker slows an allocation-heavy
-engine several-fold and overcounts reserved arenas, so peak RSS is the metric
-and memray is for attribution.
+engine several-fold and overcounts reserved arenas. Peak RSS is the metric;
+memray is for attribution.

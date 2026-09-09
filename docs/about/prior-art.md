@@ -7,11 +7,11 @@ for anyone comparing lpspec with either project or citing it.
 where this surface comes from.** The surface is the YAML you write, and it is
 their design: solver-ready math declared as a reviewable file, a block per
 component, `foreach:` for the list of dimensions, a `where:` string over
-`AND`/`OR`/`NOT`, `bounds:`, `active:`, and the strings parsed with pyparsing
-rather than `eval`. Our `expressions` is their `global_expressions`, and our
-`piecewise` is their `piecewise_constraints`. What is ours is the semantics
-underneath: one `expression` per block, macros that take arguments, a schema
-closed at every level, and the absence and degree-1 laws
+`AND`/`OR`/`NOT`, `bounds:`, `active:`. So is parsing the strings with
+pyparsing rather than `eval`. Our `expressions` is their `global_expressions`,
+and our `piecewise` is their `piecewise_constraints`. What is ours is the
+semantics underneath: one `expression` per block, macros that take arguments, a
+schema closed at every level, and the absence and degree-1 laws
 ([the ten rules](https://math-spec.readthedocs.io/en/latest/reference/language/#ten-rules-the-language-reduces-to)).
 Their math is the corpus we score coverage against, not a specification we
 match
