@@ -55,6 +55,16 @@ def test_nothing_is_patched_onto_linopy_model():
     assert not hasattr(linopy.Model, 'yaml')
 
 
+def test_the_lane_takes_sources_as_the_one_type():
+    """The lane's two verbs annotate ``sources`` the way every door in ``api.py`` does."""
+    from tests.test_architecture import sources_annotations
+
+    doors = {'build': lpspec_linopy.build, 'expression': lpspec_linopy.expression}
+    assert sources_annotations(doors) == {'Mapping[str, Source]'}, (
+        f'both lane verbs take sources as Mapping[str, Source], and these do not: {sources_annotations(doors)}'
+    )
+
+
 # ---------------------------------------------------------------------------
 # loader: master coords and parameter coercion
 # ---------------------------------------------------------------------------

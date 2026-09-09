@@ -142,8 +142,8 @@ would be a wrapper nobody wanted.
 Eight modules sit outside a fence, and each is legitimately **both** halves:
 the one drawn above, plus `curves.py`, the one guard that needs numbers,
 `api.py`, which runs the lot, `strategy.py`, which drives it a slice at a time,
-`lanes.py`, the two facts the runner and the eager lane both read — what a
-spec may arrive as, and what each lane can build — `frames.py`, the table
+`lanes.py`, the facts the runner and the eager lane both read — what a spec
+and its sources may arrive as, and what each lane can build — `frames.py`, the table
 boundary, `parquet.py`, the layout a result and a sweep both write their
 answers to disk in, and `errors.py`, the leaf every fence points at. That is
 a category, not a leftovers bin, and the size of a module does not buy it a
@@ -660,7 +660,7 @@ is structure.
 |---|---|
 | `math_spec` (a dependency) | the whole language: the file is read, expanded, resolved, judged and lowered there, and what crosses into this repository is its two public states — a `Spec`, what the file says, and the `Program` it lowers to — [its own reference](https://math-spec.readthedocs.io/en/latest/reference/language/) |
 | `api.py` | the runner: `check` / `build` / `solve` / `write`, and `pack` / `unpack` carrying a model with its data as one zip; linopy-free |
-| `lanes.py` | above both lanes: `Buildable`, what every verb takes as the spec, and `LANES`, what each lane can build, read by `check` without the extra and by the eager lane when it refuses |
+| `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes as the spec and under each name of its sources, `Label`, what a dimension's labels and a sweep's keys are, and `LANES`, what each lane can build, read by `check` without the extra and by the eager lane when it refuses |
 | `sources.py` | the one door: a caller's data (parquet paths, in-memory tables, plain-Python shapes) read into tidy frames and checked against the declarations — one row per coordinate, labels that exist, values present and of the declared type |
 | `curves.py` | the one guard that needs numbers rather than a schema: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |
 | `frames.py` | the boundary — caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |

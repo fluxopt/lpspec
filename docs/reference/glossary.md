@@ -56,6 +56,15 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 : The type alias for anything the verbs accept as the spec — `str | Path |
   dict | Spec | Program`.
 
+**Source**
+: The type alias for anything the verbs accept under one name of `sources` — a
+  parquet path, a table (polars, pandas, or any Arrow-capsule table), or the
+  plain-Python shapes: a `{label: value}` map, a sequence, one number.
+
+**Label**
+: The type alias for one label along a dimension, and so for a sweep's slice
+  key — `int | float | str | datetime`, the four dtypes an index may declare.
+
 ## How it runs
 
 **Lane**

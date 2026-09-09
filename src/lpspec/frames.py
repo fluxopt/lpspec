@@ -20,14 +20,20 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from lpspec.lanes import ArrowTable
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    import pandas as pd
+
+    from lpspec.lanes import Source
 
 
 __all__ = ['as_frame', 'is_dense_array', 'is_multi_indexed', 'to_pandas']
 
 
-def to_pandas(table: pl.DataFrame) -> Any:
+def to_pandas(table: pl.DataFrame) -> pd.DataFrame:
     """A polars frame as pandas, column by column, without reaching for pyarrow.
 
     A dictionary-encoded column is widened first: it carries a writer's own
@@ -41,7 +47,7 @@ def to_pandas(table: pl.DataFrame) -> Any:
     return pd.DataFrame({name: table[name].to_numpy() for name in table.columns})
 
 
-def as_frame(obj: object, dims: Sequence[str] = ()) -> pl.LazyFrame | None:
+def as_frame(obj: Source, dims: Sequence[str] = ()) -> pl.LazyFrame | None:
     """One source as a lazy frame: a parquet path scanned, so a filter pushes down, or an in-memory table normalised.
 
     The one place a string is read as a parquet path, for every door a source
@@ -63,13 +69,14 @@ def as_frame(obj: object, dims: Sequence[str] = ()) -> pl.LazyFrame | None:
 
     pd = sys.modules.get('pandas')
     if pd is not None and isinstance(obj, pd.Series):
-        obj = _series_to_frame(obj, dims)
+        frame = _series_to_frame(obj, dims)
+        return _from_pandas(frame) if frame is not None else None
     if pd is not None and isinstance(obj, pd.DataFrame):
         return _from_pandas(obj)
 
-    if hasattr(obj, '__arrow_c_stream__') or hasattr(obj, '__arrow_c_array__'):
+    if isinstance(obj, ArrowTable):
         try:
-            return pl.DataFrame(obj).lazy()  # pyrefly: ignore[bad-argument-type]  — narrowed by the capsule test
+            return pl.DataFrame(obj).lazy()
         except (TypeError, ValueError, pl.exceptions.PolarsError):
             return None
     return None
@@ -83,7 +90,7 @@ def is_dense_array(obj: object) -> bool:
     return xr is not None and isinstance(obj, xr.DataArray)
 
 
-def is_multi_indexed(obj: object) -> bool:
+def is_multi_indexed(obj: Source) -> bool:
     """Whether *obj* is a pandas Series carrying more than one index level."""
     import sys
 
@@ -91,7 +98,7 @@ def is_multi_indexed(obj: object) -> bool:
     return pd is not None and isinstance(obj, pd.Series) and obj.index.nlevels > 1
 
 
-def _series_to_frame(series: Any, dims: Sequence[str]) -> Any | None:
+def _series_to_frame(series: pd.Series, dims: Sequence[str]) -> pd.DataFrame | None:
     """A pandas Series with its one index level promoted to a column.
 
     One level is all a Series can carry here — :func:`is_multi_indexed` refuses
@@ -109,11 +116,11 @@ def _series_to_frame(series: Any, dims: Sequence[str]) -> Any | None:
     if len(dims) != 1:
         return None
     if series.index.name is None:
-        series = series.rename_axis(dims)
+        series = series.rename_axis(dims[0])
     return series.rename('value').reset_index()
 
 
-def _from_pandas(frame: Any) -> pl.LazyFrame:
+def _from_pandas(frame: pd.DataFrame) -> pl.LazyFrame:
     """A pandas frame, column by column, without reaching for pyarrow.
 
     A whole-frame conversion needs pyarrow for anything Arrow-backed, which
@@ -130,6 +137,6 @@ def _from_pandas(frame: Any) -> pl.LazyFrame:
     return pl.DataFrame(columns).lazy()
 
 
-def _is_missing(value: Any) -> bool:
+def _is_missing(value: object) -> bool:
     """Whether an object-array entry is pandas' rendering of "no value"."""
     return value is None or (isinstance(value, float) and value != value)

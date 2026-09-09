@@ -36,7 +36,7 @@ from math_spec import advice, to_program, to_spec
 from math_spec.program import Program
 
 from lpspec.errors import DataError, LpspecError, LpspecWarning
-from lpspec.lanes import LANES, Buildable
+from lpspec.lanes import LANES, Buildable, Label, Source
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.relational.sinks import solver, writer
@@ -131,7 +131,7 @@ class Model:
     Nothing has to be released; :meth:`close` hands a large model back early.
     """
 
-    def __init__(self, spec: Buildable, sources: Mapping[str, Any]) -> None:
+    def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
         self._program = to_program(spec)
         self._sources = dict(sources)
         self._engine = PolarsEngine()
@@ -150,7 +150,7 @@ class Model:
             self._engine.close()
             raise
 
-    def update(self, sources: Mapping[str, Any]) -> Model:
+    def update(self, sources: Mapping[str, Source]) -> Model:
         """Put new numbers on the same model, in place.
 
         ::
@@ -239,7 +239,7 @@ class Model:
         """
         self._engine.write(path)
 
-    def row(self, name: str, /, **coordinate: Any) -> ConstraintRow:
+    def row(self, name: str, /, **coordinate: Label) -> ConstraintRow:
         """One built constraint row at one coordinate — its terms, sense and right-hand side.
 
         The verb for *this row is wrong and I do not know why*. ``to_latex``
@@ -307,7 +307,7 @@ def _refuse_unknown(given: Mapping[str, Any], declared: Mapping[str, Any]) -> No
         raise DataError(unknown_source_keys_message(unknown, declared))
 
 
-def build(spec: Buildable, sources: Mapping[str, Any]) -> Model:
+def build(spec: Buildable, sources: Mapping[str, Source]) -> Model:
     """Bind *sources* to *spec* and build it — the model with your data on it.
 
     Args:
@@ -330,7 +330,7 @@ def build(spec: Buildable, sources: Mapping[str, Any]) -> Model:
 
 def solve(
     spec: Buildable,
-    sources: Mapping[str, Any],
+    sources: Mapping[str, Source],
     solver_name: str = 'highs',
     *,
     solver_options: Mapping[str, Any] | None = None,
@@ -372,7 +372,7 @@ def solve(
 
 def write(
     spec: Buildable,
-    sources: Mapping[str, Any],
+    sources: Mapping[str, Source],
     out: str | Path,
 ) -> Path:
     """Build *spec* and stream it to a file, in the format *out*'s suffix names.
@@ -406,7 +406,7 @@ _MODEL_MEMBER = 'model.yaml'
 _SOURCES_DIR = PurePosixPath('sources')
 
 
-def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Any], out: str | Path) -> Path:
+def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Source], out: str | Path) -> Path:
     """Write *spec* and *sources* as one zip file, to archive or send.
 
     The archive holds ``model.yaml`` and ``sources/<key>.parquet`` for every
