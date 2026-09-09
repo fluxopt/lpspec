@@ -47,8 +47,8 @@ Two questions decide it, and they work on a paragraph as well as a page:
 
 | Kind        | Informs   | Serves  | Answers                        | Lives in                                       |
 | ----------- | --------- | ------- | ------------------------------ | ---------------------------------------------- |
-| Tutorial    | action    | acquire | "Get me a first working model" | `docs/index.md`, `docs/guide.md`               |
-| How-to      | action    | apply   | "I have this task"             | the notebooks, `docs/examples/data.md`         |
+| Tutorial    | action    | acquire | "Get me a first working model" | `docs/index.md`, `docs/guide.md`, the notebooks |
+| How-to      | action    | apply   | "I have this task"             | `docs/examples/data.md`                        |
 | Reference   | cognition | apply   | "What exactly does X accept?"  | `docs/reference/`, the model pages             |
 | Explanation | cognition | acquire | "Why is it like this?"         | `docs/about/`                                  |
 
