@@ -1,30 +1,34 @@
 # Decomposition, as evidence
 
+This page shows that the language can express a Benders decomposition and reach
+the right answer. Read it before you decompose a model in lpspec, or before you
+ask for a driver that does it for you.
+
 **This page is not a feature announcement.** lpspec ships no decomposition
-driver, and whether it should is
-[#596](https://github.com/fluxopt/lpspec/issues/596). What it shows is narrower
-and checkable: the language can *express* a decomposition, and the answer it
-reaches is right.
+driver. Whether it should is
+[#596](https://github.com/fluxopt/lpspec/issues/596). What the page shows is
+narrower and checkable: the language can *express* a decomposition, and the
+answer it reaches is right.
 
 The whole example is in
-[`examples/benders/`](https://github.com/fluxopt/lpspec/blob/main/examples/benders/run.py)
-and every block below is validated against it.
+[`examples/benders/`](https://github.com/fluxopt/lpspec/blob/main/examples/benders/run.py).
+Every block below is validated against it.
 
 ## Why anyone wants it
 
-A modeller with a model too large to solve has one move: make it smaller.
+A model too large to solve leaves you one move: make it smaller.
 Representative days instead of a year, forty nodes instead of three hundred, one
-weather year instead of many. Each answers a *different question*, with no bound
-on how wrong it is for the one that was asked.
+weather year instead of many. Each answers a *different question*. None bounds
+how wrong it is for the question you asked.
 
-Decomposition answers the question that was asked, with a **gap**. Stop at 1% and
-you know you are within 1%. A bound rather than a caveat.
+Decomposition answers the question you asked, with a **gap**. Stop at 1% and
+you know you are within 1%. That is a bound rather than a caveat.
 
 ## The problem, whole
 
-Choose generator capacity, then dispatch it. Investment and operation decided
-together, which is what makes it worth decomposing — the capacity choice is
-small and the dispatch is large.
+Choose generator capacity, then dispatch it. Investment and operation are
+decided together. That is what makes it worth decomposing: the capacity choice
+is small and the dispatch is large.
 
 ```yaml
 dimensions:
@@ -57,7 +61,7 @@ objective:
 ## The split is one substitution
 
 The subproblem is the same dispatch, at a capacity someone else chose. **`cap`
-stops being a variable and becomes a parameter** — that single change is the
+stops being a variable and becomes a parameter.** That single change is the
 whole of the decomposition:
 
 ```yaml
@@ -85,14 +89,14 @@ objective:
   expression: sum(p * cost)
 ```
 
-Note what is *not* here: no `invest`, no `cap` bounds, no investment term. The
-subproblem does not know it is part of anything.
+Three things are *not* here: no `invest`, no `cap` bounds, no investment term.
+The subproblem does not know it is part of anything.
 
 ## The master, where a cut is data
 
-The master keeps the capacity decision and replaces the dispatch it can no
-longer see with `theta`, a single variable standing for what operating that
-capacity will cost. Cuts teach it what `theta` really is:
+The master keeps the capacity decision. It can no longer see the dispatch, so
+it stands in `theta` for it: one variable holding what operating that capacity
+will cost. Cuts teach the master what `theta` really is:
 
 ```yaml
 dimensions:
@@ -125,19 +129,20 @@ objective:
 ```
 
 **`cut` and `fcut` take their members from data**
-([the data contract](../reference/data.md)), so an iteration appends rows
-to their parameter tables and this file never changes.
-No YAML is generated at runtime, which is what keeps the model a reviewer reads
-the model that runs.
+([the data contract](../reference/data.md)). An iteration appends rows to their
+parameter tables, and this file never changes. No YAML is generated at runtime.
+That is what keeps the model a reviewer reads the same model that runs.
 
-`theta` is a scalar variable — `foreach: []` — and starts at `lower: 0`, which
-is the only thing keeping the first master bounded before any cut exists.
+`theta` is a scalar variable, `foreach: []`, and starts at `lower: 0`. That
+lower bound is the only thing keeping the first master bounded before any cut
+exists.
 
 ## Reading a cut out of an answer
 
-A cut is the subproblem's value and its slope, at the capacity that was tried.
-The slope is the capacity constraint's shadow price, weighted by availability
-and summed over snapshots:
+A cut is the value of the subproblem and its slope, at the capacity that was
+tried. The slope is the shadow price of the capacity constraint, weighted by
+availability and summed over snapshots. `sources` below is the data the model
+attaches ([glossary](../reference/glossary.md#how-it-runs)):
 
 ```python
 import lpspec as lps
@@ -153,16 +158,17 @@ with lps.solve('examples/benders/sub.yaml', sources) as sub:
     )
 ```
 
-That is the whole interface with the engine: `dual`, and a join against the
-model's own `avail` table. Appending the cut is two `pl.concat` calls onto the
-parameter tables the master already declares.
+That is the whole interface with the engine (the builder that fills the model
+from its data): `dual`, and a join against the model's own `avail` table.
+Appending the cut is two `pl.concat` calls onto the parameter tables the master
+already declares.
 
 ## When the subproblem is infeasible
 
-Below some capacity there is no dispatch at all, and the subproblem says so by
-being infeasible. lpspec hands back **no Farkas ray** — an infeasible solve has
+Below some capacity there is no dispatch at all. The subproblem says so by
+being infeasible. lpspec hands back **no Farkas ray**. An infeasible solve has
 no readable status, so `dual()` raises rather than returning a vector of zeros
-indistinguishable from an answer.
+that looks like an answer.
 
 So the cut comes from a fourth model, which asks *how far from dispatchable*
 this capacity is. It is the subproblem with a slack and a different objective:
@@ -194,10 +200,10 @@ objective:
   expression: sum(short)
 ```
 
-Its optimum is zero exactly when the subproblem is feasible, and its capacity
-duals are the slope the feasibility cut needs. It is a separate file because a
-model declares one objective — "minimise the violation" cannot be a second
-objective on the subproblem.
+Its optimum is zero exactly when the subproblem is feasible. Its capacity duals
+are the slope the feasibility cut needs. It is a separate file because a model
+declares one objective: "minimise the violation" cannot be a second objective
+on the subproblem.
 
 ## The loop
 
@@ -226,14 +232,16 @@ for step in range(25):
 ```
 
 Twenty lines, three `lps.solve` calls, and a growing pair of tables. **A reader
-could write this**, which is the observation that matters most for
+could write this.** That is the observation that matters most for
 [#596](https://github.com/fluxopt/lpspec/issues/596).
 
-The models are loaded above the loop because none of them changes — a cut is a
-row in a parameter table, not an edit to a file. `lps.solve` accepts a lowered
-model anywhere it accepts a path, so parse, validation and lowering are paid
-once for the run instead of three times an iteration. That is not decomposition-specific: it is
-what any driver over a fixed model does, and `solve_over` already does it.
+The models are loaded above the loop because none of them changes. A cut is a
+row in a parameter table, not an edit to a file. `lps.solve` accepts what
+`lps.check` returns, a lowered program
+([glossary](../reference/glossary.md#the-chain)), anywhere it accepts a path.
+So parse, validation and lowering are paid once for the run instead of three
+times an iteration. That is not specific to decomposition. Any driver over a
+fixed model does it, and `solve_over` already does.
 
 ## Running it
 
@@ -255,19 +263,19 @@ difference: 0.0e+00
 cuts: 1 optimality, 3 feasibility
 ```
 
-Three capacities are excluded as undispatchable before one proves feasible; the
+Three capacities are excluded as undispatchable before one proves feasible. The
 first optimality cut then closes the gap exactly.
 
 ## The check is the algorithm's own
 
-A decomposed answer is only interesting if it is the *same* answer, and lpspec
-can always build the monolith from the same sources. So the example solves both
-and prints the difference — `0.0e+00` above, asserted in
+A decomposed answer is only interesting if it is the *same* answer. lpspec can
+always build the monolith from the same sources, so the example solves both and
+prints the difference: `0.0e+00` above, asserted in
 `tests/test_benders_example.py`.
 
 This is the two-lane differential test aimed at an algorithm instead of an
-engine, and it is a property of writing models declaratively: the undecomposed
-form is always available, because it is another file over the same data.
+engine. It is a property of writing models declaratively: the undecomposed form
+is always available, because it is another file over the same data.
 
 ## What is deliberately absent
 
