@@ -257,7 +257,7 @@ def conjunct_verdicts(built_model, program) -> dict[str, str]:
     """
     compiler = built_model._engine._model.compiler
     verdicts: dict[str, str] = {}
-    for name, block in (program.constraints | program.variables).items():
+    for name, block in {**program.constraints, **program.variables}.items():
         where = getattr(block, 'where', None)
         if where is None:
             continue
