@@ -79,11 +79,10 @@ an infinite bound, or a mapping that declares nothing. An empty list stays:
 
 ## The sources argument
 
-`sources` maps each declared name to its data: a parquet path, or any table
-that exposes the Arrow PyCapsule protocol (polars, pandas, pyarrow). A
-dimension's own key supplies labels that neither the sources nor the YAML
-carries. The rules are [the data contract](data.md); the accepted shapes are
-the type `lpspec.lanes.Source`, which every verb annotates `sources` with.
+`sources` maps each declared name to its data, and a dimension's own key
+supplies its labels. What each value may be, and what attaching refuses, is
+[the data contract](data.md); the type is `lpspec.lanes.Source`, which every
+verb annotates `sources` with.
 
 ```python
 result = lps.solve(
@@ -195,7 +194,7 @@ print(model.row('balance', snapshot=1))
 **The line is linopy's format**, as `Constraint.print()` renders it, with the
 row's identity on the same line where linopy prints a header.
 
-The same content is a frame, for a row too wide to read and for anything that
+The same content is a table, for a row too wide to read and for anything that
 filters or joins:
 
 ```python
@@ -245,7 +244,7 @@ result.is_ok  # rolled-up verdict: not an error, abort or refusal
 result.has_primal  # narrower: are there values to read
 result.kept  # how much of the session this solve kept: 'nothing', 'solver' or 'progress'
 
-result.primal('p')  # tidy frame (dims…, value) in label order — the native shape
+result.primal('p')  # tidy table (dims…, value) in label order — the native shape
 result.dual('power_balance')  # shadow prices, same shape, same join
 result.activity('power_balance')  # each row's left-hand side at the solution
 result.expression('co2')  # a named expression at the solution, over its own dims
@@ -312,7 +311,7 @@ for capacity in search:
 | **the answer is the reference build's** | `model.update(x)` solves what `build(spec, sources \| x)` solves, always |
 | **it never refuses** | there is no capability to query and no shape of data it rejects. New values can cost the *fast path*, never the answer |
 | **the solver stays loaded where it can** | new bounds, costs and right-hand sides go onto the model the solver already holds. Whether the next solve also carries on from the *work* the last one did is [`keep=`](#how-much-of-the-session-a-solve-keeps). An update that moves a *mask* (a parameter a `where` compares against) renumbers labels, so that model is loaded again and keeps nothing |
-| **earlier results keep reading** | a `Result` owns its values and the label frames of the build it answered. Retaining one keeps those frames alive until it is dropped or closed |
+| **earlier results keep reading** | a `Result` owns its values and the label tables of the build it answered. Retaining one keeps those tables alive until it is dropped or closed |
 | **an update that raises releases the model** | the same rule as `build` |
 | **a name the spec does not declare raises `DataError`** | an update that named nothing would silently re-solve the numbers already attached |
 
@@ -416,7 +415,7 @@ any of them.
 | `sink_columns`, `sink_rows` | what the last solve's solver *added* to that shape: zero, or the binaries and linking rows that replaced a set it has no concept of |
 | `omissions` | rows a constraint declared but did not build ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/#a-row-with-no-variable-terms-is-not-built)) |
 | `sparse_parameters` | `(parameter, coordinates, rows, missing)`, one row per parameter whose source is short of the coordinates its dimensions reach. Sparsity is how a model masks, so this reports rather than judges: a table that lost a row and a `where:` that removed one build the same model, and nothing else says which |
-| `coefficient_range` | `(constraint, smallest, largest)`, the coefficient **magnitudes** each block put in the matrix. `largest / smallest` over the frame is the conditioning to compare against the solver's own |
+| `coefficient_range` | `(constraint, smallest, largest)`, the coefficient **magnitudes** each block put in the matrix. `largest / smallest` over the table is the conditioning to compare against the solver's own |
 | `bound_range` | `(variable, smallest, largest)`, the **bound** magnitudes each variable block put on its columns, zero and infinity excluded. HiGHS reports this axis (`Consider scaling the bounds by …`) and does not repair it. A large `largest` is usually a big number standing in for "uncapped", and wants no upper bound rather than a rounder one |
 | `rhs_range` | `(constraint, smallest, largest)`, the same for each block's right-hand sides, over the rows that survived |
 | `objective_range` | the same pair for the costs, or `None` where the spec declares no objective |

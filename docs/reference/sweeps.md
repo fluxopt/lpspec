@@ -22,8 +22,8 @@ An axis says how the sources split into slices. `solve_over` accepts three.
 
 | | |
 |---|---|
-| `lps.EachCoordinate(dim)` | One slice per coordinate of `dim`: scenarios, draws, investment periods. A source carrying `dim` is filtered to one coordinate and the column is dropped; every other source passes through. A spec that declares `dim` is refused. The slices run in the sorted order of the coordinates, which is the order a `carry` chains them in. |
-| `lps.EachWindow(dim, length, step, into)` | One slice per window of consecutive coordinates of `dim`. `length` is what the solver sees and `step` is what the window keeps, so `length > step` is overlap. The dimension is re-indexed into a dense `0..n-1` column named `into`, which the spec has to declare. |
+| `lps.EachCoordinate(dim)` | One slice per label of `dim`: scenarios, draws, investment periods. A source carrying `dim` is filtered to one label and the column is dropped; every other source passes through. A spec that declares `dim` is refused. The slices run in the sorted order of the labels, which is the order a `carry` chains them in. |
+| `lps.EachWindow(dim, length, step, into)` | One slice per window of consecutive labels of `dim`. `length` is what the solver sees and `step` is what the window keeps, so `length > step` is overlap. The dimension is re-indexed into a dense `0..n-1` column named `into`, which the spec has to declare. |
 | a sequence of `(key, sources)` pairs | A hand-built axis. The call must pass `key_name=`. |
 
 ```python
@@ -36,8 +36,8 @@ runs = lps.solve_over(
 runs.primal('soc')  # (snapshot_start, t, value) — the window, and the index inside it
 ```
 
-**A window spans coordinates, not values.** `length=48` is forty-eight
-snapshots however they are numbered. The dimension only has to be orderable:
+**A window spans labels, not values.** `length=48` is forty-eight snapshots
+however they are numbered. The dimension only has to be orderable:
 datetimes, strings and gapped integers all work. `into` has no default, and a
 seam's `where: "t == 0"` matches on it.
 
@@ -57,7 +57,7 @@ axes compose as a comprehension over the slices of one, each sliced again by
 the other.
 
 **Sources cross a slice in every shape `build` takes.** A table carrying the
-axis, frame or parquet path, is filtered. A number, a `{label: value}` map or a
+axis, table or parquet path, is filtered. A number, a `{label: value}` map or a
 bare sequence passes through as it is. A table carrying the axis that is short
 of a coordinate another table has raises an `LpspecWarning` before a slice is
 taken, naming both tables. That slice builds the source empty. An absent row is
@@ -67,13 +67,13 @@ how a model masks, so the gap is reported rather than refused.
 
 **`Runs` reads like [`Result`](api.md#reading-a-result), one dimension wider.**
 `primal`, `dual`, `expression`, `to_pandas`, `to_dataarray`, `to_dataset` and
-`to_parquet` keep their names, and every frame has the slice key prepended.
+`to_parquet` keep their names, and every table has the slice key prepended.
 
 **You name the extra dimension, not the library.** `EachCoordinate('scenario')`
 keys on `scenario`, so `runs.to_dataarray('p')` is
 `(scenario, snapshot, generator)`.
 
-**`original_index=` asks for the answer over real coordinates.** It is a
+**`original_index=` asks for the answer over the real labels.** It is a
 keyword on the readers, not a reader of its own:
 
 ```python
@@ -83,10 +83,10 @@ runs.dual('balance', original_index=True)  # the same, for a price
 runs.expression('spend', original_index=True)  # the model's own quantity, over real coordinates
 ```
 
-For `EachWindow` this is the stitched answer over the global coordinate. Each
-window contributes the `step` coordinates it owns, and the final window all of
+For `EachWindow` this is the stitched answer over the global labels. Each
+window contributes the `step` labels it owns, and the final window all of
 its rows. For `EachCoordinate` and a hand-built axis nothing was re-indexed, so
-the frame comes back unchanged.
+the table comes back unchanged.
 
 **Keyed is the default, because stitching is lossy.** It drops the lookahead
 rows the sweep solved. For the same reason `to_dataset` and `to_parquet` have
@@ -104,26 +104,26 @@ variable of the same name would collide in one dataset.
 and the call that made the sweep, pointed at it with `to=`, reads it back
 without solving.
 
-**There is no per-slice reader.** One slice is a partition of a frame you
+**There is no per-slice reader.** One slice is a partition of a table you
 already hold: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 
 | Rule | |
 |---|---|
 | **everything a slice produced is kept** | Every variable's primals and every constraint's duals come back through `runs.primal(name)` and `runs.dual(name)`. Each slice's *model* is released as the loop goes, so build peak stays at one slice. |
 | **duals are keyed, never combined** | `runs.dual(name)` has the shape of `runs.primal(name)`; averaging, taking the last or reading one slice alone is yours to do. A slice whose model had an integer variable contributes no duals, and `runs.objective` says which slice. |
-| **expressions are evaluated per slice** | Every declared `expressions:` name is evaluated at each slice's solution and read through `runs.expression(name)`. Under `original_index=True` only the rows each window owns survive, so summing the stitched frame cannot double-count the lookahead. A quantity *reduced over* the sliced dimension is refused there, and the error names the per-slice read. |
-| **no aggregate objective** | `objective` is a frame keyed by slice. Scenarios are a distribution, not a sum, and summing window objectives double-counts the overlap. |
+| **expressions are evaluated per slice** | Every declared `expressions:` name is evaluated at each slice's solution and read through `runs.expression(name)`. Under `original_index=True` only the rows each window owns survive, so summing the stitched table cannot double-count the lookahead. A quantity *reduced over* the sliced dimension is refused there, and the error names the per-slice read. |
+| **no aggregate objective** | `objective` is a table keyed by slice. Scenarios are a distribution, not a sum, and summing window objectives double-counts the overlap. |
 | **the lookahead is `t >= step`** | Overlapping windows return every row they solved, lookahead included. What each window owns is `runs.primal('soc').filter(pl.col('t') < step)`. |
-| **a slice that did not solve contributes no rows** | A `primal` frame can be shorter than the sweep. `objective` is always one row per slice and records which did not solve. |
+| **a slice that did not solve contributes no rows** | A `primal` table can be shorter than the sweep. `objective` is always one row per slice and records which did not solve. |
 | **a window keys as `<dim>_start`** | `EachWindow('snapshot', …)` drops `snapshot` and re-indexes to `into`; the key column `snapshot_start` holds where each window began. |
-| **a hand-built axis names its own key** | A plain list cannot say what its keys are coordinates *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name on any axis. It is refused only when it collides with a column the frames already carry: a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective`. |
+| **a hand-built axis names its own key** | A plain list cannot say what its keys are labels *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name on any axis. It is refused only when it collides with a column the tables already carry: a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective`. |
 | **`runs.diagnostics` says what each slice cost** | One row per slice, `(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)`: `model.diagnostics()` one dimension wider, its counts and clocks only. `loaded` says the solver took the model from scratch. A serial sweep loads once and pushes values after, so a later `True` is a slice whose data moved a mask; under `executor=` every slice loads. The clocks are that slice's own seconds. |
 | **a slice that fails says which slice** | The error is the engine's own, with a note on it: `in slice 'bad' (3 of 3)`. |
-| **a sweep's memory grows with its answer, unless it is spilled** | The models are released as the fold goes; the frames accumulate. `to=` writes them out instead ([below](#spilling-a-sweep-to-disk)), and `to_parquet` writes a held sweep out the same way, after the fact. |
+| **a sweep's memory grows with its answer, unless it is spilled** | The models are released as the fold goes; the tables accumulate. `to=` writes them out instead ([below](#spilling-a-sweep-to-disk)), and `to_parquet` writes a held sweep out the same way, after the fact. |
 
 ## Spilling a sweep to disk
 
-`to=` names a directory. Each slice's frames are written there as the fold
+`to=` names a directory. Each slice's tables are written there as the fold
 goes rather than held, so the sweep's memory stays at one slice:
 
 ```python
@@ -159,7 +159,7 @@ runs = lps.solve_over(
 |---|---|
 | **a carry is a copy, never arithmetic** | Accumulation (`existing += built`) is a derived variable in the YAML. |
 | **the two declarations say what is copied** | The carry collapses the one dimension the *variable* has and the *parameter* does not, and `index` names a coordinate of it. Every other dimension rides along. `soc` over `(t, storage)` into `soc_initial` over `(storage)` drops `t` and hands both stores forward. `total` over `(generator)` into `existing` over `(generator)` drops nothing, so `index` is `None`. |
-| **the index is explicit, and it is a kept coordinate** | With `EachWindow(…, 48, 24, …)` the state to carry sits at coordinate 23 of `into`, not 47. The rows from `step` on are the lookahead, so an index there is refused, and the error names 23. |
+| **the index is explicit, and it is a kept label** | With `EachWindow(…, 48, 24, …)` the state to carry sits at label 23 of `into`, not 47. The rows from `step` on are the lookahead, so an index there is refused, and the error names 23. |
 | **the first slice needs a seed** | `carry` supplies the parameter from the second slice on. The first slice takes it from `sources`, and a sweep whose sources lack it is refused before a slice is taken. |
 | **a carry is checked before anything is read** | The dims come from the YAML, so a carry that cannot line up raises before the axis has scanned a source: collapsing two dimensions at once, a parameter over more dimensions than the variable, an index where the sides already match, no seed, an index in the lookahead. `check` cannot answer this, because `carry` is an argument to the call, not part of the model. |
 | **the last slice carries nothing** | There is no next slice to read it. |
@@ -182,33 +182,18 @@ remote transport and no vendor integration.
 
 **A forked worker hangs.** The polars thread pool does not survive `fork`, and
 the failure is a hang rather than an error. `solve_over` cannot enforce the
-start method, because a remote executor has none to inspect. Pass the context
-yourself:
-
-```python
-import multiprocessing
-from concurrent.futures import ProcessPoolExecutor
-
-
-def main():
-    ctx = multiprocessing.get_context('spawn')  # or 'forkserver'
-    with ProcessPoolExecutor(4, mp_context=ctx) as pool:
-        runs = lps.solve_over('spec.yaml', sources, lps.EachCoordinate('scenario'), executor=pool)
-
-
-if __name__ == '__main__':  # spawn re-imports your module; without this it recurses
-    main()
-```
+start method, because a remote executor has none to inspect.
+[Running a sweep in parallel](../howto/parallel.md) is the recipe.
 
 **Parallel is N × peak.** Each worker holds its own slice's model, so a
 four-way pool wants four times the memory of one slice.
 
-**Pass paths or frames, whichever you already have.** Sources cross a process
-boundary as parquet, never as pickled frames. A path the workers can reach
+**Pass paths or tables, whichever you already have.** Sources cross a process
+boundary as parquet, never as pickled tables. A path the workers can reach
 stays a path; one they cannot reach travels as its own bytes. A source no slice
 rewrote is encoded once for the whole sweep. `df.lazy()` is not an
-optimisation: an eager frame is embedded in the plan, so it pickles *larger*
-than the frame. Only `scan_parquet` is a reference.
+optimisation: an eager table is embedded in the plan, so it pickles *larger*
+than the table. Only `scan_parquet` is a reference.
 
 ## How a sweep runs
 

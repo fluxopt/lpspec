@@ -1,7 +1,7 @@
 # Preparing the data
 
 From the files an instance arrives in to the `sources` mapping the verbs
-take, one frame per parameter. What that mapping may contain is
+take, one table per parameter. What that mapping may contain is
 [the data contract](../reference/data.md).
 
 ## The files you start from
@@ -29,7 +29,7 @@ snapshot,value
 3,90.0
 ```
 
-## One frame per parameter
+## One table per parameter
 
 One `select` per parameter: its dimension columns and a `value` column. The
 time series passes through untouched:
@@ -73,7 +73,7 @@ sources = {'snapshot': load.index, 'generator': p_max.index, 'p_max': p_max, 'co
 
 A static attribute is an indexed Series already: rename its index. A wide
 time series needs `stack()` and `reset_index()`, since a parameter over two
-dimensions is a frame with both as columns. Here the load is mapped onto
+dimensions is a table with both as columns. Here the load is mapped onto
 buses on the way, the shape [transport](../examples/transport.md) attaches:
 
 ```python

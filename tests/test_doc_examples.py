@@ -64,6 +64,8 @@ REPO = Path(__file__).resolve().parent.parent
 TRACKED = [
     'README.md',
     'docs/guide.md',
+    'docs/howto/parallel.md',
+    'docs/howto/debug.md',
     'docs/reference/api.md',
     'docs/reference/sweeps.md',
     'docs/about/linopy.md',

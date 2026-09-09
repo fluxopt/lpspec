@@ -4,7 +4,7 @@
 
 Write the math in YAML, attach data at runtime, solve. Today that means linear and
 mixed-integer programs. The model is never a dense Python object: it is tidy
-frames — masks are absent rows, and a variable's label *is* the solver's own
+tables — masks are absent rows, and a variable's label *is* the solver's own
 column index — assembled relationally and handed to the solver in batches.
 
 The consequence worth the headline is **cost to a loaded solver** — YAML and
@@ -96,13 +96,13 @@ sources = {
 
 result = lps.solve('dispatch.yaml', sources)
 print(result.objective)  # 1920.0
-print(result.primal('p'))  # a tidy frame: (snapshot, generator, value)
+print(result.primal('p'))  # a tidy table: (snapshot, generator, value)
 print(result.dual('power_balance'))  # the price at each snapshot
 ```
 
 Sources can also be pandas or pyarrow objects, or parquet paths — anything
 exposing the Arrow PyCapsule protocol is accepted, and the recogniser imports
-none of them. Results come back as frames, so nothing has to be released and
+none of them. Results come back as tables, so nothing has to be released and
 no dataframe library is a dependency: `result.to_pandas('p')`,
 `.to_dataarray('p')` and `.to_parquet(dir)` are the bridges out, each named for
 what it costs.
@@ -158,7 +158,7 @@ to work on it,
 
 To see it rather than read it, `python examples/walkthrough.py` runs one small
 model through every stage — YAML → schema → core AST → logical plan → model
-frames → LP text → solution — printing the artifact each stage produces. It
+tables → LP text → solution — printing the artifact each stage produces. It
 also runs two models the language refuses, and says why. Its output is
 committed as [examples/walkthrough.out](examples/walkthrough.out), if you would
 rather read it than run it.
