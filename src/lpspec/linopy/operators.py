@@ -241,10 +241,11 @@ class Partition:
     """A lookup as ``shift``, ``sum_back`` and ``position`` walk it: the group at each coordinate, and what a group reads.
 
     Attributes:
-        groups: Each coordinate's group — the lookup's value tuple, or its one
-            value — over the walked dimension and the dims the lookup joins
-            on, null where the coordinate is in no group.
-        values: Each value column over the same key, by the dimension it is
+        groups: Each coordinate's group — the tuple of the value columns the
+            walk produces, or the one value — over the walked dimension and
+            the dims the lookup joins on, null where the coordinate is in no
+            group.
+        values: Each group column over the same key, by the dimension it is
             over: what an amount declared over a group's dimension is read
             through (:func:`_per_group`).
     """

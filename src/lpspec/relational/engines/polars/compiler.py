@@ -804,19 +804,19 @@ class PolarsCompiler:
         return frame.select(*sorted(joined, key=held.index), *renamed)
 
     def partitioned(self, dim: str, walk: program.Walk) -> pl.LazyFrame:
-        """*dim*'s ``(val, ord, value columns…, joined dims…, GROUP_RANK, GROUP_SIZE)``, only for labels the lookup places in a group.
+        """*dim*'s ``(val, ord, group columns…, joined dims…, GROUP_RANK, GROUP_SIZE)``, only for labels the lookup places in a group.
 
         The inner join is where "this coordinate is in no group" comes from:
         it has no row in the relation, so it has none here, and every rank,
         span and neighbour a walk reads sees only labels that are in one. A
-        group is one tuple of the lookup's value columns at one coordinate of
-        its joined dimensions, so the rank and the size are taken within both;
-        the value columns keep their own names, which is what a per-group
-        amount is read by.
+        group is one tuple of the value columns the walk produces at one
+        coordinate of its joined dimensions, so the rank and the size are
+        taken within both; the group columns keep their own names, which is
+        what a per-group amount is read by.
         """
         (walked,) = walk.consumed
         rows = self.data.lookups[walk.name].select(
-            pl.col(walked).alias('val'), *(pl.col(r).alias(walk.dim(r)) for r in walk.joined), *walk.values
+            pl.col(walked).alias('val'), *(pl.col(r).alias(walk.dim(r)) for r in walk.joined), *walk.produced
         )
         group = [pl.col(c) for c in group_columns(walk)]
         return (

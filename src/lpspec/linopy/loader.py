@@ -64,9 +64,9 @@ class BoundLookup:
             self._values[role] = self._over_key(self.rows[role].to_numpy())
         return self._values[role]
 
-    def groups(self, walk: LookupDeclaration | Walk) -> xr.DataArray:
-        """The group each key tuple is in under *walk*: its value tuple, or the one value where there is one."""
-        values = list(walk.values)
+    def groups(self, walk: Walk) -> xr.DataArray:
+        """The group each key tuple is in under *walk*: the tuple of the value columns it produces, or the one value."""
+        values = list(walk.produced)
         if len(values) == 1:
             return self.value(values[0])
         keys = list(zip(*(self.rows[v].to_numpy() for v in values), strict=True))

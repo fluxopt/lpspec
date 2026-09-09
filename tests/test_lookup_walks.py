@@ -771,3 +771,69 @@ def test_a_relation_with_roles_is_supplied_under_the_role_names():
     unrolled = pl.DataFrame({'line': LINES, 'bus': ['b1', 'b2']})
     with pytest.raises(lps.DataError, match=r"must carry columns \['line', 'bus0', 'bus1'\]"):
         lps.build(ENDS, {**ENDS_SOURCES, 'ends': unrolled}).close()
+
+
+# ---------------------------------------------------------------------------
+# a partition grouped by the value columns into= names
+# ---------------------------------------------------------------------------
+
+
+CALENDAR_SNAPSHOTS = [0, 1, 2, 3, 4, 5]
+
+#: One calendar table over ``[snapshot, day, week]``: days of three snapshots,
+#: and one week holding the first two days, the third day in a week of its own.
+CALENDAR = {
+    'dimensions': {'snapshot': {'dtype': 'int'}, 'day': {'dtype': 'str'}, 'week': {'dtype': 'str'}},
+    'lookups': {'cal': {'over': ['snapshot', 'day', 'week'], 'key': 'snapshot'}},
+    'variables': {
+        'x': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 100}},
+        'd': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 100}},
+        'w': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 100}},
+    },
+    'constraints': {
+        'seed': {'foreach': ['snapshot'], 'where': 'position(snapshot, by=cal, into=day) == 0', 'expression': 'x == 5'},
+        'step': {
+            'foreach': ['snapshot'],
+            'where': 'position(snapshot, by=cal, into=day) > 0',
+            'expression': 'x == shift(x, over=snapshot, offset=1, by=cal, into=day) + 1',
+        },
+        'per_day': {
+            'foreach': ['snapshot'],
+            'expression': 'd == sum_back(x, over=snapshot, within=6, by=cal, into=day)',
+        },
+        'per_week': {
+            'foreach': ['snapshot'],
+            'expression': 'w == sum_back(x, over=snapshot, within=6, by=cal, into=week)',
+        },
+    },
+    'objective': {'sense': 'minimize', 'expression': 'sum(x) + sum(d) + sum(w)'},
+}
+
+CALENDAR_SOURCES = {
+    'snapshot': CALENDAR_SNAPSHOTS,
+    'day': ['d1', 'd2'],
+    'week': ['w1', 'w2'],
+    'cal': pl.DataFrame(
+        {'snapshot': CALENDAR_SNAPSHOTS, 'day': ['d1', 'd1', 'd1', 'd2', 'd2', 'd2'], 'week': ['w1'] * 4 + ['w2'] * 2}
+    ),
+}
+
+
+def test_one_calendar_table_partitions_at_every_granularity_into_names():
+    """``into=day`` and ``into=week`` walk one table, grouping by the value column each names and reading no other.
+
+    ``x`` restarts at 5 with each day, so the trailing window within a day
+    is the running sum of 5, 6, 7 and within a week — which cuts across the
+    second day — it keeps running through snapshot 3 and restarts at 4. A
+    partition that grouped by both columns would give the day's numbers to
+    both windows; one that ignored ``into=`` could not tell them apart.
+    """
+    with differential(CALENDAR, CALENDAR_SOURCES) as run:
+        x = by_coord(run.result, 'x', 'snapshot')
+        per_day = by_coord(run.result, 'd', 'snapshot')
+        per_week = by_coord(run.result, 'w', 'snapshot')
+    assert x == {0: 5.0, 1: 6.0, 2: 7.0, 3: 5.0, 4: 6.0, 5: 7.0}, '5 plus the within-day position'
+    assert per_day == {0: 5.0, 1: 11.0, 2: 18.0, 3: 5.0, 4: 11.0, 5: 18.0}, 'the running sum restarts with each day'
+    assert per_week == {0: 5.0, 1: 11.0, 2: 18.0, 3: 23.0, 4: 6.0, 5: 13.0}, (
+        'the running sum crosses the day boundary inside week 1 and restarts with week 2'
+    )

@@ -409,7 +409,7 @@ def _partition(node: program.Translate | program.Window, ctx: EvaluationContext)
     if walk is None:
         return None
     bound = ctx.lookups[walk.name]
-    return Partition(bound.groups(walk), {walk.dim(v): bound.value(v) for v in walk.values})
+    return Partition(bound.groups(walk), {walk.dim(v): bound.value(v) for v in walk.produced})
 
 
 def _walks(node: program.GroupSum | program.At, ctx: EvaluationContext) -> tuple[tuple[program.Walk, BoundLookup], ...]:

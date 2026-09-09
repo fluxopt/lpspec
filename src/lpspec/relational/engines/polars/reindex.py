@@ -328,14 +328,14 @@ def joined_dims(partition: program.Walk | None) -> tuple[str, ...]:
 
 
 def group_column(partition: program.Walk | None, dim: str) -> str | None:
-    """The value column of *partition* over *dim*, where a named amount over *dim* is read per group; ``None`` otherwise.
+    """The group column of *partition* over *dim*, where a named amount over *dim* is read per group; ``None`` otherwise.
 
-    One at most: the language refuses a per-group amount over a dimension two
-    value columns share.
+    One at most: the language refuses a partition producing one dimension
+    through two columns.
     """
     if partition is None:
         return None
-    return next((v for v in partition.values if partition.dim(v) == dim), None)
+    return next((v for v in partition.produced if partition.dim(v) == dim), None)
 
 
 def _named_amount(
@@ -343,10 +343,10 @@ def _named_amount(
 ) -> tuple[pl.LazyFrame, list[str]]:
     """A named offset's or width's values, and the keys a frame reads them by.
 
-    A **per-group** amount is declared over the dimension a value column of
+    A **per-group** amount is declared over the dimension a group column of
     the partition is over, and no frame carries a column of it: what travels
     with a coordinate is the lookup's own value, so the amount is read under
-    the value column's name and one equi-join lands each group its own. A
+    the group column's name and one equi-join lands each group its own. A
     coordinate the map places nowhere is in no partitioned table and joins to
     nothing, which is what it reaches everywhere else.
     """
