@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.1-alpha.315](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.314...v0.0.1-alpha.315) (2026-09-09)
+
+
+### Documentation
+
+* each shared claim has one page, and two how-tos cover a parallel sweep and a wrong answer ([#1561](https://github.com/fluxopt/lpspec/issues/1561)) ([7dc8553](https://github.com/fluxopt/lpspec/commit/7dc85536ee4ebc35a099a7864427d82a5e10c17e))
+* every hand-written page meets the docs-writing skill, and the tree follows the nav ([#1560](https://github.com/fluxopt/lpspec/issues/1560)) ([645a346](https://github.com/fluxopt/lpspec/commit/645a34616d39b8047fb5498937862ed2ad87df31))
+
 ## [0.0.1-alpha.314](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.313...v0.0.1-alpha.314) (2026-09-09)
 
 
