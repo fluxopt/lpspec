@@ -15,6 +15,7 @@ lane builds internally, never what either lane reads.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -41,16 +42,20 @@ def to_pandas(table: pl.DataFrame) -> Any:
 
 
 def as_frame(obj: object, dims: Sequence[str] = ()) -> pl.LazyFrame | None:
-    """Normalise one in-memory table to a lazy frame.
+    """One source as a lazy frame: a parquet path scanned, so a filter pushes down, or an in-memory table normalised.
 
-    *dims* names the columns a pandas index becomes.
+    The one place a string is read as a parquet path, for every door a source
+    enters by. *dims* names the columns a pandas index becomes.
 
     Returns:
-        The frame, or ``None`` for "not table-shaped" — the caller knows
-        whether it held a parameter or an index and writes the message.
+        The frame, or ``None`` for "not table-shaped" — a number, a
+        ``{label: value}`` map, a bare sequence — which the caller spreads,
+        passes through, or refuses with the message that knows what it wanted.
     """
     import sys
 
+    if isinstance(obj, (str, Path)):
+        return pl.scan_parquet(obj)
     if isinstance(obj, pl.LazyFrame):
         return obj
     if isinstance(obj, pl.DataFrame):

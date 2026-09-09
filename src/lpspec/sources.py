@@ -15,7 +15,6 @@ The guards that need the numbers rather than the shapes are
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -164,7 +163,7 @@ def _index(source: object, dim: str, dtype: str) -> pl.LazyFrame:
         DataError: A table with no column named after the dimension, or labels
             no frame can be made of.
     """
-    table = pl.scan_parquet(source) if isinstance(source, (str, Path)) else as_frame(source, (dim,))
+    table = as_frame(source, (dim,))
     table = table if table is not None else _labels_frame(dim, source, dtype)
     available = table.collect_schema().names()
     if dim not in available:
@@ -241,7 +240,7 @@ def _unsupplied_lookup_message(lookup: str, over: str, space: str) -> str:
 
 def _column_names(source: Any, dim: str) -> frozenset[str]:
     """What a supplied index carries, or nothing where it is a bare label sequence."""
-    table = pl.scan_parquet(source) if isinstance(source, (str, Path)) else as_frame(source, (dim,))
+    table = as_frame(source, (dim,))
     return frozenset(table.collect_schema().names()) if table is not None else frozenset()
 
 
@@ -323,7 +322,7 @@ def _check_keys_are_labels(rows: pl.LazyFrame, lookup: str, over: str, labels: p
 
 def _read_relation(source: object, lookup: str, over: str, space: str) -> pl.LazyFrame:
     """One supplied relation, read and held to the rules a map has."""
-    table = pl.scan_parquet(source) if isinstance(source, (str, Path)) else as_frame(source, (over, space))
+    table = as_frame(source, (over, space))
     if table is None:
         raise DataError(
             f"lookup '{lookup}': cannot adapt {type(source).__name__} to a table — pass any "
@@ -374,8 +373,6 @@ def _parameter_frame(
     Raises:
         DataError: A shape neither a table reader nor :func:`_spread` accepts.
     """
-    if isinstance(obj, (str, Path)):
-        return pl.scan_parquet(obj)
     if is_dense_array(obj):
         raise DataError(
             f"parameter '{name}': an xarray.DataArray is not a source. lpspec reads tables — "
