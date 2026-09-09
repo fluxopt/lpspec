@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.314](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.313...v0.0.1-alpha.314) (2026-09-09)
+
+
+### Documentation
+
+* the site nav is arranged by what a page is for rather than by subject ([#1558](https://github.com/fluxopt/lpspec/issues/1558)) ([6d346c5](https://github.com/fluxopt/lpspec/commit/6d346c59102248f308fad262e087b4c209c5ae98))
+
 ## [0.0.1-alpha.313](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.312...v0.0.1-alpha.313) (2026-09-09)
 
 
