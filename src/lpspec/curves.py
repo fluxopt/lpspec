@@ -21,7 +21,6 @@ describe a curve the declared method can build.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
@@ -256,7 +255,7 @@ def _coordinates(source: object, dims: Sequence[str], keep_value: bool = False) 
     if isinstance(source, Mapping) and len(dims) == 1:
         keys = pl.LazyFrame({dims[0]: list(source.keys())})
         return keys.with_columns(pl.Series('value', list(source.values())).implode().explode()) if keep_value else keys
-    table = pl.scan_parquet(source) if isinstance(source, (str, Path)) else as_frame(source, tuple(dims))
+    table = as_frame(source, tuple(dims))
     if table is None or not set(dims) <= set(table.collect_schema().names()):
         return None
     columns = [*dims, 'value'] if keep_value else list(dims)

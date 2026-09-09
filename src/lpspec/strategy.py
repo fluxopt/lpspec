@@ -1399,18 +1399,6 @@ def _decode(encoded: Mapping[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _table(obj: Any) -> pl.LazyFrame | None:
-    """One source as a lazy frame — a scan for a path, so a filter pushes down.
-
-    ``None`` for a source that is not a table — a number, a ``{label: value}``
-    map, a bare sequence — which carries no column and so no axis, and passes
-    through every slice as it is.
-    """
-    if isinstance(obj, (str, Path)):
-        return pl.scan_parquet(obj)
-    return as_frame(obj)
-
-
 def _coordinates(sources: Mapping[str, Any], dim: str, verb: str) -> tuple[dict[str, pl.LazyFrame], list[Any]]:
     """The sources a slice has to filter, by name, and the ordered coordinates to slice.
 
@@ -1430,7 +1418,7 @@ def _coordinates(sources: Mapping[str, Any], dim: str, verb: str) -> tuple[dict[
             reads as zero — which is how a model masks, and so is reported
             rather than refused, the way the engine reports sparsity.
     """
-    tables = {name: table for name, obj in sources.items() if (table := _table(obj)) is not None}
+    tables = {name: table for name, obj in sources.items() if (table := as_frame(obj)) is not None}
     carrying = {name: table for name, table in tables.items() if dim in table.collect_schema().names()}
     if not carrying:
         raise DataError(

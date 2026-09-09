@@ -85,6 +85,21 @@ def test_a_points_parameter_supplied_as_a_parquet_path_keeps_its_own_curve_lengt
         )
 
 
+def test_a_string_is_a_parquet_path_at_every_door(tmp_path):
+    """One fact with one home: `as_frame` is what every reader of a source goes
+    through, so a path attaches the same at a parameter, an index, a lookup,
+    a curve and a sweep's axis — the `points:` curve that was refused from a
+    path while accepted from a frame was the fifth reader lacking it."""
+    from lpspec.frames import as_frame
+
+    frame = pl.DataFrame({'snapshot': [0, 1], 'value': [1.0, 2.0]})
+    frame.write_parquet(tmp_path / 'load.parquet')
+    assert as_frame(str(tmp_path / 'load.parquet')).collect().equals(frame), 'a str is scanned as parquet'
+    assert as_frame(tmp_path / 'load.parquet').collect().equals(frame), 'and so is a Path'
+    assert as_frame(frame).collect().equals(frame), 'a table is normalised as before'
+    assert as_frame(2.0) is None, 'a number is not a table, and the caller says what it is'
+
+
 def test_parquet_path_sources(dispatch_yaml, dispatch_frame_inputs, tmp_path):
     sources = dispatch_frame_inputs
     paths = {}
