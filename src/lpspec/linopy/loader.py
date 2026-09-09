@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -14,46 +16,85 @@ if TYPE_CHECKING:
 
     import polars as pl
     from math_spec import program
+    from math_spec.program import LookupDeclaration, Walk
 
 
 def dimension_coords(
     program: program.Program,
     tidy: Mapping[str, pl.LazyFrame],
-) -> tuple[dict[str, pd.Index], dict[str, dict[str, xr.DataArray]]]:
-    """Every dimension's labels, and each declared lookup as an array over its dimension.
+) -> tuple[dict[str, pd.Index], dict[str, BoundLookup]]:
+    """Every dimension's labels, and each declared lookup as this lane reads it.
 
     *tidy* is :func:`~lpspec.sources.tidy_sources`' output, so every index and
-    map has been read and checked; what happens here is the conversion.
+    relation has been read and checked; what happens here is the conversion.
 
     Returns:
-        The master coordinates by dimension, and by dimension the array each
-        declared lookup carries over it. A dimension declaring no lookup is
-        absent from the second.
+        The master coordinates by dimension, and each lookup by name.
     """
     master = {d: pd.Index(pd.unique(to_pandas(tidy[d].select(d).collect())[d]), name=d) for d in program.dimensions}
-    return master, _lookup_arrays(program, tidy, master)
+    lookups = {name: BoundLookup(lk, to_pandas(tidy[name].collect()), master) for name, lk in program.lookups.items()}
+    return master, lookups
 
 
-def _lookup_arrays(
-    program: program.Program,
-    tidy: Mapping[str, pl.LazyFrame],
-    master: Mapping[str, pd.Index],
-) -> dict[str, dict[str, xr.DataArray]]:
-    """Each declared lookup as an array over the dimension it is over.
+@dataclass(frozen=True)
+class BoundLookup:
+    """One lookup's relation as this lane reads it: the rows, and the arrays read off them.
 
-    A map arrives as its own ``(over, lookup)`` relation holding rows only
-    where it is defined. **The padding happens here**: an array is dense by
-    construction, and linopy's ``groupby`` wants one aligned to the
-    dimension's coordinates — so a label the relation leaves out becomes a
-    null, which every reader on this lane treats as "in no group".
+    ``rows`` is the relation as the door checked it, one column per declared
+    column. A keyed lookup's value columns are read as arrays over the key's
+    dimensions (:meth:`value`), and any lookup as a boolean incidence over the
+    dimensions of the columns asked for (:meth:`incidence`). **The padding
+    happens here**: an array is dense by construction, and linopy's
+    ``groupby`` and xarray's vectorised selection both want one aligned to
+    the dimensions' coordinates — so a key the relation leaves out becomes a
+    null, which every reader on this lane treats as "in no group", and a
+    tuple it leaves out becomes false.
     """
-    out: dict[str, dict[str, xr.DataArray]] = {}
-    for dim, declared in program.dimensions.items():
-        labels = master[dim]
-        for name in declared.maps:
-            series = to_pandas(tidy[name].collect()).set_index(dim)[name].reindex(labels)
-            out.setdefault(dim, {})[name] = xr.DataArray(series.to_numpy(), dims=[dim], coords={dim: labels}, name=name)
-    return out
+
+    declaration: LookupDeclaration
+    rows: pd.DataFrame
+    master: Mapping[str, pd.Index]
+    _values: dict[str, xr.DataArray] = field(default_factory=dict, compare=False, repr=False)
+
+    def value(self, role: str) -> xr.DataArray:
+        """Value column *role* at every key tuple, over the key's dimensions, null where the key maps nowhere."""
+        if role not in self._values:
+            lk = self.declaration
+            assert role in lk.values, f"'{role}' is a key column of '{lk.name}', which is read at rather than read"
+            self._values[role] = self._over_key(self.rows[role].to_numpy())
+        return self._values[role]
+
+    def groups(self, walk: LookupDeclaration | Walk) -> xr.DataArray:
+        """The group each key tuple is in under *walk*: its value tuple, or the one value where there is one."""
+        values = list(walk.values)
+        if len(values) == 1:
+            return self.value(values[0])
+        keys = list(zip(*(self.rows[v].to_numpy() for v in values), strict=True))
+        return self._over_key(np.array([*keys, None], dtype=object)[:-1])
+
+    def _over_key(self, values: np.ndarray) -> xr.DataArray:
+        """*values*, one per row, as an array over the key's dimensions, reindexed onto every coordinate."""
+        lk = self.declaration
+        dims = [lk.dim(k) for k in lk.key]
+        assert len(set(dims)) == len(dims), f"'{lk.name}' is keyed by two columns over one dimension"
+        columns = [self.rows[k].to_numpy() for k in lk.key]
+        index = pd.Index(columns[0], name=dims[0]) if len(dims) == 1 else pd.MultiIndex.from_arrays(columns, names=dims)
+        array = xr.DataArray.from_series(pd.Series(values, index=index))
+        return array.reindex({d: self.master[d] for d in dims})
+
+    def incidence(self, named: Mapping[str, str]) -> xr.DataArray:
+        """Whether the relation holds a row at each tuple, over one dimension per column in *named*.
+
+        *named* maps each column read to the dimension name the array carries
+        it under — its own dimension, or a scratch name where two columns are
+        over one dimension.
+        """
+        lk = self.declaration
+        columns = [self.rows[role].to_numpy() for role in named]
+        index = pd.MultiIndex.from_arrays(columns, names=list(named.values()))
+        held = xr.DataArray.from_series(pd.Series(True, index=index))
+        onto = {name: self.master[lk.dim(role)].rename(name) for role, name in named.items()}
+        return held.reindex(onto).fillna(value=False).astype(bool)
 
 
 def load_parameters(

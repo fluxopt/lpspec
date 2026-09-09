@@ -33,6 +33,7 @@ import polars as pl
 import pytest
 import yaml as pyyaml
 from math_spec import to_program
+from math_spec.program import Walk
 
 from lpspec.relational.sinks import SOLVERS
 from lpspec.sources import attachable
@@ -61,6 +62,11 @@ EXAMPLES_DIR = Path(__file__).parent.parent / 'examples'
 #: answer a fresh build does.
 PORTS_DIR = EXAMPLES_DIR / 'ports'
 PORT_REFERENCES: dict[str, dict[str, Any]] = constructs.REFERENCES
+
+
+def keyed_walk(name: str, key: str, value: str) -> Walk:
+    """The walk a one-key, one-value lookup is walked by when the call names no column: the key consumed, the value produced."""
+    return Walk(name, (key,), (value,), (), ((key, key), (value, value)), (key,))
 
 
 def relation(over: str, into: str, labels: Sequence[Any], values: Sequence[Any]) -> pl.DataFrame:
@@ -417,7 +423,7 @@ def masked_operand_spec(constraint: str, expression: str, *, grouped: bool = Fal
     }
     if grouped:
         spec['dimensions']['season'] = {'dtype': 'str'}
-        spec['lookups'] = {'season_of': {'over': 't', 'into': 'season'}}
+        spec['lookups'] = {'season_of': {'over': ['t', 'season'], 'key': 't'}}
     if not masked:
         del spec['parameters']
         del spec['variables']['level']['where']

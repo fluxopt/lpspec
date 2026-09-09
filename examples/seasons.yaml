@@ -14,8 +14,8 @@ dimensions:
 lookups:
   season_of:
     description: the season a snapshot falls in
-    over: snapshot
-    into: season
+    over: [snapshot, season]
+    key: snapshot
 
 parameters:
   inflow:

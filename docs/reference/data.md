@@ -65,11 +65,11 @@ reads positionally.
 parameters. Which labels an axis has is data's to say, and that rule is
 [the language's](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/).
 
-**A map goes under
+**A lookup's relation goes under
 [the lookup's own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#the-map-is-supplied-under-the-lookups-own-name)**,
-as a table of the rows it has. Attach reads it against the labels the index
-supplied: a label no row mentions is unmapped, and a key matching no label is
-refused as a typo.
+one column per column it declares, named after it, as a table of the rows it
+holds. Attach reads every column against its dimension's labels: a tuple no
+row holds is in no group, and a value matching no label is refused as a typo.
 
 ## What attaching refuses and accepts
 
@@ -90,23 +90,21 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | a sequence whose length is not the dimension's | positional, so one entry per label |
 | a sequence for a dimension nothing else supplies labels for | names the three ways to supply them |
 | a key naming neither a parameter, a dimension nor a lookup | names the near miss |
-| a lookup relation short of either column | names the pair, and what each is |
-| a lookup relation with a null in its value column | a map is partial by omitting a row |
-| a lookup relation mapping one label twice | a lookup is single-valued |
+| a lookup relation short of a declared column | names every column, and the dimension each is over |
+| a lookup relation with a null in any column | a relation is partial by omitting a row |
+| a keyed lookup holding one key tuple twice, or a bare relation holding one row twice | a keyed lookup is single-valued per its key; a relation is a set of rows |
 | a map with both authors, or neither | names them, and says which way out |
-| an index carrying a column named after a lookup over it | names the key it belongs under |
+| an index carrying a column named after a lookup with a column over it | names the key it belongs under |
 | a table missing a declared dimension column, or `value` | names the columns needed |
 | a `value` column carrying a null or a NaN | names the parameter and the coordinates |
 | a label outside the dimension's index | names the parameter and the strays |
 | two rows for one coordinate | |
-| a lookup with two values for one label | |
-| a lookup value that is not a label of its target | one wording, checked once for both lanes |
-| a dimension carrying lookups with no index | |
+| a lookup value that is not a label of its column's dimension | one wording, checked once for both lanes |
 | a dimension nothing can supply labels for | names both ways to fix it |
 | a dimension the spec declares and the caller also supplies | names the declaration and the colliding key |
 | a lookup whose map the spec declares and the caller also supplies | names the map and the colliding column |
-| a declared map whose labels nothing supplies | names the map, and asks only for the labels |
-| a declared map keyed by something the labels do not carry | names the lookup and the strays |
+| a dimension a supplied lookup has a column over, with no index | names the lookup, and asks only for the labels |
+| a lookup key that is not a label of its dimension | names the lookup and the strays |
 | a column that is not the declared `dtype` | names both, and the declaration the data would satisfy |
 | a divisor with no value where the model divides by it | names the parameter and how many rows ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/)) |
 | a comparison's whole constant side with no value where the row is built | the same, naming the constraint |

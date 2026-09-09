@@ -26,14 +26,23 @@ from lpspec.lanes import LANES
 from lpspec.linopy import absence
 from lpspec.linopy._notes import note
 from lpspec.linopy.coverage import check_constant_side_covers, check_divisors_cover, gaps_under
-from lpspec.linopy.operators import operator_at, operator_grouped_sum, operator_shift, operator_sum, operator_sum_back
-from lpspec.linopy.where import EvaluationContext, as_linopy_mask, bound_lookup, evaluate_where
+from lpspec.linopy.operators import (
+    Partition,
+    operator_at,
+    operator_grouped_sum,
+    operator_shift,
+    operator_sum,
+    operator_sum_back,
+)
+from lpspec.linopy.where import EvaluationContext, as_linopy_mask, evaluate_where
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
 
 if TYPE_CHECKING:
     import linopy
     import pandas as pd
     import xarray as xr
+
+    from lpspec.linopy.loader import BoundLookup
 
 _SIGN_MAP = {'==': '=', '<=': '<=', '>=': '>='}
 
@@ -43,7 +52,7 @@ def build_model(
     program: program.Program,
     dataset: xr.Dataset,
     master_coords: dict[str, pd.Index],
-    dim_coords: dict[str, dict[str, xr.DataArray]],
+    lookups: dict[str, BoundLookup],
 ) -> None:
     """Populate a linopy Model from a lowered program and loaded parameters.
 
@@ -52,7 +61,7 @@ def build_model(
     is trusted by construction, ``to_program`` having decided every rule the
     language can decide without data.
     """
-    ctx = EvaluationContext(dataset, master_coords, model, dim_coords, program)
+    ctx = EvaluationContext(dataset, master_coords, model, lookups, program)
     _build_variables(ctx)
     _build_sos(ctx)
     _build_constraints(ctx)
@@ -78,8 +87,8 @@ def _build_variables(ctx: EvaluationContext) -> None:
                 coords=coords,
                 name=name,
                 mask=as_linopy_mask(mask),
-                binary=vdef.variable_type == 'binary',
-                integer=vdef.variable_type == 'integer',
+                binary=vdef.domain == 'binary',
+                integer=vdef.domain == 'integer',
             )
 
 
@@ -300,15 +309,10 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
         return summed
 
     if isinstance(node, program.GroupSum):
-        return operator_grouped_sum(
-            _eval(node.operand, ctx),
-            _lookup_arrays(node.over, node.coordinate, ctx),
-            into=node.into,
-            labels=ctx.master_coords,
-        )
+        return operator_grouped_sum(_eval(node.operand, ctx), _walks(node, ctx), labels=ctx.master_coords)
 
     if isinstance(node, program.At):
-        return operator_at(_eval(node.operand, ctx), _lookup_arrays(node.over, node.coordinate, ctx), into=node.into)
+        return operator_at(_eval(node.operand, ctx), _walks(node, ctx))
 
     if isinstance(node, program.Translate):
         return operator_shift(
@@ -347,7 +351,7 @@ def _dual(name: str, ctx: EvaluationContext) -> xr.DataArray:
         LpspecError: A variable declares integrality, so the duals are
             undefined; or the solver stored none.
     """
-    discrete = sorted(n for n, v in ctx.program.variables.items() if v.variable_type != 'continuous')
+    discrete = sorted(n for n, v in ctx.program.variables.items() if v.domain != 'continuous')
     if discrete:
         raise LpspecError(
             f'named expression reads dual({name}), and duals are undefined for a mixed-integer model: '
@@ -399,20 +403,16 @@ def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
     return absence.coefficient(ctx.dataset[amount]) if isinstance(amount, str) else amount
 
 
-def _partition(node: program.Translate | program.Window, ctx: EvaluationContext) -> Any:
-    """The lookup a windowed operator may not reach across, as its values.
-
-    **Named for the dimension its values are labels of**, not for itself: an
-    amount declared over the group's own dim is read through this array by
-    :func:`~lpspec.linopy.operators._per_group`, which pairs the two by that
-    name.
-    """
-    if node.partition is None:
+def _partition(node: program.Translate | program.Window, ctx: EvaluationContext) -> Partition | None:
+    """The lookup a windowed operator may not reach across, as the groups it makes and the values a group reads."""
+    walk = node.partition
+    if walk is None:
         return None
-    array = bound_lookup(node.partition, node.dimension, ctx.dim_coords)
-    return array.rename(ctx.program.dimension(node.dimension).targets[node.partition])
+    bound = ctx.lookups[walk.name]
+    return Partition(bound.groups(walk), {walk.dim(v): bound.value(v) for v in walk.values})
 
 
-def _lookup_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The declared lookups *names* as arrays over *over*, in the order the plan wrote them."""
-    return tuple(bound_lookup(name, over, ctx.dim_coords) for name in names)
+def _walks(node: program.GroupSum | program.At, ctx: EvaluationContext) -> tuple[tuple[program.Walk, BoundLookup], ...]:
+    """Each lookup the node walks, as the plan walks it, beside the relation the door bound."""
+    assert len(node.walks) == len(node.coordinate), 'a walk per coordinate, or the node was built by hand'
+    return tuple((walk, ctx.lookups[walk.name]) for walk in node.walks)

@@ -112,7 +112,7 @@ def constructs(spec: Path) -> set[str]:
 
     if any(isinstance(n, program.WhereNode) for n in nodes):
         used.add('where')
-    if lowered.footprint.variable_types - {'continuous'}:
+    if lowered.footprint.domains - {'continuous'}:
         used.add('MILP')
     if any(_bounded(v) for v in lowered.variables.values()):
         used.add('bounds')

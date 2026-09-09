@@ -20,8 +20,8 @@ dimensions:
 lookups:
   converter_of:
     description: which converter a flow belongs to
-    over: flow
-    into: converter
+    over: [flow, converter]
+    key: flow
 
 parameters:
   bp_rate:

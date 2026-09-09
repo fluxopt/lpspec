@@ -36,8 +36,8 @@ PyPSA's carrier growth limit: how much of a technology may be built in one inves
 | Symbol | Meaning |
 |---|---|
 | $\mathcal{T}$ | index $t$ — `snapshot` with $\mathrm{period\_of}: \mathcal{T} \to \mathcal{E}$ — dispatch periods, each falling in one investment period |
-| $\mathcal{E}$ | index $e$ — `period` — investment periods, the axis capacity is built along |
-| $\mathcal{C}$ | index $c$ — `carrier` — what a generator burns, and what a growth limit is a property of |
+| $\mathcal{E}$ | index $e$ — `period` with $\mathrm{build\_period}: \mathcal{G} \to \mathcal{E},\enspace \mathrm{period\_of}: \mathcal{T} \to \mathcal{E}$ — investment periods, the axis capacity is built along |
+| $\mathcal{C}$ | index $c$ — `carrier` with $\mathrm{gen\_carrier}: \mathcal{G} \to \mathcal{C}$ — what a generator burns, and what a growth limit is a property of |
 | $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_carrier}: \mathcal{G} \to \mathcal{C},\enspace \mathrm{build\_period}: \mathcal{G} \to \mathcal{E}$ — generating units, each built in one period and standing from then on |
 
 #### Parameters
@@ -137,16 +137,16 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       gen_carrier:
         description: the carrier a generator burns
-        over: generator
-        into: carrier
+        over: [generator, carrier]
+        key: generator
       build_period:
         description: the period a generator is first built in, and so counted as new in
-        over: generator
-        into: period
+        over: [generator, period]
+        key: generator
       period_of:
         description: the investment period a snapshot falls in
-        over: snapshot
-        into: period
+        over: [snapshot, period]
+        key: snapshot
 
     parameters:
       load:

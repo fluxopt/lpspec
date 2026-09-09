@@ -378,7 +378,7 @@ def test_a_bare_where_on_a_string_parameter_asks_whether_it_has_a_row(tmp_path: 
 #: for, since it carries the label and never what the label maps to.
 LOOKUP_SPEC = {
     'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
-    'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}},
+    'lookups': {'gen_bus': {'over': ['g', 'b'], 'key': 'g'}},
     'parameters': {'p_max': {'dims': ['g']}},
     'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
     'constraints': {'k': {'foreach': ['b'], 'expression': 'sum(x, by=gen_bus) <= 10'}},
@@ -393,7 +393,7 @@ _MAP = {'gen_bus': _tidy(g=['w', 's'], b=['n', 'e'])}
 @pytest.mark.parametrize(
     ('sources', 'match'),
     [
-        pytest.param({**_P_MAX, **_MAP}, 'has its maps', id='a-map-and-no-labels'),
+        pytest.param({**_P_MAX, **_MAP}, 'has its lookups', id='a-map-and-no-labels'),
         pytest.param({**_P_MAX, **_INDEX}, 'no data provided for lookup', id='an-index-and-no-map'),
         pytest.param(
             {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], gen_bus=['n', 'e'])},
@@ -422,7 +422,7 @@ _MAP = {'gen_bus': _tidy(g=['w', 's'], b=['n', 'e'])}
         ),
         pytest.param(
             {**_P_MAX, **_MAP, 'g': _tidy(g=['w', 's'], gen_bus=['n', 'e'])},
-            "is a lookup over 'g'",
+            "is a lookup with a column over 'g'",
             id='a-map-carried-on-the-index-it-runs-over',
         ),
     ],
@@ -453,7 +453,7 @@ def test_an_index_a_declared_map_is_read_against_is_checked_before_the_read(tmp_
     error rules exist to prevent, on a lane whose attacher has the right sentence
     for it two calls later.
     """
-    spec = {**LOOKUP_SPEC, 'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}}}
+    spec = {**LOOKUP_SPEC, 'lookups': {'gen_bus': {'over': ['g', 'b'], 'key': 'g'}}}
     path = _written(tmp_path, spec)
     sources = {**_P_MAX, **_MAP, 'b': _tidy(b=['n', 'e']), 'g': _tidy(gg=['w', 's'])}
 
@@ -532,7 +532,7 @@ def test_a_dimension_index_may_be_a_parquet_path_without_pyarrow(tmp_path, monke
 #: dimension, rather than the dimension the index is of.
 TEMPORAL_LOOKUP_SPEC = {
     'dimensions': {'g': {}, 'd': {'dtype': 'datetime'}},
-    'lookups': {'day_of': {'over': 'g', 'into': 'd'}},
+    'lookups': {'day_of': {'over': ['g', 'd'], 'key': 'g'}},
     'parameters': {'p_max': {'dims': ['g']}, 'cap': {'dims': ['d']}},
     'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
     'constraints': {'k': {'foreach': ['d'], 'expression': 'sum(x, by=day_of) <= cap'}},
@@ -688,7 +688,7 @@ def test_an_entity_table_is_a_dimension_index_columns_and_all(tmp_path):
     """
     spec = {
         'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
-        'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}},
+        'lookups': {'gen_bus': {'over': ['g', 'b'], 'key': 'g'}},
         'parameters': {'cap': {'dims': ['g']}},
         'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {'k': {'foreach': ['b'], 'expression': 'sum(x, by=gen_bus) <= 100'}},

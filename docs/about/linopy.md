@@ -101,8 +101,8 @@ in `linopy/builder.py`, one section per group below.
 | `p` — a parameter | its `xr.DataArray`, `.fillna(0.0)` where it stands as a coefficient |
 | `+` `-` `*` `/` | the Python operators linopy overloads |
 | `sum(x, over=t)` | `.sum('t')` |
-| `sum(x, by=lk)` | the lookup attached as a coordinate, then `.groupby()`, reindexed onto the target dimension's declared labels; `by=[lk1, lk2]` groups by both at once |
-| `at(p, by=lk)` | `.sel({into: lookup})`, xarray's vectorised selection; one entry per lookup reads a tuple of labels at once |
+| `sum(x, by=lk)` | a keyed walk: each produced column attached as a coordinate over the key, then `.groupby()`, reindexed onto the declared labels, `by=[lk1, lk2]` grouping by both at once; a walk that reads one value per coordinate is the `.sel()` below; any other — a bare relation — masks the operand with the relation's dense incidence and sums the consumed dims out |
+| `at(p, by=lk)` | `.sel({consumed: value column})`, xarray's vectorised selection over the key's dimensions; one entry per lookup reads a tuple of labels at once |
 | `shift(x, over=t, offset=n)` | `.shift({t: n})`; `.roll({t: n})` under `edge: wrap`; a `.sel()` gather where the offset differs per entity or `by=` groups it |
 | `sum_back(x, over=t, within=w)` | a sum of `w` scalar gathers, each unreachable position contributing zero; under `by=` each gather reads inside the group, so the window stops at its edge |
 | `dual(c)` | `Model.constraints['c'].dual`, at a read only; the language keeps a dual out of the math, and a solve that stored none refuses the read |

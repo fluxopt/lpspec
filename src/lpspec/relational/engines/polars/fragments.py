@@ -72,6 +72,16 @@ GROUP_RANK = '__pos in group__'
 GROUP_SIZE = '__group size__'
 
 
+def group_columns(walk: program.Walk) -> list[str]:
+    """The columns of a partitioned dimension table a group is one tuple of: the lookup's value columns, then the dims it joins on.
+
+    What :meth:`~lpspec.relational.engines.polars.compiler.PolarsCompiler.partitioned`
+    ranks within, what a walk lands on, and what a short group is named by —
+    one list, so the three cannot disagree.
+    """
+    return [*walk.values, *walk.joined_dims]
+
+
 @dataclass(frozen=True)
 class Presence:
     """Where the *variable* under a fragment exists, and what keys it.

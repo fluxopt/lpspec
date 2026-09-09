@@ -32,7 +32,7 @@ PyPSA multi-period investment: a build year and a lifetime decide which periods 
 | Symbol | Meaning |
 |---|---|
 | $\mathcal{T}$ | index $t$ — `snapshot` with $\mathrm{period\_of}: \mathcal{T} \to \mathcal{E}$ — dispatch periods, each falling in one investment period |
-| $\mathcal{E}$ | index $e$ — `period` — investment periods, the grouping capacity is decided and paid over |
+| $\mathcal{E}$ | index $e$ — `period` with $\mathrm{period\_of}: \mathcal{T} \to \mathcal{E}$ — investment periods, the grouping capacity is decided and paid over |
 | $\mathcal{G}$ | index $g$ — `generator` — generating units, each existing in some periods and not others |
 
 #### Parameters
@@ -109,8 +109,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       period_of:
         description: the investment period a snapshot falls in
-        over: snapshot
-        into: period
+        over: [snapshot, period]
+        key: snapshot
 
     parameters:
       load:

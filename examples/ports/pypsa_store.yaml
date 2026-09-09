@@ -22,12 +22,12 @@ dimensions:
 lookups:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    over: [generator, bus]
+    key: generator
   store_bus:
     description: the bus a store sits on
-    over: store
-    into: bus
+    over: [store, bus]
+    key: store
 
 parameters:
   p_nom:

@@ -90,11 +90,11 @@ def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
         program = to_program(spec)
 
         tidy = tidy_sources(program, sources)
-        master_coords, dim_coords = dimension_coords(program, tidy)
+        master_coords, lookups = dimension_coords(program, tidy)
         dataset = load_parameters(program, tidy, master_coords)
 
         built = linopy.Model()
-        build_model(built, program, dataset, master_coords, dim_coords)
+        build_model(built, program, dataset, master_coords, lookups)
 
     return built
 
@@ -134,9 +134,9 @@ def expression(
             )
         expression = program.named_expressions[name].expression
         tidy = tidy_sources(program, sources)
-        master_coords, dim_coords = dimension_coords(program, tidy)
+        master_coords, lookups = dimension_coords(program, tidy)
         dataset = load_parameters(program, tidy, master_coords)
-        context = EvaluationContext(dataset, master_coords, built, dim_coords, program, solved=True)
+        context = EvaluationContext(dataset, master_coords, built, lookups, program, solved=True)
         value = _eval(expression, context)
         if isinstance(value, xarray.DataArray):
             return value

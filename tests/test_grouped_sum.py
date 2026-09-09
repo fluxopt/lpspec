@@ -32,7 +32,7 @@ import lpspec as lps
 from lpspec.errors import DataError
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.sources import tidy_sources
-from tests.conftest import EXAMPLES_DIR, override, schema_of
+from tests.conftest import EXAMPLES_DIR, keyed_walk, override, schema_of
 from tests.differential import RTOL, differential
 from tests.oracle import lpspec_linopy, pd, transport_eager_objective
 
@@ -88,8 +88,11 @@ def test_sum_lowers_to_one_node_per_injection_term():
     (c,) = program.constraints.values()
     assert c.dims == ('snapshot', 'bus')
     terms = _flatten(c.lhs)
-    assert GroupSum(Variable('p'), over='generator', coordinate=('gen_bus',), into=('bus',)) in terms
-    assert GroupSum(Variable('f'), over='line', coordinate=('line_to',), into=('bus',)) in terms
+    assert (
+        GroupSum(Variable('p'), ('generator',), ('gen_bus',), ('bus',), (keyed_walk('gen_bus', 'generator', 'bus'),))
+        in terms
+    )
+    assert GroupSum(Variable('f'), ('line',), ('line_to',), ('bus',), (keyed_walk('line_to', 'line', 'bus'),)) in terms
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +166,7 @@ def test_a_coordinate_bearing_dim_needs_an_index_source(transport_data):
     data = _inputs(gens, lines, load)
     del data['generator']
 
-    with pytest.raises(DataError, match=re.escape("has its maps (sources['gen_bus'])")):
+    with pytest.raises(DataError, match=re.escape("has its lookups (sources['gen_bus'])")):
         _relationally(data)
 
 
@@ -172,7 +175,7 @@ dimensions:
   g: {dtype: str}
   item: {dtype: str}
 lookups:
-  grp: {over: item, into: g}
+  grp: {over: [item, g], key: item}
 parameters:
   cap: {dims: [item]}
   target: {dims: [g]}
@@ -239,7 +242,7 @@ def test_a_partial_coordinate_places_its_orphans_nowhere(tmp_path):
 
 GROUPED_ONTO_BUS = {
     'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-    'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
+    'lookups': {'gen_bus': {'over': ['generator', 'bus'], 'key': 'generator'}},
     'parameters': {'p_max': {'dims': ['generator']}, 'load': {'dims': ['bus']}},
     'variables': {'p': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
     'constraints': {'balance': {'foreach': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
@@ -289,7 +292,7 @@ BROADCAST_GROUP_SUM = {
         'generator': {'dtype': 'str'},
         'bus': {'dtype': 'str'},
     },
-    'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
+    'lookups': {'gen_bus': {'over': ['generator', 'bus'], 'key': 'generator'}},
     'parameters': {'w': {'dims': ['generator']}, 'limit': {'dims': ['snapshot', 'bus']}},
     'variables': {'x': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
     'constraints': {
@@ -524,7 +527,7 @@ def test_a_mistyped_month_is_a_typo_and_not_a_new_group(monthly):
     typo = month_of.with_columns(
         pl.when(pl.col('month') == '2030-03').then(pl.lit('2030-3')).otherwise(pl.col('month')).alias('month')
     )
-    with pytest.raises(DataError, match=r"lookup 'month_of' has value\(s\) that are not 'month' labels"):
+    with pytest.raises(DataError, match=r"lookup 'month_of' column 'month' has value\(s\) that are not 'month' labels"):
         lps.solve(MONTHLY_YAML, {**sources, 'month_of': typo})
 
 

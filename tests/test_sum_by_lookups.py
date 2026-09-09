@@ -30,10 +30,10 @@ from __future__ import annotations
 
 import pytest
 from math_spec import to_program
-from math_spec.program import GroupSum, Variable
+from math_spec.program import GroupSum, LookupDeclaration, Variable
 
 from lpspec.errors import DimensionError
-from tests.conftest import by_coord, override, raw_of, relation, schema_of
+from tests.conftest import by_coord, keyed_walk, override, raw_of, relation, schema_of
 from tests.differential import RTOL, differential
 from tests.oracle import operators, pd, xr
 from tests.test_compiler import compiler
@@ -47,8 +47,8 @@ dimensions:
   technology: {dtype: str, description: what a generator is built from}
 
 lookups:
-  gen_bus: {over: generator, into: bus, description: the bus a generator sits on}
-  gen_tech: {over: generator, into: technology, description: the technology it is}
+  gen_bus: {over: [generator, bus], key: generator, description: the bus a generator sits on}
+  gen_tech: {over: [generator, technology], key: generator, description: the technology it is}
 
 parameters:
   cost: {dims: [generator], description: marginal cost of a unit of output}
@@ -211,13 +211,29 @@ def test_a_grouped_parameter_reads_zero_where_no_member_lands():
     differential. Without it linopy refuses the model outright, naming a NaN
     the modeller never wrote.
     """
+    from lpspec.linopy.loader import BoundLookup
+
     generator = pd.Index(['g1', 'g2'], name='generator')
     cost = xr.DataArray([1.0, 2.0], coords=[generator])
-    of_bus = xr.DataArray(['a', 'b'], coords=[generator])
-    of_tech = xr.DataArray(['wind', 'sun'], coords=[generator])
-    labels = {'bus': pd.Index(['a', 'b'], name='bus'), 'technology': pd.Index(['wind', 'sun'], name='technology')}
+    labels = {
+        'generator': generator,
+        'bus': pd.Index(['a', 'b'], name='bus'),
+        'technology': pd.Index(['wind', 'sun'], name='technology'),
+    }
+    of_bus = LookupDeclaration('gen_bus', (('generator', 'generator'), ('bus', 'bus')), ('generator',))
+    of_tech = LookupDeclaration('gen_tech', (('generator', 'generator'), ('technology', 'technology')), ('generator',))
+    walks = (
+        (
+            keyed_walk('gen_bus', 'generator', 'bus'),
+            BoundLookup(of_bus, pd.DataFrame({'generator': ['g1', 'g2'], 'bus': ['a', 'b']}), labels),
+        ),
+        (
+            keyed_walk('gen_tech', 'generator', 'technology'),
+            BoundLookup(of_tech, pd.DataFrame({'generator': ['g1', 'g2'], 'technology': ['wind', 'sun']}), labels),
+        ),
+    )
 
-    grouped = operators.operator_grouped_sum(cost, (of_bus, of_tech), into=('bus', 'technology'), labels=labels)
+    grouped = operators.operator_grouped_sum(cost, walks, labels=labels)
 
     assert grouped.to_series().to_dict() == {
         ('a', 'wind'): 1.0,
@@ -240,20 +256,24 @@ def test_two_lookups_lower_to_one_node_and_not_to_a_composition():
     """
     (limit, _demand) = to_program(schema_of(SPEC)).constraints.values()
     assert limit.lhs == GroupSum(
-        Variable('p'), over='generator', coordinate=('gen_bus', 'gen_tech'), into=('bus', 'technology')
+        Variable('p'),
+        over=('generator',),
+        coordinate=('gen_bus', 'gen_tech'),
+        into=('bus', 'technology'),
+        walks=(keyed_walk('gen_bus', 'generator', 'bus'), keyed_walk('gen_tech', 'generator', 'technology')),
     )
 
 
-def test_a_hand_built_node_whose_tuples_disagree_is_refused():
+def test_a_hand_built_node_whose_walks_do_not_pair_with_its_coordinates_is_refused():
     """`math_spec.program` is a public IR, so a node can arrive without going through
-    resolution — and the two tuples pair up positionally, so a mismatch would
-    otherwise drop the unpaired coordinate and group by one map too few.
+    resolution — and the coordinates and the walks pair up positionally, so a
+    node short of a walk would otherwise group by one map too few.
 
     Nothing in the language can build this: resolution derives both tuples
     from one list of names. It is the shortest path to the guard.
     """
-    node = GroupSum(Variable('p'), over='generator', coordinate=('gen_bus', 'gen_tech'), into=('bus',))
-    with pytest.raises(ValueError, match='zip'):
+    node = GroupSum(Variable('p'), over=('generator',), coordinate=('gen_bus', 'gen_tech'), into=('bus',))
+    with pytest.raises(AssertionError, match='a walk per coordinate'):
         compiler().expression(node, 'a hand-built plan')
 
 

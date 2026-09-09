@@ -28,7 +28,7 @@ Routing telephone calls over a five-city network: how many of the 425 requested 
 | Symbol | Meaning |
 |---|---|
 | $\mathcal{A}$ | index $a$ — `arc` — an undirected link between two cities, with capacity in circuits |
-| $\mathcal{C}$ | index $c$ — `call` — a city pair with circuits to place |
+| $\mathcal{C}$ | index $c$ — `call` with $\mathrm{call\_of}: \mathcal{P} \to \mathcal{C}$ — a city pair with circuits to place |
 | $\mathcal{P}$ | index $p$ — `path` with $\mathrm{call\_of}: \mathcal{P} \to \mathcal{C}$ — a route end to end, serving one city pair |
 
 #### Parameters
@@ -97,8 +97,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       call_of:
         description: the city pair a path serves, end to end
-        over: path
-        into: call
+        over: [path, call]
+        key: path
 
     parameters:
       capacity:

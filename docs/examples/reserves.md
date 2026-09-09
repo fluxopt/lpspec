@@ -38,10 +38,10 @@ Energy and reserve co-optimization on a two-bus grid: an offer is a generator, m
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
-| $\mathcal{M}$ | index $m$ — `market` — reserve markets, each with a requirement to fill |
-| $\mathcal{T}$ | index $t$ — `tranche` — how fast a reserve has to be deliverable |
+| $\mathcal{B}$ | index $b$ — `bus` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\enspace \mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}$ — network nodes |
+| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\enspace \mathrm{gen\_of}: \mathcal{O} \to \mathcal{G}$ — generating units, each sitting on one bus |
+| $\mathcal{M}$ | index $m$ — `market` with $\mathrm{market\_of}: \mathcal{O} \to \mathcal{M}$ — reserve markets, each with a requirement to fill |
+| $\mathcal{T}$ | index $t$ — `tranche` with $\mathrm{tranche\_of}: \mathcal{O} \to \mathcal{T}$ — how fast a reserve has to be deliverable |
 | $\mathcal{Z}$ | index $z$ — `zone` — reserve zones, which overlap |
 | $\mathcal{L}$ | index $l$ — `line` with $\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}$ — transmission lines, which may have an open end |
 | $\mathcal{O}$ | index $o$ — `offer` with $\mathrm{gen\_of}: \mathcal{O} \to \mathcal{G},\enspace \mathrm{market\_of}: \mathcal{O} \to \mathcal{M},\enspace \mathrm{tranche\_of}: \mathcal{O} \to \mathcal{T}$ — one generator's bid into one market at one tranche |
@@ -166,12 +166,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dtype: str
 
     lookups:
-      gen_bus: {over: generator, into: bus, description: "the bus a generator sits on"}
-      line_from: {over: line, into: bus, description: "the bus a line leaves, null where the end is open"}
-      line_to: {over: line, into: bus, description: "the bus a line arrives at, null where the end is open"}
-      gen_of: {over: offer, into: generator, description: "the generator behind an offer"}
-      market_of: {over: offer, into: market, description: "the market an offer is made into"}
-      tranche_of: {over: offer, into: tranche, description: "the tranche an offer is made at"}
+      gen_bus: {over: [generator, bus], key: generator, description: "the bus a generator sits on"}
+      line_from: {over: [line, bus], key: line, description: "the bus a line leaves, null where the end is open"}
+      line_to: {over: [line, bus], key: line, description: "the bus a line arrives at, null where the end is open"}
+      gen_of: {over: [offer, generator], key: offer, description: "the generator behind an offer"}
+      market_of: {over: [offer, market], key: offer, description: "the market an offer is made into"}
+      tranche_of: {over: [offer, tranche], key: offer, description: "the tranche an offer is made at"}
 
     parameters:
       p_max:

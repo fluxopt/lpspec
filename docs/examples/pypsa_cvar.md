@@ -32,7 +32,7 @@ objective it is.
 <details markdown="1">
 <summary>The same model, as math</summary>
 
-PyPSA's CVaR risk preference on a stochastic network: the plan is chosen against the expectation *and* the tail, which Rockafellar and Uryasev make linear with three auxiliary quantities — an excess per future, the level the tail starts at, and the tail average itself. The risk-averse fleet is not the risk-neutral one. Optimum 35410.0, from PyPSA itself.
+PyPSA's CVaR risk preference on a stochastic network: the plan is chosen against the expectation \*and\* the tail, which Rockafellar and Uryasev make linear with three auxiliary quantities — an excess per future, the level the tail starts at, and the tail average itself. The risk-averse fleet is not the risk-neutral one. Optimum 35410.0, from PyPSA itself.
 
 #### Sets
 

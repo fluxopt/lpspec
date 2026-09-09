@@ -28,6 +28,8 @@ if TYPE_CHECKING:
     import linopy
     import pandas as pd
 
+    from lpspec.linopy.loader import BoundLookup
+
 
 #: Where-comparison operators, evaluated element-wise on a DataArray.
 _PREDICATE_OPS: dict[str, Callable[[Any, Any], Any]] = {
@@ -44,14 +46,14 @@ _PREDICATE_OPS: dict[str, Callable[[Any, Any], Any]] = {
 class EvaluationContext:
     """Everything evaluating a plan needs beyond the node: the data, the axes, the model, the lookups, the program.
 
-    ``dim_coords`` carries the attached lookup columns, which a predicate on a
-    lookup and a grouped operator both read instead of the parameter dataset.
+    ``lookups`` carries each bound relation by name, which a predicate on a
+    lookup and every operator walking one read instead of the parameter dataset.
     """
 
     dataset: xr.Dataset
     master_coords: Mapping[str, pd.Index]
     model: linopy.Model
-    dim_coords: Mapping[str, Mapping[str, xr.DataArray]]
+    lookups: Mapping[str, BoundLookup]
     program: program.Program
     #: Whether *model* is solved and the plan is read at its solution — a
     #: variable is then its ``.solution`` and ``dual(c)`` the constraint's
@@ -112,8 +114,9 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
 
     if isinstance(node, program.DimensionPositionNode):
         labels = master_coords[node.name]
-        if node.by is not None:
-            arr = _group_offsets(node, bound_lookup(node.by, node.name, ctx.dim_coords), np.asarray(labels))
+        if node.partition is not None:
+            groups = ctx.lookups[node.partition.name].groups(node.partition)
+            arr = _group_offsets(node, node.partition, groups, np.asarray(labels))
             return (_PREDICATE_OPS[node.op](arr, 0) & arr.notnull()).fillna(value=False).astype(bool)
         at = node.position + len(labels) if node.position < 0 else node.position
         if not 0 <= at < len(labels):
@@ -122,17 +125,17 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
         return _PREDICATE_OPS[node.op](arr, at).astype(bool)
 
     if isinstance(node, program.LookupComparisonNode):
-        arr = bound_lookup(node.name, node.over, ctx.dim_coords)
+        arr = ctx.lookups[node.name].value(node.column)
         return (_PREDICATE_OPS[node.op](arr, node.value) & arr.notnull()).fillna(value=False).astype(bool)
 
     if isinstance(node, program.LookupPairComparisonNode):
-        left = bound_lookup(node.name, node.over, ctx.dim_coords)
-        right = bound_lookup(node.other, node.over, ctx.dim_coords)
+        left = ctx.lookups[node.name].value(node.column)
+        right = ctx.lookups[node.other].value(node.other_column)
         defined = left.notnull() & right.notnull()
         return (_PREDICATE_OPS[node.op](left, right) & defined).fillna(value=False).astype(bool)
 
     if isinstance(node, program.LookupDefinedNode):
-        return bound_lookup(node.name, node.over, ctx.dim_coords).notnull()
+        return _held(ctx.lookups[node.name])
 
     if isinstance(node, program.NotNode):
         return ~evaluate(node.operand)
@@ -160,7 +163,22 @@ def _defined(arr: xr.DataArray, dtype: str) -> xr.DataArray:
     return arr.notnull() & np.isfinite(arr)
 
 
-def _group_offsets(node: program.DimensionPositionNode, groups: xr.DataArray, labels: np.ndarray) -> xr.DataArray:
+def _held(lookup: BoundLookup) -> xr.DataArray:
+    """What a bare lookup name in a ``where`` asks: whether a row is there.
+
+    At the key for a keyed lookup, whose one row there holds every value
+    column; at every column for a bare relation, where a row is the whole
+    tuple.
+    """
+    lk = lookup.declaration
+    if lk.key:
+        return lookup.value(lk.values[0]).notnull()
+    return lookup.incidence(dict(lk.columns))
+
+
+def _group_offsets(
+    node: program.DimensionPositionNode, walk: program.Walk, groups: xr.DataArray, labels: np.ndarray
+) -> xr.DataArray:
     """Each coordinate's distance from the boundary of *its own* group.
 
     Zero marks the coordinate the position names, so every comparator reads the
@@ -175,25 +193,9 @@ def _group_offsets(node: program.DimensionPositionNode, groups: xr.DataArray, la
     needed = node.position + 1 if node.position >= 0 else -node.position
     short = sorted(str(g) for g, n in zip(partition.names, partition.counts, strict=True) if n < needed)
     if short:
-        raise DataError(short_groups_message(node.name, str(node.by), node.op, node.position, short))
+        raise DataError(short_groups_message(node.name, walk.name, node.op, node.position, short))
     target = node.position if node.position >= 0 else partition.size + node.position
     return partition.within.where(partition.grouped) - target
-
-
-def unbound_lookup_message(name: str, over: str) -> str:
-    """A declared lookup read with no attached map."""
-    return (
-        f"lookup '{name}' over dimension '{over}' has no attached values. "
-        f"Pass it under key '{name}' as a table with columns ['{over}', '{name}']."
-    )
-
-
-def bound_lookup(name: str, over: str, dim_coords: Mapping[str, Mapping[str, xr.DataArray]]) -> xr.DataArray:
-    """A lookup's attached values as an array over the dim it is over."""
-    try:
-        return dim_coords[over][name]
-    except KeyError:
-        raise DataError(unbound_lookup_message(name, over)) from None
 
 
 def as_linopy_mask(mask: xr.DataArray) -> xr.DataArray | None:

@@ -32,8 +32,8 @@ PyPSA's global constraints: four limits over four different selected sets — th
 | Symbol | Meaning |
 |---|---|
 | $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{C}$ | index $c$ — `carrier` — what a generator burns, and what a global limit selects on |
+| $\mathcal{B}$ | index $b$ — `bus` with $\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\enspace \mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}$ — network nodes |
+| $\mathcal{C}$ | index $c$ — `carrier` with $\mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}$ — what a generator burns, and what a global limit selects on |
 | $\mathcal{E}$ | index $e$ — `generator` with $\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\enspace \mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}$ — generating units, each sitting on a bus and burning a carrier |
 | $\mathcal{L}$ | index $l$ — `link` with $\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}$ — controllable connections, each joining two buses |
 
@@ -150,20 +150,20 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        over: [generator, bus]
+        key: generator
       gen_carrier:
         description: the carrier a generator burns
-        over: generator
-        into: carrier
+        over: [generator, carrier]
+        key: generator
       link_from:
         description: the bus a link leaves
-        over: link
-        into: bus
+        over: [link, bus]
+        key: link
       link_to:
         description: the bus a link arrives at
-        over: link
-        into: bus
+        over: [link, bus]
+        key: link
 
     parameters:
       load:

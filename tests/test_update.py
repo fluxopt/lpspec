@@ -165,7 +165,7 @@ def model(dispatch_yaml):
 
 def _priced(program: Any) -> list[str]:
     """The constraints an answer carries prices for — none, where a variable is discrete."""
-    if any(v.variable_type != 'continuous' for v in program.variables.values()):
+    if any(v.domain != 'continuous' for v in program.variables.values()):
         return []
     return list(program.constraints)
 

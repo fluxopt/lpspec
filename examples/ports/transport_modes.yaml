@@ -19,8 +19,8 @@ dimensions:
 lookups:
   origin:
     description: the depot a connection leaves
-    over: connection
-    into: depot
+    over: [connection, depot]
+    key: connection
 
 parameters:
   stock:

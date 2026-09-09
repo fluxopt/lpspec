@@ -340,7 +340,7 @@ class PolarsEngine:
 
     def _discrete(self) -> list[str]:
         """The variables this model declared as anything but continuous."""
-        return sorted(n for n, v in self._model.program.variables.items() if v.variable_type != 'continuous')
+        return sorted(n for n, v in self._model.program.variables.items() if v.domain != 'continuous')
 
     def _quadratic_constraints(self) -> list[str]:
         """The constraints this model declared as quadratic — a fact about the model, not the solve."""

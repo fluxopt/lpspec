@@ -130,7 +130,7 @@ def project(raw: dict[str, Any], parity: dict[str, Any]) -> dict[str, Any]:
     for p in parameters.values():
         dims |= set(p.get('dims', []))
     for lk in lookups.values():
-        dims |= {lk['over'], lk.get('into')} - {None}
+        dims |= set(lk['over'].values() if isinstance(lk['over'], dict) else lk['over'])
     dimensions = {n: d for n, d in raw['dimensions'].items() if n in dims}
     out = {k: v for k, v in raw.items() if k in ('version', 'description')}
     out['dimensions'] = dimensions

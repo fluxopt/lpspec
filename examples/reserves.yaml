@@ -28,12 +28,12 @@ dimensions:
     dtype: str
 
 lookups:
-  gen_bus: {over: generator, into: bus, description: "the bus a generator sits on"}
-  line_from: {over: line, into: bus, description: "the bus a line leaves, null where the end is open"}
-  line_to: {over: line, into: bus, description: "the bus a line arrives at, null where the end is open"}
-  gen_of: {over: offer, into: generator, description: "the generator behind an offer"}
-  market_of: {over: offer, into: market, description: "the market an offer is made into"}
-  tranche_of: {over: offer, into: tranche, description: "the tranche an offer is made at"}
+  gen_bus: {over: [generator, bus], key: generator, description: "the bus a generator sits on"}
+  line_from: {over: [line, bus], key: line, description: "the bus a line leaves, null where the end is open"}
+  line_to: {over: [line, bus], key: line, description: "the bus a line arrives at, null where the end is open"}
+  gen_of: {over: [offer, generator], key: offer, description: "the generator behind an offer"}
+  market_of: {over: [offer, market], key: offer, description: "the market an offer is made into"}
+  tranche_of: {over: [offer, tranche], key: offer, description: "the tranche an offer is made at"}
 
 parameters:
   p_max:

@@ -30,7 +30,7 @@ Moving 180 tonnes of chemicals out of four depots to three recycling centres, wh
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{D}$ | index $d$ — `depot` — depots the chemicals leave from |
+| $\mathcal{D}$ | index $d$ — `depot` with $\mathrm{origin}: \mathcal{C} \to \mathcal{D}$ — depots the chemicals leave from |
 | $\mathcal{C}$ | index $c$ — `connection` with $\mathrm{origin}: \mathcal{C} \to \mathcal{D}$ — one way of reaching one centre from one depot, by rail or by road |
 
 #### Parameters
@@ -100,8 +100,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       origin:
         description: the depot a connection leaves
-        over: connection
-        into: depot
+        over: [connection, depot]
+        key: connection
 
     parameters:
       stock:

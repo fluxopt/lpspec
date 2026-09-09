@@ -55,6 +55,8 @@ from lpspec.relational.engines.polars.labels import Labelled
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+BUS_OF = program.LookupDeclaration('bus', (('generator', 'generator'), ('bus', 'bus')), ('generator',))
+
 PROGRAM = program.Program(
     parameters={
         'cost': program.ParameterDeclaration(('generator',)),
@@ -66,8 +68,8 @@ PROGRAM = program.Program(
     objective=program.ObjectiveDeclaration('minimize', program.Variable('p')),
     dimensions={
         'snapshot': program.DimensionDeclaration(),
-        'generator': program.DimensionDeclaration(lookups=(program.LookupDeclaration('bus', 'bus'),)),
-        'bus': program.DimensionDeclaration(),
+        'generator': program.DimensionDeclaration(lookups=(BUS_OF,)),
+        'bus': program.DimensionDeclaration(lookups=(BUS_OF,)),
     },
 )
 
@@ -276,7 +278,10 @@ def test_sum_over_an_absent_dim_scales_by_that_dims_cardinality():
 
 
 def test_sum_swaps_the_source_dim_for_the_target_and_emits_no_aggregate():
-    node = program.GroupSum(program.Variable('p'), over='generator', coordinate=('bus',), into=('bus',))
+    walk = program.Walk('bus', ('generator',), ('bus',), (), BUS_OF.columns, ('generator',))
+    node = program.GroupSum(
+        program.Variable('p'), over=('generator',), coordinate=('bus',), into=('bus',), walks=(walk,)
+    )
     fragment = compiler().expression(node, 'test').terms[0]
     assert fragment.dims == ('snapshot', 'bus')
     assert columns(fragment.frame) == ['snapshot', 'bus', 'var_label', 'coeff']

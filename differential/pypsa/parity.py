@@ -176,7 +176,7 @@ def prepared(spec: Path, n, stem: str | None = None) -> dict[str, object]:
     losses = keywords(stem).get('transmission_losses', {}) if stem else {}
     segments = int(losses.get('segments', 0)) if isinstance(losses, dict) else int(losses or 0)
     dims = {name: p.dims for name, p in declared.parameters.items()} | {
-        name: [lookup.over] for name, lookup in declared.lookups.items()
+        name: list(lookup.dims) for name, lookup in declared.lookups.items()
     }
     return {
         name: flattened(name, table, dims.get(name, []))

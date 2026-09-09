@@ -144,7 +144,7 @@ def test_a_where_is_the_escape_from_the_constant_side_check():
 #: behind `south`'s constant side has no members at all.
 GROUPED_CONSTANT_SPEC = {
     'dimensions': {'generator': {}, 'bus': {'dtype': 'str'}},
-    'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
+    'lookups': {'gen_bus': {'over': ['generator', 'bus'], 'key': 'generator'}},
     'parameters': {'capacity': {'dims': ['generator']}},
     'variables': {'imports': {'foreach': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {'import_limit': {'foreach': ['bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}},
@@ -227,8 +227,8 @@ PLURAL_GROUPED_CONSTANT_SPEC = {
     **GROUPED_CONSTANT_SPEC,
     'dimensions': {**GROUPED_CONSTANT_SPEC['dimensions'], 'technology': {'dtype': 'str'}},
     'lookups': {
-        'gen_bus': {'over': 'generator', 'into': 'bus'},
-        'gen_tech': {'over': 'generator', 'into': 'technology'},
+        'gen_bus': {'over': ['generator', 'bus'], 'key': 'generator'},
+        'gen_tech': {'over': ['generator', 'technology'], 'key': 'generator'},
     },
     'variables': {'imports': {'foreach': ['bus', 'technology'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {

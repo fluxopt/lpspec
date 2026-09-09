@@ -16,8 +16,8 @@ dimensions:
 lookups:
   month_of:
     description: the month a snapshot falls in
-    over: snapshot
-    into: month
+    over: [snapshot, month]
+    key: snapshot
 
 parameters:
   p_max:

@@ -2,8 +2,10 @@
 
 Each entry point takes an operand that is already a value — an ``xr.DataArray``
 for a parameter, a linopy ``Variable`` or ``LinearExpression`` for anything
-carrying one — and returns the same. Nothing here reads the schema, the plan or
-the model: ``builder.py`` evaluates the operands and the keywords, and calls in.
+carrying one — and returns the same. Nothing here reads the schema or the
+model: ``builder.py`` evaluates the operands and the keywords, and calls in
+with a lookup as the plan walks it (:class:`~math_spec.program.Walk`) beside
+the relation the door bound (:class:`~lpspec.linopy.loader.BoundLookup`).
 Each entry point comes first and its own machinery after.
 """
 
@@ -12,17 +14,20 @@ from __future__ import annotations
 import operator
 from dataclasses import dataclass
 from functools import reduce
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from lpspec.linopy import absence
 
 if TYPE_CHECKING:
-    from collections.abc import Hashable, Mapping
+    from collections.abc import Hashable, Mapping, Sequence
 
-    import pandas as pd
+    from math_spec.program import Walk
+
+    from lpspec.linopy.loader import BoundLookup
 
 
 def operator_sum(array: Any, over: str) -> Any:
@@ -57,64 +62,170 @@ def _empty_sum(array: Any, over: str) -> Any:
 
 
 def operator_grouped_sum(
-    array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...], labels: Mapping[str, pd.Index]
+    array: Any, walks: Sequence[tuple[Walk, BoundLookup]], *, labels: Mapping[str, pd.Index]
 ) -> Any:
-    """Sum *array* through declared lookups, producing dimensions *into*.
+    """Sum *array* through lookups, consuming the dims the walks consume and producing the ones they produce.
 
-    YAML: ``sum(p, by=gen_bus)`` or ``sum(p, by=[gen_bus, gen_tech])``.
-    *mappings* are the lookups' values as one-dimensional arrays over the dim
-    being grouped; that dim is summed out and *into* holds the group labels,
-    one dim per lookup.
+    YAML: ``sum(p, by=gen_bus)``, ``sum(p, by=[gen_bus, gen_tech])`` or
+    ``sum(p, by=zone_of, from=generator, into=zone)``. Each walk is a lookup
+    and how it is walked, with the relation the door bound. Three shapes,
+    decided by what the walk's key licenses:
 
-    A null lookup value says the label belongs to no group, so its terms
-    contribute nowhere. linopy refuses to group by NaN at all, so those members
-    are dropped before grouping — and with several lookups a member missing
-    *any* of them belongs to no group at all.
+    * **a function read** — the key lies inside the produced and joined
+      columns, so the consumed dims are read at it: a pullback
+      (:func:`_read`), which is what a sum with one term per coordinate is.
+    * **a grouping** — the key is exactly the consumed and joined columns,
+      so each member has one group: linopy's own ``groupby``
+      (:func:`_grouped_sum`).
+    * **a relation** — anything else, a bare relation among them: the
+      incidence of the relation masks the operand and the consumed dims are
+      summed out (:func:`_related_sum`).
 
-    *labels* holds each target's declared index, and the result is reindexed
-    onto them: a groupby yields only the labels some member actually points at,
-    in xarray's sort order, and linopy v1 aligns on membership *and* order.
-    Lookup values are validated against their target's labels when they are
-    loaded, so this only ever adds a label, never drops a term.
+    *labels* holds each dimension's declared index, and the result carries
+    exactly those coordinates.
     """
-    mappings = _renamed(mappings, into)
-    present = _present(mappings)
-    dim = str(mappings[0].dims[0])
-    if not bool(present.all()):
-        mask = present.to_numpy()
-        mappings = tuple(m.isel({dim: mask}) for m in mappings)
-        array = array.isel({dim: mask})
-    attached = array.assign_coords({target: (dim, m.to_numpy()) for target, m in zip(into, mappings, strict=True)})
-    summed = attached.groupby(list(into)).sum()
-    return _reindexed(summed, into=into, labels=labels)
+    kinds = {_kind(walk) for walk, _ in walks}
+    carried = tuple(d for d in _dims(array) if d not in _consumed(walks))
+    if kinds == {'read'}:
+        return _read(array, walks)
+    if kinds == {'group'} and not any(d in carried for walk, _ in walks for d in walk.produced_dims):
+        return _grouped_sum(array, walks, labels=labels)
+    return _related_sum(array, walks)
 
 
-def operator_at(array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...]) -> Any:
-    """Read *array* through declared lookups — the adjoint of a group.
+def operator_at(array: Any, walks: Sequence[tuple[Walk, BoundLookup]]) -> Any:
+    """Read *array* through lookups — the adjoint of a group.
 
-    YAML: ``at(on, by=component)``. *mappings* are the same one-dimensional
-    arrays ``sum`` takes; grouping sums *along* them, this indexes *through*
-    them, so the operand must carry every dim in ``into`` and the result
-    carries the mappings' own dim. xarray's vectorised selection is the
-    pullback exactly — one ``into`` label read once per fine label pointing at
-    it.
-
-    A null lookup value reads nothing and its row is absent, the same reading
-    ``sum`` gives a null group. It cannot be selected, so it is dropped from
-    the indexer and the result is put back over the whole dim, the missing
-    positions holding the operand's own **absence** rather than a zero: absence
-    propagates and takes the row with it, where a zero would leave a row
-    asserting ``x <= 0`` at a coordinate the model said nothing about.
+    YAML: ``at(on, by=component)``. Grouping sums *along* a lookup, this
+    indexes *through* it: every walk reads value columns at a key the operand
+    fixes, the language having refused any other, so the operand carries the
+    consumed dims and the result the produced ones.
     """
-    mappings = _renamed(mappings, into)
-    present = _present(mappings)
+    return _read(array, walks)
+
+
+def _kind(walk: Walk) -> Literal['read', 'group', 'relation']:
+    """Which shape a walk takes on this lane — see :func:`operator_grouped_sum`."""
+    if walk.is_function_read:
+        return 'read'
+    if walk.key and set(walk.key) == {*walk.consumed, *walk.joined}:
+        return 'group'
+    return 'relation'
+
+
+def _read(array: Any, walks: Sequence[tuple[Walk, BoundLookup]]) -> Any:
+    """*array* at each key tuple's value: xarray's vectorised selection is the pullback exactly.
+
+    Every consumed dim is indexed by the value column over it, an array over
+    the key's dimensions, so the result carries those — and one the operand
+    already carries is read pointwise, at the row's own coordinate. A
+    self-map's consumed dim is a key dim too, and comes back labelled by the
+    key rather than by what was read at it.
+
+    A key the relation leaves out reads nothing and its row is absent, the
+    reading ``sum`` gives a member in no group. It cannot be selected, so the
+    indexer reads any label there and the result is masked at those
+    positions, which then hold the operand's own **absence** rather than a
+    zero: absence propagates and takes the row with it, where a zero would
+    leave a row asserting ``x <= 0`` at a coordinate the model said nothing
+    about.
+    """
+    indexers = {walk.dim(role): bound.value(role) for walk, bound in walks for role in walk.consumed}
+    present = reduce(operator.and_, (m.notnull() for m in indexers.values()))
+    keyed = {dim: m[dim].values for dim, m in indexers.items() if dim in m.dims}
     if bool(present.all()):
-        return array.sel(dict(zip(into, mappings, strict=True)))
+        return array.sel(indexers).assign_coords(keyed)
+    filled = {dim: m.fillna(_any_label(array, dim, m)) for dim, m in indexers.items()}
+    return array.sel(filled).assign_coords(keyed).where(present)
 
-    dim = str(mappings[0].dims[0])
-    kept = present.to_numpy()
-    picked = array.sel(dict(zip(into, (m.isel({dim: kept}) for m in mappings), strict=True)))
-    return picked.reindex({dim: mappings[0][dim]})
+
+def _any_label(array: Any, target: str, mapping: Any) -> object:
+    """A label of *target* to read at a position the map sends nowhere, before the result is masked there.
+
+    The first the map does point at, and the first of *array*'s own where it
+    points nowhere at all — the operand carries the dim, and a map with no
+    row against an empty target reads nothing, which the mask says.
+    """
+    pointed = mapping.to_numpy()[mapping.notnull().to_numpy()]
+    return pointed[0] if len(pointed) else array.indexes[target][0]
+
+
+def _grouped_sum(array: Any, walks: Sequence[tuple[Walk, BoundLookup]], *, labels: Mapping[str, pd.Index]) -> Any:
+    """Each produced dim as a coordinate along the key, then one ``groupby`` over the produced and joined dims.
+
+    A null lookup value says the key belongs to no group, so its terms
+    contribute nowhere — and with several lookups a member missing *any* of
+    them belongs to no group at all. Those members are masked absent and
+    gathered under a label no dimension has (:func:`_no_label`), since linopy
+    refuses a null key, and that group goes with the reindex onto the
+    declared labels.
+
+    The result is reindexed onto *labels*: a groupby yields only the labels
+    some member actually points at, in xarray's sort order, and linopy v1
+    aligns on membership *and* order. Lookup values are validated against
+    their dimension's labels when they are bound, so this only ever adds a
+    label, never drops a term. A self-map's produced dim is the consumed one,
+    so its coordinate rides under a scratch name until the consumed dim is
+    grouped away.
+    """
+    mappings = {walk.dim(role): bound.value(role) for walk, bound in walks for role in walk.produced}
+    present = reduce(operator.and_, (m.notnull() for m in mappings.values()))
+    if not bool(present.all()):
+        array = array.where(present)
+        mappings = {d: m.fillna(_no_label(labels[d])) for d, m in mappings.items()}
+    consumed = _consumed(walks)
+    names = {d: f'__produced {d}__' if d in consumed else d for d in mappings}
+    attached = array.assign_coords({names[d]: (m.dims, m.values) for d, m in mappings.items()})
+    joined = dict.fromkeys(d for walk, _ in walks for d in walk.joined_dims)
+    summed = attached.groupby([*names.values(), *joined]).sum()
+    renamed = {name: d for d, name in names.items() if name != d}
+    return _reindexed(summed.rename(renamed) if renamed else summed, into=tuple(mappings), labels=labels)
+
+
+def _no_label(labels: pd.Index) -> object:
+    """A group label no member of *labels* is: what an unmapped member is gathered under before the reindex drops it."""
+    if labels.dtype.kind in 'iufb':
+        return np.inf
+    if labels.dtype.kind == 'M':
+        return pd.Timestamp.max
+    return '\x00 unmapped'
+
+
+def _related_sum(array: Any, walks: Sequence[tuple[Walk, BoundLookup]]) -> Any:
+    """*array* masked by the relations' incidence and summed over the consumed dims.
+
+    The reading every walk has, taken literally: a term contributes at each
+    produced tuple the relation holds it beside, and nowhere else. The
+    incidence is dense, so this is the shape the other two exist to avoid
+    paying for where a key licenses them. A produced dim the operand carries
+    already is joined on by the mask's alignment — a masked sum — and one
+    over the consumed dimension itself, a self-map's, is carried under a
+    scratch name until the consumed dim is summed out.
+    """
+    consumed = _consumed(walks)
+    renamed: dict[str, str] = {}
+    incidence = None
+    for walk, bound in walks:
+        named = {role: walk.dim(role) for role in (*walk.consumed, *walk.joined)}
+        for role in walk.produced:
+            dim = walk.dim(role)
+            named[role] = f'__produced {dim}__' if dim in consumed else dim
+            if named[role] != dim:
+                renamed[named[role]] = dim
+        held = bound.incidence(named)
+        incidence = held if incidence is None else incidence & held
+    summed = array.where(incidence).sum(list(consumed))
+    return summed.rename(renamed) if renamed else summed
+
+
+def _consumed(walks: Sequence[tuple[Walk, BoundLookup]]) -> tuple[str, ...]:
+    """The dims a node's walks consume, each once — one set for a grouping, one per walk for a pullback through several."""
+    return tuple(dict.fromkeys(d for w, _ in walks for d in w.consumed_dims))
+
+
+def _dims(array: Any) -> tuple[str, ...]:
+    """The dims of a value on this lane, an expression naming its coordinate dims where an array names its dims."""
+    return tuple(str(d) for d in (array.coord_dims if not isinstance(array, xr.DataArray) else array.dims))
 
 
 @dataclass(frozen=True)
@@ -125,7 +236,26 @@ class _Edge:
     fill: float | None
 
 
-def operator_shift(array: Any, *, over: str, offset: Any, wrap: bool, fill: float | None, by: Any = None) -> Any:
+@dataclass(frozen=True)
+class Partition:
+    """A lookup as ``shift``, ``sum_back`` and ``position`` walk it: the group at each coordinate, and what a group reads.
+
+    Attributes:
+        groups: Each coordinate's group — the lookup's value tuple, or its one
+            value — over the walked dimension and the dims the lookup joins
+            on, null where the coordinate is in no group.
+        values: Each value column over the same key, by the dimension it is
+            over: what an amount declared over a group's dimension is read
+            through (:func:`_per_group`).
+    """
+
+    groups: xr.DataArray
+    values: Mapping[str, xr.DataArray]
+
+
+def operator_shift(
+    array: Any, *, over: str, offset: Any, wrap: bool, fill: float | None, by: Partition | None = None
+) -> Any:
     """Translate *array* along one dimension — the value at *t - offset*.
 
     YAML: ``shift(soc, over=snapshot, offset=1)``. *wrap* is cyclic and vacates
@@ -143,7 +273,7 @@ def operator_shift(array: Any, *, over: str, offset: Any, wrap: bool, fill: floa
     """
     edge = _Edge(wrap, fill)
     if by is not None:
-        groups = _grouped(over, np.asarray(array.indexes[over]), by)
+        groups = _grouped(over, np.asarray(array.indexes[over]), by.groups)
         return _gather_in_groups(array, over, _per_group(offset, by), groups=groups, edge=edge)
     if isinstance(offset, xr.DataArray) and offset.ndim:
         return _gather_by_offset(array, over, offset, edge=edge)
@@ -156,7 +286,7 @@ def operator_shift(array: Any, *, over: str, offset: Any, wrap: bool, fill: floa
     return shifted if fill is None else absence.vacated(shifted, array, over, _off_the_axis(array, over, offset), fill)
 
 
-def operator_sum_back(array: Any, *, over: str, within: Any, wrap: bool, by: Any = None) -> Any:
+def operator_sum_back(array: Any, *, over: str, within: Any, wrap: bool, by: Partition | None = None) -> Any:
     """Sum *array* over a trailing window along one dimension.
 
     YAML: ``sum_back(started, over=snapshot, within=min_up)``. The result at
@@ -182,7 +312,7 @@ def operator_sum_back(array: Any, *, over: str, within: Any, wrap: bool, by: Any
     asked = _widest(within)
     widest = max(1, min(asked, int(array.sizes[over])))
     probe = _Edge(wrap=wrap, fill=None)
-    groups = _grouped(over, np.asarray(array.indexes[over]), by) if by is not None else None
+    groups = _grouped(over, np.asarray(array.indexes[over]), by.groups) if by is not None else None
     terms: list[Any] = []
     reached: list[Any] = []
     for lag in range(widest):
@@ -226,19 +356,6 @@ def _merged(terms: list[Any]) -> Any:
     from linopy import merge
 
     return merge(terms)
-
-
-def _renamed(mappings: tuple[Any, ...], into: tuple[str, ...]) -> tuple[Any, ...]:
-    """*mappings* renamed to the dims they target, so the group's own name is the dim that comes out."""
-    return tuple(mapping.rename(target) for mapping, target in zip(mappings, into, strict=True))
-
-
-def _present(mappings: tuple[Any, ...]) -> Any:
-    """The members every mapping has a value for, as a boolean over their dim."""
-    keep = mappings[0].notnull()
-    for mapping in mappings[1:]:
-        keep = keep & mapping.notnull()
-    return keep
 
 
 def _reindexed(summed: Any, *, into: tuple[str, ...], labels: Mapping[str, pd.Index]) -> Any:
@@ -289,25 +406,30 @@ def _gather_by_offset(array: Any, over: str, offset: Any, *, edge: _Edge) -> Any
     return moved if edge.fill is None else absence.vacated(moved, array, over, ~inside, edge.fill)
 
 
-def _per_group(offset: Any, groups: Any) -> Any:
-    """*offset* at every coordinate, where it is declared over the group's own dim.
+def _per_group(offset: Any, partition: Partition) -> Any:
+    """*offset* at every coordinate, where it is declared over a group's own dim.
 
     One lag per group — a lead time that differs by period, which a
     ``(period, timestep)`` model writes as an offset over ``period`` because
     ``period`` is not the axis it walks. The group *is* the lookup's value, so
-    the lag a coordinate moves by is its group's, read through that lookup:
-    the pullback ``at()`` already is. Every other offset is returned as it
-    came.
+    the lag a coordinate moves by is its group's, read through that value
+    column: the pullback ``at()`` already is, absent where the coordinate is
+    in no group. Every other offset is returned as it came.
 
     The group's label is dropped rather than ridden along: a pullback leaves
     what it read through as a coordinate, and a constraint built from one is
     then reported as carrying a dimension the language says a shift does not
     have.
     """
-    target = getattr(groups, 'name', None)
-    if not isinstance(offset, xr.DataArray) or target not in offset.dims:
+    if not isinstance(offset, xr.DataArray):
         return offset
-    return operator_at(offset, (groups,), into=(str(target),)).drop_vars(str(target))
+    for dim, values in partition.values.items():
+        if dim not in offset.dims:
+            continue
+        present = values.notnull()
+        read = offset.sel({dim: values.fillna(_any_label(offset, dim, values))})
+        offset = read.where(present).drop_vars(dim)
+    return offset
 
 
 @dataclass(frozen=True)
@@ -316,7 +438,9 @@ class _Groups:
 
     Computed once per operand and shared across a window's lags: the partition
     does not depend on the lag, and the roster is the one Python loop over the
-    axis in this lane.
+    axis in this lane. A lookup joined on other dims partitions the axis once
+    per coordinate of them, so the per-coordinate arrays carry those dims
+    beside the axis and a group is one value at one such coordinate.
 
     Attributes:
         labels: The axis's own labels, in order.
@@ -325,7 +449,8 @@ class _Groups:
         within: Each coordinate's position inside its group.
         size: Each coordinate's group size, 1 where it has none.
         roster: The label ordinal at each ``(group, position)``.
-        names: Each group's key, by group ordinal.
+        names: Each group's key, by group ordinal — the lookup's value, with
+            the joined coordinate beside it where the lookup has one.
         counts: Each group's member count, by group ordinal.
     """
 
@@ -344,31 +469,41 @@ def _grouped(over: str, labels: np.ndarray, groups: Any) -> _Groups:
 
     A coordinate the lookup sends nowhere belongs to no group: its ``within``
     is 0, its ``size`` 1 and its ``grouped`` False, and every gather reads the
-    last of those first.
+    last of those first. A lookup joined on other dims partitions the axis
+    once per coordinate of them, so the per-coordinate arrays carry those
+    dims beside the axis and a group is one value at one such coordinate.
     """
-    keys = np.asarray(groups.sel({over: labels}).values, dtype=object)
+    joined = [str(d) for d in groups.dims if d != over]
+    aligned = groups.sel({over: labels}).transpose(over, *joined)
+    keys = np.asarray(aligned.values, dtype=object).reshape(len(labels), -1)
+    axes = [aligned.indexes[d].tolist() for d in joined]
+    coordinates = [tuple(axis[i] for axis, i in zip(axes, at, strict=True)) for at in np.ndindex(*aligned.shape[1:])]
 
-    peers: dict[object, list[int]] = {}
-    within = np.zeros(len(labels), dtype=int)
-    grouped = np.zeros(len(labels), dtype=bool)
-    for k, key in enumerate(keys):
-        if absence.unmapped(key):
-            continue
-        grouped[k] = True
-        beside = peers.setdefault(key, [])
-        within[k] = len(beside)
-        beside.append(k)
+    peers: dict[object, list[tuple[int, int]]] = {}
+    within = np.zeros(keys.shape, dtype=int)
+    grouped = np.zeros(keys.shape, dtype=bool)
+    for j, coordinate in enumerate(coordinates):
+        for k, key in enumerate(keys[:, j]):
+            if absence.unmapped(key):
+                continue
+            grouped[k, j] = True
+            beside = peers.setdefault(key if not joined else (key, *coordinate), [])
+            within[k, j] = len(beside)
+            beside.append((k, j))
 
     order = {key: g for g, key in enumerate(peers)}
     widest = max((len(beside) for beside in peers.values()), default=1)
     roster = np.zeros((max(len(peers), 1), widest), dtype=int)
     for key, beside in peers.items():
-        roster[order[key], : len(beside)] = beside
-    belongs = np.array([order.get(key, 0) for key in keys], dtype=int)
-    span = np.array([len(peers[key]) if held else 1 for key, held in zip(keys, grouped, strict=True)], dtype=int)
+        roster[order[key], : len(beside)] = [k for k, _ in beside]
+    belongs = np.zeros(keys.shape, dtype=int)
+    span = np.ones(keys.shape, dtype=int)
+    for key, beside in peers.items():
+        for k, j in beside:
+            belongs[k, j], span[k, j] = order[key], len(beside)
 
     def on_axis(values: np.ndarray) -> xr.DataArray:
-        return xr.DataArray(values, coords={over: labels}, dims=[over])
+        return xr.DataArray(values.reshape(aligned.shape), coords=aligned.coords, dims=aligned.dims)
 
     return _Groups(
         labels,
