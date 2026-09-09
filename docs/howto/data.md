@@ -9,7 +9,7 @@ refuses, is [the data contract](../reference/data.md).
 
 Real instances arrive as entity tables, with attributes side by side in the
 shape a PyPSA-style CSV folder holds, and as tidy time series. The committed
-instance for [dispatch](dispatch.md) is in that shape:
+instance for [dispatch](../examples/dispatch.md) is in that shape:
 
 `examples/ports/data/dispatch/generators.csv`
 
@@ -62,7 +62,7 @@ itself.
 Pass an indexed pandas Series as it is. Its index levels attach to dimensions
 by name, so there is nothing to convert. Turn a `DataArray` into a Series with
 `.to_series()`: lpspec reads tables and hands arrays back, never the other way.
-The [dispatch](dispatch.md) instance, linopy-style:
+The [dispatch](../examples/dispatch.md) instance, linopy-style:
 
 ```python
 import pandas as pd
@@ -80,7 +80,7 @@ A static attribute over one dimension is an indexed Series already, so rename
 its index and pass it. A wide time series needs `stack()` back to tidy and
 `reset_index()` after it, because a parameter over two dimensions arrives as a
 frame carrying both as columns. Here the load is mapped from load names onto
-buses on the way, the shape [transport](transport.md) attaches:
+buses on the way, the shape [transport](../examples/transport.md) attaches:
 
 ```python
 load = (
