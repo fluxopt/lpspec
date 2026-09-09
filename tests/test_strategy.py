@@ -1747,7 +1747,7 @@ def test_an_export_reads_the_key_off_each_frame_and_skips_an_empty_one(sweep):
     cannot count positions: it reads the key off each frame, and a frame with
     no rows — a variable every row of which a slice masked — carries none and
     is left out, which is what the spill writes for it."""
-    frames = [f for f in sweep._primals['p']]
+    frames = list(sweep._primals['p'])
     empty = frames[0].clear()
     by_key = strategy._by_key([empty, *frames], sweep.key_name)
     assert list(by_key) == ['high', 'low', 'mid'], 'one entry per frame that has rows, keyed by its own key'
