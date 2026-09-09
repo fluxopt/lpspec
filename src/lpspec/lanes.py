@@ -8,7 +8,7 @@ than a property of a lane that may not be importable.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from lpspec.relational.sinks.capabilities import Capabilities
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 #: language has already read — a ``Spec`` from :func:`math_spec.to_spec`, or a
 #: ``Program`` from :func:`lpspec.check`. Each is handed straight to
 #: :func:`math_spec.to_program`.
-Buildable: TypeAlias = 'str | Path | dict[str, Any] | Spec | Program'
+type Buildable = str | Path | dict[str, Any] | Spec | Program
 
 
 @runtime_checkable
@@ -38,7 +38,7 @@ class ArrowTable(Protocol):
 
 #: A label along a dimension, and so a slice's key: the Python type of each
 #: dtype an index may declare (:data:`math_spec.program.DimensionDtype`).
-Label: TypeAlias = 'int | float | str | datetime'
+type Label = int | float | str | datetime
 
 #: Anything a verb takes under one name of ``sources``. A parameter: a parquet
 #: path, a table — polars, pandas, or any :class:`ArrowTable` — or one of the
@@ -47,7 +47,18 @@ Label: TypeAlias = 'int | float | str | datetime'
 #: every coordinate. A dimension's index: a table carrying a column named
 #: after it, or a bare sequence of its labels. A lookup: the table of the
 #: rows it maps.
-Source: TypeAlias = 'str | Path | pl.DataFrame | pl.LazyFrame | pd.DataFrame | pd.Series | ArrowTable | Mapping[Label, float] | Collection[Label] | float'  # fmt: skip
+type Source = (
+    str
+    | Path
+    | pl.DataFrame
+    | pl.LazyFrame
+    | pd.DataFrame
+    | pd.Series
+    | ArrowTable
+    | Mapping[Label, float]
+    | Collection[Label]
+    | float
+)
 
 #: What each **lane** can build, beside what each sink can ingest: both lanes
 #: accept the same language, and one cannot build a quadratic constraint —

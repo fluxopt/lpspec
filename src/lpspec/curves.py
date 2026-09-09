@@ -21,7 +21,7 @@ describe a curve the declared method can build.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -36,8 +36,6 @@ if TYPE_CHECKING:
     from math_spec.program import Check, PiecewiseDeclaration, Program
 
     from lpspec.lanes import Source
-
-_C = TypeVar('_C', bound='Check')
 
 
 def derive_curve_sources(
@@ -97,7 +95,7 @@ def derive_curve_sources(
     return sources
 
 
-def _one(checks: Sequence[Check], kind: type[_C]) -> _C | None:
+def _one[C: Check](checks: Sequence[Check], kind: type[C]) -> C | None:
     """The block's check of *kind*, or ``None`` — a block carries at most one of each."""
     return next((check for check in checks if isinstance(check, kind)), None)
 
