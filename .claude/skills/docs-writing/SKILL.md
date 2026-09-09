@@ -40,16 +40,42 @@ this project. They are not stupid, they are unfamiliar.
 
 ## 1. Decide what the page is before writing a sentence
 
-Four kinds of page, and one page is one kind:
+Two questions decide it, and they work on a paragraph as well as a page:
 
-| Kind        | Answers                        | Lives in                          |
-| ----------- | ------------------------------ | --------------------------------- |
-| Tutorial    | "Get me a first working model" | `docs/index.md`, `docs/guide.md`  |
-| How-to      | "I have this task"             | `docs/examples/`, the notebooks   |
-| Reference   | "What exactly does X accept?"  | `docs/reference/`                 |
-| Explanation | "Why is it like this?"         | `docs/about/`                     |
+1. Does it inform **action** or **cognition**?
+2. Does it serve **acquiring** a skill or **applying** one?
 
-Mixing them is the most common failure. Rationale inside a reference section
+| Kind        | Informs   | Serves  | Answers                        | Lives in                                       |
+| ----------- | --------- | ------- | ------------------------------ | ---------------------------------------------- |
+| Tutorial    | action    | acquire | "Get me a first working model" | `docs/index.md`, `docs/guide.md`               |
+| How-to      | action    | apply   | "I have this task"             | the notebooks, `docs/examples/data.md`         |
+| Reference   | cognition | apply   | "What exactly does X accept?"  | `docs/reference/`, the model pages             |
+| Explanation | cognition | acquire | "Why is it like this?"         | `docs/about/`                                  |
+
+Each kind has one job, and one thing it must not do:
+
+- **A tutorial is a lesson.** One path, every step shows a result, and the
+  reader finishes with a model that solves. It explains nothing and offers no
+  choice: a choice is a how-to leaking in.
+- **A how-to is a recipe.** The title names the goal, the body is the steps,
+  and the reader is assumed competent. It neither teaches nor explains.
+- **Reference describes, and only describes.** One consistent format, and a
+  structure that mirrors what it describes: the API page follows the verbs,
+  the data page follows the contract. No rationale, no instruction.
+- **Explanation is the one place for why.** Context, alternatives and opinion
+  live here and nowhere else, within what `AGENTS.md` sends to the PR.
+
+**A model page is reference in its own form.** It answers "can the language
+say my model, and is the answer right?", and its shape is a witness rather
+than a table: a summary sentence, the problem as its field writes it, the
+YAML with its math generated from it, and a badge naming the oracle it agreed
+with. Its rules follow from that. The summary sentence is the model's one
+description anywhere, and the catalogue quotes it. The hand-written math uses
+only symbols the generator can reach, or names why it deviates. The YAML and
+Python are asserted against the files that run. Nothing on the page is prose
+you argue.
+
+Mixing kinds is the most common failure. Rationale inside a reference section
 makes the rules unskimmable, and rules inside an explanation page make the
 argument unreadable. Most rationale belongs in the PR, per `AGENTS.md`; what
 survives into an explanation page is the part a user needs to make decisions.
@@ -60,8 +86,8 @@ math-spec's to state, and the nav links to its
 A page here documents what this package does with a spec: the data it
 attaches, the verbs that attach it, and the models that do both.
 
-Say the kind out loud before starting. If a page needs two kinds, it is two
-sections with two headings, or two pages.
+Answer the two questions before starting. If a page needs two kinds, it is
+two sections with two headings, or two pages.
 
 ## 2. Open with the purpose
 
