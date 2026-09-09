@@ -51,7 +51,7 @@ nav:
   - How-to guides:
       - Preparing the data: howto/data.md
       # The schema is the language's, so the editor recipe is documented with it.
-      - Editor completion and offline checking: https://math-spec.readthedocs.io/en/latest/installation/#editor-completion-and-offline-checking
+      - Editor completion and offline checking: https://math-spec.readthedocs.io/en/latest/howto/installation/#editor-completion-and-offline-checking
       - Running a sweep in parallel: howto/parallel.md
       - Debugging a wrong answer: howto/debug.md
   - Reference:
