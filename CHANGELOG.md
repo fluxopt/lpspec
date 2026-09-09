@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.312](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.311...v0.0.1-alpha.312) (2026-09-09)
+
+
+### Features
+
+* **strategy:** a lowered program crosses a process, so a pooled sweep lowers nothing twice ([#1549](https://github.com/fluxopt/lpspec/issues/1549)) ([09cd887](https://github.com/fluxopt/lpspec/commit/09cd88752eab82577f6413a4ce028d382d6146a8))
+
 ## [0.0.1-alpha.311](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.310...v0.0.1-alpha.311) (2026-09-09)
 
 
