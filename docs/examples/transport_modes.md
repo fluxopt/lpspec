@@ -74,7 +74,7 @@ $$\mathrm{min\_load}_{c} \le \mathit{moved}_{c} \le \mathrm{max\_load}_{c} \qqua
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 

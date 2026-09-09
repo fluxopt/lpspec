@@ -45,16 +45,15 @@ Two questions decide it, and they work on a paragraph as well as a page:
 1. Does it inform **action** or **cognition**?
 2. Does it serve **acquiring** a skill or **applying** one?
 
-| Kind        | Informs   | Serves  | Answers                        | Nav section                          |
-| ----------- | --------- | ------- | ------------------------------ | ------------------------------------ |
-| Tutorial    | action    | acquire | "Get me a first working model" | Home, Tutorials                      |
-| How-to      | action    | apply   | "I have this task"             | How-to guides                        |
-| Reference   | cognition | apply   | "What exactly does X accept?"  | Reference, Examples, the ladder      |
-| Explanation | cognition | acquire | "Why is it like this?"         | About                                |
+| Kind        | Informs   | Serves  | Answers                        | Nav section · folder                              |
+| ----------- | --------- | ------- | ------------------------------ | ------------------------------------------------- |
+| Tutorial    | action    | acquire | "Get me a first working model" | Home, Tutorials · `docs/`                         |
+| How-to      | action    | apply   | "I have this task"             | How-to guides · `docs/howto/`                     |
+| Reference   | cognition | apply   | "What exactly does X accept?"  | Reference · `docs/reference/`, model pages in `docs/examples/` |
+| Explanation | cognition | acquire | "Why is it like this?"         | About · `docs/about/`                             |
 
-The nav is arranged by kind. The folders under `docs/` are older and follow
-the subject, so a new file goes beside its nearest sibling and its nav entry
-says what it is.
+The nav and the tree are both arranged by kind. A new page goes in the folder
+of its kind and under the nav section of the same name.
 
 Each kind has one job, and one thing it must not do:
 

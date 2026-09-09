@@ -94,7 +94,7 @@ point is a choice, which is why it is on another page.
 | | |
 |---|---|
 | [Change a model](interactive.ipynb) | the next lesson: new numbers, more rows and new math on the model you just solved |
-| [Preparing the data](examples/data.md) | your data arrives as files, not as the frames above; this is the recipe from one to the other |
+| [Preparing the data](howto/data.md) | your data arrives as files, not as the frames above; this is the recipe from one to the other |
 | [The verbs](reference/api.md) · [The data contract](reference/data.md) | what every call takes and returns, and what attaching refuses |
 | [Language reference](https://math-spec.readthedocs.io/en/latest/reference/language/) | what a file may contain, exactly, and [the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/) it stops at |
 | [Examples](examples/index.md) | every model in the repository, and which constructs each exercises |

@@ -40,16 +40,16 @@ nav:
   - Home: index.md
   # Arranged by what a page is for — tutorial, how-to guide, reference,
   # explanation (https://diataxis.fr). `.claude/skills/docs-writing/SKILL.md`
-  # says how one kind is told from another. The folders under `docs/` are older
-  # and follow the subject; the nav is what a reader sees. The model pages and
-  # the ladder are reference in their own form, and sit at the end of the
-  # Reference section, after the four pages a reader looks things up in.
+  # says how one kind is told from another, and the folders under `docs/`
+  # follow the same split. The model pages and the ladder are reference in
+  # their own form, and sit at the end of the Reference section, after the
+  # four pages a reader looks things up in.
   - Tutorials:
       - Run a model: guide.md
       - Change a model: interactive.ipynb
       - Fix, relax, remove: lifecycle.ipynb
   - How-to guides:
-      - Preparing the data: examples/data.md
+      - Preparing the data: howto/data.md
       - Editor completion and offline checking: howto/editor.md
   - Reference:
       - The verbs: reference/api.md

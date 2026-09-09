@@ -247,7 +247,7 @@ is a choice, and **How** shows the one that was made here.
     The recipe from the files an instance arrives in to one frame per
     parameter, and the contract for what attaching accepts and refuses.
 
-    [:octicons-arrow-right-24: Preparing the data](examples/data.md) ·
+    [:octicons-arrow-right-24: Preparing the data](howto/data.md) ·
     [The contract](reference/data.md)
 
 -   :material-view-gallery-outline: __Models__

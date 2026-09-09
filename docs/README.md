@@ -6,12 +6,12 @@ start at [running a model](guide.md), then
 [the rules](https://math-spec.readthedocs.io/en/latest/reference/language/#ten-rules-the-language-reduces-to) for
 what may be in the file.
 
-**The nav is arranged by what a page is for**, the four kinds of
-[Diátaxis](https://diataxis.fr): tutorials (`guide.md`, the two notebooks),
-how-to guides (`examples/data.md`), reference (`reference/`, and the model
-pages, which are reference in their own form) and explanation, under `about/`.
-The folders are older and follow the subject; the nav is what a reader sees.
-Which kind a page is, and the rules each kind has to meet, are in
+**The nav and the tree are arranged by what a page is for**, the four kinds
+of [Diátaxis](https://diataxis.fr): tutorials (`guide.md` and the two
+notebooks, at the root), how-to guides (`howto/`), reference (`reference/`,
+and the model pages in `examples/`, which are reference in their own form)
+and explanation (`about/`). Which kind a page is, and the rules each kind has
+to meet, are in
 [the docs-writing skill](https://github.com/fluxopt/lpspec/blob/main/.claude/skills/docs-writing/SKILL.md).
 The language is a dependency, documented with itself, so the nav links out to
 math-spec rather than keeping a second copy.

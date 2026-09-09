@@ -15,7 +15,7 @@ result = lps.solve(
 ```
 
 Getting from the files an instance arrives in to these shapes is
-[preparing the data](../examples/data.md).
+[preparing the data](../howto/data.md).
 
 ## What a parameter accepts
 

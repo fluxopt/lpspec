@@ -12,7 +12,7 @@ and the third are the two tables on this page. The second is each model page,
 where the file sits beside the same model written on another stack.
 
 Every page starts from data in the shape the call wants.
-[Preparing the data](data.md) is where that shape comes from.
+[Preparing the data](../howto/data.md) is where that shape comes from.
 
 ## Every model
 
