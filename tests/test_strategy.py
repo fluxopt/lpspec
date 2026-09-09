@@ -1114,11 +1114,46 @@ def test_the_readers_mirror_result_with_the_slice_key_as_one_more_dimension(swee
     assert dataset['p'].dims == ('scenario', 'snapshot', 'generator')
 
 
-def test_to_parquet_writes_one_file_per_kept_variable(sweep, tmp_path):
-    """The bridge out for a sweep too wide to want in one array."""
-    written = sweep.to_parquet(tmp_path / 'sweep')
-    assert set(written) == {'p'}
-    assert pl.read_parquet(written['p']).equals(sweep.primal('p'))
+def test_every_bridge_takes_a_kind_on_a_sweep(priced):
+    """The same `kind=` on a sweep's bridges, `original_index` included: a
+    stitched price comes back as an array over time, and a dataset of every
+    expression is one call."""
+    pytest.importorskip('xarray')
+    price = priced.to_dataarray('balance', 'dual', original_index=True)
+    assert price.dims == ('snapshot',), 'the stitched price is over the dimension the axis sliced'
+    assert price.name == 'balance'
+    spent = priced.to_dataset(kind='expression')
+    assert set(spent.data_vars) == {'spend', 'window_spend'}, 'every expression the slices evaluated'
+    assert spent['spend'].dims == ('snapshot_start', 't'), 'keyed by slice, as every bulk export is'
+    with pytest.raises(lps.LpspecError, match='primal, dual, expression'):
+        priced.to_pandas('soc', 'objective')
+
+
+def test_to_parquet_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(priced, builds, tmp_path):
+    """`to_parquet` is the spill after the fact: the same layout, all three
+    kinds and the record, so `scan` reads it and the same call pointed at it
+    with `to=` reads it back without solving a slice."""
+    out = priced.to_parquet(tmp_path / 'sweep')
+    assert out == tmp_path / 'sweep', 'the directory comes back, not a dict nobody indexes'
+    assert sorted(p.name for p in out.iterdir()) == [
+        'diagnostics',
+        'dual',
+        'expression',
+        'objective',
+        'primal',
+        'sweep.json',
+    ], 'the three kinds, the record, and the manifest'
+    assert sorted(p.name for p in (out / 'expression').iterdir()) == ['spend', 'window_spend'], (
+        'every declared expression the slices evaluated'
+    )
+
+    built = builds(strategy)
+    reopened = _spilled(out)
+    assert built == [], 'a directory the export wrote is a sweep already done'
+    assert reopened.objective.equals(priced.objective)
+    assert reopened.scan('soc').collect().equals(priced.primal('soc'))
+    assert reopened.scan('balance', 'dual').collect().equals(priced.dual('balance'))
+    assert reopened.scan('spend', 'expression').collect().equals(priced.expression('spend'))
 
 
 @pytest.mark.parametrize('export', ['to_dataset', 'to_parquet'], ids=['to_dataset', 'to_parquet'])
@@ -1558,3 +1593,177 @@ def test_a_sweep_reports_what_each_slice_cost(make_executor):
     assert frame['loaded'].to_list() == ([True, False, False] if executor is None else [True] * 3), (
         'a serial sweep loads the solver once and pushes values after; a pooled one builds every slice cold'
     )
+
+
+# ---------------------------------------------------------------------------
+# spilling to disk
+# ---------------------------------------------------------------------------
+
+PRICED_AXIS = lps.EachWindow('snapshot', length=6, step=3, into='t')
+PRICED_CARRY = {'soc_initial': ('soc', 2)}
+
+
+def _spilled(directory, **kwargs) -> strategy.Runs:
+    return lps.solve_over(SPENDING, horizon_sources(12), PRICED_AXIS, carry=PRICED_CARRY, to=directory, **kwargs)
+
+
+def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_path):
+    """`to=` writes each slice's frames as the fold goes and keeps none of them.
+
+    What comes back through `scan` is the frame the in-memory reader would
+    have returned — primal, dual and expression, keyed or over the original
+    index — so the two ways of running a sweep cannot answer differently.
+    """
+    runs = _spilled(tmp_path)
+    assert runs.objective.equals(priced.objective)
+    assert not runs._primals and not runs._duals and not runs._expressions, 'a spilled sweep holds no frame'
+    assert runs.scan('soc').collect().equals(priced.primal('soc'))
+    assert runs.scan('balance', 'dual').collect().equals(priced.dual('balance'))
+    assert runs.scan('spend', 'expression').collect().equals(priced.expression('spend'))
+    assert runs.scan('soc', original_index=True).collect().equals(priced.primal('soc', original_index=True))
+    assert not list(tmp_path.rglob('*.part')), 'every file landed under its final name'
+
+
+@pytest.mark.parametrize(
+    'read',
+    [
+        pytest.param(lambda runs: runs.primal('soc'), id='primal'),
+        pytest.param(lambda runs: runs.dual('balance'), id='dual'),
+        pytest.param(lambda runs: runs.expression('spend'), id='expression'),
+        pytest.param(lambda runs: runs.to_parquet('elsewhere'), id='to_parquet'),
+        pytest.param(lambda runs: runs.to_dataset(), id='to_dataset'),
+    ],
+)
+def test_the_eager_readers_refuse_a_spilled_sweep_and_name_scan(read, tmp_path):
+    """One meaning per name: `primal` returns a frame in memory or raises,
+    never a frame it would have to load first. The message names `scan`."""
+    runs = _spilled(tmp_path)
+    with pytest.raises(lps.LpspecError, match=r'runs\.scan'):
+        read(runs)
+
+
+def test_scan_reads_an_in_memory_sweep_too(sweep):
+    """`scan` means the same thing on both: code written for a spilled sweep
+    runs unchanged on one that fit in memory."""
+    assert sweep.scan('p').collect().equals(sweep.primal('p'))
+    with pytest.raises(lps.LpspecError, match="no variable 'nope'"):
+        sweep.scan('nope')
+    with pytest.raises(lps.LpspecError, match='primal, dual, expression'):
+        sweep.scan('p', 'objective')
+
+
+def test_a_spilled_sweep_resumes_after_the_slice_that_failed(builds, tmp_path):
+    """The slices that solved before the failure are not solved again.
+
+    Three hand-built slices, the third of which cannot build; the second run
+    with the same directory builds one model, and comes back identical to a
+    sweep that never failed.
+    """
+    base = scenario_sources()
+    good = [(k, {**base, 'load': _draw(base, k)}) for k in ('low', 'mid', 'high')]
+    bad = [*good[:2], ('high', {**good[0][1], 'load': pl.DataFrame({'snapshot': [0, 1], 'value': [1.0, 2.0]})})]
+    with pytest.raises(lps.DataError):
+        lps.solve_over(DISPATCH, base, bad, key_name='draw', to=tmp_path)
+
+    built = builds(strategy)
+    resumed = lps.solve_over(DISPATCH, base, good, key_name='draw', to=tmp_path)
+    assert len(built) == 1, 'only the slice that failed is built again'
+
+    fresh = lps.solve_over(DISPATCH, base, good, key_name='draw')
+    assert resumed.objective.equals(fresh.objective)
+    assert resumed.scan('p').collect().equals(fresh.primal('p'))
+
+
+def test_a_resumed_carry_reads_its_state_off_the_disk(priced, monkeypatch, tmp_path):
+    """A rolling horizon interrupted after two windows continues from the
+    second window's file, and ends where an uninterrupted one does."""
+    answered = strategy._answers
+    seen: list[int] = []
+
+    def two_then_fail(*args):
+        if len(seen) == 2:
+            raise RuntimeError('the box went away')
+        seen.append(1)
+        return answered(*args)
+
+    monkeypatch.setattr(strategy, '_answers', two_then_fail)
+    with pytest.raises(RuntimeError, match='went away'):
+        _spilled(tmp_path)
+    monkeypatch.setattr(strategy, '_answers', answered)
+
+    resumed = _spilled(tmp_path)
+    assert resumed.objective.equals(priced.objective)
+    assert resumed.scan('soc', original_index=True).collect().equals(priced.primal('soc', original_index=True))
+    loaded = priced.diagnostics['loaded'].to_list()
+    loaded[2] = True
+    assert resumed.diagnostics['loaded'].to_list() == loaded, (
+        'the two read back are the record they left, and the third loads where the uninterrupted run updated'
+    )
+
+
+def test_a_slice_written_part_way_is_solved_again(builds, tmp_path):
+    """The objective file is written last and is what marks a slice done, so
+    a slice whose frames landed but whose record did not is solved again."""
+    _spilled(tmp_path)
+    (tmp_path / 'objective' / '000001.parquet').unlink()
+    built = builds(strategy)
+    resumed = _spilled(tmp_path)
+    assert len(built) == 1, 'the slice without its record is the one built'
+    assert resumed.keys == [0, 3, 6, 9], 'the sweep comes back whole'
+
+
+def test_a_directory_holding_another_sweep_is_refused(tmp_path):
+    """A directory answers for one sweep. Another one pointed at it would read
+    the first one's slices back as its own, so the mismatch is refused."""
+    _spilled(tmp_path)
+    with pytest.raises(lps.LpspecError, match='holds a sweep keyed by'):
+        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=tmp_path)
+
+
+@pytest.mark.parametrize('make_executor', EXECUTORS)
+def test_every_executor_spills_the_same_files(make_executor, sweep, tmp_path):
+    """Under a pool the answers still land in the directory, in slice order."""
+    with _entered(make_executor()) as executor:
+        runs = lps.solve_over(
+            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor, to=tmp_path
+        )
+    assert runs.scan('p').collect().equals(sweep.primal('p'))
+    assert sorted(p.name for p in (tmp_path / 'primal' / 'p').iterdir()) == [
+        '000000.parquet',
+        '000001.parquet',
+        '000002.parquet',
+    ], 'one file per slice, numbered by position'
+
+
+def test_a_pooled_sweep_resumes_too(builds, tmp_path):
+    """A slice the directory holds is never submitted; the pool only sees the
+    ones still to solve, and the fold reads the rest back in order."""
+    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=tmp_path)
+    (tmp_path / 'objective' / '000001.parquet').unlink()
+    built = builds(strategy)
+    with ThreadPoolExecutor(2) as pool:
+        resumed = lps.solve_over(
+            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool, to=tmp_path
+        )
+    assert len(built) == 1, 'the slice without its record is the one submitted'
+    assert resumed.keys == ['high', 'low', 'mid'], 'the sweep comes back whole and in order'
+
+
+def test_scan_on_a_spilled_sweep_says_what_it_does_hold(tmp_path):
+    """A name no slice wrote has no directory, and the message lists the
+    names that do — the same sentence the in-memory reader gives."""
+    runs = _spilled(tmp_path)
+    with pytest.raises(lps.LpspecError, match=r"no variable 'nope' in this sweep — it holds 'charge', 'discharge'"):
+        runs.scan('nope')
+
+
+def test_an_export_reads_the_key_off_each_frame_and_skips_an_empty_one(sweep):
+    """A name is held per slice that produced it, not per slice, so an export
+    cannot count positions: it reads the key off each frame, and a frame with
+    no rows — a variable every row of which a slice masked — carries none and
+    is left out, which is what the spill writes for it."""
+    frames = list(sweep._primals['p'])
+    empty = frames[0].clear()
+    by_key = strategy._by_key([empty, *frames], sweep.key_name)
+    assert list(by_key) == ['high', 'low', 'mid'], 'one entry per frame that has rows, keyed by its own key'
+    assert all(sweep.key_name not in frame.columns for frame in by_key.values()), 'the key column is dropped'

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
+from lpspec.relational.parquet import reader_kind, write_whole
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -537,42 +538,93 @@ class Result:
             ) from None
         return reader()
 
-    def to_pandas(self, name: str) -> pd.DataFrame:
-        """:meth:`primal` as a tidy :class:`pandas.DataFrame`."""
-        return tidy_to_pandas(self.primal(name))
+    def _frame(self, name: str, kind: str) -> pl.DataFrame:
+        """*name* through the reader *kind* names — the dispatch every bridge shares."""
+        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[reader_kind(kind)]
+        return reader(name)
 
-    def to_dataarray(self, name: str) -> xr.DataArray:
-        """:meth:`primal` as a labelled :class:`xarray.DataArray`.
+    def _names(self, kind: str) -> tuple[str, ...]:
+        """Every name of *kind* this result can read — what a bridge takes by default.
 
-        Dense over the variable's dims: a masked coordinate comes back NaN.
+        Raises:
+            NoSolutionError: The solve left no values to read.
+            LpspecError: This result was closed, or *kind* is ``dual`` and
+                the duals are undefined.
         """
-        return tidy_to_dataarray(self.to_pandas(name), name)
+        if reader_kind(kind) == 'primal':
+            return tuple(self._readable(self._primals, 'the solution'))
+        if kind == 'dual':
+            frames = self._readable(self._duals, 'the duals')
+            if self._no_duals is not None:
+                raise LpspecError(self._no_duals)
+            return tuple(frames)
+        self._readable(self._primals, 'the expressions')
+        return tuple(self._expressions or {})
 
-    def to_dataset(self, *names: str) -> xr.Dataset:
-        """The named variables as one :class:`xarray.Dataset`; all by default.
+    def to_pandas(self, name: str, kind: str = 'primal') -> pd.DataFrame:
+        """One name's values as a tidy :class:`pandas.DataFrame`.
 
-        Each arrives dense over its own dims, all at once — on a large model
-        name the few you need, or use :meth:`to_parquet`.
+        Args:
+            name: A variable, a constraint or a named expression, as *kind*
+                says.
+            kind: ``primal``, ``dual`` or ``expression`` — the reader this
+                stands in for.
         """
-        wanted = names or tuple(self._readable(self._primals, 'the solution'))
-        return tidy_to_dataset(wanted, self.to_dataarray)
+        return tidy_to_pandas(self._frame(name, kind))
 
-    def to_parquet(self, directory: str | Path) -> dict[str, Path]:
-        """Write one parquet file per variable into *directory*.
+    def to_dataarray(self, name: str, kind: str = 'primal') -> xr.DataArray:
+        """One name's values as a labelled :class:`xarray.DataArray`, :meth:`to_pandas`'s arguments.
 
-        Streamed to disk in :meth:`primal`'s order, so the same model and data
-        write the same bytes.
+        Dense over the name's dims: a masked coordinate comes back NaN.
+        """
+        return tidy_to_dataarray(self.to_pandas(name, kind), name)
+
+    def to_dataset(self, *names: str, kind: str = 'primal') -> xr.Dataset:
+        """The named values of one *kind* as one :class:`xarray.Dataset`; all of that kind by default.
+
+        One kind per call: a dual and a variable of the same name would
+        collide, and mean something else per row. Each arrives dense over its
+        own dims, all at once — on a large model name the few you need, or use
+        :meth:`to_parquet`, which writes every kind.
+
+        Args:
+            names: What to include; none means every name of *kind*.
+            kind: ``primal``, ``dual`` or ``expression``.
+        """
+        return tidy_to_dataset(names or self._names(kind), lambda name: self.to_dataarray(name, kind))
+
+    def to_parquet(self, directory: str | Path) -> Path:
+        """Every kind this solve answered with, one file per name, into *directory*.
+
+        ``primal/<name>.parquet`` for every variable, ``dual/<name>.parquet``
+        for every constraint where the duals are defined, and
+        ``expression/<name>.parquet`` for every named expression this data
+        can evaluate — an integer variable leaves the duals out, and an
+        expression that fails on this data is left out, :meth:`expression`
+        still saying why. The primals are streamed to disk in
+        :meth:`primal`'s order, so the same model and data write the same
+        bytes.
 
         Returns:
-            Each variable's name, mapped to the file it was written to.
+            The directory.
+
+        Raises:
+            NoSolutionError: The solve left no values to write.
+            LpspecError: This result was closed.
         """
-        frames = self._readable(self._primals, 'the solution')
+        primals = self._readable(self._primals, 'the solution')
         out = Path(directory)
-        out.mkdir(parents=True, exist_ok=True)
-        written = {name: out / f'{name}.parquet' for name in frames}
-        for name, frame in frames.items():
-            frame.sink_parquet(written[name])
-        return written
+        for name, frame in primals.items():
+            write_whole(frame, out / 'primal' / f'{name}.parquet')
+        for name, frame in (self._duals or {}).items():
+            write_whole(frame, out / 'dual' / f'{name}.parquet')
+        for name, reader in (self._expressions or {}).items():
+            try:
+                evaluated = reader()
+            except LpspecError:
+                continue
+            write_whole(evaluated, out / 'expression' / f'{name}.parquet')
+        return out
 
     def close(self) -> None:
         """Release what this result holds early. Optional.

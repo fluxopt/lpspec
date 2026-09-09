@@ -92,6 +92,20 @@ window owns and drops the lookahead rows the sweep solved. For the same reason
 `to_dataset` and `to_parquet` have no `original_index` — a bulk export of what
 the sweep holds is the wrong place to lose rows.
 
+**Every bridge takes `kind=`**, the way `scan` does: `to_pandas(name, kind)`,
+`to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual`
+or `expression`, `primal` by default, `original_index` beside it where the
+reader has one. So `runs.to_dataarray('balance', 'dual', original_index=True)`
+is the stitched price over time, and `runs.to_dataset(kind='expression')` is
+every expression the slices evaluated. One kind per call: a dual and a variable
+of the same name would collide in one dataset.
+
+**`to_parquet` writes every kind.** `runs.to_parquet('runs/')` writes what
+`to=` would have written — every primal, dual and expression, one file per
+slice and name, with the record and the manifest — so the directory is a
+spilled sweep: `scan` reads it, and the call that made the sweep, pointed at it
+with `to=`, reads it back without solving.
+
 Per slice is a partition of a frame you already have, so there is no reader for
 it: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 
@@ -107,7 +121,28 @@ it: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 | **a hand-built axis names its own key** | a plain list of slices cannot say what its keys are coordinates *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name anywhere, and is refused only when it collides with a column the frames already carry — a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective` |
 | **what each slice cost is `runs.diagnostics`** | one row per slice, `(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)` — `model.diagnostics()` one dimension wider, its counts and clocks only. `loaded` says the solver took the model from scratch: a serial sweep loads once and pushes values after, so a later `True` is a slice whose data moved a mask; under `executor=` every slice builds alone and every one loads. The clocks are that slice's own seconds, so a slow sweep says which slice and which phase |
 | **a slice that fails says which slice** | the error is the engine's own, untouched, with a note on it — `in slice 'bad' (3 of 3)` — so a fifty-window traceback names the window without anyone counting |
-| **a sweep's memory grows with its answer** | the models are released as the fold goes; the extracted frames accumulate, and nothing bounds them. `to_parquet` copies out frames already in memory: a bridge, not a bound. Whether to bound it, and how, is [#610](https://github.com/fluxopt/lpspec/issues/610) |
+| **a sweep's memory grows with its answer, unless it is spilled** | the models are released as the fold goes; the extracted frames accumulate. `to=` writes them out instead — [below](#spilling-a-sweep-to-disk) — and `to_parquet` writes a held sweep out the same way, after the fact |
+
+## Spilling a sweep to disk
+
+`to=` names a directory, and each slice's frames are written there as the
+fold goes rather than held, so the sweep's memory stays at one slice however
+many there are:
+
+```python
+runs = lps.solve_over('window.yaml', sources, lps.EachWindow('snapshot', 48, 24, into='t'), to='runs/')
+runs.scan('soc')  # a LazyFrame: (snapshot_start, t, value), every window, in order
+runs.scan('balance', 'dual', original_index=True).collect()  # the same readers, the same keywords
+```
+
+| Rule | |
+|---|---|
+| **`scan` is the reader** | `runs.scan(name, kind='primal')` is `primal`, `dual` or `expression` as a `LazyFrame` over the files, `original_index=` included. On a sweep held in memory it is the same reader made lazy, so a line written for a spilled sweep runs unchanged on one that fit. The eager readers and the exports refuse a spilled sweep and name `scan`: `primal` returns a frame in memory or raises, never one it would have to load first |
+| **one file per slice and name** | `<kind>/<name>/<position>.parquet`, the slice key a column of each; `objective/` and `diagnostics/` hold the record, one row per slice. `runs.objective` and `runs.diagnostics` are in memory as ever — they are small |
+| **every file lands whole** | written beside its final name and renamed into place. The objective file is written last and is what marks a slice done, so a slice interrupted part way is solved again rather than read back short |
+| **an interrupted sweep resumes** | run the same call at the same directory: a slice already there is read back, not solved, and under a `carry` the state is read off its file. Only the slices that had not finished are built |
+| **a directory holds one sweep** | `sweep.json` records the key and the keys. A different sweep pointed at the directory is refused; the same sweep over changed data or a changed model is not detectable, so delete the directory to solve again |
+| **the parent writes** | under `executor=` a worker's answer crosses back as it does today and the process that owns the directory writes it; a worker writing in place is a measurement away |
 
 ## Carrying state between slices
 

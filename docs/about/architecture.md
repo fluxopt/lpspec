@@ -139,12 +139,13 @@ is not a gap waiting to be closed: a caller who asks for a `linopy.Model` is
 asking for linopy's own API on the far side of it, and a second `Result` there
 would be a wrapper nobody wanted.
 
-Seven modules sit outside a fence, and each is legitimately **both** halves:
+Eight modules sit outside a fence, and each is legitimately **both** halves:
 the one drawn above, plus `curves.py`, the one guard that needs numbers,
 `api.py`, which runs the lot, `strategy.py`, which drives it a slice at a time,
 `lanes.py`, the two facts the runner and the eager lane both read — what a
 spec may arrive as, and what each lane can build — `frames.py`, the table
-boundary, and `errors.py`, the leaf every fence points at. That is
+boundary, `parquet.py`, the layout a result and a sweep both write their
+answers to disk in, and `errors.py`, the leaf every fence points at. That is
 a category, not a leftovers bin, and the size of a module does not buy it a
 place — one only a single lane reaches is that lane's, down to a 24-line
 contextmanager (`linopy/_notes.py`). See
@@ -675,6 +676,7 @@ is structure.
 | `relational/engines/polars/readback.py` | a built row, a solve's frames and a named expression, spelled back out in the model's own labels |
 | `relational/engines/polars/engine.py` | the lifecycle: build, hand to a sink, read back, the counters and clocks `diagnostics()` reports |
 | `relational/result.py` | what a solve returned: status, objective, and the label joins that read values back |
+| `relational/parquet.py` | answers on disk: the `<kind>/<name>` layout a result and a sweep both write, and the writer that lands a file whole |
 | `relational/sinks/tables.py` | what every sink reads and no more — the five frames plus the batching scalars, and their projection onto the solver's column index; what an engine produces |
 | `relational/sinks/capabilities.py` | what a sink can ingest — hard rule 3's *accepts ≠ builds* axis; `lanes.py` declares each **lane** against the same vocabulary |
 | `relational/sinks/sos.py` | the one stream a sink may not be able to ingest, written as two it can: sets → binaries and linking rows |

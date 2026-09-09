@@ -150,8 +150,12 @@ result.expression('co2')  # a named expression at the solution, over its own dim
 
 result.to_pandas('p')  # the same, as a DataFrame
 result.to_dataarray('p')  # the same, labelled: .sel / resample / plot
+result.to_dataarray('power_balance', 'dual')  # a price, labelled — every bridge takes kind=
 result.to_dataset()  # every variable by default; names for a subset
-result.to_parquet(directory)  # streamed to disk, never through this process
+result.to_dataset(kind='dual')  # every dual; one kind per dataset
+result.to_parquet(
+    directory
+)  # every kind, primal/ dual/ expression/, one file per name; primals streamed, never through this process
 ```
 
 `primal` returns a `polars.DataFrame` — Arrow-backed, so it exports the same
@@ -167,6 +171,8 @@ out and need pandas / xarray, which ship with the `[linopy]` extra.
 | **a solver can make a model mixed-integer** | an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set reaches a solver with no SOS concept as binaries, so an otherwise continuous model solved on `highs` has no duals and says so. On `gurobi` and `xpress`, which branch on the set itself, it keeps them |
 | duals exist only where a solver ran | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed yet |
 | `to_dataset` costs what it says | each variable arrives dense over its own dims — name a subset, or use `to_parquet` |
+| **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default — one kind per call, so a dataset of every dual has no variable of the same name to collide with |
+| **`to_parquet` writes every kind** | `primal/<name>.parquet`, `dual/<name>.parquet`, `expression/<name>.parquet` — the kind directory because a constraint may carry a variable's name. A dual undefined by an integer variable and an expression this data cannot evaluate are left out, and `dual` and `expression` still say why |
 
 **Nothing has to be released.** The built model is frames this process owns, so
 `primal` and the `to_*` readers stay valid for as long as the `Result` does.
