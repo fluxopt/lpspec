@@ -1,15 +1,14 @@
 # Preparing the data
 
-This page turns the files an instance arrives in into the `sources` mapping
-the verbs take, one frame per parameter. It assumes you have the files and
-know polars or pandas. What that mapping may contain, and what attaching
-refuses, is [the data contract](../reference/data.md).
+From the files an instance arrives in to the `sources` mapping the verbs
+take, one frame per parameter. What that mapping may contain is
+[the data contract](../reference/data.md).
 
 ## The files you start from
 
-Real instances arrive as entity tables, with attributes side by side in the
-shape a PyPSA-style CSV folder holds, and as tidy time series. The committed
-instance for [dispatch](../examples/dispatch.md) is in that shape:
+Entity tables, attributes side by side as a PyPSA-style CSV folder holds
+them, and tidy time series. The committed instance for
+[dispatch](../examples/dispatch.md):
 
 `examples/ports/data/dispatch/generators.csv`
 
@@ -32,9 +31,8 @@ snapshot,value
 
 ## One frame per parameter
 
-Split the entity table's columns out, one `select` per parameter. A frame
-(a table in memory) for a parameter carries its dimension columns and a
-`value` column. The time series passes through untouched:
+One `select` per parameter: its dimension columns and a `value` column. The
+time series passes through untouched:
 
 ```python
 import polars as pl
@@ -52,17 +50,14 @@ sources = {
 }
 ```
 
-That `sources` is what every call on the model pages attaches. With data
-curated as one parquet file per parameter, pass the paths instead,
-`sources = {'p_max': 'p_max.parquet', ...}`, and the engine scans the files
-itself.
+With one parquet file per parameter, pass the paths instead:
+`sources = {'p_max': 'p_max.parquet', ...}`.
 
 ## From linopy's shapes
 
-Pass an indexed pandas Series as it is. Its index levels attach to dimensions
-by name, so there is nothing to convert. Turn a `DataArray` into a Series with
-`.to_series()`: lpspec reads tables and hands arrays back, never the other way.
-The [dispatch](../examples/dispatch.md) instance, linopy-style:
+Pass an indexed pandas Series as it is; its index levels attach to
+dimensions by name. A `DataArray` becomes one with `.to_series()`. The
+[dispatch](../examples/dispatch.md) instance, linopy-style:
 
 ```python
 import pandas as pd
@@ -76,10 +71,9 @@ sources = {'snapshot': load.index, 'generator': p_max.index, 'p_max': p_max, 'co
 
 ## From PyPSA's shapes
 
-A static attribute over one dimension is an indexed Series already, so rename
-its index and pass it. A wide time series needs `stack()` back to tidy and
-`reset_index()` after it, because a parameter over two dimensions arrives as a
-frame carrying both as columns. Here the load is mapped from load names onto
+A static attribute is an indexed Series already: rename its index. A wide
+time series needs `stack()` and `reset_index()`, since a parameter over two
+dimensions is a frame with both as columns. Here the load is mapped onto
 buses on the way, the shape [transport](../examples/transport.md) attaches:
 
 ```python
@@ -102,7 +96,7 @@ sources = {
 }
 ```
 
-`gen_bus` is not a parameter but a
+`gen_bus` is a
 [lookup](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#lookups),
-so it arrives under its own name as the relation it is. Pass PyPSA's `bus`
-column across as it stands rather than merging it into an index.
+so it arrives under its own name as a relation: PyPSA's `bus` column as it
+stands, not merged into an index.
