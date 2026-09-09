@@ -153,8 +153,7 @@ def nav_groups() -> list[tuple[str, list[tuple[str, str]]]]:
     model, and :func:`catalogue` is checked against :func:`models` for the ones
     that are.
     """
-    nav = yaml.load(MKDOCS.read_text(), Loader=_NavLoader)['nav']
-    section = next(entry['Examples'] for entry in nav if isinstance(entry, dict) and 'Examples' in entry)
+    section = _section(yaml.load(MKDOCS.read_text(), Loader=_NavLoader)['nav'], 'Examples')
     groups = []
     for entry in section:
         if not isinstance(entry, dict):
@@ -163,6 +162,23 @@ def nav_groups() -> list[tuple[str, list[tuple[str, str]]]]:
         if isinstance(target, list):
             groups.append((title, [(label, Path(path).stem) for page in target for label, path in page.items()]))
     return groups
+
+
+def _section(entries: list, title: str) -> list:
+    """The entries under the nav section called ``title``, at any depth.
+
+    The section sits under Reference today; where it sits is the nav's
+    decision, and the catalogue should not have to move with it.
+    """
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        ((label, target),) = entry.items()
+        if label == title:
+            return target
+        if isinstance(target, list) and (found := _section(target, title)):
+            return found
+    return []
 
 
 def _summary(name: str) -> str:
