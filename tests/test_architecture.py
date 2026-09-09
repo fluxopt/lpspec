@@ -834,12 +834,13 @@ def test_every_shape_operator_declares_its_fan_in():
     from math_spec import program
 
     x = program.Variable('x')
+    walk = program.Walk(program.LookupDeclaration('bus', (('g', 'g'), ('b', 'b')), ('g',)), ('g',), ('b',), ())
     declared = {
         type(node).__name__: program.fan_in(node)
         for node in (
             program.Sum(x, ('t',)),
-            program.GroupSum(x, 'g', ('bus',), ('b',)),
-            program.At(x, 'g', ('bus',), ('b',)),
+            program.GroupSum(x, (walk,)),
+            program.At(x, (walk,)),
             program.Translate(x, 't', 1, wrap=False),
             program.Window(x, 't', 3, wrap=False),
         )

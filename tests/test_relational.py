@@ -212,12 +212,10 @@ def _keyed(name: str, over: str) -> LookupDeclaration:
 def transport_program() -> Program:
     injection = Add(
         Add(
-            GroupSum(
-                Variable('p'), ('generator',), ('gen_bus',), ('bus',), (keyed_walk('gen_bus', 'generator', 'bus'),)
-            ),
-            GroupSum(Variable('f'), ('line',), ('to',), ('bus',), (keyed_walk('to', 'line', 'bus'),)),
+            GroupSum(Variable('p'), (keyed_walk('gen_bus', 'generator', 'bus'),)),
+            GroupSum(Variable('f'), (keyed_walk('to', 'line', 'bus'),)),
         ),
-        Negate(GroupSum(Variable('f'), ('line',), ('from',), ('bus',), (keyed_walk('from', 'line', 'bus'),))),
+        Negate(GroupSum(Variable('f'), (keyed_walk('from', 'line', 'bus'),))),
     )
     return Program(
         parameters={

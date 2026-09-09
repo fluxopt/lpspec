@@ -233,6 +233,7 @@ def test_the_plan_table_names_every_expression_node():
     rows = dict(re.findall(r'^\| `(\w+)` \|[^|]*\| ([^|]*) \|', section, re.MULTILINE))
 
     x = program.Variable('x')
+    walk = program.Walk(program.LookupDeclaration('bus', (('g', 'g'), ('b', 'b')), ('g',)), ('g',), ('b',), ())
     nodes = {
         type(node).__name__: node
         for node in (
@@ -246,8 +247,8 @@ def test_the_plan_table_names_every_expression_node():
             program.Divide(x, program.Parameter('p')),
             program.Power(program.Parameter('p'), program.Constant(2.0)),
             program.Sum(x, ('t',)),
-            program.GroupSum(x, 'g', ('bus',), ('b',)),
-            program.At(x, 'g', ('bus',), ('b',)),
+            program.GroupSum(x, (walk,)),
+            program.At(x, (walk,)),
             program.Translate(x, 't', 1, wrap=False),
             program.Window(x, 't', 3, wrap=False),
             program.Cases((program.Region(program.Mask(program.BooleanLiteralNode(True)), x),)),

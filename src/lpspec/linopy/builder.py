@@ -414,5 +414,4 @@ def _partition(node: program.Translate | program.Window, ctx: EvaluationContext)
 
 def _walks(node: program.GroupSum | program.At, ctx: EvaluationContext) -> tuple[tuple[program.Walk, BoundLookup], ...]:
     """Each lookup the node walks, as the plan walks it, beside the relation the door bound."""
-    assert len(node.walks) == len(node.coordinate), 'a walk per coordinate, or the node was built by hand'
     return tuple((walk, ctx.lookups[walk.name]) for walk in node.walks)

@@ -36,7 +36,6 @@ from lpspec.errors import DimensionError
 from tests.conftest import by_coord, keyed_walk, override, raw_of, relation, schema_of
 from tests.differential import RTOL, differential
 from tests.oracle import operators, pd, xr
-from tests.test_compiler import compiler
 
 SPEC = """
 description: capacity limited per bus and technology at once
@@ -256,25 +255,8 @@ def test_two_lookups_lower_to_one_node_and_not_to_a_composition():
     """
     (limit, _demand) = to_program(schema_of(SPEC)).constraints.values()
     assert limit.lhs == GroupSum(
-        Variable('p'),
-        over=('generator',),
-        coordinate=('gen_bus', 'gen_tech'),
-        into=('bus', 'technology'),
-        walks=(keyed_walk('gen_bus', 'generator', 'bus'), keyed_walk('gen_tech', 'generator', 'technology')),
+        Variable('p'), (keyed_walk('gen_bus', 'generator', 'bus'), keyed_walk('gen_tech', 'generator', 'technology'))
     )
-
-
-def test_a_hand_built_node_whose_walks_do_not_pair_with_its_coordinates_is_refused():
-    """`math_spec.program` is a public IR, so a node can arrive without going through
-    resolution — and the coordinates and the walks pair up positionally, so a
-    node short of a walk would otherwise group by one map too few.
-
-    Nothing in the language can build this: resolution derives both tuples
-    from one list of names. It is the shortest path to the guard.
-    """
-    node = GroupSum(Variable('p'), over=('generator',), coordinate=('gen_bus', 'gen_tech'), into=('bus',))
-    with pytest.raises(AssertionError, match='a walk per coordinate'):
-        compiler().expression(node, 'a hand-built plan')
 
 
 # ---------------------------------------------------------------------------

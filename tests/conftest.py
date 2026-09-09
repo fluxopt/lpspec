@@ -33,7 +33,7 @@ import polars as pl
 import pytest
 import yaml as pyyaml
 from math_spec import to_program
-from math_spec.program import Walk
+from math_spec.program import LookupDeclaration, Walk
 
 from lpspec.relational.sinks import SOLVERS
 from lpspec.sources import attachable
@@ -66,7 +66,7 @@ PORT_REFERENCES: dict[str, dict[str, Any]] = constructs.REFERENCES
 
 def keyed_walk(name: str, key: str, value: str) -> Walk:
     """The walk a one-key, one-value lookup is walked by when the call names no column: the key consumed, the value produced."""
-    return Walk(name, (key,), (value,), (), ((key, key), (value, value)), (key,))
+    return Walk(LookupDeclaration(name, ((key, key), (value, value)), (key,)), (key,), (value,), ())
 
 
 def relation(over: str, into: str, labels: Sequence[Any], values: Sequence[Any]) -> pl.DataFrame:

@@ -88,11 +88,8 @@ def test_sum_lowers_to_one_node_per_injection_term():
     (c,) = program.constraints.values()
     assert c.dims == ('snapshot', 'bus')
     terms = _flatten(c.lhs)
-    assert (
-        GroupSum(Variable('p'), ('generator',), ('gen_bus',), ('bus',), (keyed_walk('gen_bus', 'generator', 'bus'),))
-        in terms
-    )
-    assert GroupSum(Variable('f'), ('line',), ('line_to',), ('bus',), (keyed_walk('line_to', 'line', 'bus'),)) in terms
+    assert GroupSum(Variable('p'), (keyed_walk('gen_bus', 'generator', 'bus'),)) in terms
+    assert GroupSum(Variable('f'), (keyed_walk('line_to', 'line', 'bus'),)) in terms
 
 
 # ---------------------------------------------------------------------------

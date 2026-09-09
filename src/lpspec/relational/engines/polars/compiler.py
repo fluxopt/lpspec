@@ -693,7 +693,7 @@ class PolarsCompiler:
         the same consumed columns and each adds one join, which is why the
         surface is a list rather than a composition of calls.
         """
-        if missing := [d for d in _consumed(_paired(g)) if d not in p.dims]:
+        if missing := [d for d in _consumed(g.walks) if d not in p.dims]:
             refuse_a_fragment_without_the_dims(p, missing, context, f'sum(by=) over {missing}')
         grouped = self._remap_fragment(p, g)
         if p.kind != 'const':
@@ -876,7 +876,7 @@ class PolarsCompiler:
         pointwise, so what the fine coordinate has is whatever the coarse slot
         it reads has, and a slot with nothing has to take the row with it.
         """
-        absent = [d for d in _consumed(_paired(a)) if d not in p.dims]
+        absent = [d for d in _consumed(a.walks) if d not in p.dims]
         assert not absent, f'in {context}: At through {absent}, which the expression does not span'
         remapped = self._remap_fragment(p, a)
         return replace(remapped, presences=self._pulled_back_presences(p, a))
@@ -936,12 +936,6 @@ class PolarsCompiler:
 def ordinal(dim: str) -> str:
     """The frame column carrying *dim*'s position in its declared order."""
     return f'__ord {dim}__'
-
-
-def _paired(node: program.GroupSum | program.At) -> tuple[program.Walk, ...]:
-    """*node*'s walks, one per coordinate — a node built by hand short of one is refused rather than walked short."""
-    assert len(node.walks) == len(node.coordinate), 'a walk per coordinate, or the node was built by hand'
-    return node.walks
 
 
 def _consumed(walks: tuple[program.Walk, ...]) -> tuple[str, ...]:
