@@ -247,30 +247,11 @@ is *said*; the ladder shows that it is said *exactly*. What could not be said
 is a row in [the ledger](#ledger--what-a-port-could-not-say).
 
 The first pages grow one network a feature at a time: a transport model, then
-ramp limits, storage, a cyclic horizon and KVL (Kirchhoff's voltage law). Four
-facts decide what you can copy from them.
-
-**A ramp limit binds only on a widened instance.** The transport model's links
-run saturated, which fixes every generator's output. A ramp limit there can
-only make it infeasible. [Ramp limits](pypsa_ramp.md) widens the ratings
-first.
-
-**KVL needs no new primitive.** A cycle basis is a sparse `(cycle, line)`
-incidence *parameter*. The constraint is one
-`sum(f * cycle_incidence, over=line) == 0`. A line can belong to several
-cycles, so the incidence is a parameter rather than a declared lookup.
-Computing the basis is a graph algorithm and stays in data preparation.
-
-**A cyclic horizon deletes a clause rather than adding one.**
-[Cyclic storage](pypsa_cyclic_storage.md) is [storage units](pypsa_storage.md)
-with the boundary equation deleted. `edge='wrap'` is cyclic already and
-unguarded wraps onto the last snapshot; the *acyclic* case is the one that
-needs a `where` clause.
-
-**[AC-DC](pypsa_ac_dc.md) is the first model whose generators carry two
-load-bearing coordinates.** The balance groups through the bus, and the CO₂
-budget reads an emission rate through the carrier. Passive lines and
-controllable links group onto the same bus dimension in one equation.
+[ramp limits](pypsa_ramp.md) on a widened instance, storage, a
+[cyclic horizon](pypsa_cyclic_storage.md) that deletes a clause rather than
+adding one, [KVL](pypsa_kvl.md) (Kirchhoff's voltage law) with the cycle
+basis as a parameter, and [AC-DC](pypsa_ac_dc.md) with two load-bearing
+coordinates on one dimension. Each page says what it shows.
 
 ## Ledger — what a port could not say
 
@@ -306,13 +287,6 @@ A model that needs one of these is worth more to the corpus than one that
 exercises a shape already covered.
 
 **The TSP row is narrower than it reads.** The DFJ
-(Dantzig–Fulkerson–Johnson) subtour rows written out in full *are* sayable.
-The subsets go in as data, the way [KVL's cycle basis](pypsa_kvl.md) does, and
-an 8-city instance with all 246 subsets solves to a correct tour. There are 2ⁿ
-subsets, so the full form stops being practical around twenty cities. That is
-a data-size wall, not a ceiling.
-
-**Lazy generation is what the language cannot say.** Solve, find the violated
-subsets, add rows, re-solve: that is an algorithm, and the language describes
-models. So lpspec can express a TSP, and it is not a good way to solve a large
-one.
+(Dantzig–Fulkerson–Johnson) subtour rows written out in full *are* sayable,
+and [the TSP page](tsp_mtz.md) draws the line between that and lazy
+generation.
