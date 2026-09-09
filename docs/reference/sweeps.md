@@ -92,13 +92,19 @@ window owns and drops the lookahead rows the sweep solved. For the same reason
 `to_dataset` and `to_parquet` have no `original_index` — a bulk export of what
 the sweep holds is the wrong place to lose rows.
 
-**`to_parquet` writes every kind, `to_dataset` the variables.**
-`runs.to_parquet('runs/')` writes what `to=` would have written — every primal,
-dual and expression, one file per slice and name, with the record and the
-manifest — so the directory is a spilled sweep: `scan` reads it, and the call
-that made the sweep, pointed at it with `to=`, reads it back without solving.
-`to_dataset` stays variables only: a dual or an expression in the same dataset
-would collide with a variable of the same name.
+**Every bridge takes `kind=`**, the way `scan` does: `to_pandas(name, kind)`,
+`to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual`
+or `expression`, `primal` by default, `original_index` beside it where the
+reader has one. So `runs.to_dataarray('balance', 'dual', original_index=True)`
+is the stitched price over time, and `runs.to_dataset(kind='expression')` is
+every expression the slices evaluated. One kind per call: a dual and a variable
+of the same name would collide in one dataset.
+
+**`to_parquet` writes every kind.** `runs.to_parquet('runs/')` writes what
+`to=` would have written — every primal, dual and expression, one file per
+slice and name, with the record and the manifest — so the directory is a
+spilled sweep: `scan` reads it, and the call that made the sweep, pointed at it
+with `to=`, reads it back without solving.
 
 Per slice is a partition of a frame you already have, so there is no reader for
 it: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.

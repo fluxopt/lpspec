@@ -1114,6 +1114,21 @@ def test_the_readers_mirror_result_with_the_slice_key_as_one_more_dimension(swee
     assert dataset['p'].dims == ('scenario', 'snapshot', 'generator')
 
 
+def test_every_bridge_takes_a_kind_on_a_sweep(priced):
+    """The same `kind=` on a sweep's bridges, `original_index` included: a
+    stitched price comes back as an array over time, and a dataset of every
+    expression is one call."""
+    pytest.importorskip('xarray')
+    price = priced.to_dataarray('balance', 'dual', original_index=True)
+    assert price.dims == ('snapshot',), 'the stitched price is over the dimension the axis sliced'
+    assert price.name == 'balance'
+    spent = priced.to_dataset(kind='expression')
+    assert set(spent.data_vars) == {'spend', 'window_spend'}, 'every expression the slices evaluated'
+    assert spent['spend'].dims == ('snapshot_start', 't'), 'keyed by slice, as every bulk export is'
+    with pytest.raises(lps.LpspecError, match='primal, dual, expression'):
+        priced.to_pandas('soc', 'objective')
+
+
 def test_to_parquet_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(priced, builds, tmp_path):
     """`to_parquet` is the spill after the fact: the same layout, all three
     kinds and the record, so `scan` reads it and the same call pointed at it

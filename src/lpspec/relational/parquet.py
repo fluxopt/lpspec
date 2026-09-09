@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
+from lpspec.errors import LpspecError
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -21,6 +23,17 @@ if TYPE_CHECKING:
 #: comes back through, and what each is a frame of.
 KINDS = ('primal', 'dual', 'expression')
 LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expression'}
+
+
+def reader_kind(kind: str) -> str:
+    """*kind* as one of :data:`KINDS`, which every reader that takes a name takes beside it.
+
+    Raises:
+        LpspecError: A *kind* that names no reader.
+    """
+    if kind not in KINDS:
+        raise LpspecError(f'kind is one of {", ".join(KINDS)}, not {kind!r}')
+    return kind
 
 
 def write_whole(frame: pl.DataFrame | pl.LazyFrame, path: Path) -> None:

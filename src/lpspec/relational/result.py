@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
-from lpspec.relational.parquet import write_whole
+from lpspec.relational.parquet import reader_kind, write_whole
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -538,28 +538,60 @@ class Result:
             ) from None
         return reader()
 
-    def to_pandas(self, name: str) -> pd.DataFrame:
-        """:meth:`primal` as a tidy :class:`pandas.DataFrame`."""
-        return tidy_to_pandas(self.primal(name))
+    def _frame(self, name: str, kind: str) -> pl.DataFrame:
+        """*name* through the reader *kind* names — the dispatch every bridge shares."""
+        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[reader_kind(kind)]
+        return reader(name)
 
-    def to_dataarray(self, name: str) -> xr.DataArray:
-        """:meth:`primal` as a labelled :class:`xarray.DataArray`.
+    def _names(self, kind: str) -> tuple[str, ...]:
+        """Every name of *kind* this result can read — what a bridge takes by default.
 
-        Dense over the variable's dims: a masked coordinate comes back NaN.
+        Raises:
+            NoSolutionError: The solve left no values to read.
+            LpspecError: This result was closed, or *kind* is ``dual`` and
+                the duals are undefined.
         """
-        return tidy_to_dataarray(self.to_pandas(name), name)
+        if reader_kind(kind) == 'primal':
+            return tuple(self._readable(self._primals, 'the solution'))
+        if kind == 'dual':
+            frames = self._readable(self._duals, 'the duals')
+            if self._no_duals is not None:
+                raise LpspecError(self._no_duals)
+            return tuple(frames)
+        self._readable(self._primals, 'the expressions')
+        return tuple(self._expressions or {})
 
-    def to_dataset(self, *names: str) -> xr.Dataset:
-        """The named variables as one :class:`xarray.Dataset`; all by default.
+    def to_pandas(self, name: str, kind: str = 'primal') -> pd.DataFrame:
+        """One name's values as a tidy :class:`pandas.DataFrame`.
 
-        Variables only: a dual or an expression in the same dataset would
-        collide with a variable of the same name and mean something else per
-        row. Each arrives dense over its own dims, all at once — on a large
-        model name the few you need, or use :meth:`to_parquet`, which writes
-        every kind.
+        Args:
+            name: A variable, a constraint or a named expression, as *kind*
+                says.
+            kind: ``primal``, ``dual`` or ``expression`` — the reader this
+                stands in for.
         """
-        wanted = names or tuple(self._readable(self._primals, 'the solution'))
-        return tidy_to_dataset(wanted, self.to_dataarray)
+        return tidy_to_pandas(self._frame(name, kind))
+
+    def to_dataarray(self, name: str, kind: str = 'primal') -> xr.DataArray:
+        """One name's values as a labelled :class:`xarray.DataArray`, :meth:`to_pandas`'s arguments.
+
+        Dense over the name's dims: a masked coordinate comes back NaN.
+        """
+        return tidy_to_dataarray(self.to_pandas(name, kind), name)
+
+    def to_dataset(self, *names: str, kind: str = 'primal') -> xr.Dataset:
+        """The named values of one *kind* as one :class:`xarray.Dataset`; all of that kind by default.
+
+        One kind per call: a dual and a variable of the same name would
+        collide, and mean something else per row. Each arrives dense over its
+        own dims, all at once — on a large model name the few you need, or use
+        :meth:`to_parquet`, which writes every kind.
+
+        Args:
+            names: What to include; none means every name of *kind*.
+            kind: ``primal``, ``dual`` or ``expression``.
+        """
+        return tidy_to_dataset(names or self._names(kind), lambda name: self.to_dataarray(name, kind))
 
     def to_parquet(self, directory: str | Path) -> Path:
         """Every kind this solve answered with, one file per name, into *directory*.

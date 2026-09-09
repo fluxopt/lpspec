@@ -408,6 +408,8 @@ def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
         out = result.to_parquet(tmp_path)
         with pytest.raises(lps.LpspecError):
             result.expression('ratio')
+        with pytest.raises(lps.LpspecError, match='integer'):
+            result.to_dataset(kind='dual')
     assert sorted(p.name for p in out.iterdir()) == ['expression', 'primal'], 'no duals to write, so no dual/'
     assert [p.name for p in (out / 'expression').iterdir()] == ['twice.parquet'], 'the one that evaluated'
     assert pl.read_parquet(out / 'expression' / 'twice.parquet')['value'].to_list() == [4.0, 6.0], (
@@ -572,6 +574,44 @@ def test_solution_to_dataset(dispatch_solution):
     assert sorted(ds['p'].dims) == ['generator', 'snapshot']
     first = tidy.iloc[0]
     assert float(ds['p'].sel(snapshot=first['snapshot'], generator=first['generator'])) == pytest.approx(first['value'])
+
+
+def test_every_bridge_takes_a_kind(dispatch_solution, dispatch_yaml):
+    """`to_pandas`, `to_dataarray` and `to_dataset` take `kind=` the way `scan`
+    does — one kind per call, `primal` by default — so a price is a
+    `DataArray` without going through `dual` and the bridge by hand, and a
+    dataset of every dual has no name to collide with."""
+    pytest.importorskip('xarray')
+    constraint = next(iter(lps.check(dispatch_yaml).constraints))
+    tidy = dispatch_solution.to_pandas(constraint, 'dual')
+    assert tidy['value'].tolist() == dispatch_solution.dual(constraint)['value'].to_list()
+    array = dispatch_solution.to_dataarray(constraint, 'dual')
+    assert array.name == constraint
+    assert set(dispatch_solution.to_dataset(kind='dual').data_vars) == set(lps.check(dispatch_yaml).constraints), (
+        'all of one kind by default, as to_dataset() is all of the variables'
+    )
+    with pytest.raises(lps.LpspecError, match='primal, dual, expression'):
+        dispatch_solution.to_pandas('p', 'objective')
+
+
+def test_a_dataset_of_expressions_holds_every_one_this_data_evaluates():
+    """`to_dataset(kind='expression')` is every declared expression, each over
+    its own dims, and one that fails on this data fails the call the way
+    `expression` does rather than being left out silently."""
+    pytest.importorskip('xarray')
+    spec = {**TWO_VARIABLE_SPEC, 'expressions': {'shed_twice': '2 * shed', 'total': 'sum(p, over=generator)'}}
+    n = 4
+    sources = {
+        'p_max': pl.DataFrame({'generator': ['wind', 'gas'], 'value': [100.0, 200.0]}),
+        'load': pl.DataFrame({'snapshot': list(range(n)), 'value': np.full(n, 90.0)}),
+        'snapshot': range(n),
+        'generator': ['wind', 'gas'],
+    }
+    with lps.solve(spec, sources) as result:
+        ds = result.to_dataset(kind='expression')
+        assert set(ds.data_vars) == {'shed_twice', 'total'}, 'every declared expression, none named'
+        assert list(ds['total'].dims) == ['snapshot'], 'each over its own dims'
+        assert set(result.to_dataset('total', kind='expression').data_vars) == {'total'}, 'named ones only'
 
 
 TWO_VARIABLE_SPEC = {

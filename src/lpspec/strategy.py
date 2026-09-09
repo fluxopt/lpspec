@@ -41,7 +41,7 @@ from math_spec.program import Program
 from lpspec.api import build, check
 from lpspec.errors import DataError, LpspecError, LpspecWarning, did_you_mean
 from lpspec.frames import as_frame
-from lpspec.relational.parquet import KINDS, LABELS, write_whole
+from lpspec.relational.parquet import KINDS, LABELS, reader_kind, write_whole
 from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to_pandas
 from lpspec.sources import least_value
 
@@ -720,12 +720,9 @@ class Runs:
             LpspecError: No slice produced *name*, or a *kind* that names no
                 reader.
         """
-        if kind not in KINDS:
-            raise LpspecError(f'scan reads one of {", ".join(KINDS)}, not {kind!r}')
         if self._spill is None:
-            reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[kind]
-            return reader(name, original_index=original_index).lazy()
-        frame = self._spill.scan(kind, name)
+            return self._frame(name, kind, original_index=original_index).lazy()
+        frame = self._spill.scan(reader_kind(kind), name)
         if frame is None:
             absent = {'primal': None, 'dual': self._no_duals, 'expression': self._no_expressions.get(name)}[kind]
             held = dict.fromkeys(self._spill.held(kind))
@@ -798,44 +795,62 @@ class Runs:
             return frame
         return self._original.restore(frame, self.key_name)
 
-    def to_pandas(self, name: str, *, original_index: bool = False) -> pd.DataFrame:
-        """:meth:`primal` as a tidy :class:`pandas.DataFrame`.
+    def _frame(self, name: str, kind: str, *, original_index: bool) -> pl.DataFrame:
+        """*name* through the reader *kind* names — the dispatch every bridge and :meth:`scan` share."""
+        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[reader_kind(kind)]
+        return reader(name, original_index=original_index)
+
+    def to_pandas(self, name: str, kind: str = 'primal', *, original_index: bool = False) -> pd.DataFrame:
+        """One name's values across every slice as a tidy :class:`pandas.DataFrame`.
 
         The name is resolved before pandas is imported, so a sweep that never
         held *name* says so on any install.
-        """
-        return tidy_to_pandas(self.primal(name, original_index=original_index))
 
-    def to_dataarray(self, name: str, *, original_index: bool = False) -> xr.DataArray:
-        """:meth:`primal` as a :class:`xarray.DataArray`, the slice key a dimension.
+        Args:
+            name: A variable, a constraint or a named expression, as *kind*
+                says.
+            kind: ``primal``, ``dual`` or ``expression`` — the reader this
+                stands in for.
+            original_index: Read over the dimension the axis sliced instead
+                of over the slice key.
+        """
+        return tidy_to_pandas(self._frame(name, kind, original_index=original_index))
+
+    def to_dataarray(self, name: str, kind: str = 'primal', *, original_index: bool = False) -> xr.DataArray:
+        """One name's values as a :class:`xarray.DataArray`, the slice key a dimension; :meth:`to_pandas`'s arguments.
 
         The extra dimension is named by the axis — a scenario sweep gives
         ``(scenario, …)`` and a window ``(<dim>_start, …)``. A slice that
         reached no solution has no rows and comes back NaN, the same answer a
         masked coordinate gets from ``Result``. ``original_index=True`` gives
         the array over the dimension the axis sliced instead, so a rolling
-        horizon comes back indexed by time.
+        horizon's dispatch, or its price, comes back indexed by time.
         """
-        return tidy_to_dataarray(self.to_pandas(name, original_index=original_index), name)
+        return tidy_to_dataarray(self.to_pandas(name, kind, original_index=original_index), name)
 
-    def to_dataset(self, *names: str) -> xr.Dataset:
-        """Kept variables as one :class:`xarray.Dataset`; all of them by default.
+    def to_dataset(self, *names: str, kind: str = 'primal') -> xr.Dataset:
+        """The named values of one *kind* as one :class:`xarray.Dataset`; all of that kind by default.
 
-        Variables only: a dual or an expression in the same dataset would
-        collide with a variable of the same name and mean something else per
-        row. Costs more than ``Result``'s does — each variable arrives dense
-        over its own dims *and* over every slice. Name the few you need, or
-        use :meth:`to_parquet`, which writes every kind.
+        One kind per call: a dual and a variable of the same name would
+        collide, and mean something else per row. Costs more than
+        ``Result``'s does — each name arrives dense over its own dims *and*
+        over every slice. Name the few you need, or use :meth:`to_parquet`,
+        which writes every kind.
 
         No ``original_index``: this and :meth:`to_parquet` export what the
         sweep *holds*, and the original index is lossy — a bulk export is the
         wrong place to drop the lookahead rows.
 
+        Args:
+            names: What to include; none means every name of *kind* some
+                slice produced.
+            kind: ``primal``, ``dual`` or ``expression``.
+
         Raises:
-            LpspecError: The sweep holds no variable values at all, or is
+            LpspecError: The sweep holds no values of *kind* at all, or is
                 spilled — its frames are on disk already.
         """
-        return tidy_to_dataset(names or self._variables_held(), self.to_dataarray)
+        return tidy_to_dataset(names or self._names_held(kind), lambda name: self.to_dataarray(name, kind))
 
     def to_parquet(self, directory: str | Path) -> Path:
         """Everything the sweep holds, written as ``to=`` would have written it.
@@ -854,7 +869,7 @@ class Runs:
             LpspecError: The sweep holds no variable values at all, or is
                 spilled — its frames are in a directory already.
         """
-        self._variables_held()
+        self._names_held('primal')
         spill = _Spill.opened(directory, self.key_name, self.keys)
         by_key = {
             kind: {name: _by_key(frames, self.key_name) for name, frames in held.items()}
@@ -871,17 +886,20 @@ class Runs:
             spill.write(position, key, answer)
         return spill.directory
 
-    def _variables_held(self) -> tuple[str, ...]:
-        """Every variable some slice produced, sorted — what a bulk export writes.
+    def _names_held(self, kind: str) -> tuple[str, ...]:
+        """Every name of *kind* some slice produced, sorted — what a bulk export takes by default.
 
         Raises:
-            LpspecError: No slice produced any, which both exports refuse
-                rather than writing an empty directory or an empty dataset.
+            LpspecError: No slice produced any, which the exports refuse
+                rather than writing an empty directory or an empty dataset —
+                for the duals, with the reason the first slice gave.
         """
         self._held_here()
-        if not self._primals:
-            raise LpspecError(_nothing_to_read('variable', 'anything', self._primals, self.objective))
-        return tuple(sorted(self._primals))
+        held = {'primal': self._primals, 'dual': self._duals, 'expression': self._expressions}[reader_kind(kind)]
+        if not held:
+            absent = self._no_duals if kind == 'dual' else None
+            raise LpspecError(absent or _nothing_to_read(LABELS[kind], 'anything', held, self.objective))
+        return tuple(sorted(held))
 
     def __len__(self) -> int:
         return self.objective.height
