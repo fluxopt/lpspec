@@ -1,14 +1,12 @@
-"""Label-space lookups: structure on a dimension, never an axis.
+"""Lookups: structure on a dimension, never an axis — and how a map arrives.
 
-The declaration rules' split, pinned: everything under ``dimensions:`` is an axis, and a
-label a dimension's members carry is a lookup — *groupable* when it targets a
-dimension something aggregates into, *label-space* when it owns its values and
-is only ever selected on. What these tests hold still: the schema tells the
-kinds apart by which field is set, a lookup name joins the flat namespace,
-grouping into a label space is refused with the promotion rewrite, ``check``
-advises on a dimension nothing uses as an axis, and the attach-time contract
-(the column arrives with the index, named after the lookup, single-valued per
-label) covers both kinds alike.
+Everything under ``dimensions:`` is an axis, and a label a dimension's members
+carry is a lookup into another dimension. What these tests hold still: a
+lookup a ``where`` reads is a column of the dimension it maps out of, on
+both lanes; ``check`` advises on a dimension nothing uses; and the attach-time
+contract — the map arrives under its own key as a relation, single-valued per
+label, its values checked against the target's labels, a partial map being
+the rows it has.
 """
 
 from __future__ import annotations
@@ -27,10 +25,8 @@ from tests.conftest import by_coord
 
 def _spec(objective: str = 'sum(x, over=snapshot)') -> dict:
     return {
-        'dimensions': {
-            'snapshot': {'dtype': 'int'},
-        },
-        'lookups': {'period': {'over': 'snapshot', 'dtype': 'int'}},
+        'dimensions': {'snapshot': {'dtype': 'int'}, 'period': {'dtype': 'int'}},
+        'lookups': {'period_of': {'over': 'snapshot', 'into': 'period'}},
         'parameters': {'load': {'dims': ['snapshot']}},
         'variables': {'x': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
         'constraints': {'c': {'foreach': ['snapshot'], 'expression': 'x >= load'}},
@@ -42,8 +38,8 @@ def _index() -> pl.DataFrame:
     return pl.DataFrame({'snapshot': [0, 1, 2]})
 
 
-def _period() -> pl.DataFrame:
-    """`period` as a relation, which is the only way a map arrives as data."""
+def _period_of() -> pl.DataFrame:
+    """`period_of` as a relation, which is the only way a map arrives as data."""
     return pl.DataFrame({'snapshot': [0, 1, 2], 'period': [1, 1, 2]})
 
 
@@ -51,79 +47,8 @@ def _load() -> pl.DataFrame:
     return pl.DataFrame({'snapshot': [0, 1, 2], 'value': [1.0, 2.0, 3.0]})
 
 
-def test_the_two_lookup_kinds_parse_apart():
-    """The field set decides the kind, and each surfaces only as itself."""
-    schema = to_spec(
-        {
-            'dimensions': {'bus': {}, 'generator': {}},
-            'lookups': {
-                'gen_bus': {'over': 'generator', 'into': 'bus'},
-                'tech': {'over': 'generator', 'dtype': 'str'},
-            },
-        }
-    )
-    assert schema.targeted_of('generator') == {'gen_bus': 'bus'}
-    labels = schema.labels_of('generator')
-    assert list(labels) == ['tech']
-    assert labels['tech'].dtype == 'str'
-
-
-def test_a_label_space_lookup_puts_nothing_under_dimensions():
-    """The file with one axis declares one dimension — the original complaint."""
-    schema = to_spec(_spec())
-    assert list(schema.dimensions) == ['snapshot']
-
-
-def test_a_lookup_joins_the_flat_namespace():
-    spec = _spec()
-    spec['parameters']['period'] = {'dims': ['snapshot']}
-    with pytest.raises(LpspecError, match="Parameter 'period' collides with the lookup"):
-        to_spec(spec)
-
-
-def test_a_lookup_cannot_take_a_dimensions_name():
-    spec = _spec()
-    spec['dimensions']['period'] = {'dtype': 'int'}
-    with pytest.raises(LpspecError, match="Lookup 'period' collides with the dimension"):
-        to_spec(spec)
-
-
-def test_grouping_into_a_label_space_is_refused_with_the_promotion_rewrite():
-    """The error teaches the promotion, not merely the refusal."""
-    with pytest.raises(LpspecError, match="is a label space over 'snapshot'") as caught:
-        lps.check(_spec('sum(x, by=period)'))
-    assert 'period_of: {over: snapshot, into: period}' in str(caught.value), (
-        'the refusal has to show the axis-plus-lookup declaration that makes grouping sayable'
-    )
-
-
-def test_a_by_typo_is_offered_only_the_lookups_it_could_have_meant():
-    """The suggestion lists groupable lookups, never a label space.
-
-    One store holds both kinds, so which ones ``by=`` accepts is a filter
-    rather than a separate dict — and a filter that slipped would offer
-    ``period`` as the fix for a typo, the very thing the test above proves
-    unsayable.
-    """
-    spec = _spec()
-    spec['dimensions']['bus'] = {'dtype': 'str'}
-    spec['lookups']['bus_of'] = {'over': 'snapshot', 'into': 'bus'}
-    spec['constraints']['c'] = {'foreach': ['bus'], 'expression': 'sum(x, by=bus_ov) >= load'}
-    with pytest.raises(LpspecError, match=r'by=bus_ov\) does not name a lookup') as caught:
-        lps.check(spec)
-    message = str(caught.value)
-    assert "'bus_of'" in message and 'period' not in message, (
-        "the listing offers only what by= accepts — 'period' is a label space and cannot be grouped into"
-    )
-
-
-def test_check_advises_a_label_space_wearing_a_dimensions_clothes():
-    """A dim that only serves as a lookup target is advice, not an error."""
-    spec = _spec()
-    spec['dimensions']['period'] = {'dtype': 'int'}
-    spec['lookups'] = {'period_of': {'over': 'snapshot', 'into': 'period'}}
-    with pytest.warns(LpspecWarning, match='label space, not a dimension'):
-        lps.check(spec)
+def _sources() -> dict:
+    return {'load': _load(), 'snapshot': _index(), 'period': [1, 2], 'period_of': _period_of()}
 
 
 def test_check_advises_an_unused_dimension():
@@ -154,23 +79,24 @@ def test_a_dimension_grouped_into_draws_no_advice():
 
 
 def test_a_clean_model_checks_silently():
+    """A dimension only a lookup targets is in use: its labels are what the map's values are checked against."""
     with warnings.catch_warnings():
         warnings.simplefilter('error')
         lps.check(_spec())
 
 
 def test_a_map_arrives_under_its_own_name():
-    with lps.solve(_spec(), {'load': _load(), 'snapshot': _index(), 'period': _period()}) as solution:
+    with lps.solve(_spec(), _sources()) as solution:
         assert solution.objective == pytest.approx(6.0)
 
-    with pytest.raises(DataError, match="no data provided for lookup 'period'"):
-        lps.build(_spec(), {'load': _load(), 'snapshot': _index()})
+    with pytest.raises(DataError, match="no data provided for lookup 'period_of'"):
+        lps.build(_spec(), {k: v for k, v in _sources().items() if k != 'period_of'})
 
 
 def test_a_lookup_is_single_valued_per_label():
     doubled = pl.DataFrame({'snapshot': [0, 0, 1, 2], 'period': [1, 2, 1, 2]})
     with pytest.raises(DataError, match='more than once'):
-        lps.build(_spec(), {'load': _load(), 'snapshot': _index(), 'period': doubled})
+        lps.build(_spec(), {**_sources(), 'period_of': doubled})
 
 
 def _unused_target_spec(month: dict) -> dict:
@@ -247,7 +173,7 @@ def test_an_unused_target_without_an_index_is_refused_with_the_true_reason(lane)
 
 
 def test_both_lanes_read_the_same_index():
-    """The `period` relation is read the same way on the eager lane too —
+    """The `period_of` relation is read the same way on the eager lane too —
     both lanes reach the 6.0 the relational test above asserts.
 
     The oracle is imported in the body rather than at module scope: every other
@@ -260,27 +186,28 @@ def test_both_lanes_read_the_same_index():
     data = {'load': pd.Series({0: 1.0, 1: 2.0, 2: 3.0}).rename_axis('snapshot')}
     index = {
         'snapshot': pd.DataFrame({'snapshot': [0, 1, 2]}),
-        'period': pd.DataFrame({'snapshot': [0, 1, 2], 'period': [1, 1, 2]}),
+        'period': [1, 2],
+        'period_of': pd.DataFrame({'snapshot': [0, 1, 2], 'period': [1, 1, 2]}),
     }
     with differential(_spec(), data | index) as run:
         assert run.oracle == pytest.approx(6.0)
 
 
 # ---------------------------------------------------------------------------
-# where on a lookup (#553): the consumer the label-space kind was missing
+# where on a lookup (#553)
 # ---------------------------------------------------------------------------
 
 
 #: A three-line network whose structure is entirely lookups: each line has two
 #: endpoints, and `spur` deliberately has an open end so the partial case is
-#: reachable. Both kinds appear — `voltage` owns its values, `send`/`recv`
-#: target `bus` — so one model covers every lookup predicate.
+#: reachable. `send`/`recv` map into `bus` and `voltage` into `kv`, so one
+#: model covers every lookup predicate, against a label and between two maps.
 NETWORK = {
-    'dimensions': {'bus': {'dtype': 'str'}, 'line': {'dtype': 'str'}},
+    'dimensions': {'bus': {'dtype': 'str'}, 'line': {'dtype': 'str'}, 'kv': {'dtype': 'int'}},
     'lookups': {
         'send': {'over': 'line', 'into': 'bus'},
         'recv': {'over': 'line', 'into': 'bus'},
-        'voltage': {'over': 'line', 'dtype': 'int'},
+        'voltage': {'over': 'line', 'into': 'kv'},
     },
     'parameters': {'cap': {'dims': ['line']}, 'price': {'dims': ['line']}},
     'variables': {'f': {'foreach': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
@@ -300,9 +227,10 @@ PRICE = [1.0, 1.0, 1.0, 1.0]
 NETWORK_SOURCES = {
     'bus': pl.DataFrame({'bus': ['north', 'south']}),
     'line': pl.DataFrame({'line': LINES}),
+    'kv': [220, 380],
     'send': pl.DataFrame({'line': LINES, 'bus': SEND}),
     'recv': pl.DataFrame({'line': LINES[:3], 'bus': RECV}),
-    'voltage': pl.DataFrame({'line': LINES, 'voltage': VOLTAGE}),
+    'voltage': pl.DataFrame({'line': LINES, 'kv': VOLTAGE}),
     'cap': pl.DataFrame({'line': LINES, 'value': CAP}),
     'price': pl.DataFrame({'line': LINES, 'value': PRICE}),
 }
@@ -311,8 +239,8 @@ NETWORK_SOURCES = {
 @pytest.mark.parametrize(
     ('where', 'kept'),
     [
-        pytest.param('voltage == 220', ['loop', 'ring_a'], id='a-label-space-lookup-against-a-literal'),
-        pytest.param("send == 'north'", ['loop', 'ring_a', 'spur'], id='a-targeted-lookup-against-a-label'),
+        pytest.param('voltage == 220', ['loop', 'ring_a'], id='a-lookup-against-a-number'),
+        pytest.param("send == 'north'", ['loop', 'ring_a', 'spur'], id='a-lookup-against-a-label'),
         pytest.param('send != recv', ['ring_a', 'ring_b'], id='two-lookups-over-one-dimension'),
         pytest.param('recv', ['loop', 'ring_a', 'ring_b'], id='a-bare-lookup-is-the-partial-case'),
         pytest.param('NOT voltage == 220', ['ring_b', 'spur'], id='negated'),
@@ -320,7 +248,7 @@ NETWORK_SOURCES = {
     ],
 )
 def test_a_where_reads_a_lookup(where, kept):
-    """The atom #553 asked for, on both kinds and in both shapes.
+    """The atom #553 asked for, in every shape.
 
     `kept` is asserted rather than just a count: a predicate that inverted its
     sense would keep the complement, which is the same size on a symmetric
@@ -366,9 +294,10 @@ def test_a_lookup_where_agrees_with_the_oracle(where, objective):
     index = {
         'bus': pd.Index(['north', 'south'], name='bus'),
         'line': pd.DataFrame({'line': LINES}),
+        'kv': [220, 380],
         'send': pd.DataFrame({'line': LINES, 'bus': SEND}),
         'recv': pd.DataFrame({'line': LINES[:3], 'bus': RECV}),
-        'voltage': pd.DataFrame({'line': LINES, 'voltage': VOLTAGE}),
+        'voltage': pd.DataFrame({'line': LINES, 'kv': VOLTAGE}),
     }
     with differential(spec, data | index) as run:
         assert run.result.objective == pytest.approx(objective), (
@@ -399,8 +328,8 @@ def test_two_lookups_over_different_dims_cannot_be_compared():
     """
     spec = {
         **NETWORK,
-        'lookups': {**NETWORK['lookups'], 'zone': {'over': 'bus', 'dtype': 'str'}},
-        'variables': {'f': {**NETWORK['variables']['f'], 'where': 'send != zone'}},
+        'lookups': {**NETWORK['lookups'], 'zone': {'over': 'bus', 'into': 'kv'}},
+        'variables': {'f': {**NETWORK['variables']['f'], 'where': 'voltage != zone'}},
     }
     with pytest.raises(LpspecError, match='over different dimensions'):
         to_spec(spec)
@@ -412,24 +341,21 @@ def test_two_lookups_over_different_dims_cannot_be_compared():
         pytest.param(
             {'area': {'over': 'line', 'into': 'zone'}}, 'send != area', id='two-targets-that-are-different-dimensions'
         ),
-        pytest.param({}, 'send != voltage', id='a-label-space-against-a-targeted-lookup'),
-        pytest.param(
-            {'grid': {'over': 'line', 'dtype': 'int'}}, 'voltage != grid', id='two-label-spaces-of-the-same-dtype'
-        ),
+        pytest.param({}, 'send != voltage', id='a-string-target-against-an-int-target'),
+        pytest.param({'grid': {'over': 'line', 'into': 'zone'}}, 'voltage != grid', id='two-int-targets'),
     ],
 )
 def test_two_lookups_into_different_label_sets_cannot_be_compared(extra, where):
     """One dimension is necessary but not sufficient — the label sets must match too.
 
-    A bus label is never a zone label and a label space owns its values, so
-    the predicate could only mask everything out. It does not even do that
-    consistently: the eager lane answers `!=` True at every row while polars
-    refuses the Enum mismatch, so both lanes accepted the model and then
-    disagreed about it.
+    A bus label is never a zone label, so the predicate could only mask
+    everything out. It does not even do that consistently: the eager lane
+    answers `!=` True at every row while polars refuses the Enum mismatch, so
+    both lanes accepted the model and then disagreed about it.
     """
     spec = {
         **NETWORK,
-        'dimensions': {**NETWORK['dimensions'], 'zone': {'dtype': 'str'}},
+        'dimensions': {**NETWORK['dimensions'], 'zone': {'dtype': 'int'}},
         'lookups': {**NETWORK['lookups'], **extra},
         'variables': {'f': {**NETWORK['variables']['f'], 'where': where}},
     }
@@ -441,15 +367,15 @@ def test_a_lookup_comparison_is_checked_against_its_dtype():
     """The same dtype check every other where-comparison gets (#460).
 
     A lookup's literal is as silent to get wrong as a dimension's: `voltage`
-    is an int, so a quoted right-hand side matches nothing rather than
-    erroring at run time.
+    maps into an int dimension, so a quoted right-hand side matches nothing
+    rather than erroring at run time.
     """
     spec = {**NETWORK, 'variables': {'f': {**NETWORK['variables']['f'], 'where': "voltage == 'high'"}}}
     with pytest.raises(LpspecError, match=r"has dtype 'int'"):
         to_spec(spec)
 
 
-def test_a_targeted_lookup_compares_against_a_label_the_target_lacks():
+def test_a_lookup_compares_against_a_label_the_target_lacks():
     """A stranger label masks everything out; it does not raise.
 
     The where-string rules' reading for every other comparison, and the reason
@@ -464,7 +390,7 @@ def test_a_targeted_lookup_compares_against_a_label_the_target_lacks():
     assert surviving == 0, "a label no bus carries matches nothing, so no 'f' is built"
 
 
-def test_a_targeted_lookup_orders_bytewise_not_by_declaration():
+def test_a_lookup_orders_bytewise_not_by_declaration():
     """Labels order bytewise, whatever order the dimension declared them.
 
     Binding casts a lookup column to the target's `Enum`, which orders by
@@ -591,24 +517,19 @@ def test_a_partial_map_is_supplied_as_the_rows_it_has():
         lps.solve(SUPPLIED, {**_SUPPLIED_SOURCES, 'gen_bus': holed})
 
 
-def test_a_label_space_lookup_is_supplied_under_its_own_name():
-    """The kind with no target names its column after itself.
+def test_a_lookup_only_a_where_reads_is_supplied_the_same_way():
+    """A map no operator groups through still names its column after its target.
 
-    One rule for both kinds — *the space the values are labels of* — which for
-    a lookup owning its label space is the lookup. There is no dimension to
-    borrow a name from, which is why naming the column after the target cannot
-    be the rule.
+    One rule — *the dimension the values are labels of* — whether the map
+    lands terms or only selects rows, so a lookup read by a ``where`` alone
+    arrives as the same relation every other one does.
     """
-    spec = {**_spec(), 'dimensions': {'snapshot': {'dtype': 'int'}}}
-    spec['constraints']['c']['where'] = 'period == 1'
-    sources = {
-        'snapshot': [0, 1, 2],
-        'load': _load(),
-        'period': pl.DataFrame({'snapshot': [0, 1], 'period': [1, 1]}),
-    }
+    spec = _spec()
+    spec['constraints']['c']['where'] = 'period_of == 1'
+    sources = {**_sources(), 'period_of': pl.DataFrame({'snapshot': [0, 1], 'period': [1, 1]})}
     with lps.solve(spec, sources) as result:
         built = sorted(row['snapshot'] for row in result.primal('x').to_dicts())
-    assert built == [0, 1, 2], 'the variable is unmasked; only the constraint reads the label space'
+    assert built == [0, 1, 2], 'the variable is unmasked; only the constraint reads the lookup'
     assert result.objective == pytest.approx(3.0), 'snapshot 2 is in no row of the map, so nothing constrains it'
 
 
