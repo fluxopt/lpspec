@@ -161,21 +161,24 @@ def _every_walk(p: program.Program) -> Iterator[program.Walk]:
             yield from node.walks
         elif isinstance(node, program.Translate | program.Window) and node.partition is not None:
             yield node.partition
+    for mask in _masks(p):
+        for atom in mask.atoms:
+            if isinstance(atom, program.DimensionPositionNode) and atom.partition is not None:
+                yield atom.partition
+
+
+def _masks(p: program.Program) -> Iterator[program.Mask]:
+    """Every ``where`` the program carries, wherever the mask stands."""
+    yield from (v.where for v in p.variables.values() if v.where is not None)
+    yield from (c.where for c in p.constraints.values() if c.where is not None)
+    for node in program.walk(*p.expressions):
+        if isinstance(node, program.Cases):
+            yield from (region.when for region in node.regions)
 
 
 def _lookups_a_mask_reads(p: program.Program) -> Iterator[str]:
     """Every lookup named by a ``where``, wherever the mask stands."""
-    masks = [
-        *(v.where for v in p.variables.values() if v.where is not None),
-        *(c.where for c in p.constraints.values() if c.where is not None),
-        *(
-            region.when
-            for node in program.walk(*p.expressions)
-            if isinstance(node, program.Cases)
-            for region in node.regions
-        ),
-    ]
-    for mask in masks:
+    for mask in _masks(p):
         yield from (name for name in mask.names_read if name in p.lookups)
 
 

@@ -113,8 +113,10 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
 
     if isinstance(node, program.DimensionPositionNode):
         labels = master_coords[node.name]
-        if node.by is not None:
-            arr = _group_offsets(node, bound_lookup(str(node.by), node.group[0], ctx.lookups), np.asarray(labels))
+        if node.partition is not None:
+            walk = node.partition
+            groups = bound_lookup(walk.name, walk.produced[0], ctx.lookups)
+            arr = _group_offsets(node, walk.name, groups, np.asarray(labels))
             return (_PREDICATE_OPS[node.op](arr, 0) & arr.notnull()).fillna(value=False).astype(bool)
         at = node.position + len(labels) if node.position < 0 else node.position
         if not 0 <= at < len(labels):
@@ -161,7 +163,9 @@ def _defined(arr: xr.DataArray, dtype: str) -> xr.DataArray:
     return arr.notnull() & np.isfinite(arr)
 
 
-def _group_offsets(node: program.DimensionPositionNode, groups: xr.DataArray, labels: np.ndarray) -> xr.DataArray:
+def _group_offsets(
+    node: program.DimensionPositionNode, by: str, groups: xr.DataArray, labels: np.ndarray
+) -> xr.DataArray:
     """Each coordinate's distance from the boundary of *its own* group.
 
     Zero marks the coordinate the position names, so every comparator reads the
@@ -176,7 +180,7 @@ def _group_offsets(node: program.DimensionPositionNode, groups: xr.DataArray, la
     needed = node.position + 1 if node.position >= 0 else -node.position
     short = sorted(str(g) for g, n in zip(partition.names, partition.counts, strict=True) if n < needed)
     if short:
-        raise DataError(short_groups_message(node.name, str(node.by), node.op, node.position, short))
+        raise DataError(short_groups_message(node.name, by, node.op, node.position, short))
     target = node.position if node.position >= 0 else partition.size + node.position
     return partition.within.where(partition.grouped) - target
 

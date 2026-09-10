@@ -35,68 +35,84 @@ Least-cost heat and power from two converters whose flows are tied to one piecew
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `time` — dispatch periods |
-| $\mathcal{C}$ | index $c$ — `converter` with $\mathrm{converter\_of}: \mathcal{F} \to \mathcal{C}$ — units converting one carrier into others |
-| $\mathcal{F}$ | index $f$ — `flow` with $\mathrm{converter\_of}: \mathcal{F} \to \mathcal{C}$ — a converter's inputs and outputs, one row each |
-| $\mathcal{B}$ | index $b$ — `bp` — breakpoints, as many as the longest curve needs |
+| $`\mathcal{T}`$ | index $`t`$ — `time` — dispatch periods |
+| $`\mathcal{C}`$ | index $`c`$ — `converter` with $`\mathrm{converter\_of}: \mathcal{F} \to \mathcal{C}`$ — units converting one carrier into others |
+| $`\mathcal{F}`$ | index $`f`$ — `flow` with $`\mathrm{converter\_of}: \mathcal{F} \to \mathcal{C}`$ — a converter's inputs and outputs, one row each |
+| $`\mathcal{B}`$ | index $`b`$ — `bp` — breakpoints, as many as the longest curve needs |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{bp\_rate}$ | `bp_rate` over $\mathcal{F} \times \mathcal{B}$ — what each flow runs at, at each breakpoint of its converter's curve |
-| $\mathrm{bp\_present}$ | `bp_present` over $\mathcal{C} \times \mathcal{B}$ — how far each converter's curve runs |
-| $\mathrm{rate}^{\mathrm{max}}$ | `rate_max` over $\mathcal{F}$ — what each flow runs at when its converter is at its last breakpoint |
-| $\mathrm{is\_heat}$ | `is_heat` over $\mathcal{F}$ — which flows deliver heat |
-| $\mathrm{is\_power}$ | `is_power` over $\mathcal{F}$ — which flows deliver power |
-| $\mathrm{fuel\_price}$ | `fuel_price` over $\mathcal{F}$ — what a unit of each input flow costs |
-| $\mathrm{heat\_demand}$ | `heat_demand` over $\mathcal{T}$ — heat to be delivered |
-| $\mathrm{power\_demand}$ | `power_demand` over $\mathcal{T}$ — power to be delivered |
+| $`\mathrm{bp\_rate}`$ | `bp_rate` over $`\mathcal{F} \times \mathcal{B}`$ — what each flow runs at, at each breakpoint of its converter's curve |
+| $`\mathrm{bp\_present}`$ | `bp_present` over $`\mathcal{C} \times \mathcal{B}`$ — how far each converter's curve runs |
+| $`\mathrm{rate}^{\mathrm{max}}`$ | `rate_max` over $`\mathcal{F}`$ — what each flow runs at when its converter is at its last breakpoint |
+| $`\mathrm{is\_heat}`$ | `is_heat` over $`\mathcal{F}`$ — which flows deliver heat |
+| $`\mathrm{is\_power}`$ | `is_power` over $`\mathcal{F}`$ — which flows deliver power |
+| $`\mathrm{fuel\_price}`$ | `fuel_price` over $`\mathcal{F}`$ — what a unit of each input flow costs |
+| $`\mathrm{heat\_demand}`$ | `heat_demand` over $`\mathcal{T}`$ — heat to be delivered |
+| $`\mathrm{power\_demand}`$ | `power_demand` over $`\mathcal{T}`$ — power to be delivered |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{rate}$ | `rate` over $\mathcal{F} \times \mathcal{T}$ — what each flow runs at |
-| $\mathit{weight}$ | `weight` over $\mathcal{C} \times \mathcal{T} \times \mathcal{B}$ — how much of each breakpoint the converter's operating point is made of — one convex combination per converter and period, over the breakpoints its own curve runs to |
+| $`\mathit{rate}`$ | `rate` over $`\mathcal{F} \times \mathcal{T}`$ — what each flow runs at |
+| $`\mathit{weight}`$ | `weight` over $`\mathcal{C} \times \mathcal{T} \times \mathcal{B}`$ — how much of each breakpoint the converter's operating point is made of — one convex combination per converter and period, over the breakpoints its own curve runs to |
 
-Upright is what the model is given — a parameter such as $\mathrm{bp\_rate}$, a coordinate map, a label — and italic is what the solver chooses, such as $\mathit{rate}$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{bp\_rate}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{rate}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T}} \sum_{f \in \mathcal{F}} \mathit{rate}_{f,t} \cdot \mathrm{fuel\_price}_{f}$$
+```math
+\min \sum_{t \in \mathcal{T}} \sum_{f \in \mathcal{F}} \mathit{rate}_{f,t} \cdot \mathrm{fuel\_price}_{f}
+```
 
 #### Subject to
 
 **`one_operating_point`**
 
-$$\sum_{b \in \mathcal{B}} \mathit{weight}_{c,t,b} = 1 \qquad \forall\thinspace c \in \mathcal{C},\enspace t \in \mathcal{T}$$
+```math
+\sum_{b \in \mathcal{B}} \mathit{weight}_{c,t,b} = 1 \qquad \forall\, c \in \mathcal{C},\ t \in \mathcal{T}
+```
 
 **`on_the_curve`**
 
-$$\mathit{rate}_{f,t} = \sum_{b \in \mathcal{B}} \mathit{weight}_{\mathrm{converter\_of}(f),t,b} \cdot \mathrm{bp\_rate}_{f,b} \qquad \forall\thinspace f \in \mathcal{F},\enspace t \in \mathcal{T}$$
+```math
+\mathit{rate}_{f,t} = \sum_{b \in \mathcal{B}} \mathit{weight}_{\mathrm{converter\_of}(f),t,b} \cdot \mathrm{bp\_rate}_{f,b} \qquad \forall\, f \in \mathcal{F},\ t \in \mathcal{T}
+```
 
 **`heat_balance`**
 
-$$\sum_{f \in \mathcal{F}} \mathit{rate}_{f,t} \cdot \mathrm{is\_heat}_{f} = \mathrm{heat\_demand}_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{f \in \mathcal{F}} \mathit{rate}_{f,t} \cdot \mathrm{is\_heat}_{f} = \mathrm{heat\_demand}_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 **`power_balance`**
 
-$$\sum_{f \in \mathcal{F}} \mathit{rate}_{f,t} \cdot \mathrm{is\_power}_{f} = \mathrm{power\_demand}_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{f \in \mathcal{F}} \mathit{rate}_{f,t} \cdot \mathrm{is\_power}_{f} = \mathrm{power\_demand}_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 #### Variable domains
 
 **`rate`**
 
-$$0 \le \mathit{rate}_{f,t} \le \mathrm{rate}^{\mathrm{max}}_{f} \qquad \forall\thinspace f \in \mathcal{F},\enspace t \in \mathcal{T}$$
+```math
+0 \le \mathit{rate}_{f,t} \le \mathrm{rate}^{\mathrm{max}}_{f} \qquad \forall\, f \in \mathcal{F},\ t \in \mathcal{T}
+```
 
 **`weight`**
 
-$$0 \le \mathit{weight}_{c,t,b} \le 1 \qquad \forall\thinspace c \in \mathcal{C},\enspace t \in \mathcal{T},\enspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{bp\_present}_{c,b}$$
+```math
+0 \le \mathit{weight}_{c,t,b} \le 1 \qquad \forall\, c \in \mathcal{C},\ t \in \mathcal{T},\ b \in \mathcal{B} \,:\, \mathrm{bp\_present}_{c,b}
+```
 
 **`weight sos`**
 
-$$\left( \mathit{weight}_{c,t,b} \right)_{b \in \mathcal{B}} \in \mathrm{SOS}2 \qquad \forall\thinspace c \in \mathcal{C},\enspace t \in \mathcal{T}$$
+```math
+\left( \mathit{weight}_{c,t,b} \right)_{b \in \mathcal{B}} \in \mathrm{SOS}2 \qquad \forall\, c \in \mathcal{C},\ t \in \mathcal{T}
+```
 
 </details>
 <!-- math:end -->

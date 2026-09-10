@@ -131,16 +131,17 @@ def compile_predicate(
     def join_group_offset(p: program.DimensionPositionNode) -> str:
         """One column: the row's ordinal minus its own group's target ordinal."""
         refuse_outside_foreach(f"dimension '{p.name}'", p.name)
-        walk = _position_walk(compiler, p)
+        walk = p.partition
+        assert walk is not None, 'a grouped position carries the walk it counts within'
         table = compiler.partitioned(walk)
         _refuse_short_groups(p, walk, table)
         target = pl.lit(p.position) if p.position >= 0 else pl.col(GROUP_SIZE) + p.position
         offset = pl.col(GROUP_RANK) - target
         on = [p.name, *walk.joined_dims]
         for dimension in walk.joined_dims:
-            refuse_outside_foreach(f"position(by={p.by}) joined on dimension '{dimension}'", dimension)
+            refuse_outside_foreach(f"position(by={walk.name}) joined on dimension '{dimension}'", dimension)
         return carrier.once(
-            f'__where ord {p.name} by {p.by}__',
+            f'__where ord {p.name} by {walk.name}__',
             lambda f, alias: f.join(
                 table.select(pl.col('val').alias(p.name), *walk.joined_dims, offset.alias(alias)),
                 on=on,
@@ -189,7 +190,7 @@ def compile_predicate(
             refuse_outside_foreach(f"dimension '{p.name}'", p.name)
             return _compare(_dimension_column(p.name, p.value), p.op, p.value)
         if isinstance(p, program.DimensionPositionNode):
-            if p.by is not None:
+            if p.partition is not None:
                 return falsy_if_null(_COLUMN_COMPARISONS[p.op](pl.col(join_group_offset(p)), pl.lit(0)))
             at = _position_ordinal(p, compiler.data.cardinality[p.name])
             return _COLUMN_COMPARISONS[p.op](pl.col(join_ordinal(p.name)), pl.lit(at))
@@ -245,18 +246,6 @@ def _certain_names(mask: program.Mask) -> frozenset[str]:
     return frozenset(a.name for a in mask.conjuncts if isinstance(a, atoms))
 
 
-def _position_walk(compiler: PolarsCompiler, p: program.DimensionPositionNode) -> program.Walk:
-    """A grouped ``position()`` as the walk it partitions by.
-
-    The node names the pieces rather than carrying the walk, so the one place
-    that rebuilds it is here: the key column walked is consumed, the value
-    columns ``into=`` named are the group, and the rest of the key is joined on.
-    """
-    declared = compiler.program.lookups[str(p.by)]
-    joined = tuple(role for role in declared.key if role != p.walked)
-    return program.Walk(declared, (str(p.walked),), p.group, joined)
-
-
 def _refuse_short_groups(p: program.DimensionPositionNode, walk: program.Walk, table: pl.LazyFrame) -> None:
     """Refuse a position no coordinate of some group occupies.
 
@@ -274,7 +263,7 @@ def _refuse_short_groups(p: program.DimensionPositionNode, walk: program.Walk, t
     sizes = table.select(*columns, *walk.joined_dims, GROUP_SIZE).unique().collect()
     short = sorted(_named_group(row[:-1]) for row in sizes.iter_rows() if row[-1] < needed)
     if short:
-        raise DataError(short_groups_message(p.name, str(p.by), p.op, p.position, short))
+        raise DataError(short_groups_message(p.name, walk.name, p.op, p.position, short))
 
 
 def _named_group(labels: tuple[object, ...]) -> str:

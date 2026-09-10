@@ -55,53 +55,65 @@ The travelling salesman problem in the Miller-Tucker-Zemlin formulation: visit e
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{C}$ | index $c$ — `city` with $\mathrm{as\_from}: \mathcal{C} \to \mathcal{F},\enspace \mathrm{as\_to}: \mathcal{C} \to \mathcal{T}$ — the cities of the tour, each also read as an arc endpoint |
-| $\mathcal{F}$ | index $f$ — `from_city` with $\mathrm{as\_from}: \mathcal{C} \to \mathcal{F}$ — the city an arc leaves |
-| $\mathcal{T}$ | index $t$ — `to_city` with $\mathrm{as\_to}: \mathcal{C} \to \mathcal{T}$ — the city an arc arrives at |
+| $`\mathcal{C}`$ | index $`c`$ — `city` with $`\mathrm{as\_from}: \mathcal{C} \to \mathcal{F},\ \mathrm{as\_to}: \mathcal{C} \to \mathcal{T}`$ — the cities of the tour, each also read as an arc endpoint |
+| $`\mathcal{F}`$ | index $`f`$ — `from_city` with $`\mathrm{as\_from}: \mathcal{C} \to \mathcal{F}`$ — the city an arc leaves |
+| $`\mathcal{T}`$ | index $`t`$ — `to_city` with $`\mathrm{as\_to}: \mathcal{C} \to \mathcal{T}`$ — the city an arc arrives at |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{distance}$ | `distance` over $\mathcal{F} \times \mathcal{T}$ — distance along an arc, with no row on the diagonal — a city has no distance to itself, so no arc variable exists there |
-| $\mathrm{n}$ | `n` (scalar) — the number of cities, which is the big-M the ordering rows need |
+| $`\mathrm{distance}`$ | `distance` over $`\mathcal{F} \times \mathcal{T}`$ — distance along an arc, with no row on the diagonal — a city has no distance to itself, so no arc variable exists there |
+| $`\mathrm{n}`$ | `n` (scalar) — the number of cities, which is the big-M the ordering rows need |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{travel}$ | `travel` over $\mathcal{F} \times \mathcal{T}$ — is this arc on the tour? |
-| $u$ | `u` over $\mathcal{C}$ — position of a city in the tour — continuous, because the formulation needs only that the positions be orderable |
+| $`\mathit{travel}`$ | `travel` over $`\mathcal{F} \times \mathcal{T}`$ — is this arc on the tour? |
+| $`u`$ | `u` over $`\mathcal{C}`$ — position of a city in the tour — continuous, because the formulation needs only that the positions be orderable |
 
-Upright is what the model is given — a parameter such as $\mathrm{distance}$, a coordinate map, a label — and italic is what the solver chooses, such as $\mathit{travel}$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{distance}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{travel}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{f \in \mathcal{F},\enspace t \in \mathcal{T}} \mathit{travel}_{f,t} \cdot \mathrm{distance}_{f,t}$$
+```math
+\min \sum_{f \in \mathcal{F},\ t \in \mathcal{T}} \mathit{travel}_{f,t} \cdot \mathrm{distance}_{f,t}
+```
 
 #### Subject to
 
 **`leave_each_city_once`**
 
-$$\sum_{t \in \mathcal{T}} \mathit{travel}_{f,t} = 1 \qquad \forall\thinspace f \in \mathcal{F}$$
+```math
+\sum_{t \in \mathcal{T}} \mathit{travel}_{f,t} = 1 \qquad \forall\, f \in \mathcal{F}
+```
 
 **`enter_each_city_once`**
 
-$$\sum_{f \in \mathcal{F}} \mathit{travel}_{f,t} = 1 \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{f \in \mathcal{F}} \mathit{travel}_{f,t} = 1 \qquad \forall\, t \in \mathcal{T}
+```
 
 **`ordering`**
 
-$$\sum_{c \in \mathcal{C} \thinspace:\thinspace \mathrm{as\_from}(c) = f} u_{c} - \left( \sum_{c \in \mathcal{C} \thinspace:\thinspace \mathrm{as\_to}(c) = t} u_{c} \right) + \mathrm{n} \cdot \mathit{travel}_{f,t} \le \mathrm{n} - 1 \qquad \forall\thinspace f \in \mathcal{F},\enspace t \in \mathcal{T} \thinspace:\thinspace f \neq \text{'}\mathrm{c01}\text{'} \wedge t \neq \text{'}\mathrm{c01}\text{'}$$
+```math
+\sum_{c \in \mathcal{C} \,:\, \mathrm{as\_from}(c) = f} u_{c} - \left( \sum_{c \in \mathcal{C} \,:\, \mathrm{as\_to}(c) = t} u_{c} \right) + \mathrm{n} \cdot \mathit{travel}_{f,t} \le \mathrm{n} - 1 \qquad \forall\, f \in \mathcal{F},\ t \in \mathcal{T} \,:\, f \neq \text{'}\mathrm{c01}\text{'} \wedge t \neq \text{'}\mathrm{c01}\text{'}
+```
 
 #### Variable domains
 
 **`travel`**
 
-$$\mathit{travel}_{f,t} \in \{0, 1\} \qquad \forall\thinspace f \in \mathcal{F},\enspace t \in \mathcal{T} \thinspace:\thinspace \mathrm{distance}_{f,t} \text{ is defined}$$
+```math
+\mathit{travel}_{f,t} \in \{0, 1\} \qquad \forall\, f \in \mathcal{F},\ t \in \mathcal{T} \,:\, \mathrm{distance}_{f,t} \text{ is defined}
+```
 
 **`u`**
 
-$$1 \le u_{c} \le 17 \qquad \forall\thinspace c \in \mathcal{C}$$
+```math
+1 \le u_{c} \le 17 \qquad \forall\, c \in \mathcal{C}
+```
 
 </details>
 <!-- math:end -->

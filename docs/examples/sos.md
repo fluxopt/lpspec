@@ -39,68 +39,86 @@ A piecewise-linear cost curve stated as a special-ordered set, so the solver is 
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{G}$ | index $g$ — `generator` — dispatchable units |
-| $\mathcal{B}$ | index $b$ — `bp` — breakpoints of the cost curve |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — dispatchable units |
+| $`\mathcal{B}`$ | index $`b`$ — `bp` — breakpoints of the cost curve |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{max}}$ | `p_max` over $\mathcal{G}$ — maximum dispatch |
-| $\mathrm{load}$ | `load` over $\mathcal{T}$ — demand to be met |
-| $\mathrm{bp\_x}$ | `bp_x` over $\mathcal{G} \times \mathcal{B}$ — breakpoint dispatch levels, one curve per generator |
-| $\mathrm{bp\_y}$ | `bp_y` over $\mathcal{G} \times \mathcal{B}$ — cost at each breakpoint, one curve per generator |
+| $`\mathrm{p}^{\mathrm{max}}`$ | `p_max` over $`\mathcal{G}`$ — maximum dispatch |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T}`$ — demand to be met |
+| $`\mathrm{bp\_x}`$ | `bp_x` over $`\mathcal{G} \times \mathcal{B}`$ — breakpoint dispatch levels, one curve per generator |
+| $`\mathrm{bp\_y}`$ | `bp_y` over $`\mathcal{G} \times \mathcal{B}`$ — cost at each breakpoint, one curve per generator |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — dispatched power |
-| $\mathit{op\_cost}$ | `op_cost` over $\mathcal{T} \times \mathcal{G}$ — operating cost, piecewise-linear in dispatch |
-| $\mathit{cost\_curve\_lam}$ | `cost_curve_lam` over $\mathcal{T} \times \mathcal{G} \times \mathcal{B}$ — convex-combination weight on a breakpoint |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — dispatched power |
+| $`\mathit{op\_cost}`$ | `op_cost` over $`\mathcal{T} \times \mathcal{G}`$ — operating cost, piecewise-linear in dispatch |
+| $`\mathit{cost\_curve\_lam}`$ | `cost_curve_lam` over $`\mathcal{T} \times \mathcal{G} \times \mathcal{B}`$ — convex-combination weight on a breakpoint |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{max}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{max}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} \mathit{op\_cost}_{t,g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} \mathit{op\_cost}_{t,g}
+```
 
 #### Subject to
 
 **`balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 **`cost_curve_convexity`**
 
-$$\sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} = 1 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} = 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`cost_curve_link0`**
 
-$$p_{t,g} = \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \mathrm{bp\_x}_{g,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} = \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \mathrm{bp\_x}_{g,b} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`cost_curve_link1`**
 
-$$\mathit{op\_cost}_{t,g} = \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \mathrm{bp\_y}_{g,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{op\_cost}_{t,g} = \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \mathrm{bp\_y}_{g,b} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \mathrm{p}^{\mathrm{max}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \mathrm{p}^{\mathrm{max}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`op_cost`**
 
-$$\mathit{op\_cost}_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{op\_cost}_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`cost_curve_lam`**
 
-$$0 \le \mathit{cost\_curve\_lam}_{t,g,b} \le 1 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G},\enspace b \in \mathcal{B}$$
+```math
+0 \le \mathit{cost\_curve\_lam}_{t,g,b} \le 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G},\ b \in \mathcal{B}
+```
 
 **`cost_curve_lam sos`**
 
-$$\left( \mathit{cost\_curve\_lam}_{t,g,b} \right)_{b \in \mathcal{B}} \in \mathrm{SOS}2 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\left( \mathit{cost\_curve\_lam}_{t,g,b} \right)_{b \in \mathcal{B}} \in \mathrm{SOS}2 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->

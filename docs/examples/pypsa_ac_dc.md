@@ -27,108 +27,138 @@ PyPSA linear optimal power flow on a meshed AC-DC network whose generators sit o
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` with $\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\enspace \mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{line\_to}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{link\_from}: \mathcal{I} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{I} \to \mathcal{B}$ — network nodes |
-| $\mathcal{C}$ | index $c$ — `carrier` with $\mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}$ — what a generator burns, and what its emissions are a property of |
-| $\mathcal{E}$ | index $e$ — `generator` with $\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\enspace \mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}$ — generating units, each sitting on a bus and burning a carrier — two coordinates on one dimension, landing on two different axes |
-| $\mathcal{L}$ | index $l$ — `line` with $\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}$ — passive AC lines, each joining two buses |
-| $\mathcal{I}$ | index $i$ — `link` with $\mathrm{link\_from}: \mathcal{I} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{I} \to \mathcal{B}$ — controllable connections, each joining two buses |
-| $\mathcal{Y}$ | index $y$ — `cycle` — one independent loop per meshed sub-network |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\ \mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_from}: \mathcal{I} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{I} \to \mathcal{B}`$ — network nodes |
+| $`\mathcal{C}`$ | index $`c`$ — `carrier` with $`\mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}`$ — what a generator burns, and what its emissions are a property of |
+| $`\mathcal{E}`$ | index $`e`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\ \mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}`$ — generating units, each sitting on a bus and burning a carrier — two coordinates on one dimension, landing on two different axes |
+| $`\mathcal{L}`$ | index $`l`$ — `line` with $`\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — passive AC lines, each joining two buses |
+| $`\mathcal{I}`$ | index $`i`$ — `link` with $`\mathrm{link\_from}: \mathcal{I} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{I} \to \mathcal{B}`$ — controllable connections, each joining two buses |
+| $`\mathcal{Y}`$ | index $`y`$ — `cycle` — one independent loop per meshed sub-network |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
-| $\mathrm{p}^{\mathrm{max,pu}}$ | `p_max_pu` over $\mathcal{T} \times \mathcal{E}$ — share of built capacity a generator can produce in a snapshot |
-| $\mathrm{p}^{\mathrm{nom,min}}$ | `p_nom_min` over $\mathcal{E}$ — capacity a generator already has, and cannot fall below |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{E}$ — cost of one unit of output |
-| $\mathrm{gen\_capital\_cost}$ | `gen_capital_cost` over $\mathcal{E}$ — annualised cost of a unit of generator capacity |
-| $\mathrm{efficiency}$ | `efficiency` over $\mathcal{E}$ — share of the carrier's energy a generator turns into output |
-| $\mathrm{co2\_per\_mwh}$ | `co2_per_mwh` over $\mathcal{C}$ — emissions per unit of carrier burned, a property of the carrier |
-| $\mathrm{line\_capital\_cost}$ | `line_capital_cost` over $\mathcal{L}$ — annualised cost of a unit of line capacity |
-| $\mathrm{link\_capital\_cost}$ | `link_capital_cost` over $\mathcal{I}$ — annualised cost of a unit of link capacity |
-| $\mathrm{link\_p\_max\_pu}$ | `link_p_max_pu` over $\mathcal{I}$ — share of its capacity a link may carry forwards |
-| $\mathrm{link\_p\_min\_pu}$ | `link_p_min_pu` over $\mathcal{I}$ — share of its capacity a link may carry backwards, negative by convention |
-| $\mathrm{cycle\_incidence}$ | `cycle_incidence` over $\mathcal{Y} \times \mathcal{L}$ — the cycle basis, as a sparse table of impedance times direction. A line may belong to several cycles, so this cannot be a coordinate. |
-| $\mathrm{co2\_limit}$ | `co2_limit` (scalar) — emissions the whole horizon is allowed |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
+| $`\mathrm{p}^{\mathrm{max,pu}}`$ | `p_max_pu` over $`\mathcal{T} \times \mathcal{E}`$ — share of built capacity a generator can produce in a snapshot |
+| $`\mathrm{p}^{\mathrm{nom,min}}`$ | `p_nom_min` over $`\mathcal{E}`$ — capacity a generator already has, and cannot fall below |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{E}`$ — cost of one unit of output |
+| $`\mathrm{gen\_capital\_cost}`$ | `gen_capital_cost` over $`\mathcal{E}`$ — annualised cost of a unit of generator capacity |
+| $`\mathrm{efficiency}`$ | `efficiency` over $`\mathcal{E}`$ — share of the carrier's energy a generator turns into output |
+| $`\mathrm{co2\_per\_mwh}`$ | `co2_per_mwh` over $`\mathcal{C}`$ — emissions per unit of carrier burned, a property of the carrier |
+| $`\mathrm{line\_capital\_cost}`$ | `line_capital_cost` over $`\mathcal{L}`$ — annualised cost of a unit of line capacity |
+| $`\mathrm{link\_capital\_cost}`$ | `link_capital_cost` over $`\mathcal{I}`$ — annualised cost of a unit of link capacity |
+| $`\mathrm{link\_p\_max\_pu}`$ | `link_p_max_pu` over $`\mathcal{I}`$ — share of its capacity a link may carry forwards |
+| $`\mathrm{link\_p\_min\_pu}`$ | `link_p_min_pu` over $`\mathcal{I}`$ — share of its capacity a link may carry backwards, negative by convention |
+| $`\mathrm{cycle\_incidence}`$ | `cycle_incidence` over $`\mathcal{Y} \times \mathcal{L}`$ — the cycle basis, as a sparse table of impedance times direction. A line may belong to several cycles, so this cannot be a coordinate. |
+| $`\mathrm{co2\_limit}`$ | `co2_limit` (scalar) — emissions the whole horizon is allowed |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{E}$ — output of a generator in a snapshot |
-| $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{E}$ — generator capacity to hold, built on top of what already stands |
-| $f$ | `f` over $\mathcal{T} \times \mathcal{L}$ — flow on a line, signed towards its `line_to` bus — not chosen, but whatever the voltage law leaves |
-| $s^{\mathrm{nom}}$ | `s_nom` over $\mathcal{L}$ — line capacity to build |
-| $g$ | `g` over $\mathcal{T} \times \mathcal{I}$ — flow on a link, signed towards the bus it delivers at — chosen, which is what makes it a link and not a line |
-| $\mathit{link\_p\_nom}$ | `link_p_nom` over $\mathcal{I}$ — link capacity to build |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{E}`$ — output of a generator in a snapshot |
+| $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{E}`$ — generator capacity to hold, built on top of what already stands |
+| $`f`$ | `f` over $`\mathcal{T} \times \mathcal{L}`$ — flow on a line, signed towards its `line_to` bus — not chosen, but whatever the voltage law leaves |
+| $`s^{\mathrm{nom}}`$ | `s_nom` over $`\mathcal{L}`$ — line capacity to build |
+| $`g`$ | `g` over $`\mathcal{T} \times \mathcal{I}`$ — flow on a link, signed towards the bus it delivers at — chosen, which is what makes it a link and not a line |
+| $`\mathit{link\_p\_nom}`$ | `link_p_nom` over $`\mathcal{I}`$ — link capacity to build |
 
-Upright is what the model is given — a parameter such as $\mathrm{load}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{load}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace e \in \mathcal{E}} p_{t,e} \cdot \mathrm{marginal\_cost}_{e} + \sum_{e \in \mathcal{E}} p^{\mathrm{nom}}_{e} \cdot \mathrm{gen\_capital\_cost}_{e} + \sum_{l \in \mathcal{L}} s^{\mathrm{nom}}_{l} \cdot \mathrm{line\_capital\_cost}_{l} + \sum_{i \in \mathcal{I}} \mathit{link\_p\_nom}_{i} \cdot \mathrm{link\_capital\_cost}_{i}$$
+```math
+\min \sum_{t \in \mathcal{T},\ e \in \mathcal{E}} p_{t,e} \cdot \mathrm{marginal\_cost}_{e} + \sum_{e \in \mathcal{E}} p^{\mathrm{nom}}_{e} \cdot \mathrm{gen\_capital\_cost}_{e} + \sum_{l \in \mathcal{L}} s^{\mathrm{nom}}_{l} \cdot \mathrm{line\_capital\_cost}_{l} + \sum_{i \in \mathcal{I}} \mathit{link\_p\_nom}_{i} \cdot \mathrm{link\_capital\_cost}_{i}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$p_{t,e} \le p^{\mathrm{nom}}_{e} \cdot \mathrm{p}^{\mathrm{max,pu}}_{t,e} \qquad \forall\thinspace t \in \mathcal{T},\enspace e \in \mathcal{E}$$
+```math
+p_{t,e} \le p^{\mathrm{nom}}_{e} \cdot \mathrm{p}^{\mathrm{max,pu}}_{t,e} \qquad \forall\, t \in \mathcal{T},\ e \in \mathcal{E}
+```
 
 **`line_upper`**
 
-$$f_{t,l} \le s^{\mathrm{nom}}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+f_{t,l} \le s^{\mathrm{nom}}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 **`line_lower`**
 
-$$f_{t,l} \ge -s^{\mathrm{nom}}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+f_{t,l} \ge -s^{\mathrm{nom}}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 **`link_upper`**
 
-$$g_{t,i} \le \mathit{link\_p\_nom}_{i} \cdot \mathrm{link\_p\_max\_pu}_{i} \qquad \forall\thinspace t \in \mathcal{T},\enspace i \in \mathcal{I}$$
+```math
+g_{t,i} \le \mathit{link\_p\_nom}_{i} \cdot \mathrm{link\_p\_max\_pu}_{i} \qquad \forall\, t \in \mathcal{T},\ i \in \mathcal{I}
+```
 
 **`link_lower`**
 
-$$g_{t,i} \ge \mathit{link\_p\_nom}_{i} \cdot \mathrm{link\_p\_min\_pu}_{i} \qquad \forall\thinspace t \in \mathcal{T},\enspace i \in \mathcal{I}$$
+```math
+g_{t,i} \ge \mathit{link\_p\_nom}_{i} \cdot \mathrm{link\_p\_min\_pu}_{i} \qquad \forall\, t \in \mathcal{T},\ i \in \mathcal{I}
+```
 
 **`nodal_balance`**
 
-$$\sum_{e \in \mathcal{E} \thinspace:\thinspace \mathrm{gen\_bus}(e) = b} p_{t,e} + \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{line\_to}(l) = b} f_{t,l} - \left( \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{line\_from}(l) = b} f_{t,l} \right) + \sum_{i \in \mathcal{I} \thinspace:\thinspace \mathrm{link\_to}(i) = b} g_{t,i} - \left( \sum_{i \in \mathcal{I} \thinspace:\thinspace \mathrm{link\_from}(i) = b} g_{t,i} \right) = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{e \in \mathcal{E} \,:\, \mathrm{gen\_bus}(e) = b} p_{t,e} + \sum_{l \in \mathcal{L} \,:\, \mathrm{line\_to}(l) = b} f_{t,l} - \left( \sum_{l \in \mathcal{L} \,:\, \mathrm{line\_from}(l) = b} f_{t,l} \right) + \sum_{i \in \mathcal{I} \,:\, \mathrm{link\_to}(i) = b} g_{t,i} - \left( \sum_{i \in \mathcal{I} \,:\, \mathrm{link\_from}(i) = b} g_{t,i} \right) = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 **`kirchhoff_voltage_law`**
 
-$$\sum_{l \in \mathcal{L}} f_{t,l} \cdot \mathrm{cycle\_incidence}_{y,l} = 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace y \in \mathcal{Y}$$
+```math
+\sum_{l \in \mathcal{L}} f_{t,l} \cdot \mathrm{cycle\_incidence}_{y,l} = 0 \qquad \forall\, t \in \mathcal{T},\ y \in \mathcal{Y}
+```
 
 **`co2_budget`**
 
-$$\sum_{t \in \mathcal{T}} \sum_{e \in \mathcal{E}} \frac{p_{t,e} \cdot \mathrm{co2\_per\_mwh}_{\mathrm{gen\_carrier}(e)}}{\mathrm{efficiency}_{e}} \le \mathrm{co2\_limit}$$
+```math
+\sum_{t \in \mathcal{T}} \sum_{e \in \mathcal{E}} \frac{p_{t,e} \cdot \mathrm{co2\_per\_mwh}_{\mathrm{gen\_carrier}(e)}}{\mathrm{efficiency}_{e}} \le \mathrm{co2\_limit}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$p_{t,e} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace e \in \mathcal{E}$$
+```math
+p_{t,e} \ge 0 \qquad \forall\, t \in \mathcal{T},\ e \in \mathcal{E}
+```
 
 **`p_nom`**
 
-$$p^{\mathrm{nom}}_{e} \ge \mathrm{p}^{\mathrm{nom,min}}_{e} \qquad \forall\thinspace e \in \mathcal{E}$$
+```math
+p^{\mathrm{nom}}_{e} \ge \mathrm{p}^{\mathrm{nom,min}}_{e} \qquad \forall\, e \in \mathcal{E}
+```
 
 **`f`**
 
-$$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 **`s_nom`**
 
-$$s^{\mathrm{nom}}_{l} \ge 0 \qquad \forall\thinspace l \in \mathcal{L}$$
+```math
+s^{\mathrm{nom}}_{l} \ge 0 \qquad \forall\, l \in \mathcal{L}
+```
 
 **`g`**
 
-$$g_{t,i} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace i \in \mathcal{I}$$
+```math
+g_{t,i} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ i \in \mathcal{I}
+```
 
 **`link_p_nom`**
 
-$$\mathit{link\_p\_nom}_{i} \ge 0 \qquad \forall\thinspace i \in \mathcal{I}$$
+```math
+\mathit{link\_p\_nom}_{i} \ge 0 \qquad \forall\, i \in \mathcal{I}
+```
 
 </details>
 <!-- math:end -->

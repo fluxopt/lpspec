@@ -29,59 +29,71 @@ PyPSA linear optimal power flow with a limit on how fast a generator may change 
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\enspace \mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}$ — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
-| $\mathcal{L}$ | index $l$ — `link` with $\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}$ — controllable connections, each joining two buses |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
+| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — controllable connections, each joining two buses |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — installed capacity of a generator |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{ramp\_limit\_up}$ | `ramp_limit_up` over $\mathcal{G}$ — share of capacity output may rise by from one snapshot to the next |
-| $\mathrm{ramp\_limit\_down}$ | `ramp_limit_down` over $\mathcal{G}$ — share of capacity output may fall by from one snapshot to the next |
-| $\mathrm{rating}$ | `rating` over $\mathcal{L}$ — most a link may carry towards its `link_to` bus |
-| $\mathrm{neg\_rating}$ | `neg_rating` over $\mathcal{L}$ — most a link may carry the other way, negative by convention |
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — installed capacity of a generator |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{ramp\_limit\_up}`$ | `ramp_limit_up` over $`\mathcal{G}`$ — share of capacity output may rise by from one snapshot to the next |
+| $`\mathrm{ramp\_limit\_down}`$ | `ramp_limit_down` over $`\mathcal{G}`$ — share of capacity output may fall by from one snapshot to the next |
+| $`\mathrm{rating}`$ | `rating` over $`\mathcal{L}`$ — most a link may carry towards its `link_to` bus |
+| $`\mathrm{neg\_rating}`$ | `neg_rating` over $`\mathcal{L}`$ — most a link may carry the other way, negative by convention |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $f$ | `f` over $\mathcal{T} \times \mathcal{L}$ — flow on a link, signed towards its `link_to` bus |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`f`$ | `f` over $`\mathcal{T} \times \mathcal{L}`$ — flow on a link, signed towards its `link_to` bus |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{nom}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g}
+```
 
 #### Subject to
 
 **`nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{t,g} + \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{link\_to}(l) = b} f_{t,l} - \left( \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{link\_from}(l) = b} f_{t,l} \right) = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{t,g} + \sum_{l \in \mathcal{L} \,:\, \mathrm{link\_to}(l) = b} f_{t,l} - \left( \sum_{l \in \mathcal{L} \,:\, \mathrm{link\_from}(l) = b} f_{t,l} \right) = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 **`ramp_up`**
 
-$$p_{t,g} - p_{t - 1,g} \le \mathrm{ramp\_limit\_up}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} - p_{t - 1,g} \le \mathrm{ramp\_limit\_up}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`ramp_down`**
 
-$$p_{t - 1,g} - p_{t,g} \le \mathrm{ramp\_limit\_down}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t - 1,g} - p_{t,g} \le \mathrm{ramp\_limit\_down}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`f`**
 
-$$\mathrm{neg\_rating}_{l} \le f_{t,l} \le \mathrm{rating}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+\mathrm{neg\_rating}_{l} \le f_{t,l} \le \mathrm{rating}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 </details>
 <!-- math:end -->
