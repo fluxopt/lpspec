@@ -48,11 +48,9 @@ polars tables. The relational engine executes its plan against those tables
 directly. `linopy/loader.py`
 converts them to pandas and xarray at its own boundary, and that conversion is
 all the linopy lane is. So polars is the one representation, and pandas is
-declared with `[linopy]` rather than as a runtime dependency. **One reader,
-because two disagreed.** With a reader per lane the same instant was a
-`datetime.date` out of pandas and a `pl.Date` out of polars, and one
-reconciling guard was always missing. The price is a copy the linopy lane
-makes of what a pandas caller passed (#1076).
+declared with `[linopy]` rather than as a runtime dependency. One reader for
+both lanes costs the linopy lane a copy of what a pandas caller passed
+(#1076).
 
 The `method: convex` curvature guard sits below the seam because it needs
 values rather than a schema. It lives in `curves.py`, which the door calls, so
@@ -199,10 +197,12 @@ protects: a new consumer is free, a new primitive is taxed.
 
 **Twenty-one names, and the count is the feature.** The model is the YAML
 file, and Python is how you *run* it, so nothing on the surface constructs
-math or reaches the plan. Names are `lpspec.` unless shown otherwise, and what
-each one *does* is [the Python API](../reference/api.md). **Data?** is the
-column that matters: a verb that says *no* needs nothing but the file. *Italic
-rows are the ones the shape makes cheap and nobody has built.*
+math or reaches the plan. The names, by role: the four verbs `check`, `build`,
+`solve`, `write`; the fold `solve_over` with its two axes; `pack` and
+`unpack`; the three types a verb hands back, `Model`, `Result`, `Runs`; the
+error tree under `LpspecError`, `NoSolutionError` and `LpspecWarning`. What
+each one takes and returns is [the Python API](../reference/api.md). A verb
+that answers with no data (`check`) needs nothing but the file.
 
 **Loading a file and rendering one are not on this list.** `to_spec`,
 `SymbolTable`, the three `to_…` renderers and the shell front that runs them
@@ -225,25 +225,6 @@ cannot write. So `Model`, `Result` and `Runs` are named here, as are
 `LpspecWarning`, what `check` emits. A sweep that records an infeasible
 scenario rather than dying on it needs both by name. None of the five
 constructs math or reaches the plan.
-
-| | you want to | the call | data? |
-|---|---|---|---|
-| **check it** | will this build, is the math sayable, do the dims line up | `check` — parse → expand → validate → lower, one pass, every answer | no |
-| | *will that solver take it* | | |
-| **run it** | stream it straight into a solver | `solve`, or `build` → `Model` to drive several sinks off one build | **yes** |
-| | re-solve one built model with new numbers | `model.update(...)` — the label contract, spent | **yes** |
-| | size, scaling, what the build and its solves did, where the time went | `model.diagnostics()` → `columns` · `rows` · `nonzeros` · `sink_columns` · `sink_rows` · `omissions` · `coefficient_range` · `bound_range` · `rhs_range` · `objective_range` · `solves` · `loads` · `timings`, all advisory | **yes** |
-| | write an LP or MPS file for anything else | `write` | **yes** |
-| | solve it once per scenario, window or period | `solve_over` over a `EachCoordinate` / `EachWindow` axis | **yes** |
-| | build the same math as a `linopy.Model` | `lpspec.linopy.build` — `lps.build`'s own signature | **yes** |
-| **carry it** | archive or send the file with its data, as one zip | `pack`, attaching through the same door as `build`; `unpack` gives back what every verb takes | **yes** |
-| **read it** | values, shadow prices, the objective | `result.objective` · `.primal` · `.dual`, plus the status pair | — |
-| | the quantity the model named | `result.expression(name)` — lowered at the read, never at build; `lpspec.linopy.expression` on the other lane | — |
-| | bridge out to another library | `.to_pandas` · `.to_dataarray` · `.to_parquet` | — |
-| | name it in your own signature | `Model` · `Result` · `Runs`, what `build`, `solve` and `solve_over` hand back; `Spec` re-exported for the model as written, and `math_spec.program.Program` for what `check` hands back | — |
-| **catch it** | tell a bad model from bad data | `LpspecError` ⊃ `LanguageError` · `DataError` · `DimensionError` · `SchemaError` · `PiecewiseExpansionError` · `LaneError` | — |
-| | record an infeasible run instead of dying on it | `NoSolutionError`, raised by every reader on a `Result` | — |
-| | fail CI on advice, not just on errors | `LpspecWarning`, what `check` emits | no |
 
 **The namespace is flat, and a namespace marks a lane rather than a topic.**
 `lpspec.linopy` is the only one: its own dependencies, its own oracle, its own
@@ -270,8 +251,8 @@ The single positional fallback (an *unnamed* pandas index) is narrow on
 purpose. Renaming a named level would transpose the data silently whenever two
 dims share a label space.
 
-`tests/test_architecture.py` pins all of it: `__all__` must match the table,
-**and** no public non-module attribute may exist outside it. The first
+`tests/test_architecture.py` pins all of it: `__all__` must match its own
+list by role, **and** no public non-module attribute may exist outside it. The first
 direction catches a name documented and never exported, the second a helper
 that leaked into the namespace from the top of `__init__.py`.
 
@@ -352,10 +333,11 @@ rulebook.
 ## The plan, node for node
 
 **The plan is the vocabulary both lanes speak.** Each node has exactly one
-meaning per lane, and this table is the whole of that mapping: what the file
-writes, what the relational lane's query does with it, and which linopy call
-the linopy lane makes. `tests/test_docs_site.py` holds it to
-`math_spec.program.Expression`'s own subclasses, so no node lacks a row.
+meaning per lane. This table is what the file writes and what the relational
+lane's query does with it; the linopy call for each row is
+[what a construct becomes](linopy.md#what-a-construct-becomes).
+`tests/test_docs_site.py` holds it to `math_spec.program.Expression`'s own
+subclasses, so no node lacks a row.
 
 **The plan decides what is sayable; the engine only builds.** Every refusal
 about the shape of a file is the language's, made upstream when the spec is
@@ -372,27 +354,25 @@ relate to the input's, and `math_spec.program.fan_in` answers it for every
 node, so a lane asks rather than keeping its own list of which kinds reshape
 anything. Anything but one-to-one mixes several input slots into one output
 row, so absence has to be pushed into the operand before the rewrite consumes
-it. `Window` missing from the list that used to hold this is how the lanes
-came to disagree about a constant at a masked slot
-([#1142](https://github.com/fluxopt/lpspec/issues/1142)).
+it ([#1142](https://github.com/fluxopt/lpspec/issues/1142)).
 
-| plan node | the file writes | fan-in | the relational query | the linopy call |
-| --- | --- | --- | --- | --- |
-| `Constant` | a number | one-to-one | a one-row const fragment | the number itself |
-| `Parameter` | a declared name | one-to-one | its table as `(dims…, cval)` | its array, uncovered slots at zero |
-| `Variable` | a declared name | one-to-one | `(dims…, var_label, coeff=1)`, plus where it exists; at a read, its primal as a const fragment with the same presence, a zero at every absent slot under `absence: zero` | the variable, carrying its declared `absence:`; at a read, its `.solution`, filled with zero under `absence: zero` |
-| `Dual` | `dual(c)` | one-to-one | at a read only: the constraint's rows beside its share of the dual vector, a const fragment present exactly where a row stands | at a read only: linopy's `.dual` on the constraint |
-| `Negate` | `-x` | one-to-one | the value column negated | `-` |
-| `Add` | `x + y`, `x - y` | one-to-one | the two fragment lists concatenated | `+` |
-| `Multiply` | `x * y` | one-to-one | a join on the shared dims; two variable factors pair into a quadratic fragment | `*` |
-| `Divide` | `x / p` | one-to-one | a **left** join, so a divisor with no value leaves a null to report | `/` |
-| `Power` | `p ** q` | one-to-one | an inner join and `pow` | `**` |
-| `Sum` | `sum(x)`, `sum(x, over=d)` | many-to-one | the summed dims projected away — no aggregate | `.sum(dim)`, one dim at a time |
-| `GroupSum` | `sum(x, by=lk)` | many-to-one | one inner join with the lookup's table, the grouped dim traded for its targets | `.groupby(targets).sum()`, reindexed onto the declared labels |
-| `At` | `at(x, by=lk)` | one-to-one | the same table joined the other way, fanning out | a vectorised `.sel()` |
-| `Translate` | `shift(x, over=d, offset=n)` | one-to-one | a remap through the dimension's `ord`, modulo its size under `wrap` | `.shift()`; `.roll()` under `wrap`; a `.sel()` gather where the offset differs per entity |
-| `Window` | `sum_back(x, over=d, within=w)` | one-to-many | a row lands at every position whose window reaches it — no aggregate | the window's lags merged in one step |
-| `Cases` | a named expression's `cases:` block | one-to-one | each region's value cut to its own mask and the fragment lists concatenated | each region's value filled with zero outside its mask, and the regions added |
+| plan node | the file writes | fan-in | the relational query |
+| --- | --- | --- | --- |
+| `Constant` | a number | one-to-one | a one-row const fragment |
+| `Parameter` | a declared name | one-to-one | its table as `(dims…, cval)` |
+| `Variable` | a declared name | one-to-one | `(dims…, var_label, coeff=1)`, plus where it exists; at a read, its primal as a const fragment with the same presence, a zero at every absent slot under `absence: zero` |
+| `Dual` | `dual(c)` | one-to-one | at a read only: the constraint's rows beside its share of the dual vector, a const fragment present exactly where a row stands |
+| `Negate` | `-x` | one-to-one | the value column negated |
+| `Add` | `x + y`, `x - y` | one-to-one | the two fragment lists concatenated |
+| `Multiply` | `x * y` | one-to-one | a join on the shared dims; two variable factors pair into a quadratic fragment |
+| `Divide` | `x / p` | one-to-one | a **left** join, so a divisor with no value leaves a null to report |
+| `Power` | `p ** q` | one-to-one | an inner join and `pow` |
+| `Sum` | `sum(x)`, `sum(x, over=d)` | many-to-one | the summed dims projected away — no aggregate |
+| `GroupSum` | `sum(x, by=lk)` | many-to-one | one inner join with the lookup's table, the grouped dim traded for its targets |
+| `At` | `at(x, by=lk)` | one-to-one | the same table joined the other way, fanning out |
+| `Translate` | `shift(x, over=d, offset=n)` | one-to-one | a remap through the dimension's `ord`, modulo its size under `wrap` |
+| `Window` | `sum_back(x, over=d, within=w)` | one-to-many | a row lands at every position whose window reaches it — no aggregate |
+| `Cases` | a named expression's `cases:` block | one-to-one | each region's value cut to its own mask and the fragment lists concatenated |
 
 A `Cases` is the one node carrying a **mask in a value position**, and the one
 whose several values are alternatives rather than slots summed together. The
@@ -413,9 +393,8 @@ other entry still reads.
 
 **Neither reduction aggregates.** A `Sum` drops columns, a `GroupSum` swaps
 them and a `Window` replicates rows. Every duplicate collapses once, in the
-terminal `SUM(coeff) GROUP BY row, col` at assembly. The per-construct detail
-lives where it is acted on: the polars column conventions in `compiler.py` and
-`fragments.py`, and the linopy calls in [linopy.md](linopy.md).
+terminal `SUM(coeff) GROUP BY row, col` at assembly. The polars column
+conventions are in `compiler.py` and `fragments.py`.
 
 ## The relational lane
 
@@ -597,9 +576,8 @@ they implement. Everything under `linopy/` is the linopy lane, and it is the
 only code allowed to import linopy or xarray. `tests/test_architecture.py`
 reads membership off the path in both cases.
 
-**A fence whose allowlist is empty is a package waiting to happen.**
-`language/` and `typeset/` were both fenced that way, and both were lifted
-out. What remains points one way: `relational/`'s fence at one declared leaf,
+**A fence whose allowlist is empty is a package waiting to happen.** What
+remains points one way: `relational/`'s fence at one declared leaf,
 `errors.py` (hard rule 2), and the language's fence nowhere, because the
 language is not here.
 

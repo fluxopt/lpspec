@@ -74,9 +74,7 @@ itself a reason to add anything.
 subsystem) read-back, a join rather than a scatter; serialisation to parquet;
 elastic relaxation; dualisation, since transposing a COO matrix is swapping two
 column names. Model statistics and coefficient ranges were the first of these
-and already ship. `diagnostics()` gives the range *per declaration*, taken as
-each block is built. That is what naming the badly scaled one costs when the
-matrix arrives a declaration at a time.
+and already ship ([diagnostics](../reference/api.md#diagnostics)).
 
 **Ahead of comparable declarative layers:** a sparse-by-construction build with
 no dense intermediate, and a hand-off straight to the solver rather than

@@ -138,10 +138,9 @@ band. So `examples/ports/osemosys_utopia.yaml`, whose objective owes a fixed
 cost on capacity that already stood in 1990, builds relationally and not here.
 **Dropping the constant is the one repair that must not happen.** The lane is
 the oracle, and a quietly shortened objective would recalibrate every
-differential test on such a model to the wrong number. Adding the constant back
-as a variable pinned to `[1, 1]` reaches the right answer and was refused too.
-It puts a column on the caller's model that the other lane does not have. So `builder.py` checks for a constant before linopy is asked and raises
-`LaneError`, naming the wall and the route that does build the model.
+differential test on such a model to the wrong number. So `builder.py` checks
+for a constant before linopy is asked and raises `LaneError`, naming the wall
+and the route that does build the model.
 `tests/test_corpus_parity.py` carries the strict xfail, typed to that error
 rather than to any `ValueError`. The day linopy grows a slot, the test XPASSes
 and the check comes out with it
@@ -163,15 +162,6 @@ refusal rather than each wording its own: a fix for one that left the others
 would fix a symptom. The relational lane names the rewrite that reaches the same number:
 declare the parameter over the dimension and supply it there
 ([#1137](https://github.com/fluxopt/lpspec/issues/1137)).
-
-Finding that wall turned up a real disagreement behind it. `sum_back` read a
-constant at a slot the variable was absent from, where every other operator
-drops it. So the two lanes answered 2.5 and 3.0 on a file **neither** refused.
-A reduction consumes its operand before any row exists, so absence has to be
-pushed into the operand first. `sum` and `sum(by=)` did that and the window did
-not. The fix gave the window the same pass, with a differential test over every
-operator that moves along a dimension
-([#1142](https://github.com/fluxopt/lpspec/issues/1142)).
 
 **The lane takes the same data too**
 ([#60](https://github.com/fluxopt/lpspec/issues/60)). It reads every shape

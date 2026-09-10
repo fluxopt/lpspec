@@ -46,10 +46,6 @@ table with both as columns. `series.reset_index()` is the whole change.
 **An `xr.DataArray` is refused.** Pass `array.to_series().reset_index()`.
 `Result.to_dataarray()` is the way back out.
 
-**The [linopy lane](../about/linopy.md#3-it-is-a-lane) reads every shape on
-this list**, so one `sources` mapping goes to either
-[lane](glossary.md#how-it-runs).
-
 **Nothing on this path imports pandas, xarray or linopy on your behalf.**
 
 ## Where coordinates come from

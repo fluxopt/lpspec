@@ -76,3 +76,20 @@ Two lanes agreeing on a number you still believe is wrong means the file says
 something other than what you meant. Render it as math and read the
 constraint as written:
 [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/).
+
+## 6. When a loop of re-solves is slow
+
+Run the loop once with each `keep=` and read the clock the package keeps.
+`kept` confirms the request was honoured rather than quietly downgraded:
+
+```python
+for keep in ('solver', 'progress'):
+    model = lps.build('dispatch.yaml', sources)
+    for numbers in walk:
+        assert model.update(numbers).solve(keep=keep).kept in {keep, 'nothing'}
+    print(keep, model.diagnostics().timings['solve'])
+```
+
+Take the faster one. `'nothing'` on every iteration means each update moved a
+mask and the model was rebuilt, so the loop is paying for the build, not the
+solve ([re-solving with new numbers](../reference/api.md#re-solving-with-new-numbers)).

@@ -92,12 +92,9 @@ the table comes back unchanged.
 rows the sweep solved. For the same reason `to_dataset` and `to_parquet` have
 no `original_index`.
 
-**Every bridge takes `kind=`, the way `scan` does.** `to_pandas(name, kind)`,
-`to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual`
-or `expression`, with `primal` the default. `original_index` sits beside it
-where the reader has one, so `runs.to_dataarray('balance', 'dual', original_index=True)`
-is the stitched price over time. One call reads one kind, since a dual and a
-variable of the same name would collide in one dataset.
+**`original_index` sits beside `kind=` where a reader has one**, so
+`runs.to_dataarray('balance', 'dual', original_index=True)` is the stitched
+price over time.
 
 **`to_parquet` writes every kind.** `runs.to_parquet('runs/')` writes what
 `to=` would have written, so the directory is a spilled sweep. `scan` reads it,
