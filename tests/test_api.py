@@ -437,6 +437,27 @@ def test_solution_to_parquet(dispatch_solution, dispatch_yaml, tmp_path):
     )
 
 
+def test_a_saved_solution_says_how_it_terminated(dispatch_solution, tmp_path):
+    """The record beside the frames: what the numbers themselves cannot carry.
+
+    Without it a directory holds every value the solve produced and cannot say
+    what the solve concluded, so a set of saved cases answers neither which
+    one was cheapest nor which one did not solve. Written as the row a sweep
+    writes per slice, so a directory per case concatenates.
+    """
+    out = dispatch_solution.to_parquet(tmp_path / 'solution')
+    record = pl.read_parquet(out / 'objective.parquet')
+    assert record.columns == ['status', 'termination_condition', 'objective'], (
+        'the columns a sweep keys and folds, minus the key'
+    )
+    assert record.height == 1, 'one solve, one row'
+    assert record.row(0, named=True) == {
+        'status': dispatch_solution.status,
+        'termination_condition': dispatch_solution.termination_condition,
+        'objective': dispatch_solution.objective,
+    }, 'the row carries what the result itself reports, not a second reading of the solve'
+
+
 def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
     """An integer variable leaves the duals undefined and the export leaves
     them out; an expression that cannot be evaluated on this data is left out
@@ -456,7 +477,9 @@ def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
             result.expression('ratio')
         with pytest.raises(lps.LpspecError, match='integer'):
             result.to_dataset(kind='dual')
-    assert sorted(p.name for p in out.iterdir()) == ['expression', 'primal'], 'no duals to write, so no dual/'
+    assert sorted(p.name for p in out.iterdir()) == ['expression', 'objective.parquet', 'primal'], (
+        'the record, and no dual/ — there are none to write'
+    )
     assert [p.name for p in (out / 'expression').iterdir()] == ['twice.parquet'], 'the one that evaluated'
     assert pl.read_parquet(out / 'expression' / 'twice.parquet')['value'].to_list() == [4.0, 6.0], (
         'twice the integer dispatch that meets 1.5 and 2.5'

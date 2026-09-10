@@ -159,14 +159,31 @@ def test_an_infeasible_solve_reports_both_axes_and_a_nan_objective():
         assert solution.objective != solution.objective, 'nan, not 0.0'
 
 
-def test_reading_results_without_a_solution_raises(tmp_path):
+def test_reading_results_without_a_solution_raises():
     """HiGHS returns a full-length vector of zeros whatever the status, so
     handing it back would be indistinguishable from an answer."""
     with lps.solve(*CASES['INFEASIBLE']) as solution:
         with pytest.raises(NoSolutionError, match='infeasible'):
             solution.primal('p')
-        with pytest.raises(NoSolutionError):
-            solution.to_parquet(tmp_path)
+        with pytest.raises(NoSolutionError, match='infeasible'):
+            solution.dual('meet')
+
+
+def test_a_solve_that_left_no_values_writes_the_record_and_no_frames(tmp_path):
+    """An export of a run that did not solve is the record alone.
+
+    Was: it raised, so a variant that came back infeasible left nothing on
+    disk and could not be told apart from one nobody ran. Reading a value
+    still raises — there is none — and that is the test above.
+    """
+    with lps.solve(*CASES['INFEASIBLE']) as solution:
+        out = solution.to_parquet(tmp_path / 'infeasible')
+    assert [entry.name for entry in out.iterdir()] == ['objective.parquet'], (
+        'no values, so no primal/, dual/ or expression/'
+    )
+    record = pl.read_parquet(out / 'objective.parquet')
+    assert record.row(0, named=True)['termination_condition'] == 'infeasible'
+    assert record['objective'].is_nan().to_list() == [True], 'nan, as the reader reports it'
 
 
 # ---------------------------------------------------------------------------

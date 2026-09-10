@@ -39,7 +39,7 @@ import polars as pl
 from lpspec.api import build, check
 from lpspec.errors import DataError, LpspecError, LpspecWarning, did_you_mean
 from lpspec.frames import as_frame
-from lpspec.relational.parquet import KINDS, LABELS, reader_kind, write_whole
+from lpspec.relational.parquet import KINDS, LABELS, Record, reader_kind, write_whole
 from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to_pandas
 from lpspec.sources import least_value
 
@@ -78,14 +78,6 @@ class _Slice(NamedTuple):
     key: Label
     sources: Mapping[str, Source]
     owns: int | None = None
-
-
-class _SliceMeta(NamedTuple):
-    """One row of :attr:`Runs.objective`: how a slice terminated, and its objective."""
-
-    status: str
-    termination_condition: str
-    objective: float
 
 
 #: The phases :attr:`Runs.diagnostics` clocks, in the order they run.
@@ -196,7 +188,7 @@ class _Answer:
     strings and numbers, never a result or a model.
     """
 
-    meta: _SliceMeta
+    meta: Record
     #: This slice's row of :attr:`Runs.diagnostics`, from :func:`_slice_cost`.
     cost: dict[str, Any]
     primals: dict[str, pl.DataFrame]
@@ -320,7 +312,7 @@ class _Spill:
         """A done slice's record — meta and cost — with no frames, which stay on disk."""
         row = pl.read_parquet(self._file('objective', position)).drop(self.key_name).row(0, named=True)
         cost = pl.read_parquet(self._file('diagnostics', position)).drop(self.key_name).row(0, named=True)
-        return _Answer(_SliceMeta(**row), dict(cost), {}, {}, {}, None, {})
+        return _Answer(Record(**row), dict(cost), {}, {}, {}, None, {})
 
     def primals(self, position: int, names: Iterable[str]) -> dict[str, pl.DataFrame]:
         """The named primals a done slice wrote, for a carry to read; a name it did not write is absent."""
@@ -945,7 +937,7 @@ class Runs:
             for kind, held in zip(KINDS, (self._primals, self._duals, self._expressions), strict=True)
         }
         for position, key in enumerate(self.keys):
-            meta = _SliceMeta(**self.objective.drop(self.key_name).row(position, named=True))
+            meta = Record(**self.objective.drop(self.key_name).row(position, named=True))
             cost = self.diagnostics.drop(self.key_name).row(position, named=True)
             frames = {
                 kind: {name: keyed[key] for name, keyed in names.items() if key in keyed}
@@ -1309,7 +1301,7 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
     slice must not fail a whole sweep. ``Result.dual`` already writes the
     sentence saying why, so it is caught and carried rather than rewritten.
     """
-    meta = _SliceMeta(
+    meta = Record(
         status=result.status,
         termination_condition=result.termination_condition,
         objective=result.objective if result.has_primal else float('nan'),
@@ -1386,7 +1378,7 @@ def _key_column(
             f'key_name={key_name!r} is a dimension the spec declares, so the slice key would collide '
             f'with a column the frames already carry. Name it something the spec does not use.'
         )
-    fixed = ('value', *_SliceMeta._fields)
+    fixed = ('value', *Record._fields)
     if key_name in fixed:
         raise LpspecError(
             f'key_name={key_name!r} is a column every sweep frame carries ({", ".join(fixed)}), so the slice '

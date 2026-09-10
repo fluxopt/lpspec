@@ -4,13 +4,14 @@ Under a directory, ``<kind>/<name>`` for each of the three kinds a solve
 answers with — the primals, the duals, the named expressions — so a
 constraint carrying a variable's name never collides with it. A result
 writes one file under each name; a sweep one per slice, and reads them back
-as one.
+as one. Beside them is the :class:`Record`, which says how the solve
+terminated: a result writes one row, a sweep one per slice.
 """
 
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import polars as pl
 
@@ -23,6 +24,21 @@ if TYPE_CHECKING:
 #: comes back through, and what each is a frame of.
 KINDS = ('primal', 'dual', 'expression')
 LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expression'}
+
+
+class Record(NamedTuple):
+    """How a solve terminated and what it reached — the row written beside the frames.
+
+    One row per solve, and the same columns whoever wrote them: a result
+    writes one, a sweep one per slice keyed by its own key. That is what lets
+    cases solved apart concatenate into the table a sweep folds, and it is the
+    only part of an answer the frames themselves cannot carry — a run that
+    left no values writes this and nothing else.
+    """
+
+    status: str
+    termination_condition: str
+    objective: float
 
 
 def reader_kind(kind: str) -> str:

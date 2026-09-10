@@ -1340,6 +1340,33 @@ def test_to_parquet_writes_what_a_spill_writes_and_the_directory_reads_back_as_o
     assert reopened.scan('spend', 'expression').collect().equals(priced.expression('spend'))
 
 
+def test_a_saved_result_carries_the_row_a_sweep_keys(sweep, tmp_path):
+    """One solve's record is one slice's, so cases solved apart concatenate.
+
+    This is why the record is written beside the frames rather than kept in
+    the process that solved. Variants solved in separate sessions answer
+    "which was cheapest, and which did not solve" by reading a directory
+    each, with the case name a column the reader adds.
+    """
+    sources = scenario_sources()
+    low = {**sources, 'load': sources['load'].filter(pl.col('scenario') == 'low').drop('scenario')}
+    with lps.solve(DISPATCH, low) as alone:
+        one = pl.read_parquet(alone.to_parquet(tmp_path / 'low') / 'objective.parquet')
+
+    assert one.columns == [column for column in sweep.objective.columns if column != sweep.key_name], (
+        'the fold keys the record it writes; a lone solve writes the same columns unkeyed'
+    )
+    row = one.row(0, named=True)
+    slice_of_the_fold = sweep.objective.filter(pl.col('scenario') == 'low').drop('scenario').row(0, named=True)
+    assert (row['status'], row['termination_condition']) == (
+        slice_of_the_fold['status'],
+        slice_of_the_fold['termination_condition'],
+    ), 'the lone solve and the slice of the fold terminated the same way'
+    assert row['objective'] == pytest.approx(slice_of_the_fold['objective']), (
+        'and reached the same number, the two being the same model over the same numbers'
+    )
+
+
 @pytest.mark.parametrize('export', ['to_dataset', 'to_parquet'], ids=['to_dataset', 'to_parquet'])
 def test_a_bulk_export_of_a_sweep_that_solved_nothing_is_refused(export, tmp_path):
     """Neither export writes an empty answer: a sweep every slice of which was

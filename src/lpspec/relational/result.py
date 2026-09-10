@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
-from lpspec.relational.parquet import reader_kind, write_whole
+from lpspec.relational.parquet import Record, reader_kind, write_whole
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -435,12 +435,14 @@ class Result:
         """
         return self._kept
 
-    def _readable(self, frames: Mapping[str, pl.LazyFrame] | None, what: str) -> Mapping[str, pl.LazyFrame]:
-        """*frames*, or why they cannot be read — closed first, then the status.
+    def _unclosed(self, what: str) -> Mapping[str, pl.LazyFrame]:
+        """The primals, or why nothing here can be read: this result was closed.
 
-        Closedness is read off the primals whichever mapping was asked for,
-        because :meth:`close` releases both together and a solve may
-        legitimately leave the duals empty.
+        The closed check is read off the primals whichever mapping the caller
+        wants, because :meth:`close` releases them together and a solve may
+        legitimately leave the duals empty. Split from :meth:`_readable`
+        because an export writes the record of a solve that left no values,
+        and only closedness stops it.
         """
         if self._primals is None:
             raise LpspecError(
@@ -449,6 +451,11 @@ class Result:
                 f'their own data — so read what you need before close(), or drop the `with` and close '
                 f'when you are done.'
             )
+        return self._primals
+
+    def _readable(self, frames: Mapping[str, pl.LazyFrame] | None, what: str) -> Mapping[str, pl.LazyFrame]:
+        """*frames*, or why they cannot be read — closed first, then the status."""
+        self._unclosed(what)
         if not self._status.is_readable:
             raise NoSolutionError(
                 f'cannot read {what}: the solve terminated {self.termination_condition!r} '
@@ -596,6 +603,9 @@ class Result:
     def to_parquet(self, directory: str | Path) -> Path:
         """Every kind this solve answered with, one file per name, into *directory*.
 
+        ``objective.parquet`` holds the
+        :class:`~lpspec.relational.parquet.Record` — how the solve terminated
+        and what it reached, in the columns a sweep keys and folds. Then
         ``primal/<name>.parquet`` for every variable, ``dual/<name>.parquet``
         for every constraint where the duals are defined, and
         ``expression/<name>.parquet`` for every named expression this data
@@ -605,15 +615,24 @@ class Result:
         :meth:`primal`'s order, so the same model and data write the same
         bytes.
 
+        A solve that left no values writes the record and nothing else. A run
+        that came back infeasible is an answer a set of saved cases needs on
+        disk, rather than a directory that does not exist.
+
         Returns:
             The directory.
 
         Raises:
-            NoSolutionError: The solve left no values to write.
             LpspecError: This result was closed.
         """
-        primals = self._readable(self._primals, 'the solution')
+        import polars as pl
+
+        primals = self._unclosed('the solution')
         out = Path(directory)
+        record = Record(self.status, self.termination_condition, self.objective)
+        write_whole(pl.DataFrame([record._asdict()]), out / 'objective.parquet')
+        if not self._status.is_readable:
+            return out
         for name, frame in primals.items():
             write_whole(frame, out / 'primal' / f'{name}.parquet')
         for name, frame in (self._duals or {}).items():

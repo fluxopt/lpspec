@@ -251,7 +251,7 @@ result.to_dataset()  # every variable by default; names for a subset
 result.to_dataset(kind='dual')  # every dual; one kind per dataset
 result.to_parquet(
     directory
-)  # every kind, primal/ dual/ expression/, one file per name; primals streamed, never through this process
+)  # the record and every kind: objective.parquet, primal/ dual/ expression/; primals streamed, never through this process
 ```
 
 **`primal` returns a `polars.DataFrame`**, one row per coordinate: a *frame*.
@@ -262,14 +262,14 @@ xarray, from the `[linopy]` extra.
 | Rule | |
 |---|---|
 | **`is_ok` is not `has_primal`** | `is_ok` rolls up the termination condition. `has_primal` adds the solver's verdict on whether an incumbent exists, and every reader gates on it. A MIP that hits `time_limit` before a feasible point is `ok` with nothing to read |
-| **reading with no primal raises** | `NoSolutionError`; `objective` is `nan` |
+| **reading with no primal raises** | `NoSolutionError`; `objective` is `nan`. `to_parquet` is the exception: it writes the record and no frames, an infeasible run being an answer a set of saved cases needs on disk |
 | **`expression` takes a declared name** | the value of a [named expression](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions) at the solution, aggregated to its own dimensions; never an expression string. An unknown name is a `KeyError` listing what is declared. It is compiled at the read, so unread expressions cost nothing |
 | **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `LpspecError`. Any integer or binary variable makes duals undefined |
 | **a solver can make a model mixed-integer** | an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set reaches a solver with no SOS concept as binaries, so an otherwise continuous model solved on `highs` has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
 | **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `to_parquet` |
 | **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default. One kind per call |
-| **`to_parquet` writes every kind** | `primal/<name>.parquet`, `dual/<name>.parquet`, `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out; `dual` and `expression` still say why |
+| **`to_parquet` writes the record and every kind** | `objective.parquet` says how the solve terminated — `status`, `termination_condition`, `objective` — in the columns a sweep keys per slice, so cases solved apart concatenate. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out; `dual` and `expression` still say why |
 
 **Nothing has to be released.** `primal` and the `to_*` readers stay valid for
 as long as the `Result` does. `close()` and the context-manager protocol hand a
