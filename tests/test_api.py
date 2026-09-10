@@ -448,7 +448,7 @@ def test_a_saved_solution_says_how_it_terminated(dispatch_solution, tmp_path):
     """
     out = dispatch_solution.save(tmp_path / 'solution')
     record = pl.read_parquet(out / 'objective.parquet')
-    assert record.columns == ['status', 'termination_condition', 'objective', 'has_primal', 'model'], (
+    assert record.columns == ['status', 'termination_condition', 'objective', 'has_primal', 'spec_digest'], (
         'the columns a sweep keys and folds, minus the key'
     )
     assert record.height == 1, 'one solve, one row'
@@ -457,7 +457,7 @@ def test_a_saved_solution_says_how_it_terminated(dispatch_solution, tmp_path):
         'termination_condition': dispatch_solution.termination_condition,
         'objective': dispatch_solution.objective,
         'has_primal': dispatch_solution.has_primal,
-        'model': dispatch_solution.model,
+        'spec_digest': dispatch_solution.spec_digest,
     }, 'the row carries what the result itself reports, not a second reading of the solve'
 
 

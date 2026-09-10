@@ -392,10 +392,10 @@ class Result:
     #: Why there are no duals, when a solve that left values still has none.
     #: ``None`` whenever :attr:`_duals` holds them.
     _no_duals: str | None = None
-    #: Which model this answered, as :func:`~lpspec.relational.parquet.digest_of`
+    #: Which spec this answered, as :func:`~lpspec.relational.parquet.digest_of`
     #: names it. Attached by the model that solved, so a solve run off a
     #: lowered program — which has no document — leaves it ``None``.
-    _model: str | None = None
+    _spec_digest: str | None = None
 
     @property
     def status(self) -> str:
@@ -427,14 +427,15 @@ class Result:
         return self._objective
 
     @property
-    def model(self) -> str | None:
-        """Which model this answered — a digest of the file, not its name.
+    def spec_digest(self) -> str | None:
+        """Which spec this answered — a digest of the file, not its name.
 
         Two answers carrying one digest answered the same document, so a table
-        of saved cases says whether it is comparing like with like. ``None``
+        of saved cases says whether it is comparing like with like. The *data*
+        may differ entirely: two scenarios of one spec share this. ``None``
         where the solve ran off a lowered program, which has no document.
         """
-        return self._model
+        return self._spec_digest
 
     @property
     def kept(self) -> Keep:
@@ -656,7 +657,7 @@ class Result:
 
         primals = self._unclosed('the solution')
         out = Path(directory)
-        record = Record(self.status, self.termination_condition, self.objective, self.has_primal, self._model)
+        record = Record(self.status, self.termination_condition, self.objective, self.has_primal, self._spec_digest)
         write_whole(pl.DataFrame([record._asdict()]), out / RECORD_FILE)
         if not self._status.is_readable:
             return out

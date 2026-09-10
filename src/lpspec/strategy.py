@@ -656,9 +656,9 @@ class Runs:
     """
 
     key_name: str
-    #: ``(key, status, termination_condition, objective, has_primal, model)``,
+    #: ``(key, status, termination_condition, objective, has_primal, spec_digest)``,
     #: in slice order — how every slice terminated, whether or not it produced
-    #: an answer, ``has_primal`` saying which of the two it was and ``model``
+    #: an answer, ``has_primal`` saying which of the two it was and ``spec_digest``
     #: which document every slice answered.
     objective: pl.DataFrame
     #: ``(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)``,
@@ -1386,7 +1386,7 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
         termination_condition=result.termination_condition,
         objective=result.objective if result.has_primal else float('nan'),
         has_primal=result.has_primal,
-        model=result.model,
+        spec_digest=result.spec_digest,
     )
     if not result.has_primal:
         return _Answer(meta, cost, {}, {}, {}, None, {})

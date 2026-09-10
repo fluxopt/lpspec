@@ -76,9 +76,9 @@ class SolveArtifact:
     answer: Result | None = None
 
     def __post_init__(self) -> None:
-        """Load *spec*, and refuse a lowered program or an answer to a different model."""
+        """Load *spec*, and refuse a lowered program or an answer to a different spec."""
         _load_the_spec(self)
-        _check_the_pairing(self.spec, () if self.answer is None else (self.answer.model,))
+        _check_the_pairing(self.spec, () if self.answer is None else (self.answer.spec_digest,))
 
     def save(self, out: str | Path) -> Path:
         """Write the model, its data and its answer as one zip file.
@@ -149,7 +149,7 @@ class SweepArtifact:
                 'archive one SolveArtifact each.'
             )
         _load_the_spec(self)
-        _check_the_pairing(self.spec, () if self.answer is None else self.answer.objective['model'].to_list())
+        _check_the_pairing(self.spec, () if self.answer is None else self.answer.objective['spec_digest'].to_list())
 
     def save(self, out: str | Path) -> Path:
         """Write the model, its data, its axis and its answer as one zip file.
@@ -192,7 +192,7 @@ class SweepArtifact:
 
 
 def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
-    """Refuse an answer that came back from a different model than *spec*.
+    """Refuse an answer that came back from a different spec than this one.
 
     The one thing an artifact asserts that its three fields do not: that they
     belong together. Without it a mispaired triple archives cleanly and the
@@ -203,8 +203,8 @@ def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
     mine = digest_of(spec.to_yaml())
     if others := sorted({other for other in answered if other is not None and other != mine}):
         raise LpspecError(
-            f'this answer came back from a different model: it carries {others} and the spec given here is '
-            f'{mine}. An artifact is what was asked and what came back, so a mispaired one would re-solve '
+            f'this answer came back from a different spec: it carries {others} and the one given here digests '
+            f'to {mine}. An artifact is what was asked and what came back, so a mispaired one would re-solve '
             f'to an answer other than the one it holds. Pass the spec that was solved.'
         )
 

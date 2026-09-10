@@ -257,7 +257,7 @@ def test_a_scenario_sweep_solves_each_slice_and_keys_the_answers(sweep):
         'termination_condition',
         'objective',
         'has_primal',
-        'model',
+        'spec_digest',
     ], 'the record, keyed'
     assert set(runs.primal('p').columns) == {'scenario', 'snapshot', 'generator', 'value'}
     assert runs.primal('p').height == 3 * 4 * 2

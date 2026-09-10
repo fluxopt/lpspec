@@ -234,7 +234,7 @@ class Model:
                 :data:`~lpspec.relational.result.KEEPS`.
         """
         answered = self._engine.solve(solver_name, solver_options=solver_options, keep=keep)
-        return replace(answered, _model=self._digest)
+        return replace(answered, _spec_digest=self._digest)
 
     def write(self, path: str | Path) -> None:
         """Stream the built model to *path*, in the format its suffix names.
@@ -469,7 +469,7 @@ def load_result(directory: str | Path) -> Result:
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
     status = SolveStatus(record.termination_condition, has_primal=record.has_primal)
     if not status.is_readable:
-        return Result(status, record.objective, {}, {}, {}, 'nothing', _model=record.model)
+        return Result(status, record.objective, {}, {}, {}, 'nothing', _spec_digest=record.spec_digest)
 
     no_duals, no_expressions = read_reasons(out)
     expressions: dict[str, Callable[[], pl.DataFrame]] = {
@@ -485,5 +485,5 @@ def load_result(directory: str | Path) -> Result:
         'nothing',
         expressions,
         no_duals,
-        record.model,
+        record.spec_digest,
     )

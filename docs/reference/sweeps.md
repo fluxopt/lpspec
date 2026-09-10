@@ -12,7 +12,7 @@ fold.
 import lpspec as lps
 
 runs = lps.solve_over('spec.yaml', sources, lps.EachCoordinate('scenario'))
-runs.objective  # (scenario, status, termination_condition, objective, has_primal, model)
+runs.objective  # (scenario, status, termination_condition, objective, has_primal, spec_digest)
 runs.primal('p')  # (scenario, snapshot, generator, value)
 ```
 

@@ -32,20 +32,22 @@ KINDS = ('primal', 'dual', 'expression')
 LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expression'}
 
 
-def digest_of(model: str) -> str:
-    """A short, stable name for a model file — what two answers must share to be comparable.
+def digest_of(yaml: str) -> str:
+    """A short, stable name for a spec — what two answers must share to be comparable.
 
     Over the YAML a ``Spec`` round-trips to, which is exactly what an archive
     writes as ``model.yaml``: two answers carrying one digest answered the
-    same document, byte for byte. Sixteen hex characters, because this is read
-    by a person scanning a comparison table beside four other columns and
-    sixty-four would push the numbers off the line.
+    same document, byte for byte. Not the same *model* — that is the document
+    with its data, and two scenarios of one spec share this and share nothing
+    else. Sixteen hex characters, because this is read by a person scanning a
+    comparison table beside four other columns and sixty-four would push the
+    numbers off the line.
     """
-    return hashlib.sha256(model.encode()).hexdigest()[:16]
+    return hashlib.sha256(yaml.encode()).hexdigest()[:16]
 
 
 class Record(NamedTuple):
-    """How a solve terminated, what it reached, and which model it answered.
+    """How a solve terminated, what it reached, and which spec it answered.
 
     One row per solve, and the same columns whoever wrote them: a result
     writes one, a sweep one per slice keyed by its own key. That is what lets
@@ -61,11 +63,11 @@ class Record(NamedTuple):
     #: say: a run stopped at a limit before any incumbent is ``ok`` with
     #: nothing to read.
     has_primal: bool
-    #: :func:`digest_of` the model this answered, or ``None`` where the solve
+    #: :func:`digest_of` the spec this answered, or ``None`` where the solve
     #: was run off a lowered program and there was no document to digest.
     #: Carried so that answers written apart can be *told* to be comparable:
-    #: one distinct value across a concatenated table means one model.
-    model: str | None
+    #: one distinct value across a concatenated table means one spec.
+    spec_digest: str | None
 
 
 #: The two files that sit beside the frames, named here because a result and a

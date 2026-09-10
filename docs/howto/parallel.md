@@ -49,7 +49,7 @@ read here and shipped.
 `runs` reads as it does for a serial sweep, one column wider:
 
 ```python
-runs.objective  # (scenario, status, termination_condition, objective, has_primal, model)
+runs.objective  # (scenario, status, termination_condition, objective, has_primal, spec_digest)
 runs.primal('p')  # (scenario, snapshot, generator, value)
 runs.diagnostics  # one row per slice; every slice loaded its own solver
 ```

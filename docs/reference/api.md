@@ -238,7 +238,7 @@ coefficients are the transpose of `row`, which nothing exposes.
 
 ```python
 result.status, result.termination_condition, result.objective
-result.model  # a digest of the model file this answered — None off a lowered Program
+result.spec_digest  # a digest of the spec this answered — None off a lowered Program
 result.is_ok  # rolled-up verdict: not an error, abort or refusal
 result.has_primal  # narrower: are there values to read
 result.kept  # how much of the session this solve kept: 'nothing', 'solver' or 'progress'
@@ -274,7 +274,7 @@ xarray, from the `[linopy]` extra.
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
 | **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `save` |
 | **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default. One kind per call |
-| **`save` writes the whole answer** | `objective.parquet` says how the solve terminated — `status`, `termination_condition`, `objective`, `has_primal`, `model` — in the columns a sweep keys per slice, so cases solved apart concatenate. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `activity/<name>.parquet` and `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out, and `reasons.parquet` says why |
+| **`save` writes the whole answer** | `objective.parquet` says how the solve terminated — `status`, `termination_condition`, `objective`, `has_primal`, `spec_digest` — in the columns a sweep keys per slice, so cases solved apart concatenate. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `activity/<name>.parquet` and `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out, and `reasons.parquet` says why |
 | **`load_result` reads it back whole** | every reader answers what it answered, and an absence raises the sentence the solve gave. Two session facts do not survive: `kept` reads `nothing`, and a refusal carries the termination condition rather than the solver's verbatim wording. The frames are read lazily, so the directory has to outlive the result |
 
 **Nothing has to be released.** `primal` and the `to_*` readers stay valid for
@@ -416,7 +416,7 @@ wrote, and nothing is extracted.
 | Rule | |
 |---|---|
 | **the spec is loaded on the way in** | a path or a mapping becomes a `Spec` in the constructor, so `artifact.spec` is one shape. A lowered `Program` is refused: it has no file to write |
-| **`model` says whether a comparison compares like with like** | a digest of the model file every answer carries, written into the record and checked when an artifact is built. Concatenate the records of cases solved apart and one distinct `model` is the claim that they answered the same document; an answer paired with a different spec is refused rather than archived. A solve run off a lowered `Program` has no document and carries `None` |
+| **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an artifact is built. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an answer paired with a different spec is refused rather than archived. A solve run off a lowered `Program` has no document and carries `None` |
 | **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. `SweepArtifact` requires it and `SolveArtifact` has no such field, so nothing has to police the pairing. `load_artifact` returns whichever the archive holds |
 | **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |
 | **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one `SolveArtifact` each |

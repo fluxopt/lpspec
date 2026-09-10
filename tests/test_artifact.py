@@ -275,7 +275,7 @@ def test_a_rolling_horizon_keeps_the_way_back_to_the_dimension_it_sliced(tmp_pat
     )
 
 
-def test_an_answer_to_a_different_model_is_refused(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
+def test_an_answer_to_a_different_spec_is_refused(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
     """The one thing an artifact asserts that its three fields do not: they belong together.
 
     Without it a mispaired triple archives cleanly, and the file re-solves to
@@ -284,7 +284,7 @@ def test_an_answer_to_a_different_model_is_refused(dispatch_yaml: Path, dispatch
     """
     other = override(raw_of(dispatch_yaml), **{'variables.p.bounds.upper': 1.0})
     with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
-        with pytest.raises(lps.LpspecError, match='came back from a different model'):
+        with pytest.raises(lps.LpspecError, match='came back from a different spec'):
             lps.SolveArtifact(other, dispatch_frame_inputs, solved)
         assert lps.SolveArtifact(dispatch_yaml, dispatch_frame_inputs, solved).answer is solved, (
             'the spec that was solved pairs, and nothing else is refused'
@@ -295,7 +295,7 @@ def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispat
     """Why the digest is written rather than only checked.
 
     Concatenating the records of cases solved apart gives a comparison table,
-    and one distinct `model` in it is the claim that the table compares like
+    and one distinct `spec_digest` in it is the claim that the table compares like
     with like. Nothing else on disk says so.
     """
     other = override(raw_of(dispatch_yaml), **{'variables.p.bounds.upper': 1000.0})
@@ -306,8 +306,8 @@ def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispat
         records.append(pl.read_parquet(out / 'objective.parquet').select(pl.lit(name).alias('case'), pl.all()))
 
     table = pl.concat(records)
-    assert table['model'].n_unique() == 2, 'two models, so the table is not comparing like with like'
-    assert lps.load_result(tmp_path / 'base').model == table.filter(pl.col('case') == 'base')['model'][0], (
+    assert table['spec_digest'].n_unique() == 2, 'two models, so the table is not comparing like with like'
+    assert lps.load_result(tmp_path / 'base').spec_digest == table.filter(pl.col('case') == 'base')['spec_digest'][0], (
         'and a loaded answer carries the digest its record holds'
     )
 
