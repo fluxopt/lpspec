@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.316](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.315...v0.0.1-alpha.316) (2026-09-10)
+
+
+### Documentation
+
+* the About pages keep each rule and drop the story behind it ([#1564](https://github.com/fluxopt/lpspec/issues/1564)) ([ec09ace](https://github.com/fluxopt/lpspec/commit/ec09ace8e5e00ec1d09b4a1bd854c2453e20b50f))
+
 ## [0.0.1-alpha.315](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.314...v0.0.1-alpha.315) (2026-09-09)
 
 
