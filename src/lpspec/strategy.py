@@ -440,8 +440,9 @@ class EachWindow:
         """The ``(key, sources)`` list this axis would run — what ``axis=`` takes hand-built.
 
         For building one window alone: ``lps.build(spec, axis.slices(sources)[37][1])``.
-        Solved as a list it keys by ``key_name=`` and stitches nothing —
-        ``original_index`` is the axis's own.
+        Solved as a list the slices key by ``key_name=`` and ``original_index``
+        is refused: a list carries no record of which coordinates each window
+        owns, so stitching stays this axis's own.
         """
         return list(self._slice(sources, self._key_name())[0])
 
@@ -609,6 +610,11 @@ class Runs:
     _no_duals: str | None = field(repr=False, default=None)
     _no_expressions: dict[str, str] = field(repr=False, default_factory=dict)
     _original: _OriginalIndex | None = field(repr=False, default=None)
+    #: Whether the axis was a hand-built list, which names no sliced dimension,
+    #: so ``original_index`` is refused rather than answered with the keyed
+    #: frame. Not the same fact as ``_original is None``, which
+    #: :class:`EachCoordinate` is too and where the keyed frame *is* the answer.
+    _hand_built: bool = field(repr=False, default=False)
     #: Where the frames are instead, for a sweep solved with ``to=``.
     _spill: _Spill | None = field(repr=False, default=None)
 
@@ -617,6 +623,7 @@ class Runs:
         cls,
         key_name: str,
         original: _OriginalIndex | None,
+        hand_built: bool,
         answered: Generator[tuple[Any, _Answer], None, None],
         spill: _Spill | None,
     ) -> Runs:
@@ -633,6 +640,8 @@ class Runs:
             key_name: What to call the column holding each slice's key.
             original: The way back to the sliced dimension, or ``None`` where
                 the axis re-indexed nothing.
+            hand_built: Whether the axis was a list rather than a class, which
+                names no dimension to read the keys back over.
             answered: ``(key, answer)`` per slice, in slice order.
             spill: Where the frames went, or ``None`` where they are held.
         """
@@ -667,6 +676,7 @@ class Runs:
             _no_duals=no_duals,
             _no_expressions=no_expressions,
             _original=original,
+            _hand_built=hand_built,
             _spill=spill,
         )
 
@@ -739,7 +749,9 @@ class Runs:
                 over the slice key.
 
         Raises:
-            LpspecError: No slice of the sweep produced *name*.
+            LpspecError: No slice of the sweep produced *name*, or
+                ``original_index`` on a sweep whose axis was hand-built and so
+                named no dimension to read the keys back over.
         """
         return self._reindexed(self._read(self._primals, 'variable', name), original_index=original_index)
 
@@ -784,12 +796,27 @@ class Runs:
     def _reindexed(self, frame: _Frame, *, original_index: bool) -> _Frame:
         """*frame* over the dimension the axis sliced, rather than over its slices.
 
-        Every axis answers it: :class:`EachCoordinate` and a hand-built axis
-        re-indexed nothing — their key column already *is* a coordinate of the
-        answer — so there the frame comes back unchanged, a satisfied request
-        rather than an ignored one.
+        Three answers, and the axis decides which. :class:`EachWindow` carries
+        the way back. :class:`EachCoordinate` re-indexed nothing and its key
+        column already *is* a coordinate of the answer, so the frame comes back
+        unchanged — a satisfied request rather than an ignored one. A hand-built
+        list says neither, and there the keyed frame answers a different
+        question than the one asked, so it is refused.
+
+        Raises:
+            LpspecError: The sweep ran a hand-built axis, which named no
+                dimension to read its keys back over.
         """
-        if not original_index or self._original is None:
+        if not original_index:
+            return frame
+        if self._hand_built:
+            raise LpspecError(
+                f'a hand-built axis does not say what its keys are coordinates of, so this sweep has no '
+                f'dimension to read {self.key_name!r} back over. Read it keyed, which is what its slices '
+                f'were solved over, or slice with EachWindow — it keys by where each window started, records '
+                f'which coordinates each one owns, and stitches.'
+            )
+        if self._original is None:
             return frame
         return self._original.restore(frame, self.key_name)
 
@@ -1015,8 +1042,9 @@ def solve_over(
         _check_the_carry(plan, axis, sources)
         axis._check_the_program(program, sources)
         sliced, original = axis._slice(sources, key_name)
+        hand_built = False
     else:
-        sliced, original = list(axis), None
+        sliced, original, hand_built = list(axis), None, True
         _check_the_carry(plan, axis, sliced[0][1] if sliced else {})
     slices = [_Slice(*entry) for entry in sliced]
     if not slices:
@@ -1028,7 +1056,7 @@ def solve_over(
         if executor is None
         else _pooled(executor, workers_share_fs, program, slices, solving, spill)
     )
-    return Runs._folded(key_name, original, answered, spill)
+    return Runs._folded(key_name, original, hand_built, answered, spill)
 
 
 def _check_the_carry(
