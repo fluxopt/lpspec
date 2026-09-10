@@ -221,29 +221,102 @@ def test_an_archive_of_the_question_alone_comes_back_with_no_answer(
     assert not (tmp_path / 'out' / 'answer').exists(), 'and no answer/ was written to extract'
 
 
-def test_a_sweep_is_refused_by_name(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
-    """A sweep's sources are not this model's sources, and the refusal says where to put one.
+def test_a_scenario_sweep_is_an_artifact_and_runs_again(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The axis is what makes a sweep's sources legible, so it travels with them.
 
-    `EachCoordinate` slices on a column the spec does not declare, so the
-    whole sources carry more than one row per coordinate and the door that
-    checks one solve's data refuses them. `Runs.save` is where a sweep goes.
+    They carry the column it slices on, which the model does not declare, and
+    the archive holds them **whole** — one copy, not one per slice.
     """
-    scenarios = ['low', 'high']
-    load = pl.concat(
+    axis = lps.EachCoordinate('scenario')
+    sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
+    runs = lps.solve_over(dispatch_yaml, sources, axis)
+
+    archive = lps.Artifact(dispatch_yaml, sources, runs, axis).save(tmp_path / 'study.zip')
+    study = lps.load_artifact(archive, tmp_path / 'study')
+
+    assert study.axis == axis, 'the axis comes back as the value it went in as'
+    assert study.answer is not None and study.answer.objective.equals(runs.objective)
+    assert pl.read_parquet(study.sources['load']).equals(sources['load']), (
+        'the sliced source is archived whole, the column the axis cuts on included'
+    )
+    again = lps.solve_over(study.spec, study.sources, study.axis)
+    assert again.objective['objective'].to_list() == pytest.approx(runs.objective['objective'].to_list()), (
+        'the archive re-runs to the sweep it recorded, slice for slice'
+    )
+
+
+def test_a_rolling_horizon_keeps_the_way_back_to_the_dimension_it_sliced(tmp_path: Path) -> None:
+    """`original_index` is the one thing a windowed sweep cannot rebuild from its frames.
+
+    The dimension a window sliced and the coordinates each one owns go in the
+    manifest beside them, so a stitched read off the archive is the stitched
+    read off the sweep.
+    """
+    from tests.test_strategy import WINDOW, horizon_sources
+
+    axis = lps.EachWindow('snapshot', steps=4, lookahead=2, into='t')
+    sources = horizon_sources(12)
+    runs = lps.solve_over(WINDOW, sources, axis, carry={'soc_initial': 'soc'})
+    stitched = runs.primal('soc', original_index=True)
+
+    archive = lps.Artifact(WINDOW, sources, runs, axis).save(tmp_path / 'roll.zip')
+    loaded = lps.load_artifact(archive, tmp_path / 'roll')
+
+    assert loaded.axis == axis
+    assert loaded.answer is not None
+    assert loaded.answer.scan('soc', original_index=True).collect().equals(stitched), (
+        'the lookahead rows are dropped on the way out of the archive as they were in the process'
+    )
+
+
+@pytest.mark.parametrize(
+    ('artifact', 'says'),
+    [
+        pytest.param(
+            lambda spec, sources, runs, axis: (spec, sources, runs, None),
+            'Pass the axis solve_over was given',
+            id='sweep-without-axis',
+        ),
+        pytest.param(
+            lambda spec, sources, runs, axis: (spec, sources, None, [('a', sources)]),
+            'archive one artifact each',
+            id='hand-built-axis',
+        ),
+    ],
+)
+def test_the_axis_is_present_exactly_when_the_sources_are_sliced(
+    artifact, says: str, dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """An answer and an axis that disagree about whether the sources were cut is refused."""
+    axis = lps.EachCoordinate('scenario')
+    sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
+    runs = lps.solve_over(dispatch_yaml, sources, axis)
+    with pytest.raises(lps.LpspecError, match=says):
+        lps.Artifact(*artifact(dispatch_yaml, sources, runs, axis))
+
+
+def test_an_axis_beside_one_solves_answer_is_refused(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The other half of the same invariant: this answer saw every slice at once."""
+    with (
+        lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved,
+        pytest.raises(lps.LpspecError, match='Drop the axis'),
+    ):
+        lps.Artifact(dispatch_yaml, dispatch_frame_inputs, solved, lps.EachCoordinate('scenario'))
+
+
+def _by_scenario(names: list[str]) -> pl.DataFrame:
+    return pl.concat(
         [
             pl.DataFrame({'snapshot': range(DISPATCH_SNAPSHOTS), 'value': _dispatch_load()}).with_columns(
                 pl.lit(name).alias('scenario')
             )
-            for name in scenarios
+            for name in names
         ]
     )
-    sources = {**dispatch_frame_inputs, 'load': load}
-    runs = lps.solve_over(dispatch_yaml, sources, lps.EachCoordinate('scenario'))
-    with pytest.raises(lps.LpspecError, match=r'runs\.save'):
-        lps.Artifact(dispatch_yaml, sources, runs)  # pyrefly: ignore[bad-argument-type]  — what the test asserts
-
-    out = runs.save(tmp_path / 'sweep')
-    assert lps.load_runs(out).objective.equals(runs.objective), 'a sweep round-trips on its own'
 
 
 def test_a_lowered_program_is_refused_by_name_too(dispatch_yaml: Path, dispatch_frame_inputs) -> None:

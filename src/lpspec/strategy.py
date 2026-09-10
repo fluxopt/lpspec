@@ -1546,6 +1546,18 @@ def _decode(encoded: Mapping[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def carries(sources: Mapping[str, Source], dim: str) -> dict[str, pl.LazyFrame]:
+    """The sources that carry a column called *dim*, by name.
+
+    Derived rather than declared, and the one home for that derivation: a
+    source carrying the slice key that is *not* filtered produces a
+    duplicate-coordinate error at attach time, so a sweep and an archive have
+    to agree about which they are.
+    """
+    tables = {name: table for name, obj in sources.items() if (table := as_frame(obj)) is not None}
+    return {name: table for name, table in tables.items() if dim in table.collect_schema().names()}
+
+
 def _coordinates(sources: Mapping[str, Source], dim: str, verb: str) -> tuple[dict[str, pl.LazyFrame], list[Label]]:
     """The sources a slice has to filter, by name, and the ordered coordinates to slice.
 
@@ -1565,8 +1577,7 @@ def _coordinates(sources: Mapping[str, Source], dim: str, verb: str) -> tuple[di
             reads as zero — which is how a model masks, and so is reported
             rather than refused, the way the engine reports sparsity.
     """
-    tables = {name: table for name, obj in sources.items() if (table := as_frame(obj)) is not None}
-    carrying = {name: table for name, table in tables.items() if dim in table.collect_schema().names()}
+    carrying = carries(sources, dim)
     if not carrying:
         raise DataError(
             f"no source carries a '{dim}' column, so there is nothing to {verb} over. "

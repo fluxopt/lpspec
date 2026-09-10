@@ -30,7 +30,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
 | `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
-| `lps.Artifact(spec, sources, answer=None)` | the model, its data and its answer as one zip: [Archiving a model](#archiving-a-model) |
+| `lps.Artifact(spec, sources, answer=None, axis=None)` | the model, its data and its answer as one zip: [Archiving a model](#archiving-a-model) |
 | `lps.load_artifact(path, into)` | an archive `artifact.save(out)` wrote, back as an `Artifact` |
 | `lps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
 | `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(to=)` wrote, back as a `Runs` |
@@ -379,13 +379,27 @@ case.answer.primal('p')  # what came back
 lps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
-**An `Artifact` is the model, its data and its answer**, and `save` writes the
-three as one zip: `model.yaml`, `sources/<key>.parquet` for every key the file
-declares, and `answer/` holding what `result.save` writes. The answer is
-optional — an artifact of the question alone is the model and its data.
+**An `Artifact` is the model, its data and its answer**, and `save` writes them
+as one zip: `model.yaml`, `sources/<key>.parquet` for every key the file
+declares, `answer/` holding what `result.save` or `runs.save` writes, and
+`axis.json` where the sources are sliced. The answer is optional — an artifact
+of the question alone is the model and its data.
 
-The sources go in through the same door `build` reads them, so a model `build`
-refuses is refused here and nothing is written. A parquet path is copied as its
+**A sweep is an artifact too, and the axis is what makes it one:**
+
+```python
+axis = lps.EachCoordinate('scenario')
+runs = lps.solve_over('spec.yaml', sources, axis)
+lps.Artifact('spec.yaml', sources, runs, axis).save('study.zip')
+
+study = lps.load_artifact('study.zip', 'study/')
+study.answer.primal('p')  # keyed by scenario
+lps.solve_over(study.spec, study.sources, study.axis)  # the sweep, re-run
+```
+
+The sources go in through the same door that reads them, so what is refused
+there is refused here and nothing is written: `build`'s for one solve, and for
+a sweep the door `solve_over` uses, which is one slice of them. A parquet path is copied as its
 own bytes; a table, a bare label range, a `{label: value}` map or a single
 number is written as the tidy parquet table it stands for. Parquet keeps the
 dtypes [the contract](data.md) checks. Members are stored uncompressed.
@@ -400,8 +414,11 @@ wrote, and nothing is extracted.
 | Rule | |
 |---|---|
 | **the spec is loaded on the way in** | a path or a mapping becomes a `Spec` in the constructor, so `artifact.spec` is one shape. A lowered `Program` is refused: it has no file to write |
-| **a sweep is not an artifact** | `EachCoordinate('scenario')` slices on a column the model does not declare, so a sweep's whole sources carry more than one row per coordinate and the door that checks one solve's data refuses them. A sweep is saved on its own with `runs.save(directory)` and read back with `lps.load_runs` |
-| **an axis is code, not data** | nothing in an archive says how a sweep was cut. Re-running one supplies the axis again: `solve_over(artifact.spec, artifact.sources, axis)` |
+| **the axis is present exactly when the sources are sliced** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. A `Runs` answer without an axis is refused, and so is an axis beside one solve's answer. An axis with no answer is an archived sweep question |
+| **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |
+| **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one artifact each |
+| **the model's own fitness for slicing stays `solve_over`'s** | whether a window can carry this model's coupling and reach is asked when the sweep is run, not when it is archived |
+| **a sweep's answer reads back spilled** | its frames stay in the extracted directory and `runs.scan(name)` reads them, which is what `solve_over(to=)` already produces. `original_index` works: the dimension a window sliced and the coordinates each owns are in the manifest |
 
 ## Diagnostics
 
