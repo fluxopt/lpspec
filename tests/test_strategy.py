@@ -388,6 +388,28 @@ def test_a_sweep_that_solved_nothing_blames_the_solve():
     assert 'infeasible' in str(raised.value), 'the message names what the slices actually did'
 
 
+@pytest.mark.xfail(reason='the fold writes nan, which no aggregate skips', strict=True)
+def test_a_slice_that_reached_no_objective_does_not_poison_the_sweep():
+    """`objective` is a table, and in a table an absent number is null.
+
+    nan is a *number* to every aggregate that meets it, so one infeasible
+    slice makes the mean over the sweep nan — here, and in any SQL engine
+    reading the files a spill wrote. `has_primal` says which slices reached
+    one, which is what a sentinel would be there to say.
+    """
+    sources = scenario_sources()
+    sources['load'] = sources['load'].with_columns(
+        pl.when(pl.col('scenario') == 'high').then(pl.col('value') + 1_000).otherwise(pl.col('value'))
+    )
+    runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
+
+    assert runs.objective['objective'].null_count() == 1, 'the one slice that came back infeasible'
+    assert runs.objective['objective'].is_nan().sum() == 0, 'written as no value rather than as nan'
+    assert runs.objective['objective'].mean() == pytest.approx(
+        runs.objective.filter('has_primal')['objective'].mean()
+    ), 'so the mean over the sweep is the mean over the slices that solved'
+
+
 # ---------------------------------------------------------------------------
 # EachWindow — the coupled case
 # ---------------------------------------------------------------------------
@@ -1347,6 +1369,27 @@ def test_save_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(pri
     assert reopened.scan('soc').collect().equals(priced.primal('soc'))
     assert reopened.scan('balance', 'dual').collect().equals(priced.dual('balance'))
     assert reopened.scan('spend', 'expression').collect().equals(priced.expression('spend'))
+
+
+@pytest.mark.xfail(reason='the frames key through pl.lit, which reads an int as Int32', strict=True)
+def test_a_sweep_keys_every_file_it_writes_with_one_type(priced, tmp_path):
+    """One key, one dtype, or the files a sweep writes are not one table.
+
+    The record and the manifest infer their key column from a Python value
+    the way every other frame here does; the kept frames prepend theirs with
+    `pl.lit`, which reads an int as `Int32` where that inference gives
+    `Int64`. Nothing in the process notices — polars joins across the two and
+    duckdb casts — but a concatenation of them is refused, and so is the
+    second load into any typed table.
+    """
+    out = priced.save(tmp_path / 'sweep')
+    keyed = {
+        str(file.relative_to(out)): pl.read_parquet_schema(file)[priced.key_name]
+        for file in sorted(out.rglob('*.parquet'))
+        if priced.key_name in pl.read_parquet_schema(file)
+    }
+    assert len(set(keyed.values())) == 1, f'one type for {priced.key_name!r}, and these files disagree: {keyed}'
+    assert set(keyed.values()) == {pl.Int64}, 'the type a Python int infers to everywhere else here'
 
 
 def test_a_saved_result_carries_the_row_a_sweep_keys(sweep, tmp_path):

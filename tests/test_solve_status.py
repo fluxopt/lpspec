@@ -186,6 +186,28 @@ def test_a_solve_that_left_no_values_writes_the_record_and_no_frames(tmp_path):
     assert record['objective'].is_nan().to_list() == [True], 'nan, as the reader reports it'
 
 
+@pytest.mark.xfail(reason='the record writes nan, which no aggregate skips', strict=True)
+def test_a_case_that_reached_no_objective_does_not_poison_the_others(tmp_path):
+    """A directory per case is a table, and in a table an absent number is null.
+
+    nan is a *number* to every aggregate that meets it: one infeasible case
+    among a hundred turns the mean of the hundred into nan, in polars and in
+    any SQL engine reading the same files. `has_primal` already says which
+    rows reached an objective, so the column has nothing to spend a sentinel
+    on.
+    """
+    for name, case in (('solved', 'LP'), ('unsolved', 'INFEASIBLE')):
+        with lps.solve(*CASES[case]) as solution:
+            solution.save(tmp_path / name)
+
+    table = pl.read_parquet(tmp_path / '*' / 'objective.parquet')
+    assert table['objective'].null_count() == 1, 'one of the two cases reached no objective'
+    assert table['objective'].is_nan().sum() == 0, 'and it is written as no value rather than as nan'
+    assert table['objective'].mean() == table.filter('has_primal')['objective'].item(), (
+        'so the mean over the cases is the mean over the ones that solved'
+    )
+
+
 # ---------------------------------------------------------------------------
 # solver options, and the incumbent question they make reachable
 # ---------------------------------------------------------------------------
