@@ -84,7 +84,7 @@ lps.write('dispatch.yaml', sources, 'dispatch.lp')
 | [Change a model](interactive.ipynb) | the next lesson: new numbers, more rows, new math |
 | [Preparing the data](howto/data.md) | from files to the tables above |
 | [The verbs](reference/api.md) · [The data contract](reference/data.md) | what every call takes, returns and refuses |
-| [Language reference](https://math-spec.readthedocs.io/en/latest/reference/language/) · [the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/) | what a file may contain, and where it stops |
+| [Language reference](https://math-spec.readthedocs.io/en/latest/reference/language/) · [the limits of the language](https://math-spec.readthedocs.io/en/latest/about/limits/) | what a file may contain, and where it stops |
 | [Debug a wrong answer](howto/debug.md) | when it solves and the number is wrong, or it does not solve |
 | [Examples](examples/index.md) | every model in the repository |
 | [Roadmap](about/roadmap.md) | what is refused on purpose |

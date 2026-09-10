@@ -33,44 +33,52 @@ A cap on what each technology may generate per calendar month — an aggregate o
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` with $\mathrm{month\_of}: \mathcal{T} \to \mathcal{M}$ — dispatch periods, each falling in one month |
-| $\mathcal{M}$ | index $m$ — `month` — the grouping the budget is stated over |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{month\_of}: \mathcal{T} \to \mathcal{M}`$ — dispatch periods, each falling in one month |
+| $`\mathcal{M}`$ | index $`m`$ — `month` — the grouping the budget is stated over |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\bar p$ | `p_max` over $\mathcal{G}$ — installed capacity |
-| $c$ | `cost` over $\mathcal{G}$ — marginal cost |
-| $\ell$ | `load` over $\mathcal{T}$ — demand to be met |
-| $\bar E$ | `monthly_cap` over $\mathcal{M} \times \mathcal{G}$ — the budget the group sum is checked against, one per month and technology |
+| $`\bar p`$ | `p_max` over $`\mathcal{G}`$ — installed capacity |
+| $`c`$ | `cost` over $`\mathcal{G}`$ — marginal cost |
+| $`\ell`$ | `load` over $`\mathcal{T}`$ — demand to be met |
+| $`\bar E`$ | `monthly_cap` over $`\mathcal{M} \times \mathcal{G}`$ — the budget the group sum is checked against, one per month and technology |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot c_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot c_{g}
+```
 
 #### Subject to
 
 **`balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{t,g} = \ell_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{t,g} = \ell_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 **`monthly_budget`**
 
-$$\sum_{t \in \mathcal{T} \thinspace:\thinspace \mathrm{month\_of}(t) = m} p_{t,g} \le \bar E_{m,g} \qquad \forall\thinspace m \in \mathcal{M},\enspace g \in \mathcal{G}$$
+```math
+\sum_{t \in \mathcal{T} \,:\, \mathrm{month\_of}(t) = m} p_{t,g} \le \bar E_{m,g} \qquad \forall\, m \in \mathcal{M},\ g \in \mathcal{G}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \bar p_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \bar p_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->

@@ -166,7 +166,7 @@ one check that catches a shared misreading, the differential suite's
 [blind spot](../about/linopy.md#2-it-is-the-oracle): both
 [lanes](../reference/glossary.md#how-it-runs) agreeing on a meaning the
 modeller did not intend. This table is the evidence behind
-[the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/#two-tiers-and-the-ceiling).
+[the limits of the language](https://math-spec.readthedocs.io/en/latest/about/limits/#how-a-new-construct-enters).
 
 <!-- references:begin -->
 | port | optimum | `rtol` | duals | reference |

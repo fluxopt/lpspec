@@ -78,8 +78,8 @@ def _build_variables(ctx: EvaluationContext) -> None:
                 coords=coords,
                 name=name,
                 mask=as_linopy_mask(mask),
-                binary=vdef.variable_type == 'binary',
-                integer=vdef.variable_type == 'integer',
+                binary=vdef.domain == 'binary',
+                integer=vdef.domain == 'integer',
             )
 
 
@@ -347,7 +347,7 @@ def _dual(name: str, ctx: EvaluationContext) -> xr.DataArray:
         LpspecError: A variable declares integrality, so the duals are
             undefined; or the solver stored none.
     """
-    discrete = sorted(n for n, v in ctx.program.variables.items() if v.variable_type != 'continuous')
+    discrete = sorted(n for n, v in ctx.program.variables.items() if v.domain != 'continuous')
     if discrete:
         raise LpspecError(
             f'named expression reads dual({name}), and duals are undefined for a mixed-integer model: '

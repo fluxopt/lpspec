@@ -50,7 +50,7 @@ def _lookup_arrays(
     out: dict[str, dict[str, xr.DataArray]] = {}
     for dim, declared in program.dimensions.items():
         labels = master[dim]
-        for name in declared.maps:
+        for name in declared.targets:
             series = to_pandas(tidy[name].collect()).set_index(dim)[name].reindex(labels)
             out.setdefault(dim, {})[name] = xr.DataArray(series.to_numpy(), dims=[dim], coords={dim: labels}, name=name)
     return out

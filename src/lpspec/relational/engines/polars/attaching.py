@@ -62,17 +62,15 @@ def attach(program: program.Program, sources: Mapping[str, pl.LazyFrame]) -> Att
     carries the dimension is re-encoded against it.
     """
     dimensions = {d: _ordinal_frame(d, sources[d]).collect() for d in program.dimensions}
-    lookups = {name: sources[name].collect() for d in program.dimensions for name in program.dimension(d).maps}
+    lookups = {name: sources[name].collect() for d in program.dimensions for name in program.dimension(d).targets}
     parameters = {name: sources[name].collect() for name in program.parameters}
 
     enums = {d: pl.Enum(f['val']) for d, f in dimensions.items() if f.schema['val'] == pl.String}
     for d, enum in enums.items():
         dimensions[d] = dimensions[d].with_columns(pl.col('val').cast(enum))
     for d in program.dimensions:
-        targets = program.dimension(d).targets
-        for name in program.dimension(d).maps:
+        for name, target in program.dimension(d).targets.items():
             casts = [pl.col(d).cast(enums[d])] if d in enums else []
-            target = targets.get(name)
             casts += [pl.col(name).cast(enums[target])] if target in enums else []
             if casts:
                 lookups[name] = lookups[name].with_columns(casts)

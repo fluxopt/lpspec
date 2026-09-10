@@ -83,7 +83,7 @@ def test_the_convex_flag_gives_the_hull_and_stays_a_pure_lp(nonconvex_inputs):
     data = nonconvex_inputs
 
     program = to_program(schema_of(CONVEX_SPEC))
-    assert all(v.variable_type == 'continuous' for v in program.variables.values()), 'method: convex is a pure LP'
+    assert all(v.domain == 'continuous' for v in program.variables.values()), 'method: convex is a pure LP'
 
     on_curve = sum(curve(v, data['bp_x'], data['bp_y']) for v in data['load'])
     chord = sum(0.55 * v for v in data['load'])  # the (100, 55) chord from the origin
@@ -203,7 +203,7 @@ def test_the_sos2_method_states_the_restriction_instead_of_building_it():
         'cost_curve_link1',
         'balance',
     }, 'the two rows that pick and neighbour a segment are gone with the variable they restricted'
-    assert all(v.variable_type == 'continuous' for v in program.variables.values()), 'sos2 emits no binary of its own'
+    assert all(v.domain == 'continuous' for v in program.variables.values()), 'sos2 emits no binary of its own'
     assert [(s.variable, s.sos_type, s.over) for s in program.sos.values()] == [('cost_curve_lam', 2, 'bp')], (
         'one set, over the weights, of the declared type'
     )

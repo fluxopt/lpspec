@@ -19,16 +19,22 @@ dimensions:
   step:
     description: a block of demand that may be shed, each dearer than the last
     dtype: int
+  commitment_mode:
+    description: the ways a plant may be committed
+    dtype: str
+  fuel_use_mode:
+    description: the ways a plant's fuel use may be read
+    dtype: str
 
 lookups:
   commitment:
     description: whether a plant is committed unit by unit or dispatched freely
     over: plant
-    dtype: str
+    into: commitment_mode
   fuel_use:
     description: whether a plant's fuel use is read off the piecewise curve or a flat heat rate
     over: plant
-    dtype: str
+    into: fuel_use_mode
 
 parameters:
   unit_size:

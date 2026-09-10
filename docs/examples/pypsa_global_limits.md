@@ -31,89 +31,113 @@ PyPSA's global constraints: four limits over four different selected sets — th
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{C}$ | index $c$ — `carrier` — what a generator burns, and what a global limit selects on |
-| $\mathcal{E}$ | index $e$ — `generator` with $\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\enspace \mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}$ — generating units, each sitting on a bus and burning a carrier |
-| $\mathcal{L}$ | index $l$ — `link` with $\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}$ — controllable connections, each joining two buses |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{C}`$ | index $`c`$ — `carrier` — what a generator burns, and what a global limit selects on |
+| $`\mathcal{E}`$ | index $`e`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\ \mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}`$ — generating units, each sitting on a bus and burning a carrier |
+| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — controllable connections, each joining two buses |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
-| $\mathrm{p}^{\mathrm{max,pu}}$ | `p_max_pu` over $\mathcal{T} \times \mathcal{E}$ — share of built capacity a generator can produce in a snapshot |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{E}$ — cost of one unit of output |
-| $\mathrm{gen\_capital\_cost}$ | `gen_capital_cost` over $\mathcal{E}$ — annualised cost of a unit of generator capacity |
-| $\mathrm{link\_capital\_cost}$ | `link_capital_cost` over $\mathcal{L}$ — annualised cost of a unit of link capacity |
-| $\mathrm{link\_length}$ | `link_length` over $\mathcal{L}$ — how far a link reaches — what turns built capacity into a volume |
-| $\mathrm{energy\_cap}$ | `energy_cap` over $\mathcal{C}$ — energy a carrier may deliver over the whole horizon, for the carriers that have such a limit |
-| $\mathrm{bus\_capacity\_cap}$ | `bus_capacity_cap` over $\mathcal{B} \times \mathcal{C}$ — capacity of one carrier a bus may hold, for the pairs that cap it — PyPSA writes the carrier into a column name (`nom_max_wind`), so the pair is the limit's own key |
-| $\mathrm{volume\_cap}$ | `volume_cap` (scalar) — capacity times length the whole network may build |
-| $\mathrm{expansion\_cost\_cap}$ | `expansion_cost_cap` (scalar) — money the whole network may spend building links |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
+| $`\mathrm{p}^{\mathrm{max,pu}}`$ | `p_max_pu` over $`\mathcal{T} \times \mathcal{E}`$ — share of built capacity a generator can produce in a snapshot |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{E}`$ — cost of one unit of output |
+| $`\mathrm{gen\_capital\_cost}`$ | `gen_capital_cost` over $`\mathcal{E}`$ — annualised cost of a unit of generator capacity |
+| $`\mathrm{link\_capital\_cost}`$ | `link_capital_cost` over $`\mathcal{L}`$ — annualised cost of a unit of link capacity |
+| $`\mathrm{link\_length}`$ | `link_length` over $`\mathcal{L}`$ — how far a link reaches — what turns built capacity into a volume |
+| $`\mathrm{energy\_cap}`$ | `energy_cap` over $`\mathcal{C}`$ — energy a carrier may deliver over the whole horizon, for the carriers that have such a limit |
+| $`\mathrm{bus\_capacity\_cap}`$ | `bus_capacity_cap` over $`\mathcal{B} \times \mathcal{C}`$ — capacity of one carrier a bus may hold, for the pairs that cap it — PyPSA writes the carrier into a column name (`nom_max_wind`), so the pair is the limit's own key |
+| $`\mathrm{volume\_cap}`$ | `volume_cap` (scalar) — capacity times length the whole network may build |
+| $`\mathrm{expansion\_cost\_cap}`$ | `expansion_cost_cap` (scalar) — money the whole network may spend building links |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{E}$ — output of a generator in a snapshot |
-| $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{E}$ — capacity built at a generator |
-| $g$ | `g` over $\mathcal{T} \times \mathcal{L}$ — flow on a link, towards the bus it delivers at |
-| $\mathit{link\_p\_nom}$ | `link_p_nom` over $\mathcal{L}$ — capacity built on a link |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{E}`$ — output of a generator in a snapshot |
+| $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{E}`$ — capacity built at a generator |
+| $`g`$ | `g` over $`\mathcal{T} \times \mathcal{L}`$ — flow on a link, towards the bus it delivers at |
+| $`\mathit{link\_p\_nom}`$ | `link_p_nom` over $`\mathcal{L}`$ — capacity built on a link |
 
-Upright is what the model is given — a parameter such as $\mathrm{load}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{load}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace e \in \mathcal{E}} p_{t,e} \cdot \mathrm{marginal\_cost}_{e} + \sum_{e \in \mathcal{E}} p^{\mathrm{nom}}_{e} \cdot \mathrm{gen\_capital\_cost}_{e} + \sum_{l \in \mathcal{L}} \mathit{link\_p\_nom}_{l} \cdot \mathrm{link\_capital\_cost}_{l}$$
+```math
+\min \sum_{t \in \mathcal{T},\ e \in \mathcal{E}} p_{t,e} \cdot \mathrm{marginal\_cost}_{e} + \sum_{e \in \mathcal{E}} p^{\mathrm{nom}}_{e} \cdot \mathrm{gen\_capital\_cost}_{e} + \sum_{l \in \mathcal{L}} \mathit{link\_p\_nom}_{l} \cdot \mathrm{link\_capital\_cost}_{l}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$p_{t,e} \le p^{\mathrm{nom}}_{e} \cdot \mathrm{p}^{\mathrm{max,pu}}_{t,e} \qquad \forall\thinspace t \in \mathcal{T},\enspace e \in \mathcal{E}$$
+```math
+p_{t,e} \le p^{\mathrm{nom}}_{e} \cdot \mathrm{p}^{\mathrm{max,pu}}_{t,e} \qquad \forall\, t \in \mathcal{T},\ e \in \mathcal{E}
+```
 
 **`within_link_capacity`**
 
-$$g_{t,l} \le \mathit{link\_p\_nom}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+g_{t,l} \le \mathit{link\_p\_nom}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 **`nodal_balance`**
 
-$$\sum_{e \in \mathcal{E} \thinspace:\thinspace \mathrm{gen\_bus}(e) = b} p_{t,e} + \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{link\_to}(l) = b} g_{t,l} - \left( \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{link\_from}(l) = b} g_{t,l} \right) = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{e \in \mathcal{E} \,:\, \mathrm{gen\_bus}(e) = b} p_{t,e} + \sum_{l \in \mathcal{L} \,:\, \mathrm{link\_to}(l) = b} g_{t,l} - \left( \sum_{l \in \mathcal{L} \,:\, \mathrm{link\_from}(l) = b} g_{t,l} \right) = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 **`carrier_energy`**
 
-$$\sum_{t \in \mathcal{T}} \sum_{e \in \mathcal{E} \thinspace:\thinspace \mathrm{gen\_carrier}(e) = c} p_{t,e} \le \mathrm{energy\_cap}_{c} \qquad \forall\thinspace c \in \mathcal{C} \thinspace:\thinspace \mathrm{energy\_cap}_{c} \text{ is defined}$$
+```math
+\sum_{t \in \mathcal{T}} \sum_{e \in \mathcal{E} \,:\, \mathrm{gen\_carrier}(e) = c} p_{t,e} \le \mathrm{energy\_cap}_{c} \qquad \forall\, c \in \mathcal{C} \,:\, \mathrm{energy\_cap}_{c} \text{ is defined}
+```
 
 **`carrier_capacity_at_bus`**
 
-$$\sum_{e \in \mathcal{E} \thinspace:\thinspace \mathrm{gen\_bus}(e) = b \wedge \mathrm{gen\_carrier}(e) = c} p^{\mathrm{nom}}_{e} \le \mathrm{bus\_capacity\_cap}_{b,c} \qquad \forall\thinspace b \in \mathcal{B},\enspace c \in \mathcal{C} \thinspace:\thinspace \mathrm{bus\_capacity\_cap}_{b,c} \text{ is defined}$$
+```math
+\sum_{e \in \mathcal{E} \,:\, \mathrm{gen\_bus}(e) = b \wedge \mathrm{gen\_carrier}(e) = c} p^{\mathrm{nom}}_{e} \le \mathrm{bus\_capacity\_cap}_{b,c} \qquad \forall\, b \in \mathcal{B},\ c \in \mathcal{C} \,:\, \mathrm{bus\_capacity\_cap}_{b,c} \text{ is defined}
+```
 
 **`transmission_volume`**
 
-$$\sum_{l \in \mathcal{L}} \mathit{link\_p\_nom}_{l} \cdot \mathrm{link\_length}_{l} \le \mathrm{volume\_cap}$$
+```math
+\sum_{l \in \mathcal{L}} \mathit{link\_p\_nom}_{l} \cdot \mathrm{link\_length}_{l} \le \mathrm{volume\_cap}
+```
 
 **`transmission_cost`**
 
-$$\sum_{l \in \mathcal{L}} \mathit{link\_p\_nom}_{l} \cdot \mathrm{link\_capital\_cost}_{l} \le \mathrm{expansion\_cost\_cap}$$
+```math
+\sum_{l \in \mathcal{L}} \mathit{link\_p\_nom}_{l} \cdot \mathrm{link\_capital\_cost}_{l} \le \mathrm{expansion\_cost\_cap}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$p_{t,e} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace e \in \mathcal{E}$$
+```math
+p_{t,e} \ge 0 \qquad \forall\, t \in \mathcal{T},\ e \in \mathcal{E}
+```
 
 **`p_nom`**
 
-$$p^{\mathrm{nom}}_{e} \ge 0 \qquad \forall\thinspace e \in \mathcal{E}$$
+```math
+p^{\mathrm{nom}}_{e} \ge 0 \qquad \forall\, e \in \mathcal{E}
+```
 
 **`g`**
 
-$$g_{t,l} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+g_{t,l} \ge 0 \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 **`link_p_nom`**
 
-$$\mathit{link\_p\_nom}_{l} \ge 0 \qquad \forall\thinspace l \in \mathcal{L}$$
+```math
+\mathit{link\_p\_nom}_{l} \ge 0 \qquad \forall\, l \in \mathcal{L}
+```
 
 </details>
 <!-- math:end -->

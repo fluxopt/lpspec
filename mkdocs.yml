@@ -51,7 +51,7 @@ nav:
   - How-to guides:
       - Preparing the data: howto/data.md
       # The schema is the language's, so the editor recipe is documented with it.
-      - Editor completion and offline checking: https://math-spec.readthedocs.io/en/latest/installation/#editor-completion-and-offline-checking
+      - Editor completion and offline checking: https://math-spec.readthedocs.io/en/latest/howto/installation/#editor-completion-and-offline-checking
       - Running a sweep in parallel: howto/parallel.md
       - Debugging a wrong answer: howto/debug.md
   - Reference:
@@ -227,12 +227,23 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+        # A ```math fence is how GitHub takes block math verbatim, and is what
+        # math-spec's typesetter prints into every generated page here.
+        # Arithmatex reads `$$…$$`, so the fence hands it over — indented inside
+        # a tab or a list included, which is why this is superfences' job and
+        # not the hook's regex.
+        - name: math
+          class: arithmatex
+          format: !!python/object/apply:pymdownx.arithmatex.arithmatex_fenced_format { kwds: { which: generic } }
   - pymdownx.details
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+hooks:
+  - tools/mkdocs_hooks.py
 
 plugins:
   - search

@@ -175,7 +175,7 @@ lane builds a file.
 
 lpspec does not take array operations (`merge`, `reindex`, `stack`), the Python
 modeling API, or the solver layer. The first is data prep
-([the limits](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#what-the-language-will-not-say)).
+([the limits](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#what-the-language-will-not-express)).
 The second is [hard rule 5](architecture.md#hard-rules): the model is the file
 you review and diff. The third is
 [#106](https://github.com/fluxopt/lpspec/issues/106), where lpspec adopts

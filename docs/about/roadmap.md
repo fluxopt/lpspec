@@ -63,7 +63,7 @@ that streams.
 Everything else is scheduling.
 
 The specific refusals, each with its reason and its rewrite, are in
-[the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/#deliberate-non-primitives):
+[the ceiling](https://math-spec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives):
 data prep, arbitrary array ops, domain helpers, normalisation, in-plan
 conditionals, a Python modelling API. Parity with another tool is not by
 itself a reason to add anything.
