@@ -13,6 +13,7 @@ rule 2). What crosses into a lane is the node.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from math_spec import to_program
@@ -20,8 +21,6 @@ from math_spec import to_program
 from lpspec.errors import LanguageError, SchemaError
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from math_spec import Spec
     from math_spec.program import ExpressionNode
 
@@ -113,7 +112,17 @@ def _entries(added: Mapping[str, Any]) -> Mapping[str, Any]:
     ``objective:`` or ``dimensions:`` entry would want rows that the solve
     being read never had — so a fragment carrying one is refused here rather
     than lowered into a model the answer does not belong to.
+
+    The mapping is checked for before its keys are read, a ``str`` being
+    iterable: an expression handed here would otherwise be reported one
+    character at a time.
     """
+    if not isinstance(added, Mapping):
+        raise SchemaError(
+            f'a fragment to read expressions from is a mapping of sections, and this is a '
+            f"{type(added).__name__}. One expression is evaluate()'s argument, not a block of them; "
+            f"YAML text is yaml.safe_load()'s, and what that returns is what belongs here."
+        )
     if strays := sorted(set(added) - {_SECTION}):
         raise SchemaError(
             f'a fragment to read expressions from carries {strays}, and reading takes '

@@ -505,6 +505,20 @@ def test_a_fragment_that_would_build_rather_than_read_is_refused(report, added, 
         report.extend(added)
 
 
+@pytest.mark.parametrize(
+    'added',
+    [
+        pytest.param('sum(p, over=generator)', id='an-expression-string'),
+        pytest.param('expressions:\n  co2: sum(p, over=generator)', id='yaml-text'),
+        pytest.param(['sum(p, over=generator)'], id='a-list'),
+    ],
+)
+def test_anything_but_a_mapping_of_sections_is_refused_by_type(report, added):
+    """A str is iterable, so an expression handed here would be reported one character at a time."""
+    with pytest.raises(SchemaError, match='mapping of sections'):
+        report.extend(added)
+
+
 def test_a_name_already_added_is_refused_rather_than_replaced(report):
     with pytest.raises(LpspecError, match='already readable'):
         report.extend({'expressions': {'burn': 'sum(p)'}})
