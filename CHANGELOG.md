@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.319](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.318...v0.0.1-alpha.319) (2026-09-10)
+
+
+### Features
+
+* **data:** a lookup maps into a declared dimension rather than owning its values ([#1576](https://github.com/fluxopt/lpspec/issues/1576)) ([005b106](https://github.com/fluxopt/lpspec/commit/005b106d314b7763661b3e09bf3b7ec18966522a))
+
 ## [0.0.1-alpha.318](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.317...v0.0.1-alpha.318) (2026-09-10)
 
 
