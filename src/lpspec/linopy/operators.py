@@ -62,14 +62,18 @@ def operator_grouped_sum(
     """Sum *array* through declared lookups, producing dimensions *into*.
 
     YAML: ``sum(p, by=gen_bus)`` or ``sum(p, by=[gen_bus, gen_tech])``.
-    *mappings* are the lookups' values as one-dimensional arrays over the dim
-    being grouped; that dim is summed out and *into* holds the group labels,
-    one dim per lookup.
+    *mappings* are the lookups' values as arrays over the dim being grouped
+    and the dims they are conditioned ``per``; that dim is summed out, the
+    ``per`` dims are grouped on and so pass through, and *into* holds the
+    group labels, one dim per lookup.
 
-    A null lookup value says the label belongs to no group, so its terms
-    contribute nowhere. linopy refuses to group by NaN at all, so those members
-    are dropped before grouping — and with several lookups a member missing
-    *any* of them belongs to no group at all.
+    A null lookup value says the key belongs to no group, so its terms
+    contribute nowhere — and with several lookups a member missing *any* of
+    them belongs to no group at all. Those members are dropped before
+    grouping where the map is over one dim, since linopy's single-key path
+    refuses a NaN key; a conditioned map groups on several keys, a path that
+    drops a NaN key itself, so there the members are masked absent and
+    contribute nothing wherever they land.
 
     *labels* holds each target's declared index, and the result is reindexed
     onto them: a groupby yields only the labels some member actually points at,
@@ -79,42 +83,63 @@ def operator_grouped_sum(
     """
     mappings = _renamed(mappings, into)
     present = _present(mappings)
-    dim = str(mappings[0].dims[0])
+    over, per = _keys(mappings)
     if not bool(present.all()):
-        mask = present.to_numpy()
-        mappings = tuple(m.isel({dim: mask}) for m in mappings)
-        array = array.isel({dim: mask})
-    attached = array.assign_coords({target: (dim, m.to_numpy()) for target, m in zip(into, mappings, strict=True)})
-    summed = attached.groupby(list(into)).sum()
+        if per:
+            array = array.where(present)
+        else:
+            mask = present.to_numpy()
+            mappings = tuple(m.isel({over: mask}) for m in mappings)
+            array = array.isel({over: mask})
+    keys = (over, *per)
+    attached = array.assign_coords(
+        {target: (keys, m.transpose(*keys).to_numpy()) for target, m in zip(into, mappings, strict=True)}
+    )
+    summed = attached.groupby([*into, *per]).sum()
     return _reindexed(summed, into=into, labels=labels)
 
 
 def operator_at(array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...]) -> Any:
     """Read *array* through declared lookups — the adjoint of a group.
 
-    YAML: ``at(on, by=component)``. *mappings* are the same one-dimensional
-    arrays ``sum`` takes; grouping sums *along* them, this indexes *through*
-    them, so the operand must carry every dim in ``into`` and the result
-    carries the mappings' own dim. xarray's vectorised selection is the
-    pullback exactly — one ``into`` label read once per fine label pointing at
-    it.
+    YAML: ``at(on, by=component)``. *mappings* are the same arrays ``sum``
+    takes; grouping sums *along* them, this indexes *through* them, so the
+    operand must carry every dim in ``into`` and the result carries the
+    mappings' own dim. xarray's vectorised selection is the pullback exactly
+    — one ``into`` label read once per fine label pointing at it, and a
+    conditioned map's ``per`` dims, carried by the indexer and the operand
+    both, are read pointwise: the coarse value at the row's own coordinate.
 
     A null lookup value reads nothing and its row is absent, the same reading
-    ``sum`` gives a null group. It cannot be selected, so it is dropped from
-    the indexer and the result is put back over the whole dim, the missing
-    positions holding the operand's own **absence** rather than a zero: absence
-    propagates and takes the row with it, where a zero would leave a row
-    asserting ``x <= 0`` at a coordinate the model said nothing about.
+    ``sum`` gives a null group. It cannot be selected, so the indexer reads
+    any label there and the result is masked at those positions, which then
+    hold the operand's own **absence** rather than a zero: absence propagates
+    and takes the row with it, where a zero would leave a row asserting
+    ``x <= 0`` at a coordinate the model said nothing about.
     """
     mappings = _renamed(mappings, into)
     present = _present(mappings)
     if bool(present.all()):
         return array.sel(dict(zip(into, mappings, strict=True)))
+    indexers = {target: m.fillna(_any_label(array, target, m)) for target, m in zip(into, mappings, strict=True)}
+    return array.sel(indexers).where(present)
 
-    dim = str(mappings[0].dims[0])
-    kept = present.to_numpy()
-    picked = array.sel(dict(zip(into, (m.isel({dim: kept}) for m in mappings), strict=True)))
-    return picked.reindex({dim: mappings[0][dim]})
+
+def _any_label(array: Any, target: str, mapping: Any) -> object:
+    """A label of *target* to read at a position the map sends nowhere, before the result is masked there.
+
+    The first the map does point at, and the first of *array*'s own where it
+    points nowhere at all — the operand carries the dim, and a map with no
+    row against an empty target reads nothing, which the mask says.
+    """
+    pointed = mapping.to_numpy()[mapping.notnull().to_numpy()]
+    return pointed[0] if len(pointed) else array.indexes[target][0]
+
+
+def _keys(mappings: tuple[Any, ...]) -> tuple[str, tuple[str, ...]]:
+    """The dim the lookups are over, and the dims they are conditioned per — one shape, the plan having checked they share it."""
+    over, *per = (str(d) for d in mappings[0].dims)
+    return over, tuple(per)
 
 
 @dataclass(frozen=True)
@@ -316,7 +341,9 @@ class _Groups:
 
     Computed once per operand and shared across a window's lags: the partition
     does not depend on the lag, and the roster is the one Python loop over the
-    axis in this lane.
+    axis in this lane. A conditioned lookup partitions the axis once per
+    coordinate of its ``per`` dims, so the per-coordinate arrays carry those
+    dims beside the axis and a group is one value at one such coordinate.
 
     Attributes:
         labels: The axis's own labels, in order.
@@ -325,7 +352,8 @@ class _Groups:
         within: Each coordinate's position inside its group.
         size: Each coordinate's group size, 1 where it has none.
         roster: The label ordinal at each ``(group, position)``.
-        names: Each group's key, by group ordinal.
+        names: Each group's key, by group ordinal — the lookup's value, with
+            the ``per`` coordinate beside it where the lookup has one.
         counts: Each group's member count, by group ordinal.
     """
 
@@ -346,29 +374,37 @@ def _grouped(over: str, labels: np.ndarray, groups: Any) -> _Groups:
     is 0, its ``size`` 1 and its ``grouped`` False, and every gather reads the
     last of those first.
     """
-    keys = np.asarray(groups.sel({over: labels}).values, dtype=object)
+    per = [str(d) for d in groups.dims if d != over]
+    aligned = groups.sel({over: labels}).transpose(over, *per)
+    keys = np.asarray(aligned.values, dtype=object).reshape(len(labels), -1)
+    axes = [aligned.indexes[d].tolist() for d in per]
+    coordinates = [tuple(axis[i] for axis, i in zip(axes, at, strict=True)) for at in np.ndindex(*aligned.shape[1:])]
 
-    peers: dict[object, list[int]] = {}
-    within = np.zeros(len(labels), dtype=int)
-    grouped = np.zeros(len(labels), dtype=bool)
-    for k, key in enumerate(keys):
-        if absence.unmapped(key):
-            continue
-        grouped[k] = True
-        beside = peers.setdefault(key, [])
-        within[k] = len(beside)
-        beside.append(k)
+    peers: dict[object, list[tuple[int, int]]] = {}
+    within = np.zeros(keys.shape, dtype=int)
+    grouped = np.zeros(keys.shape, dtype=bool)
+    for j, coordinate in enumerate(coordinates):
+        for k, key in enumerate(keys[:, j]):
+            if absence.unmapped(key):
+                continue
+            grouped[k, j] = True
+            beside = peers.setdefault(key if not per else (key, *coordinate), [])
+            within[k, j] = len(beside)
+            beside.append((k, j))
 
     order = {key: g for g, key in enumerate(peers)}
     widest = max((len(beside) for beside in peers.values()), default=1)
     roster = np.zeros((max(len(peers), 1), widest), dtype=int)
     for key, beside in peers.items():
-        roster[order[key], : len(beside)] = beside
-    belongs = np.array([order.get(key, 0) for key in keys], dtype=int)
-    span = np.array([len(peers[key]) if held else 1 for key, held in zip(keys, grouped, strict=True)], dtype=int)
+        roster[order[key], : len(beside)] = [k for k, _ in beside]
+    belongs = np.zeros(keys.shape, dtype=int)
+    span = np.ones(keys.shape, dtype=int)
+    for key, beside in peers.items():
+        for k, j in beside:
+            belongs[k, j], span[k, j] = order[key], len(beside)
 
     def on_axis(values: np.ndarray) -> xr.DataArray:
-        return xr.DataArray(values, coords={over: labels}, dims=[over])
+        return xr.DataArray(values.reshape(aligned.shape), coords=aligned.coords, dims=aligned.dims)
 
     return _Groups(
         labels,

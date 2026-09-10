@@ -20,7 +20,7 @@ def dimension_coords(
     program: program.Program,
     tidy: Mapping[str, pl.LazyFrame],
 ) -> tuple[dict[str, pd.Index], dict[str, dict[str, xr.DataArray]]]:
-    """Every dimension's labels, and each declared lookup as an array over its dimension.
+    """Every dimension's labels, and each declared lookup as an array over its dimension and its ``per`` dims.
 
     *tidy* is :func:`~lpspec.sources.tidy_sources`' output, so every index and
     map has been read and checked; what happens here is the conversion.
@@ -39,20 +39,21 @@ def _lookup_arrays(
     tidy: Mapping[str, pl.LazyFrame],
     master: Mapping[str, pd.Index],
 ) -> dict[str, dict[str, xr.DataArray]]:
-    """Each declared lookup as an array over the dimension it is over.
+    """Each declared lookup as an array over the dimension it is over and the dims it is ``per``.
 
-    A map arrives as its own ``(over, lookup)`` relation holding rows only
-    where it is defined. **The padding happens here**: an array is dense by
-    construction, and linopy's ``groupby`` wants one aligned to the
-    dimension's coordinates — so a label the relation leaves out becomes a
+    A map arrives as its own ``(over, per…, lookup)`` relation holding rows
+    only where it is defined. **The padding happens here**: an array is dense
+    by construction, and linopy's ``groupby`` wants one aligned to the
+    dimensions' coordinates — so a key the relation leaves out becomes a
     null, which every reader on this lane treats as "in no group".
     """
     out: dict[str, dict[str, xr.DataArray]] = {}
-    for dim, declared in program.dimensions.items():
-        labels = master[dim]
-        for name in declared.maps:
-            series = to_pandas(tidy[name].collect()).set_index(dim)[name].reindex(labels)
-            out.setdefault(dim, {})[name] = xr.DataArray(series.to_numpy(), dims=[dim], coords={dim: labels}, name=name)
+    for dim, lk in program.lookups:
+        keys = [dim, *lk.per]
+        frame = to_pandas(tidy[lk.name].collect())
+        index = pd.MultiIndex.from_frame(frame[keys]) if lk.per else pd.Index(frame[dim], name=dim)
+        array = xr.DataArray.from_series(pd.Series(frame[lk.name].to_numpy(), index=index, name=lk.name))
+        out.setdefault(dim, {})[lk.name] = array.reindex({d: master[d] for d in keys})
     return out
 
 

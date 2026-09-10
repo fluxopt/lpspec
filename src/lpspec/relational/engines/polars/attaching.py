@@ -34,9 +34,9 @@ class AttachedSources:
     """The data a program is built against, after attaching.
 
     ``parameters`` are tidy ``(dims…, value)``; ``dimensions`` are
-    ``(val, ord)``; ``lookups`` are ``(over, lookup)``, one row per label the
-    map is defined at and none for the rest, so "this label maps nowhere" is a
-    row that is not there and every operator reading one inherits that from
+    ``(val, ord)``; ``lookups`` are ``(over, per…, lookup)``, one row per key
+    the map is defined at and none for the rest, so "this key maps nowhere" is
+    a row that is not there and every operator reading one inherits that from
     its join.
 
     ``cardinality`` and ``parameter_rows`` are frame heights, cached because
@@ -62,20 +62,17 @@ def attach(program: program.Program, sources: Mapping[str, pl.LazyFrame]) -> Att
     carries the dimension is re-encoded against it.
     """
     dimensions = {d: _ordinal_frame(d, sources[d]).collect() for d in program.dimensions}
-    lookups = {name: sources[name].collect() for d in program.dimensions for name in program.dimension(d).maps}
+    lookups = {lk.name: sources[lk.name].collect() for _, lk in program.lookups}
     parameters = {name: sources[name].collect() for name in program.parameters}
 
     enums = {d: pl.Enum(f['val']) for d, f in dimensions.items() if f.schema['val'] == pl.String}
     for d, enum in enums.items():
         dimensions[d] = dimensions[d].with_columns(pl.col('val').cast(enum))
-    for d in program.dimensions:
-        targets = program.dimension(d).targets
-        for name in program.dimension(d).maps:
-            casts = [pl.col(d).cast(enums[d])] if d in enums else []
-            target = targets.get(name)
-            casts += [pl.col(name).cast(enums[target])] if target in enums else []
-            if casts:
-                lookups[name] = lookups[name].with_columns(casts)
+    for over, lk in program.lookups:
+        keyed = {**{key: key for key in (over, *lk.per)}, lk.name: lk.target}
+        casts = [pl.col(column).cast(enums[dim]) for column, dim in keyed.items() if dim in enums]
+        if casts:
+            lookups[lk.name] = lookups[lk.name].with_columns(casts)
     for name, p in program.parameters.items():
         frame = _plain_strings(parameters[name], p.dims)
         casts = [pl.col(d).cast(enums[d]) for d in p.dims if d in enums]

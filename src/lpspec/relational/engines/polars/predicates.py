@@ -130,7 +130,8 @@ def compile_predicate(
 
     def join_group_offset(p: program.DimensionPositionNode) -> str:
         """One column: the row's ordinal minus its own group's target ordinal."""
-        refuse_outside_foreach(f"dimension '{p.name}'", p.name)
+        for d in (p.name, *p.per):
+            refuse_outside_foreach(f"dimension '{d}'", d)
         table = compiler.partitioned(p.name, str(p.by))
         _refuse_short_groups(p, table)
         target = pl.lit(p.position) if p.position >= 0 else pl.col(GROUP_SIZE) + p.position
@@ -138,19 +139,20 @@ def compile_predicate(
         return carrier.once(
             f'__where ord {p.name} by {p.by}__',
             lambda f, alias: f.join(
-                table.select(pl.col('val').alias(p.name), offset.alias(alias)),
-                on=p.name,
+                table.select(pl.col('val').alias(p.name), *p.per, offset.alias(alias)),
+                on=[p.name, *p.per],
                 how='left',
             ),
         )
 
-    def join_lookup(lookup: str, over: str) -> str:
-        refuse_outside_foreach(f"lookup '{lookup}' reading dimension '{over}'", over)
+    def join_lookup(lookup: str, over: str, per: tuple[str, ...]) -> str:
+        for d in (over, *per):
+            refuse_outside_foreach(f"lookup '{lookup}' reading dimension '{d}'", d)
         return carrier.once(
             f'__where lookup {lookup}__',
             lambda f, alias: f.join(
-                compiler.data.lookups[lookup].select(pl.col(over), pl.col(lookup).alias(alias)),
-                on=over,
+                compiler.data.lookups[lookup].select(pl.col(over), *per, pl.col(lookup).alias(alias)),
+                on=[over, *per],
                 how='left',
             ),
         )
@@ -167,16 +169,16 @@ def compile_predicate(
             at = _position_ordinal(p, compiler.data.cardinality[p.name])
             return _COLUMN_COMPARISONS[p.op](pl.col(join_ordinal(p.name)), pl.lit(at))
         if isinstance(p, program.LookupComparisonNode):
-            column = pl.col(join_lookup(p.name, p.over))
+            column = pl.col(join_lookup(p.name, p.over, p.per))
             if isinstance(p.value, str):
                 column = column.cast(pl.String)
             return _compare(column, p.op, p.value)
         if isinstance(p, program.LookupPairComparisonNode):
-            left = pl.col(join_lookup(p.name, p.over))
-            right = pl.col(join_lookup(p.other, p.over))
+            left = pl.col(join_lookup(p.name, p.over, p.per))
+            right = pl.col(join_lookup(p.other, p.over, p.per))
             return _COLUMN_COMPARISONS[p.op](left, right)
         if isinstance(p, program.LookupDefinedNode):
-            return pl.col(join_lookup(p.name, p.over)).is_not_null()
+            return pl.col(join_lookup(p.name, p.over, p.per)).is_not_null()
         if isinstance(p, program.ParameterDefinedNode):
             return _defined(pl.col(join_param(p.name)), compiler.program.parameter(p.name).dtype)
         if isinstance(p, program.VariableDefinedNode):
@@ -228,11 +230,12 @@ def _refuse_short_groups(p: program.DimensionPositionNode, table: pl.LazyFrame) 
     costs one pass over the table the mask is about to join anyway.
 
     *table* is :meth:`PolarsCompiler.partitioned`'s, so a coordinate in no
-    group is not in it and no group of ``None`` can be counted short.
+    group is not in it and no group of ``None`` can be counted short. A group
+    of a conditioned lookup is named with the ``per`` coordinate it sits at.
     """
     needed = p.position + 1 if p.position >= 0 else -p.position
-    sizes = table.select(str(p.by), GROUP_SIZE).unique().collect()
-    short = sorted(str(g) for g, n in sizes.iter_rows() if n < needed)
+    sizes = table.select(str(p.by), *p.per, GROUP_SIZE).unique().collect()
+    short = sorted(str(key[0] if not p.per else tuple(key)) for *key, n in sizes.iter_rows() if n < needed)
     if short:
         raise DataError(short_groups_message(p.name, str(p.by), p.op, p.position, short))
 
