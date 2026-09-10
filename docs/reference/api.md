@@ -68,14 +68,9 @@ to_spec(spec).to_yaml()  # the review copy — a dict-built spec still gets a fi
 **A framework emits data, not YAML text, and never merges files.** A generated
 spec must be able to show you a file. Hand-written math still starts as one.
 
-**A `Spec` goes back out two ways, and they agree.** `to_dict()` is the spec as
-data; `to_yaml()` is that dict as the file you review and diff. Loading,
-dumping and loading again is stable for both, and dumping twice gives the same
-bytes.
-
-**Every value is written; only what is absent is dropped.** Absent is a null,
-an infinite bound, or a mapping that declares nothing. An empty list stays:
-`foreach: []` is a scalar declaration.
+**A dict-built spec still gets a file.** `to_dict()` and `to_yaml()` are the
+language's, and what they write is
+[its page](https://math-spec.readthedocs.io/en/latest/reference/language/reading/#writing-a-spec-back-out).
 
 ## The sources argument
 
@@ -350,20 +345,10 @@ work cost **76.6 s against 4.3 s** on a dispatch model whose presolve cracks
 the problem outright, an 18× loss, and **111.2 s against 213.9 s** on a
 storage model whose cyclic recurrence presolve cannot crack, a 1.9× win.
 
-**Measure which one your model wants.** Run the loop each way and read the
-clock the package keeps. `kept` confirms the request was honoured rather than
-quietly downgraded:
-
-```python
-for keep in ('solver', 'progress'):
-    model = lps.build('spec.yaml', sources)
-    for numbers in walk:
-        assert model.update(numbers).solve(keep=keep).kept in {keep, 'nothing'}
-    print(keep, model.diagnostics().timings['solve'])
-```
-
-Take the faster one. **The answer does not change either way**: across both
-models above the objectives agreed to 2e-15 relative.
+**Which one a model wants is measured**
+([timing a loop](../howto/debug.md#6-when-a-loop-of-re-solves-is-slow)).
+**The answer does not change either way**: across both models above the
+objectives agreed to 2e-15 relative.
 
 **`result.kept` reports what happened, not what was asked.** An update that
 had to rebuild reports `'nothing'`, whatever it asked for, and `loads` ticks on
