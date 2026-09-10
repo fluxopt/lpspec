@@ -42,7 +42,7 @@ Least-cost dispatch where each generator's cost curve has as many breakpoints as
 | $\mathrm{load}$ | `load` over $\mathcal{T}$ — demand to be met |
 | $\mathrm{bp\_x}$ | `bp_x` over $\mathcal{G} \times \mathcal{B}$ — breakpoint dispatch levels, one curve per generator and no two the same length |
 | $\mathrm{bp\_y}$ | `bp_y` over $\mathcal{G} \times \mathcal{B}$ — cost at each breakpoint |
-| $\mathrm{cost\_curve\_points}$ | `cost_curve_points` over $\mathcal{G} \times \mathcal{B}$ — where 'bp_x' has a row, and so where the curve runs |
+| $\mathrm{cost\_curve\_points}$ | `cost_curve_points` over $\mathcal{G} \times \mathcal{B}$ — where 'bp\_x' has a row, and so where the curve runs |
 
 #### Variables
 

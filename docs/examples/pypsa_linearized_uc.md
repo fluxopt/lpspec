@@ -22,7 +22,7 @@ transition rows are not the same two rows.
 <details markdown="1">
 <summary>The same model, as math</summary>
 
-PyPSA linearized unit commitment: commitment with the status continuous in [0, 1] rather than binary, so a unit may be committed by a third. A relaxation and therefore a bound — on this instance worth less than half the integer answer. Optimum 5540.0, from PyPSA itself.
+PyPSA linearized unit commitment: commitment with the status continuous in \[0, 1\] rather than binary, so a unit may be committed by a third. A relaxation and therefore a bound — on this instance worth less than half the integer answer. Optimum 5540.0, from PyPSA itself.
 
 #### Sets
 

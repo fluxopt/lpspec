@@ -81,7 +81,7 @@ variables:
   f:
     description: >-
       flow on a line, signed towards its `to` bus — unbounded here, because the
-      rating covers the flow *and* its loss and so is a row rather than a bound
+      rating covers the flow and its loss and so is a row rather than a bound
     foreach: [snapshot, line]
   loss:
     description: >-
