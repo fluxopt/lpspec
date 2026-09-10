@@ -125,6 +125,21 @@ def null_bounds_message(name: str, rows: int) -> str:
     )
 
 
+def no_written_model_message() -> str:
+    """An expression to read in a model that arrived already lowered.
+
+    Reading one takes the model *as written* — a ``Program`` is what that
+    lowered to, and lowering does not run backwards. Both lanes say it, so it
+    is said once.
+    """
+    return (
+        'cannot evaluate an expression against a lowered Program: reading one takes the model as '
+        'written, and a Program is what that lowered to. Pass the file, the mapping or the Spec — '
+        'check() reads the same model, so keep what you gave it and give that. A name the model '
+        'declares is readable either way.'
+    )
+
+
 def position_out_of_range_message(name: str, op: str, position: int, at: int, cardinality: int) -> str:
     """A ``position(dim)`` boundary naming no coordinate of the dimension."""
     return (

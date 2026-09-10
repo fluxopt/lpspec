@@ -15,9 +15,9 @@ from __future__ import annotations
 import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
+from lpspec.errors import LpspecError, NoSolutionError, no_written_model_message, unknown_name_message
 from lpspec.relational.parquet import reader_kind, write_whole
 
 if TYPE_CHECKING:
@@ -389,6 +389,14 @@ class Result:
     #: model that reads none pays for none. Released with the primals by
     #: :meth:`close`, since each holds this build's frames and values.
     _expressions: Mapping[str, Callable[[], pl.DataFrame]] | None = None
+    #: :meth:`evaluate`'s whole implementation, over the same snapshot the
+    #: readers above close on. One callable rather than the two halves it is
+    #: made of, because the half that reads the model as written is not
+    #: something this lane may hold (hard rule 2): it is composed above the
+    #: lane and arrives already joined. ``None`` where the model was built
+    #: from an already-lowered ``Program``, there being no model as written
+    #: to read an expression in. Released with the primals.
+    _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = None
     #: Why there are no duals, when a solve that left values still has none.
     #: ``None`` whenever :attr:`_duals` holds them.
     _no_duals: str | None = None
@@ -538,6 +546,47 @@ class Result:
             ) from None
         return reader()
 
+    def evaluate(self, expression: str | Mapping[str, Any]) -> pl.DataFrame:
+        """The value of *expression* at this solution — ``(dims…, value)``.
+
+        :meth:`expression` for a quantity the file never named. Written the way
+        ``expressions:`` writes one — the string, or the mapping that carries
+        ``cases:`` with its ``foreach:`` and ``otherwise:`` — and answering in
+        the same shape, so a report that discovers what it wants after the
+        solve does not re-solve to ask.
+
+        It may use every name the solved model declares, and only those: an
+        expression reaching a parameter the model does not have has no data
+        here, and is refused rather than read as a gap. Reaching a new
+        parameter is a build, not a read.
+
+        A declared name is an expression like any other — the language
+        substitutes it where it stands — so ``evaluate('co2')`` answers what
+        ``expression('co2')`` answers, and is served by that reader rather
+        than lowered again.
+
+        Unlike :meth:`expression` this names nothing, so it is not a *kind*:
+        it is not written by :meth:`to_parquet`, not spilled by a sweep, and
+        not reachable through ``kind='expression'``. A quantity worth keeping
+        across runs is worth declaring.
+
+        Raises:
+            NoSolutionError: The solve left no values to read.
+            LpspecError: This result was closed, the model was built from an
+                already-lowered ``Program``, or the expression reads a dual
+                and the solve left none.
+            DataError: A divisor with no value where the expression divides.
+            LanguageError: A construct outside the language, or a name the
+                model does not declare.
+        """
+        self._readable(self._primals, 'an expression')
+        readers = self._expressions or {}
+        if isinstance(expression, str) and expression in readers:
+            return readers[expression]()
+        if self._evaluate is None:
+            raise LpspecError(no_written_model_message())
+        return self._evaluate(expression)
+
     def _frame(self, name: str, kind: str) -> pl.DataFrame:
         """*name* through the reader *kind* names — the dispatch every bridge shares."""
         reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[reader_kind(kind)]
@@ -636,7 +685,7 @@ class Result:
         out of a ``with`` block must not take down the model a loop is still
         solving, and a sibling result keeps its own.
         """
-        self._primals = self._duals = self._activities = self._expressions = None
+        self._primals = self._duals = self._activities = self._expressions = self._evaluate = None
 
     def __enter__(self) -> Result:
         return self

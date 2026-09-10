@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from math_spec import advice, to_program, to_spec
 from math_spec.program import Program
 
+from lpspec import expressions
 from lpspec.errors import DataError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source
 from lpspec.relational import sinks
@@ -47,6 +48,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from math_spec import Spec
+    from math_spec.program import ExpressionNode
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep, Result
 
@@ -132,10 +134,21 @@ class Model:
     """
 
     def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
-        self._program = to_program(spec)
+        self._written = None if isinstance(spec, Program) else to_spec(spec)
+        self._program = to_program(spec if self._written is None else self._written)
         self._sources = dict(sources)
         self._engine = PolarsEngine()
         self._fill()
+
+    def _lower(self, written: str | Mapping[str, Any]) -> ExpressionNode:
+        """*written* as a plan node, for a result reading an expression the file never named.
+
+        Held here rather than passed to the engine at build, because the model
+        *as written* is what lowering reads and the engine may not see it
+        (docs/about/architecture.md, hard rule 2).
+        """
+        assert self._written is not None, 'a model built from a Program withholds the reader that needs this'
+        return expressions.lower(self._written, written)
 
     def _fill(self) -> None:
         """Build the frames from whatever is attached now.
@@ -227,7 +240,12 @@ class Model:
                 cannot run, or a *keep* outside
                 :data:`~lpspec.relational.result.KEEPS`.
         """
-        return self._engine.solve(solver_name, solver_options=solver_options, keep=keep)
+        return self._engine.solve(
+            solver_name,
+            solver_options=solver_options,
+            keep=keep,
+            lower=None if self._written is None else self._lower,
+        )
 
     def write(self, path: str | Path) -> None:
         """Stream the built model to *path*, in the format its suffix names.

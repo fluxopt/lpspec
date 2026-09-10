@@ -1,11 +1,14 @@
-"""`Result.expression(name)`: a named expression readable after a solve (#562).
+"""The two expression readers on a solved model: `expression(name)` (#562), and `evaluate`.
 
 The relational lane only — the differential half, both lanes agreeing on the
 same values, lives in ``test_linopy_lane.py`` with the rest of the oracle
-comparisons. What is pinned here: the value is the one the primal implies, an
-expression no constraint references still reads, the frame's dims are
-the ones it survives over, laziness (a build compiles no expression; a read compiles that
-one), and the unknown-name refusal.
+comparisons. What is pinned here for `expression`: the value is the one the
+primal implies, an expression no constraint references still reads, the
+frame's dims are the ones it survives over, laziness (a build compiles no
+expression; a read compiles that one), and the unknown-name refusal. For
+`evaluate`, below: a name and the body it stands for read one value, both
+written forms are taken, and what it refuses — a name the model does not
+declare, and a model that arrived already lowered.
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ import polars as pl
 import pytest
 
 import lpspec as lps
-from lpspec.errors import DataError, LpspecError
+from lpspec.errors import DataError, LanguageError, LpspecError
 from lpspec.relational.engines.polars.compiler import PolarsCompiler
 from tests.fixtures import override
 
@@ -305,3 +308,103 @@ def test_a_closed_result_refuses_an_expression_read():
     outcome.close()
     with pytest.raises(LpspecError, match='closed'):
         outcome.expression('spend')
+
+
+# ---------------------------------------------------------------------------
+# evaluate: an expression the file never named
+# ---------------------------------------------------------------------------
+
+
+def test_a_declared_name_and_the_body_it_stands_for_read_one_value(result):
+    """`evaluate` takes a name because the language takes one: it substitutes a declared name where it stands, so the two spellings are one expression."""
+    declared = result.evaluate('total_gen')
+    written = result.evaluate('sum(p, over=generator)')
+    assert declared.equals(result.expression('total_gen')), 'a declared name is served by the reader that holds it'
+    assert written.equals(declared), "the body reads what the name reads, the name being the body's own spelling"
+
+
+def test_an_expression_the_file_never_declared_reads_what_the_primal_implies(result):
+    external = (
+        result.primal('p')
+        .join(sources()['cost'].rename({'value': 'cost'}), on='generator')
+        .group_by('snapshot')
+        .agg((pl.col('value') * pl.col('cost') * 2).sum().alias('value'))
+        .sort('snapshot')
+    )
+    frame = result.evaluate('sum(p * cost * 2, over=generator)')
+    assert frame.columns == ['snapshot', 'value'], 'an evaluated frame is (dims…, value), like a declared one'
+    assert frame.sort('snapshot').equals(external), (
+        'an expression nothing declared is evaluated at the same primal a declared one is'
+    )
+
+
+def test_a_mapping_is_the_other_form_the_language_writes_an_expression_in(result):
+    """A bare string and a mapping are `ExpressionBlock`'s two written forms, so `evaluate` takes both."""
+    assert result.evaluate({'expression': 'sum(p, over=generator)'}).equals(result.expression('total_gen'))
+
+
+def test_a_mapping_carries_the_cases_a_string_cannot_say():
+    """`cases:` is why the mapping form is not sugar: a region-varying quantity has no spelling as one string."""
+    spec = {
+        **SPEC,
+        'parameters': {**SPEC['parameters'], 'peak': {'dims': ['snapshot'], 'dtype': 'bool'}},
+    }
+    data = sources() | {'peak': pl.DataFrame({'snapshot': [0, 1, 2], 'value': [False, True, False]})}
+    frame = lps.solve(spec, data).evaluate(
+        {
+            'foreach': ['snapshot'],
+            'cases': {'busy': {'when': 'peak', 'expression': 'total_gen'}},
+            'otherwise': 0,
+        }
+    )
+    got = dict(zip(frame['snapshot'], frame['value'], strict=True))
+    assert got == pytest.approx({0: 0.0, 1: 120.0, 2: 0.0}), (
+        'the case holds only where peak does, and otherwise supplies the rest'
+    )
+
+
+def test_an_expression_may_read_a_dual_the_file_never_priced(result):
+    assert result.evaluate('dual(balance) * 2')['value'].to_list() == pytest.approx(
+        [v * 2 for v in result.dual('balance')['value']]
+    ), 'the math reads nothing evaluated, so a dual stands in it exactly as it stands in a declared entry'
+
+
+def test_a_name_the_model_does_not_declare_is_refused_rather_than_read_as_a_gap(result):
+    """A read reaches the solved model's own declarations and no further, so a new parameter is named as missing rather than read as an absence — supplying one is a build."""
+    with pytest.raises(LanguageError, match='co2_rate'):
+        result.evaluate('sum(p * co2_rate, over=generator)')
+
+
+def test_the_splice_steps_over_a_declaration_of_its_own_name():
+    """Names share one flat namespace, so the spliced entry must not land on a declared one and shadow what the expression reads.
+
+    Read through an expression that *references* the collision rather than
+    naming it: naming it is served by the declared reader, and never splices.
+    """
+    spec = {**SPEC, 'expressions': {**SPEC['expressions'], '_evaluated': 'sum(p, over=generator) * 3'}}
+    assert lps.solve(spec, sources()).evaluate('_evaluated * 2')['value'].to_list() == pytest.approx(
+        [300.0, 720.0, 480.0]
+    ), "the splice lands beside the declaration, so the expression still reads the model's own entry"
+
+
+def test_a_model_built_from_a_lowered_program_says_why_it_cannot_evaluate():
+    """`check` hands back a Program, and a Program is what a model lowered to — reading an expression needs the model as written."""
+    result = lps.solve(lps.check(SPEC), sources())
+    with pytest.raises(LpspecError, match='lowered Program'):
+        result.evaluate('sum(p, over=generator)')
+    assert result.evaluate('total_gen').equals(result.expression('total_gen')), (
+        'a declared name is readable either way — it needs no lowering, being already lowered'
+    )
+
+
+def test_a_closed_result_refuses_to_evaluate():
+    result = lps.solve(SPEC, sources())
+    result.close()
+    with pytest.raises(LpspecError, match='was closed'):
+        result.evaluate('sum(p, over=generator)')
+
+
+def test_an_evaluated_expression_names_nothing_and_so_is_not_a_kind(result, tmp_path):
+    """It is not written, spilled or enumerated: a quantity worth keeping across runs is worth declaring."""
+    written = {p.stem for p in (result.to_parquet(tmp_path) / 'expression').glob('*.parquet')}
+    assert written == set(SPEC['expressions']), 'to_parquet writes the declared names, and evaluate adds none'
