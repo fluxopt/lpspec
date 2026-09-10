@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import io
 import os
+import tempfile
 import warnings
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -429,8 +430,41 @@ def _absent(reason: str) -> Callable[[], pl.DataFrame]:
     return read
 
 
-def load_result(source: str | Path) -> Result:
-    """Read back an answer :meth:`Result.save` wrote — a solve, off disk.
+def _answer_directory(source: Path, into: Path | None) -> Path:
+    """Where *source*'s answer is on disk, extracting an archive's into *into*.
+
+    An archive's members have to land somewhere before the frames can be
+    scanned off them, which is the same constraint that makes :func:`unpack`
+    take a directory rather than hand back bytes. Only the answer is
+    extracted: a caller who wants the question back asks :func:`unpack` for
+    it, and this must not quietly write one caller's sources under another
+    caller's path.
+    """
+    if source.is_dir():
+        if into is not None:
+            raise DataError(
+                f'into={str(into)!r} is for an archive, and {str(source)!r} is a directory whose frames are '
+                f'already where they will be read. Drop into=.'
+            )
+        return source
+    if into is None:
+        raise DataError(
+            f'{str(source)!r} is an archive, so its answer has to be extracted before it can be read: pass '
+            f'into= the directory to put it in, as unpack does. A directory save() wrote needs no into=.'
+        )
+    with zipfile.ZipFile(source) as archive:
+        members = [name for name in archive.namelist() if _is_answer_member(PurePosixPath(name))]
+        if not members:
+            raise DataError(
+                f'{str(source)!r} carries no answer: pack() writes one only when it is given answer=. '
+                f'unpack() takes the model and its data out, and solving it again is the answer.'
+            )
+        archive.extractall(into, members)
+    return Path(into) / _ANSWER_DIR
+
+
+def load_result(source: str | Path, into: str | Path | None = None) -> Result:
+    """Read back an answer :meth:`Result.save` wrote, or one :func:`pack` carried.
 
     Every reader answers what it answered in the session that solved: the
     values, the duals and activities, each named expression, and the reason
@@ -446,17 +480,22 @@ def load_result(source: str | Path) -> Result:
 
     Args:
         source: A directory :meth:`~lpspec.relational.result.Result.save`
-            wrote.
+            wrote, or an archive :func:`pack` was given an ``answer=``.
+        into: Where to extract an archive's answer, as :func:`unpack` is told
+            where to put a model. Required for an archive — the frames are
+            read where they land — and refused for a directory, which is
+            already somewhere.
 
     Returns:
-        The result, reading lazily from *source*: the files stay where they
-        are, so the directory has to outlive what is read off it.
+        The result, reading lazily from wherever the frames are: they stay
+        where they are, so that directory has to outlive what is read off it.
 
     Raises:
-        DataError: A directory holding no ``objective.parquet``, which is
-            what every answer written there carries.
+        DataError: A directory holding no ``objective.parquet``, an archive
+            packed with no answer, an archive with no *into*, or an *into*
+            beside a directory.
     """
-    out = Path(source)
+    out = _answer_directory(Path(source), None if into is None else Path(into))
     record_file = out / 'objective.parquet'
     if not record_file.is_file():
         raise DataError(
@@ -494,13 +533,30 @@ def load_result(source: str | Path) -> Result:
 #: The archive's one layout: the file, and one parquet member per source key.
 _MODEL_MEMBER = 'model.yaml'
 _SOURCES_DIR = PurePosixPath('sources')
+#: Where an archive keeps the answer, when it was given one. A directory
+#: rather than a file: what is under it is exactly what
+#: :meth:`~lpspec.relational.result.Result.save` writes, so one layout is read
+#: by one reader whether it came out of a zip or was written to a directory.
+_ANSWER_DIR = PurePosixPath('answer')
 
 
-def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Source], out: str | Path) -> Path:
+def pack(
+    spec: str | Path | dict[str, Any] | Spec,
+    sources: Mapping[str, Source],
+    out: str | Path,
+    *,
+    answer: Result | None = None,
+) -> Path:
     """Write *spec* and *sources* as one zip file, to archive or send.
 
+    With *answer*, the archive is the whole artifact — what was asked, the
+    data it was asked of, and what came back — so the question and its answer
+    cannot drift apart or be paired up wrongly. :func:`load_result` reads the
+    answer back and :func:`unpack` the question, from the same file.
+
     The archive holds ``model.yaml`` and ``sources/<key>.parquet`` for every
-    key the file declares. The sources go in through the same door
+    key the file declares, and ``answer/`` holding what
+    :meth:`~lpspec.relational.result.Result.save` writes when one is given. The sources go in through the same door
     :func:`build` reads them, so what is refused there is refused here and
     nothing is written. A parquet path is then copied as its own bytes; a
     table is written as parquet; a plain-Python shape — a number, a label
@@ -515,12 +571,15 @@ def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Source]
             :func:`math_spec.to_spec` takes it.
         sources: As :func:`build` takes them.
         out: Where to write; a ``.zip`` suffix is the convention.
+        answer: A solve of this model, carried beside it. ``None`` writes the
+            question alone.
 
     Returns:
         The path written.
 
     Raises:
-        LpspecError: A lowered ``Program``, which has no file to write.
+        LpspecError: A lowered ``Program``, which has no file to write, or an
+            *answer* that was closed.
         LanguageError: A file the language does not accept.
         DataError: A source that is missing, unreadable, or the wrong shape.
     """
@@ -547,6 +606,11 @@ def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Source]
                     buffer = io.BytesIO()
                     frame.collect().write_parquet(buffer, compression='zstd')
                     archive.writestr(member, buffer.getvalue())
+            if answer is not None:
+                with tempfile.TemporaryDirectory(dir=out.parent) as scratch:
+                    saved = answer.save(scratch)
+                    for file in sorted(saved.rglob('*.parquet')):
+                        archive.write(file, str(_ANSWER_DIR / file.relative_to(saved).as_posix()))
     except BaseException:
         part.unlink(missing_ok=True)
         raise
@@ -581,7 +645,11 @@ def unpack(path: str | Path, into: str | Path) -> tuple[Spec, dict[str, Path]]:
     into = Path(into)
     with zipfile.ZipFile(path) as archive:
         members = [PurePosixPath(name) for name in archive.namelist() if not name.endswith('/')]
-        strays = [str(m) for m in members if m != PurePosixPath(_MODEL_MEMBER) and not _is_source_member(m)]
+        strays = [
+            str(m)
+            for m in members
+            if m != PurePosixPath(_MODEL_MEMBER) and not _is_source_member(m) and not _is_answer_member(m)
+        ]
         if strays or PurePosixPath(_MODEL_MEMBER) not in members:
             raise DataError(_not_an_archive_message(path, strays))
         archive.extractall(into)
@@ -591,6 +659,10 @@ def unpack(path: str | Path, into: str | Path) -> tuple[Spec, dict[str, Path]]:
 
 def _is_source_member(member: PurePosixPath) -> bool:
     return member.parent == _SOURCES_DIR and member.suffix == '.parquet'
+
+
+def _is_answer_member(member: PurePosixPath) -> bool:
+    return _ANSWER_DIR in member.parents and member.suffix == '.parquet'
 
 
 def _not_an_archive_message(path: str | Path, strays: list[str]) -> str:

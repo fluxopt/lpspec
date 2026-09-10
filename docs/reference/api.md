@@ -30,9 +30,9 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
 | `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
-| `lps.pack(spec, sources, out)` | the file and its data as one zip: [Archiving a model](#archiving-a-model) |
+| `lps.pack(spec, sources, out, answer=None)` | the file, its data and optionally its answer as one zip: [Archiving a model](#archiving-a-model) |
 | `lps.unpack(path, into)` | the `Spec` and the sources as parquet paths, in the shape every verb takes |
-| `lps.load_result(source)` | an answer `result.save(dir)` wrote, read back as a `Result` |
+| `lps.load_result(source, into=None)` | an answer `result.save(dir)` wrote, or one `pack(answer=)` carried, read back as a `Result` |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
 | `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` or `math_spec.program.Program` |
@@ -377,6 +377,24 @@ spec, paths = lps.unpack('model.zip', 'model/')
 frames = {name: pl.read_parquet(path) for name, path in paths.items()}  # in memory, when you want them
 ```
 
+**With `answer=`, the archive is the whole artifact** — what was asked, the
+data it was asked of, and what came back:
+
+```python
+with lps.solve('spec.yaml', sources) as solved:
+    lps.pack('spec.yaml', sources, 'case.zip', answer=solved)
+
+answer = lps.load_result('case.zip', into='case/')  # what came back
+spec, sources = lps.unpack('case.zip', 'question/')  # what was asked, to solve again
+```
+
+The answer goes under `answer/` in the layout `save` writes, so one reader
+reads it whether it came out of a zip or out of a directory. `load_result`
+needs `into=` for an archive and refuses it for a directory: the frames are
+read where they land, which is the same reason `unpack` has to be told. It
+extracts the answer alone — the question comes back through `unpack`, so one
+call never writes another call's sources under its path.
+
 **`pack` writes a model as one zip**: `model.yaml`, and
 `sources/<key>.parquet` for every key the file declares. The sources go in
 through the same door `build` reads them, so a model `build` refuses is refused
@@ -387,7 +405,8 @@ written as the tidy parquet table it stands for. Parquet keeps the dtypes
 
 **`unpack` extracts the archive into a directory** and returns the `Spec` and
 a `{key: Path}`, so attaching streams the files from disk and holds nothing
-here. They are checked where they attach, so an archive edited by hand gets
+here. An `answer/` is extracted with everything else and named by neither
+return value; `load_result` is what reads it. They are checked where they attach, so an archive edited by hand gets
 the same sentence any other source would. Anything in the zip outside that
 layout is refused as not an archive `pack` wrote, and nothing is extracted.
 

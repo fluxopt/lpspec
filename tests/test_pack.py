@@ -175,3 +175,42 @@ def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp
     with pytest.raises(RuntimeError, match='went away'):
         lps.pack(dispatch_yaml, dispatch_frame_inputs, later)
     assert not list(tmp_path.glob('later*')), 'a write that did not finish leaves nothing under either name'
+
+
+def test_an_archive_carries_the_answer_beside_the_question(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The full artifact: what was asked, the data it was asked of, and what came back.
+
+    A saved answer alone cannot say which model produced it, and a packed
+    model alone has to be re-solved to be read. One archive holds both, and
+    the two cannot drift apart or be paired up wrongly.
+    """
+    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+        archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'case.zip', answer=solved)
+        loaded = lps.load_result(archive, into=tmp_path / 'case')
+
+        assert loaded.objective == solved.objective
+        for name in to_program(to_spec(dispatch_yaml)).variables:
+            assert loaded.primal(name).equals(solved.primal(name))
+
+    spec, sources = lps.unpack(archive, tmp_path / 'question')
+    with lps.solve(spec, sources) as resolved:
+        assert resolved.objective == pytest.approx(loaded.objective, rel=1e-9), (
+            'the question in the archive is the one its answer answered'
+        )
+
+
+def test_an_archive_with_no_answer_says_so(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
+    archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'question.zip')
+    with pytest.raises(lps.DataError, match='carries no answer'):
+        lps.load_result(archive, into=tmp_path / 'out')
+
+
+def test_loading_an_answer_says_when_it_needs_somewhere_to_put_it(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A zip has to be extracted before it can be read, as `unpack` also has to be told."""
+    archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'case.zip')
+    with pytest.raises(lps.DataError, match='into='):
+        lps.load_result(archive)
