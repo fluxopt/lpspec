@@ -29,11 +29,12 @@ from math_spec.program import Program
 
 from lpspec.api import load_result
 from lpspec.errors import DataError, LpspecError
+from lpspec.relational.parquet import digest_of
 from lpspec.sources import supplied, tidy_sources
 from lpspec.strategy import EachCoordinate, EachWindow, Runs, carries, load_runs
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     import polars as pl
 
@@ -75,8 +76,9 @@ class SolveArtifact:
     answer: Result | None = None
 
     def __post_init__(self) -> None:
-        """Load *spec* if it was given as a path or a mapping, and refuse a lowered program."""
+        """Load *spec*, and refuse a lowered program or an answer to a different model."""
         _load_the_spec(self)
+        _check_the_pairing(self.spec, () if self.answer is None else (self.answer.model,))
 
     def save(self, out: str | Path) -> Path:
         """Write the model, its data and its answer as one zip file.
@@ -147,6 +149,7 @@ class SweepArtifact:
                 'archive one SolveArtifact each.'
             )
         _load_the_spec(self)
+        _check_the_pairing(self.spec, () if self.answer is None else self.answer.objective['model'].to_list())
 
     def save(self, out: str | Path) -> Path:
         """Write the model, its data, its axis and its answer as one zip file.
@@ -186,6 +189,24 @@ class SweepArtifact:
         if not cut:
             raise DataError('the axis produced no slices, so there is nothing the model would be built from')
         return cut[0][1]
+
+
+def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
+    """Refuse an answer that came back from a different model than *spec*.
+
+    The one thing an artifact asserts that its three fields do not: that they
+    belong together. Without it a mispaired triple archives cleanly and the
+    file re-solves to an answer other than the one it carries. An answer
+    solved off a lowered program digests to ``None`` and is taken on trust —
+    there is no document to compare it against.
+    """
+    mine = digest_of(spec.to_yaml())
+    if others := sorted({other for other in answered if other is not None and other != mine}):
+        raise LpspecError(
+            f'this answer came back from a different model: it carries {others} and the spec given here is '
+            f'{mine}. An artifact is what was asked and what came back, so a mispaired one would re-solve '
+            f'to an answer other than the one it holds. Pass the spec that was solved.'
+        )
 
 
 def _load_the_spec(artifact: SolveArtifact | SweepArtifact) -> None:

@@ -27,17 +27,19 @@ Example::
 from __future__ import annotations
 
 import warnings
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import polars as pl
-from math_spec import advice, to_program
+from math_spec import advice, to_program, to_spec
+from math_spec.program import Program
 
 from lpspec.errors import DataError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
-from lpspec.relational.parquet import RECORD_FILE, Record, read_reasons
+from lpspec.relational.parquet import RECORD_FILE, Record, digest_of, read_reasons
 from lpspec.relational.result import Result
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
@@ -46,8 +48,6 @@ from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
-
-    from math_spec.program import Program
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep
 
@@ -133,7 +133,12 @@ class Model:
     """
 
     def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
-        self._program = to_program(spec)
+        declared = None if isinstance(spec, Program) else to_spec(spec)
+        self._spec = declared
+        self._program = to_program(spec if declared is None else declared)
+        #: What every answer of this model carries, so two of them can be told
+        #: to have answered the same document. A lowered program has none.
+        self._digest = None if declared is None else digest_of(declared.to_yaml())
         self._sources = dict(sources)
         self._engine = PolarsEngine()
         self._fill()
@@ -228,7 +233,8 @@ class Model:
                 cannot run, or a *keep* outside
                 :data:`~lpspec.relational.result.KEEPS`.
         """
-        return self._engine.solve(solver_name, solver_options=solver_options, keep=keep)
+        answered = self._engine.solve(solver_name, solver_options=solver_options, keep=keep)
+        return replace(answered, _model=self._digest)
 
     def write(self, path: str | Path) -> None:
         """Stream the built model to *path*, in the format its suffix names.
@@ -463,7 +469,7 @@ def load_result(directory: str | Path) -> Result:
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
     status = SolveStatus(record.termination_condition, has_primal=record.has_primal)
     if not status.is_readable:
-        return Result(status, record.objective, {}, {}, {}, 'nothing')
+        return Result(status, record.objective, {}, {}, {}, 'nothing', _model=record.model)
 
     no_duals, no_expressions = read_reasons(out)
     expressions: dict[str, Callable[[], pl.DataFrame]] = {
@@ -479,4 +485,5 @@ def load_result(directory: str | Path) -> Result:
         'nothing',
         expressions,
         no_duals,
+        record.model,
     )

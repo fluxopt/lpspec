@@ -25,8 +25,10 @@ from tests.conftest import (
     DISPATCH_SNAPSHOTS,
     PORT_REFERENCES,
     _dispatch_load,
+    override,
     port_sources,
     port_spec,
+    raw_of,
 )
 
 if TYPE_CHECKING:
@@ -270,6 +272,43 @@ def test_a_rolling_horizon_keeps_the_way_back_to_the_dimension_it_sliced(tmp_pat
     assert loaded.answer is not None
     assert loaded.answer.scan('soc', original_index=True).collect().equals(stitched), (
         'the lookahead rows are dropped on the way out of the archive as they were in the process'
+    )
+
+
+def test_an_answer_to_a_different_model_is_refused(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
+    """The one thing an artifact asserts that its three fields do not: they belong together.
+
+    Without it a mispaired triple archives cleanly, and the file re-solves to
+    an answer other than the one it holds — which is the failure a set of
+    archived cases cannot see.
+    """
+    other = override(raw_of(dispatch_yaml), **{'variables.p.bounds.upper': 1.0})
+    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+        with pytest.raises(lps.LpspecError, match='came back from a different model'):
+            lps.SolveArtifact(other, dispatch_frame_inputs, solved)
+        assert lps.SolveArtifact(dispatch_yaml, dispatch_frame_inputs, solved).answer is solved, (
+            'the spec that was solved pairs, and nothing else is refused'
+        )
+
+
+def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path) -> None:
+    """Why the digest is written rather than only checked.
+
+    Concatenating the records of cases solved apart gives a comparison table,
+    and one distinct `model` in it is the claim that the table compares like
+    with like. Nothing else on disk says so.
+    """
+    other = override(raw_of(dispatch_yaml), **{'variables.p.bounds.upper': 1000.0})
+    records = []
+    for name, spec in (('base', dispatch_yaml), ('capped', other)):
+        with lps.solve(spec, dispatch_frame_inputs) as solved:
+            out = solved.save(tmp_path / name)
+        records.append(pl.read_parquet(out / 'objective.parquet').select(pl.lit(name).alias('case'), pl.all()))
+
+    table = pl.concat(records)
+    assert table['model'].n_unique() == 2, 'two models, so the table is not comparing like with like'
+    assert lps.load_result(tmp_path / 'base').model == table.filter(pl.col('case') == 'base')['model'][0], (
+        'and a loaded answer carries the digest its record holds'
     )
 
 
