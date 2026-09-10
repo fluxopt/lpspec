@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.0.1-alpha.318](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.317...v0.0.1-alpha.318) (2026-09-10)
+
+
+### Features
+
+* **strategy:** a rolling horizon may keep a different number of coordinates in each window ([#1572](https://github.com/fluxopt/lpspec/issues/1572)) ([e52bc2d](https://github.com/fluxopt/lpspec/commit/e52bc2d587d145b28581773cf36479a1ee5df890))
+
+
+### Bug Fixes
+
+* **strategy:** a carry hands on the last row a slice owns rather than a coordinate the caller names ([#1571](https://github.com/fluxopt/lpspec/issues/1571)) ([561d05c](https://github.com/fluxopt/lpspec/commit/561d05cfa289c0c5cacd75fd557d2c8e83c33776))
+* **strategy:** a hand-built axis refuses the stitched answer rather than returning the keyed one ([#1568](https://github.com/fluxopt/lpspec/issues/1568)) ([7332207](https://github.com/fluxopt/lpspec/commit/733220790377f8f1ccd7130ae3e7184892e76238))
+
 ## [0.0.1-alpha.317](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.316...v0.0.1-alpha.317) (2026-09-10)
 
 
