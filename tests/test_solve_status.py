@@ -178,8 +178,8 @@ def test_a_solve_that_left_no_values_writes_the_record_and_no_frames(tmp_path):
     """
     with lps.solve(*CASES['INFEASIBLE']) as solution:
         out = solution.save(tmp_path / 'infeasible')
-    assert [entry.name for entry in out.iterdir()] == ['objective.parquet'], (
-        'no values, so no primal/, dual/ or expression/'
+    assert sorted(entry.name for entry in out.iterdir()) == ['format.json', 'objective.parquet'], (
+        'the record and the layout it is in; no values, so no primal/, dual/ or expression/'
     )
     record = pl.read_parquet(out / 'objective.parquet')
     assert record.row(0, named=True)['termination_condition'] == 'infeasible'

@@ -15,12 +15,13 @@ every constraint, which no ``kind=`` names because no fold carries it, and
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from typing import TYPE_CHECKING, NamedTuple
 
 import polars as pl
 
-from lpspec.errors import LpspecError
+from lpspec.errors import DataError, LpspecError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -30,6 +31,43 @@ if TYPE_CHECKING:
 #: comes back through, and what each is a frame of.
 KINDS = ('primal', 'dual', 'expression')
 LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expression'}
+
+
+#: What the layout under a directory looks like, bumped whenever it moves —
+#: a column added to the record, a kind that writes a new directory, a file
+#: beside them. **Compared, never branched on.** The project holds no
+#: compatibility promise, so there is no version this reads an old layout
+#: back through; the number exists to turn a missing column into a sentence
+#: naming the recovery. The day something writes ``if version == 1`` it has
+#: become the deprecation path this project refuses.
+ANSWER_FORMAT = 1
+FORMAT_FILE = 'format.json'
+
+
+def write_format(directory: Path) -> None:
+    """Stamp *directory* with the layout its contents are in."""
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / FORMAT_FILE).write_text(json.dumps({'answer': ANSWER_FORMAT}))
+
+
+def check_format(directory: Path) -> None:
+    """Refuse a saved answer whose layout is not the one this package reads.
+
+    Called after whatever identifies the directory as an answer at all, so a
+    directory that is simply not one gets that message rather than this.
+
+    Raises:
+        DataError: The layout moved since it was written.
+    """
+    file = directory / FORMAT_FILE
+    found = json.loads(file.read_text())['answer'] if file.is_file() else None
+    if found != ANSWER_FORMAT:
+        raise DataError(
+            f'{str(directory)!r} holds a saved answer in layout {found}, and this package reads '
+            f'{ANSWER_FORMAT}. The layout moves while the package is on 0.0.1aN and nothing reads an '
+            f'older one back: solve the model again and save it. An archive Artifact.save() wrote still '
+            f'holds the model and the data to do that with.'
+        )
 
 
 def digest_of(yaml: str) -> str:

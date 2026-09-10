@@ -8,6 +8,7 @@ dtype already lives, so a shape the archive cannot carry fails here by name.
 
 from __future__ import annotations
 
+import json
 import zipfile
 from typing import TYPE_CHECKING
 
@@ -310,6 +311,27 @@ def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispat
     assert lps.load_result(tmp_path / 'base').spec_digest == table.filter(pl.col('case') == 'base')['spec_digest'][0], (
         'and a loaded answer carries the digest its record holds'
     )
+
+
+def test_an_answer_in_an_older_layout_is_refused_by_name(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The layout moves while the package is on 0.0.1aN, so a stale one says so.
+
+    Nothing reads an older layout back — there is no migration and there will
+    not be one — so the stamp exists to turn a missing column into a sentence
+    naming what to do instead.
+    """
+    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+        out = solved.save(tmp_path / 'solution')
+    (out / 'format.json').write_text(json.dumps({'answer': 0}))
+
+    with pytest.raises(lps.DataError, match='solve the model again and save it'):
+        lps.load_result(out)
+
+    (out / 'format.json').unlink()
+    with pytest.raises(lps.DataError, match='layout None'):
+        lps.load_result(out)
 
 
 def test_a_hand_built_axis_is_refused(dispatch_yaml: Path, dispatch_frame_inputs) -> None:

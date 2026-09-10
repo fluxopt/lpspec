@@ -416,6 +416,7 @@ wrote, and nothing is extracted.
 | Rule | |
 |---|---|
 | **the spec is loaded on the way in** | a path or a mapping becomes a `Spec` in the constructor, so `artifact.spec` is one shape. A lowered `Program` is refused: it has no file to write |
+| **a saved answer is stamped with its layout** | `format.json` beside the frames. The layout moves while the package is on `0.0.1aN` and nothing reads an older one back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the model and the data to do that with |
 | **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an artifact is built. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an answer paired with a different spec is refused rather than archived. A solve run off a lowered `Program` has no document and carries `None` |
 | **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. `SweepArtifact` requires it and `SolveArtifact` has no such field, so nothing has to police the pairing. `load_artifact` returns whichever the archive holds |
 | **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |

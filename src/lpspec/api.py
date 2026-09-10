@@ -39,7 +39,7 @@ from lpspec.errors import DataError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
-from lpspec.relational.parquet import RECORD_FILE, Record, digest_of, read_reasons
+from lpspec.relational.parquet import RECORD_FILE, Record, check_format, digest_of, read_reasons
 from lpspec.relational.result import Result
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
@@ -466,6 +466,7 @@ def load_result(directory: str | Path) -> Result:
             f'{str(out)!r} holds no {RECORD_FILE!r}, so it is not an answer save() wrote. Every one '
             f'carries that record whether or not the solve produced values.'
         )
+    check_format(out)
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
     status = SolveStatus(record.termination_condition, has_primal=record.has_primal)
     if not status.is_readable:

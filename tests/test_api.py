@@ -483,6 +483,7 @@ def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
     assert sorted(p.name for p in out.iterdir()) == [
         'activity',
         'expression',
+        'format.json',
         'objective.parquet',
         'primal',
         'reasons.parquet',

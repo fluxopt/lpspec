@@ -18,7 +18,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
-from lpspec.relational.parquet import RECORD_FILE, Record, reader_kind, write_reasons, write_whole
+from lpspec.relational.parquet import (
+    RECORD_FILE,
+    Record,
+    reader_kind,
+    write_format,
+    write_reasons,
+    write_whole,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -657,6 +664,7 @@ class Result:
 
         primals = self._unclosed('the solution')
         out = Path(directory)
+        write_format(out)
         record = Record(self.status, self.termination_condition, self.objective, self.has_primal, self._spec_digest)
         write_whole(pl.DataFrame([record._asdict()]), out / RECORD_FILE)
         if not self._status.is_readable:

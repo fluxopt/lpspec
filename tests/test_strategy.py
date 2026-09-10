@@ -1330,11 +1330,12 @@ def test_save_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(pri
         'diagnostics',
         'dual',
         'expression',
+        'format.json',
         'objective',
         'owned.parquet',
         'primal',
         'sweep.json',
-    ], 'the three kinds, the record, the manifest, and the way back to the sliced dimension'
+    ], 'the three kinds, the record, the manifest, the layout it is in, and the way back'
     assert sorted(p.name for p in (out / 'expression').iterdir()) == ['spend', 'window_spend'], (
         'every declared expression the slices evaluated'
     )

@@ -43,8 +43,10 @@ from lpspec.relational.parquet import (
     KINDS,
     LABELS,
     Record,
+    check_format,
     read_reasons,
     reader_kind,
+    write_format,
     write_reasons,
     write_whole,
 )
@@ -301,7 +303,7 @@ class _Spill:
                 over other keys.
         """
         directory = Path(directory)
-        directory.mkdir(parents=True, exist_ok=True)
+        write_format(directory)
         manifest: dict[str, Any] = {
             'key_name': key_name,
             'keys': [str(key) for key in keys],
@@ -1057,6 +1059,7 @@ def load_runs(directory: str | Path) -> Runs:
             f'{str(under)!r} holds no {_MANIFEST_FILE!r}, so it is not a sweep save() or to= wrote. A '
             f'single solve writes no manifest and is read by load_result.'
         )
+    check_format(under)
     found = json.loads(manifest.read_text())
     original = found['original']
     no_duals, no_expressions = read_reasons(under)
