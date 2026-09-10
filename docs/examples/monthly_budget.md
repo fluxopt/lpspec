@@ -34,7 +34,7 @@ A cap on what each technology may generate per calendar month — an aggregate o
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{month\_of}: \mathcal{T} \to \mathcal{M}`$ — dispatch periods, each falling in one month |
-| $`\mathcal{M}`$ | index $`m`$ — `month` — the grouping the budget is stated over |
+| $`\mathcal{M}`$ | index $`m`$ — `month` with $`\mathrm{month\_of}: \mathcal{T} \to \mathcal{M}`$ — the grouping the budget is stated over |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units |
 
 #### Parameters
@@ -106,8 +106,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       month_of:
         description: the month a snapshot falls in
-        over: snapshot
-        into: month
+        over: [snapshot, month]
+        key: snapshot
 
     parameters:
       p_max:

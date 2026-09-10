@@ -327,7 +327,7 @@ def test_a_per_entity_offset_writes_a_nonzero_edge_where_that_entity_vacates():
 #: A period's own construction lead time, on a flat snapshot axis (#1161).
 PER_GROUP_OFFSET = {
     'dimensions': {'t': {'dtype': 'int'}, 'period': {'dtype': 'int'}},
-    'lookups': {'period_of': {'over': 't', 'into': 'period'}},
+    'lookups': {'period_of': {'over': ['t', 'period'], 'key': 't'}},
     'parameters': {'lead': {'dims': ['period'], 'dtype': 'int'}, 'v': {'dims': ['t']}},
     'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': -100, 'upper': 100}}},
     'constraints': {
@@ -341,7 +341,7 @@ PER_GROUP_OFFSET = {
 #: sends nowhere, which no lag reaches and no edge speaks for.
 PER_GROUP_OFFSET_TERMS = {
     'dimensions': {'t': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-    'lookups': {'season_of': {'over': 't', 'into': 'season'}},
+    'lookups': {'season_of': {'over': ['t', 'season'], 'key': 't', 'coverage': 'masked'}},
     'parameters': {'lead': {'dims': ['season'], 'dtype': 'int'}, 'cap': {'dims': ['t']}},
     'variables': {
         'level': {'foreach': ['t'], 'bounds': {'lower': 'cap', 'upper': 'cap'}},
@@ -357,7 +357,7 @@ PER_GROUP_OFFSET_TERMS = {
 #: reaches through the lookup, in the same join.
 PER_ENTITY_AND_PER_GROUP = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-    'lookups': {'season_of': {'over': 't', 'into': 'season'}},
+    'lookups': {'season_of': {'over': ['t', 'season'], 'key': 't', 'coverage': 'masked'}},
     'parameters': {'lead': {'dims': ['g', 'season'], 'dtype': 'int'}, 'v': {'dims': ['g', 't']}},
     'variables': {'p': {'foreach': ['g', 't'], 'bounds': {'lower': -100, 'upper': 100}}},
     'constraints': {

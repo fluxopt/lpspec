@@ -35,7 +35,7 @@ PyPSA transmission losses, tangent form: the quadratic loss on a line, underesti
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{from}: \mathcal{L} \to \mathcal{B},\ \mathrm{to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{L}`$ | index $`l`$ — `line` with $`\mathrm{from}: \mathcal{L} \to \mathcal{B},\ \mathrm{to}: \mathcal{L} \to \mathcal{B}`$ — passive branches, each joining two buses |
 | $`\mathcal{S}`$ | index $`s`$ — `segment` — the tangent points the loss curve is approximated at |
@@ -156,16 +156,16 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        over: [generator, bus]
+        key: generator
       from:
         description: the bus a line leaves
-        over: line
-        into: bus
+        over: [line, bus]
+        key: line
       to:
         description: the bus a line arrives at
-        over: line
-        into: bus
+        over: [line, bus]
+        key: line
 
     parameters:
       p_nom:

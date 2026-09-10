@@ -42,13 +42,13 @@ The multi-period class of a plain `n.optimize()`: `multi_investment_periods`, st
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{snapshot\_period}: \mathcal{T} \to \mathcal{Y}`$ — dispatch periods, positions across every investment period |
-| $`\mathcal{Y}`$ | index $`y`$ — `period` — investment periods — PyPSA's `investment_periods` |
-| $`\mathcal{N}`$ | index $`n`$ — `bus` — network nodes |
+| $`\mathcal{Y}`$ | index $`y`$ — `period` with $`\mathrm{snapshot\_period}: \mathcal{T} \to \mathcal{Y}`$ — investment periods — PyPSA's `investment_periods` |
+| $`\mathcal{N}`$ | index $`n`$ — `bus` with $`\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N},\ \mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N},\ \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N},\ \mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{Generator\_carrier}: \mathcal{G} \to \mathcal{C},\ \mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N}`$ — generating units, each on one bus |
-| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N}`$ — controllable connections, each from one bus to the buses it delivers to |
+| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N},\ \mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L}`$ — controllable connections, each from one bus to the buses it delivers to |
 | $`\mathcal{O}`$ | index $`o`$ — `link_output` with $`\mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L},\ \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N}`$ — a link's output ports, one label per port a link declares — PyPSA's `bus1`, `bus2`, … columns read long, so a link of any number of output ports is one term in the balance, data prep |
 | $`\mathcal{D}`$ | index $`d`$ — `load` with $`\mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}`$ — demands, each on one bus |
-| $`\mathcal{C}`$ | index $`c`$ — `carrier` — energy carriers, what a growth limit is set per |
+| $`\mathcal{C}`$ | index $`c`$ — `carrier` with $`\mathrm{Generator\_carrier}: \mathcal{G} \to \mathcal{C}`$ — energy carriers, what a growth limit is set per |
 
 #### Parameters
 
@@ -199,15 +199,35 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
       load: {description: 'demands, each on one bus'}
       carrier: {description: 'energy carriers, what a growth limit is set per'}
     lookups:
-      snapshot_period: {description: the investment period a snapshot falls in, over: snapshot, into: period}
-      Generator_carrier: {description: the carrier a generator converts from, over: generator, into: carrier}
-      Generator_bus: {description: the bus a generator sits on, over: generator, into: bus}
-      Link_bus0: {description: the bus a link leaves, over: link, into: bus}
-      Link_output_link: {description: the link an output port belongs to, over: link_output, into: link}
-      Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-          A link of three output ports is three labels here rather than a third lookup, so the file states
-          any number of them', over: link_output, into: bus}
-      Load_bus: {description: the bus a load sits on, over: load, into: bus}
+      snapshot_period:
+        description: the investment period a snapshot falls in
+        over: [snapshot, period]
+        key: snapshot
+      Generator_carrier:
+        description: the carrier a generator converts from
+        over: [generator, carrier]
+        key: generator
+      Generator_bus:
+        description: the bus a generator sits on
+        over: [generator, bus]
+        key: generator
+      Link_bus0:
+        description: the bus a link leaves
+        over: [link, bus]
+        key: link
+      Link_output_link:
+        description: the link an output port belongs to
+        over: [link_output, link]
+        key: link_output
+      Link_output_bus:
+        description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
+          output ports is three labels here rather than a third lookup, so the file states any number of them
+        over: [link_output, bus]
+        key: link_output
+      Load_bus:
+        description: the bus a load sits on
+        over: [load, bus]
+        key: load
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -590,7 +610,7 @@ snapshot,generator,value
 `Generator_bus.csv`
 
 ```csv
-generator,Generator_bus
+generator,bus
 gas30,south
 old_gas,north
 wind20,north
@@ -620,7 +640,7 @@ wind30,0.5
 `Generator_carrier.csv`
 
 ```csv
-generator,Generator_carrier
+generator,carrier
 gas30,gas
 old_gas,gas
 wind20,wind
@@ -798,7 +818,7 @@ wind30,0.0
 `Link_bus0.csv`
 
 ```csv
-link,Link_bus0
+link,bus
 wire15,north
 ```
 
@@ -826,14 +846,14 @@ snapshot,link,value
 `Link_output_bus.csv`
 
 ```csv
-link_output,Link_output_bus
+link_output,bus
 wire15_bus1,south
 ```
 
 `Link_output_link.csv`
 
 ```csv
-link_output,Link_output_link
+link_output,link
 wire15_bus1,wire15
 ```
 
@@ -875,7 +895,7 @@ wire15,60.0
 `Load_bus.csv`
 
 ```csv
-load,Load_bus
+load,bus
 port15,south
 town15,north
 ```
@@ -983,7 +1003,7 @@ snapshot
 `snapshot_period.csv`
 
 ```csv
-snapshot,snapshot_period
+snapshot,period
 2020-01-01T00:00:00.000000,2020
 2020-01-01T01:00:00.000000,2020
 2020-01-01T02:00:00.000000,2020

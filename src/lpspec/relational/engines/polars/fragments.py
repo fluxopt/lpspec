@@ -72,6 +72,16 @@ GROUP_RANK = '__pos in group__'
 GROUP_SIZE = '__group size__'
 
 
+def grouped_column(role: str) -> str:
+    """What a partitioned dimension table calls one column of the group.
+
+    A group is the lookup's value columns, and it lands nothing — so the
+    column is named after the *role* rather than after a dimension, which a
+    group of two columns over one dimension would need twice.
+    """
+    return f'__group {role}__'
+
+
 @dataclass(frozen=True)
 class Presence:
     """Where the *variable* under a fragment exists, and what keys it.

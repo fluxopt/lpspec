@@ -20,15 +20,17 @@ def dimension_coords(
     program: program.Program,
     tidy: Mapping[str, pl.LazyFrame],
 ) -> tuple[dict[str, pd.Index], dict[str, dict[str, xr.DataArray]]]:
-    """Every dimension's labels, and each declared lookup as an array over its dimension.
+    """Every dimension's labels, and each keyed lookup's value columns as arrays over its key.
 
     *tidy* is :func:`~lpspec.sources.tidy_sources`' output, so every index and
-    map has been read and checked; what happens here is the conversion.
+    relation has been read and checked; what happens here is the conversion.
 
     Returns:
-        The master coordinates by dimension, and by dimension the array each
-        declared lookup carries over it. A dimension declaring no lookup is
-        absent from the second.
+        The master coordinates by dimension, and by lookup name the array each
+        of its value columns carries over the key's dimensions. A bare relation
+        has no key to index by and is absent from the second — this lane reads
+        a lookup as a function, and :func:`~lpspec.linopy.builder.build_model`
+        refuses the walks that are not one.
     """
     master = {d: pd.Index(pd.unique(to_pandas(tidy[d].select(d).collect())[d]), name=d) for d in program.dimensions}
     return master, _lookup_arrays(program, tidy, master)
@@ -39,20 +41,30 @@ def _lookup_arrays(
     tidy: Mapping[str, pl.LazyFrame],
     master: Mapping[str, pd.Index],
 ) -> dict[str, dict[str, xr.DataArray]]:
-    """Each declared lookup as an array over the dimension it is over.
+    """Each keyed lookup's value columns as arrays over the dimensions of its key.
 
-    A map arrives as its own ``(over, lookup)`` relation holding rows only
-    where it is defined. **The padding happens here**: an array is dense by
-    construction, and linopy's ``groupby`` wants one aligned to the
-    dimension's coordinates — so a label the relation leaves out becomes a
-    null, which every reader on this lane treats as "in no group".
+    A relation arrives holding rows only where it has them. **The padding
+    happens here**: an array is dense by construction, and linopy's ``groupby``
+    wants one aligned to the dimension's coordinates — so a key tuple the
+    relation leaves out becomes a null, which every reader on this lane treats
+    as "in no group". Under the default ``coverage: total`` there are none, the
+    door having refused the gap already.
     """
     out: dict[str, dict[str, xr.DataArray]] = {}
-    for dim, declared in program.dimensions.items():
-        labels = master[dim]
-        for name in declared.targets:
-            series = to_pandas(tidy[name].collect()).set_index(dim)[name].reindex(labels)
-            out.setdefault(dim, {})[name] = xr.DataArray(series.to_numpy(), dims=[dim], coords={dim: labels}, name=name)
+    for name, lk in program.lookups.items():
+        if not lk.key:
+            continue
+        rows = to_pandas(tidy[name].collect())
+        keys = [lk.dim(role) for role in lk.key]
+        index = (
+            pd.Index(rows[lk.key[0]].to_numpy(), name=keys[0])
+            if len(keys) == 1
+            else pd.MultiIndex.from_arrays([rows[role].to_numpy() for role in lk.key], names=keys)
+        )
+        onto = {d: master[d] for d in keys}
+        for role in lk.values:
+            column = xr.DataArray.from_series(pd.Series(rows[role].to_numpy(), index=index))
+            out.setdefault(name, {})[role] = column.reindex(onto).rename(f'{name}.{role}')
     return out
 
 

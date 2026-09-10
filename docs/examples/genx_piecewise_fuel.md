@@ -30,8 +30,8 @@ GenX's piecewise-fuel case: a day of dispatch for two carbon-capture plants and 
 | $`\mathcal{H}`$ | index $`h`$ — `hour` — hours of a representative day that repeats |
 | $`\mathcal{S}`$ | index $`s`$ — `segment` — a piece of the fuel curve |
 | $`\mathcal{T}`$ | index $`t`$ — `step` — a block of demand that may be shed, each dearer than the last |
-| $`\mathcal{C}`$ | index $`c`$ — `commitment_mode` — the ways a plant may be committed |
-| $`\mathcal{F}`$ | index $`f`$ — `fuel_use_mode` — the ways a plant's fuel use may be read |
+| $`\mathcal{C}`$ | index $`c`$ — `commitment_mode` with $`\mathrm{commitment}: \mathcal{P} \to \mathcal{C}`$ — the ways a plant may be committed |
+| $`\mathcal{F}`$ | index $`f`$ — `fuel_use_mode` with $`\mathrm{fuel\_use}: \mathcal{P} \to \mathcal{F}`$ — the ways a plant's fuel use may be read |
 
 #### Parameters
 
@@ -285,12 +285,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       commitment:
         description: whether a plant is committed unit by unit or dispatched freely
-        over: plant
-        into: commitment_mode
+        over: [plant, commitment_mode]
+        key: plant
       fuel_use:
         description: whether a plant's fuel use is read off the piecewise curve or a flat heat rate
-        over: plant
-        into: fuel_use_mode
+        over: [plant, fuel_use_mode]
+        key: plant
 
     parameters:
       unit_size:

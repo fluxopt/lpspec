@@ -42,7 +42,7 @@ PyPSA multi-link: one Link, one input bus, several output buses, each output der
 
 | Symbol | Meaning |
 |---|---|
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{L}`$ | index $`l`$ — `link` — conversions, each drawing at one bus and delivering at several |
 
@@ -121,7 +121,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dtype: str
 
     lookups:
-      gen_bus: {over: generator, into: bus, description: "the bus a generator sits on"}
+      gen_bus: {over: [generator, bus], key: generator, description: "the bus a generator sits on"}
 
     parameters:
       gen_p_nom:

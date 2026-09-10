@@ -33,7 +33,7 @@ PyPSA linear optimal power flow over passive AC lines under Kirchhoff's voltage 
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{L}`$ | index $`l`$ — `line` with $`\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — passive AC lines, each joining two buses |
 | $`\mathcal{C}`$ | index $`c`$ — `cycle` — one independent loop of the network |
@@ -125,16 +125,16 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        over: [generator, bus]
+        key: generator
       line_from:
         description: the bus a line leaves
-        over: line
-        into: bus
+        over: [line, bus]
+        key: line
       line_to:
         description: the bus a line arrives at
-        over: line
-        into: bus
+        over: [line, bus]
+        key: line
 
     parameters:
       p_nom:
@@ -268,7 +268,7 @@ different file.
 **Computing the basis is data preparation, and stays outside the language.**
 Finding a cycle basis is a graph algorithm — iteration over a structure
 discovered from data, which the
-[limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation) refuses by design. The
+[ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/#two-tiers-and-the-ceiling) refuses by design. The
 reference prints the rows PyPSA derived so the two can be checked against each
 other. They need only agree on the *cycle space*: PyPSA scales its coefficients
 for conditioning, and since the row is `= 0`, any nonzero multiple of a cycle

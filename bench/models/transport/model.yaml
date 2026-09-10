@@ -12,9 +12,9 @@ dimensions:
     dtype: str
 
 lookups:
-  gen_bus: {over: generator, into: bus}  # every generator sits on a bus
-  line_from: {over: line, into: bus}  # both endpoints are buses
-  line_to: {over: line, into: bus}
+  gen_bus: {over: [generator, bus], key: generator}  # every generator sits on a bus
+  line_from: {over: [line, bus], key: line}  # both endpoints are buses
+  line_to: {over: [line, bus], key: line}
 
 parameters:
   p_max:

@@ -101,8 +101,8 @@ in `linopy/builder.py`, one section per group below.
 | `p` — a parameter | its `xr.DataArray`, `.fillna(0.0)` where it stands as a coefficient |
 | `+` `-` `*` `/` | the Python operators linopy overloads |
 | `sum(x, over=t)` | `.sum('t')` |
-| `sum(x, by=lk)` | the lookup attached as a coordinate, then `.groupby()`, reindexed onto the target dimension's declared labels; `by=[lk1, lk2]` groups by both at once |
-| `at(p, by=lk)` | `.sel({into: lookup})`, xarray's vectorised selection; one entry per lookup reads a tuple of labels at once |
+| `sum(x, by=lk)` | the lookup's value column attached as a coordinate, then `.groupby()`, reindexed onto the produced dimension's declared labels; `by=[lk1, lk2]` and a table with two value columns both group by the pair at once |
+| `at(p, by=lk)` | `.sel()` through the value columns, xarray's vectorised selection; several columns read a tuple of labels at once |
 | `shift(x, over=t, offset=n)` | `.shift({t: n})`; `.roll({t: n})` under `edge: wrap`; a `.sel()` gather where the offset differs per entity or `by=` groups it |
 | `sum_back(x, over=t, within=w)` | a sum of `w` scalar gathers, each unreachable position contributing zero; under `by=` each gather reads inside the group, so the window stops at its edge |
 | `dual(c)` | `Model.constraints['c'].dual`, at a read only; the language keeps a dual out of the math, and a solve that stored none refuses the read |
@@ -162,6 +162,24 @@ refusal rather than each wording its own: a fix for one that left the others
 would fix a symptom. The relational lane names the rewrite that reaches the same number:
 declare the parameter over the dimension and supply it there
 ([#1137](https://github.com/fluxopt/lpspec/issues/1137)).
+
+**The third is this lane's again, and it is the shape of a lookup rather than
+of an expression.** A lookup is a relation between dimensions, and this lane
+holds one as a dense `xr.DataArray` per value column, indexed by the dimension
+its key is over — which is exactly what `.groupby()` and `.sel()` read. Three
+walks the language admits have no such array, so `builder.py` refuses them
+before linopy is asked, naming which and pointing at the engine that does build
+them:
+
+- a **composite key**, whose relation is a function of a pair of dimensions
+  rather than of one;
+- a **bare relation**, which declares no key and so is no function at all;
+- a **self-map**, whose two columns are over one dimension, so the group would
+  replace the axis it is grouped along.
+
+The relational engine takes all three as they stand: it meets a lookup as a
+table and the walk as a join, so the arity of the key costs it a join key and
+nothing else.
 
 **The lane takes the same data too**
 ([#60](https://github.com/fluxopt/lpspec/issues/60)). It reads every shape

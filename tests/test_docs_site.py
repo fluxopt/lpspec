@@ -23,6 +23,8 @@ import json
 import re
 from pathlib import Path
 
+from tests.conftest import walk
+
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / 'docs'
 REPO_URL = 'https://github.com/fluxopt/lpspec'
@@ -246,8 +248,8 @@ def test_the_plan_table_names_every_expression_node():
             program.Divide(x, program.Parameter('p')),
             program.Power(program.Parameter('p'), program.Constant(2.0)),
             program.Sum(x, ('t',)),
-            program.GroupSum(x, 'g', ('bus',), ('b',)),
-            program.At(x, 'g', ('bus',), ('b',)),
+            program.GroupSum(x, (walk('bus', 'g', 'b'),)),
+            program.At(x, (walk('bus', 'b', 'g'),)),
             program.Translate(x, 't', 1, wrap=False),
             program.Window(x, 't', 3, wrap=False),
             program.Cases((program.Region(program.Mask(program.BooleanLiteralNode(True)), x),)),

@@ -56,8 +56,8 @@ The travelling salesman problem in the Miller-Tucker-Zemlin formulation: visit e
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{C}`$ | index $`c`$ — `city` with $`\mathrm{as\_from}: \mathcal{C} \to \mathcal{F},\ \mathrm{as\_to}: \mathcal{C} \to \mathcal{T}`$ — the cities of the tour, each also read as an arc endpoint |
-| $`\mathcal{F}`$ | index $`f`$ — `from_city` — the city an arc leaves |
-| $`\mathcal{T}`$ | index $`t`$ — `to_city` — the city an arc arrives at |
+| $`\mathcal{F}`$ | index $`f`$ — `from_city` with $`\mathrm{as\_from}: \mathcal{C} \to \mathcal{F}`$ — the city an arc leaves |
+| $`\mathcal{T}`$ | index $`t`$ — `to_city` with $`\mathrm{as\_to}: \mathcal{C} \to \mathcal{T}`$ — the city an arc arrives at |
 
 #### Parameters
 
@@ -136,8 +136,8 @@ dimensions:
     dtype: str
 
 lookups:
-  as_from: {over: city, into: from_city}
-  as_to: {over: city, into: to_city}
+  as_from: {over: [city, from_city], key: city}
+  as_to: {over: [city, to_city], key: city}
 
 parameters:
   distance:
@@ -202,8 +202,8 @@ It does not. Declare the identity map from `city` onto each end of the pair:
 
 ```yaml
 lookups:
-  as_from: {over: city, into: from_city}
-  as_to: {over: city, into: to_city}
+  as_from: {over: [city, from_city], key: city}
+  as_to: {over: [city, to_city], key: city}
 ```
 
 and `sum(u, by=as_from)` becomes a **relabel** rather than a

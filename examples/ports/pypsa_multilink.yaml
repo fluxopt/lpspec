@@ -18,7 +18,7 @@ dimensions:
     dtype: str
 
 lookups:
-  gen_bus: {over: generator, into: bus, description: "the bus a generator sits on"}
+  gen_bus: {over: [generator, bus], key: generator, description: "the bus a generator sits on"}
 
 parameters:
   gen_p_nom:

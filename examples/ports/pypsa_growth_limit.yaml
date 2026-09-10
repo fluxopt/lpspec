@@ -22,16 +22,16 @@ dimensions:
 lookups:
   gen_carrier:
     description: the carrier a generator burns
-    over: generator
-    into: carrier
+    over: [generator, carrier]
+    key: generator
   build_period:
     description: the period a generator is first built in, and so counted as new in
-    over: generator
-    into: period
+    over: [generator, period]
+    key: generator
   period_of:
     description: the investment period a snapshot falls in
-    over: snapshot
-    into: period
+    over: [snapshot, period]
+    key: snapshot
 
 parameters:
   load:

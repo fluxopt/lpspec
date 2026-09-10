@@ -36,7 +36,7 @@ Least-cost heat and power from two converters whose flows are tied to one piecew
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `time` — dispatch periods |
-| $`\mathcal{C}`$ | index $`c`$ — `converter` — units converting one carrier into others |
+| $`\mathcal{C}`$ | index $`c`$ — `converter` with $`\mathrm{converter\_of}: \mathcal{F} \to \mathcal{C}`$ — units converting one carrier into others |
 | $`\mathcal{F}`$ | index $`f`$ — `flow` with $`\mathrm{converter\_of}: \mathcal{F} \to \mathcal{C}`$ — a converter's inputs and outputs, one row each |
 | $`\mathcal{B}`$ | index $`b`$ — `bp` — breakpoints, as many as the longest curve needs |
 
@@ -144,8 +144,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       converter_of:
         description: which converter a flow belongs to
-        over: flow
-        into: converter
+        over: [flow, converter]
+        key: flow
 
     parameters:
       bp_rate:

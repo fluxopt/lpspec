@@ -15,7 +15,7 @@ dimensions:
     dtype: str
 
 lookups:
-  period_of: {over: snapshot, into: period}
+  period_of: {over: [snapshot, period], key: snapshot}
 
 parameters:
   load:

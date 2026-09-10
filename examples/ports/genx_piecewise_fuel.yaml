@@ -29,12 +29,12 @@ dimensions:
 lookups:
   commitment:
     description: whether a plant is committed unit by unit or dispatched freely
-    over: plant
-    into: commitment_mode
+    over: [plant, commitment_mode]
+    key: plant
   fuel_use:
     description: whether a plant's fuel use is read off the piecewise curve or a flat heat rate
-    over: plant
-    into: fuel_use_mode
+    over: [plant, fuel_use_mode]
+    key: plant
 
 parameters:
   unit_size:

@@ -368,8 +368,8 @@ it ([#1142](https://github.com/fluxopt/lpspec/issues/1142)).
 | `Divide` | `x / p` | one-to-one | a **left** join, so a divisor with no value leaves a null to report |
 | `Power` | `p ** q` | one-to-one | an inner join and `pow` |
 | `Sum` | `sum(x)`, `sum(x, over=d)` | many-to-one | the summed dims projected away — no aggregate |
-| `GroupSum` | `sum(x, by=lk)` | many-to-one | one inner join with the lookup's table, the grouped dim traded for its targets |
-| `At` | `at(x, by=lk)` | one-to-one | the same table joined the other way, fanning out |
+| `GroupSum` | `sum(x, by=lk)` | many-to-one | one inner join with the lookup's relation, the consumed dims traded for the produced ones, keyed also on what the walk joins on |
+| `At` | `at(x, by=lk)` | one-to-one | the same relation met on the produced side, fanning out |
 | `Translate` | `shift(x, over=d, offset=n)` | one-to-one | a remap through the dimension's `ord`, modulo its size under `wrap` |
 | `Window` | `sum_back(x, over=d, within=w)` | one-to-many | a row lands at every position whose window reaches it — no aggregate |
 | `Cases` | a named expression's `cases:` block | one-to-one | each region's value cut to its own mask and the fragment lists concatenated |
@@ -433,8 +433,8 @@ declarations build, and lands as CSR at assembly: `(col, coeff)` in row-major
 order plus a `row_starts` offset array, the same three arrays a solver takes,
 at 12 bytes per entry. Masks are **row absence**: no NaN sentinels, no `-1`
 labels. Broadcasting is a join. `sum` drops coordinate columns, and `sum(by=)`
-joins the dim table and projects a declared lookup in place of the grouped
-dim ([above](#the-plan-node-for-node)).
+joins the lookup's own relation and projects the columns the walk produces in
+place of the ones it consumes ([above](#the-plan-node-for-node)).
 
 **The label contract is the one place order is load-bearing.** Everything else
 in the lane is order-free, which is what lets the query planner rearrange it.

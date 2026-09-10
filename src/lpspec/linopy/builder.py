@@ -31,6 +31,8 @@ from lpspec.linopy.where import EvaluationContext, as_linopy_mask, bound_lookup,
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     import linopy
     import pandas as pd
     import xarray as xr
@@ -43,7 +45,7 @@ def build_model(
     program: program.Program,
     dataset: xr.Dataset,
     master_coords: dict[str, pd.Index],
-    dim_coords: dict[str, dict[str, xr.DataArray]],
+    lookups: dict[str, dict[str, xr.DataArray]],
 ) -> None:
     """Populate a linopy Model from a lowered program and loaded parameters.
 
@@ -52,7 +54,7 @@ def build_model(
     is trusted by construction, ``to_program`` having decided every rule the
     language can decide without data.
     """
-    ctx = EvaluationContext(dataset, master_coords, model, dim_coords, program)
+    ctx = EvaluationContext(dataset, master_coords, model, lookups, program)
     _build_variables(ctx)
     _build_sos(ctx)
     _build_constraints(ctx)
@@ -144,6 +146,77 @@ def _refuse_what_the_lane_cannot_build(p: program.Program) -> None:
     """
     if missing := LANES['linopy'].missing(required(p)):
         raise LaneError(lane_cannot_build_message('linopy', missing))
+    for walk in _every_walk(p):
+        if not _reads_as_a_function(walk):
+            raise LaneError(_walk_the_lane_cannot_read_message(walk))
+    for name in _lookups_a_mask_reads(p):
+        if not p.lookups[name].key:
+            raise LaneError(_relation_a_mask_reads_message(name))
+
+
+def _every_walk(p: program.Program) -> Iterator[program.Walk]:
+    """Every walk the program takes, whether an operator's or a partition's."""
+    for node in program.walk(*p.expressions):
+        if isinstance(node, program.GroupSum | program.At):
+            yield from node.walks
+        elif isinstance(node, program.Translate | program.Window) and node.partition is not None:
+            yield node.partition
+    for mask in _masks(p):
+        for atom in mask.atoms:
+            if isinstance(atom, program.DimensionPositionNode) and atom.partition is not None:
+                yield atom.partition
+
+
+def _masks(p: program.Program) -> Iterator[program.Mask]:
+    """Every ``where`` the program carries, wherever the mask stands."""
+    yield from (v.where for v in p.variables.values() if v.where is not None)
+    yield from (c.where for c in p.constraints.values() if c.where is not None)
+    for node in program.walk(*p.expressions):
+        if isinstance(node, program.Cases):
+            yield from (region.when for region in node.regions)
+
+
+def _lookups_a_mask_reads(p: program.Program) -> Iterator[str]:
+    """Every lookup named by a ``where``, wherever the mask stands."""
+    for mask in _masks(p):
+        yield from (name for name in mask.names_read if name in p.lookups)
+
+
+def _relation_a_mask_reads_message(name: str) -> str:
+    """A bare relation a ``where`` tests, which this lane holds no array for."""
+    return (
+        f"the linopy lane cannot read lookup '{name}' in a where: it declares no key, so it is a relation "
+        f'this lane has no array for. Build this model on the relational engine — lps.solve() and '
+        f'lps.build() take it as it stands.'
+    )
+
+
+def _reads_as_a_function(walk: program.Walk) -> bool:
+    """Whether this lane can read the walk as arrays indexed by one dimension.
+
+    This lane holds a lookup as a dense array over the dimension its key is
+    over, so a walk it can take reads that array and nothing else: one key
+    column, nothing joined on beside it, and the two ends over different
+    dimensions — a self-map's group would otherwise replace the axis it is
+    grouped along.
+    """
+    return len(walk.key) == 1 and not walk.joined and not set(walk.consumed_dims) & set(walk.produced_dims)
+
+
+def _walk_the_lane_cannot_read_message(walk: program.Walk) -> str:
+    """A walk the relational engine takes and this lane does not, named by what makes it one."""
+    if not walk.key:
+        why = 'declares no key, so it is a relation this lane has no array for'
+    elif len(walk.key) > 1:
+        why = f'is keyed by {list(walk.key)}, and this lane reads a lookup at one dimension'
+    elif walk.joined:
+        why = f'is walked joining on {list(walk.joined)}, which this lane cannot key an array by'
+    else:
+        why = f'relates {walk.consumed_dims[0]!r} to itself, so the walk would replace the axis it reads along'
+    return (
+        f"the linopy lane cannot walk lookup '{walk.name}': it {why}. "
+        f'Build this model on the relational engine — lps.solve() and lps.build() take it as it stands.'
+    )
 
 
 def _build_constraints(ctx: EvaluationContext) -> None:
@@ -302,13 +375,13 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
     if isinstance(node, program.GroupSum):
         return operator_grouped_sum(
             _eval(node.operand, ctx),
-            _lookup_arrays(node.over, node.coordinate, ctx),
+            _walk_arrays(node.walks, ctx),
             into=node.into,
             labels=ctx.master_coords,
         )
 
     if isinstance(node, program.At):
-        return operator_at(_eval(node.operand, ctx), _lookup_arrays(node.over, node.coordinate, ctx), into=node.into)
+        return operator_at(_eval(node.operand, ctx), _walk_arrays(node.walks, ctx), into=node.into)
 
     if isinstance(node, program.Translate):
         return operator_shift(
@@ -400,19 +473,29 @@ def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
 
 
 def _partition(node: program.Translate | program.Window, ctx: EvaluationContext) -> Any:
-    """The lookup a windowed operator may not reach across, as its values.
+    """The group a windowed operator may not reach across, as the lookup column that makes it.
 
-    **Named for the dimension its values are labels of**, not for itself: an
-    amount declared over the group's own dim is read through this array by
+    **Named for the dimension the group's labels are of**, not for the lookup:
+    an amount declared over that dimension is read through this array by
     :func:`~lpspec.linopy.operators._per_group`, which pairs the two by that
     name.
     """
     if node.partition is None:
         return None
-    array = bound_lookup(node.partition, node.dimension, ctx.dim_coords)
-    return array.rename(ctx.program.dimension(node.dimension).targets[node.partition])
+    walk = node.partition
+    array = bound_lookup(walk.name, walk.produced[0], ctx.lookups)
+    return array.rename(walk.dim(walk.produced[0]))
 
 
-def _lookup_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The declared lookups *names* as arrays over *over*, in the order the plan wrote them."""
-    return tuple(bound_lookup(name, over, ctx.dim_coords) for name in names)
+def _walk_arrays(walks: tuple[program.Walk, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
+    """The value columns each walk reads, as arrays over the dimension its key is over.
+
+    One array per dimension the walk lands the operand on, in the order the
+    walks wrote them: a sum reads the columns it produces and a read the ones
+    it consumes, which are the same value columns either way.
+    """
+    return tuple(
+        bound_lookup(walk.name, role, ctx.lookups)
+        for walk in walks
+        for role in (walk.produced if set(walk.consumed) == set(walk.key) else walk.consumed)
+    )

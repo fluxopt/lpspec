@@ -378,7 +378,7 @@ def test_a_bare_where_on_a_string_parameter_asks_whether_it_has_a_row(tmp_path: 
 #: for, since it carries the label and never what the label maps to.
 LOOKUP_SPEC = {
     'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
-    'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}},
+    'lookups': {'gen_bus': {'over': ['g', 'b'], 'key': 'g'}},
     'parameters': {'p_max': {'dims': ['g']}},
     'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
     'constraints': {'k': {'foreach': ['b'], 'expression': 'sum(x, by=gen_bus) <= 10'}},
@@ -393,7 +393,7 @@ _MAP = {'gen_bus': _tidy(g=['w', 's'], b=['n', 'e'])}
 @pytest.mark.parametrize(
     ('sources', 'match'),
     [
-        pytest.param({**_P_MAX, **_MAP}, 'has its maps', id='a-map-and-no-labels'),
+        pytest.param({**_P_MAX, **_MAP}, 'has lookups with a column over it', id='a-relation-and-no-labels'),
         pytest.param({**_P_MAX, **_INDEX}, 'no data provided for lookup', id='an-index-and-no-map'),
         pytest.param(
             {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], gen_bus=['n', 'e'])},
@@ -401,13 +401,13 @@ _MAP = {'gen_bus': _tidy(g=['w', 's'], b=['n', 'e'])}
             id='a-map-named-after-itself-and-not-its-target',
         ),
         pytest.param(
-            {**_P_MAX, **_MAP, 'g': _tidy(gg=['w', 's'])},
+            {**_P_MAX, **_MAP, 'b': _tidy(b=['n', 'e']), 'g': _tidy(gg=['w', 's'])},
             "without a 'g' column",
             id='an-index-without-the-label-column',
         ),
         pytest.param(
             {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], b=['n', 'zz'])},
-            'not .b. labels',
+            r"column 'b' holds 1 value\(s\) that are not labels of 'b'",
             id='a-lookup-value-that-is-no-label-of-its-target',
         ),
         pytest.param(
@@ -417,12 +417,12 @@ _MAP = {'gen_bus': _tidy(g=['w', 's'], b=['n', 'e'])}
         ),
         pytest.param(
             {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], b=[None, 'e'])},
-            "null in 'b'",
+            r"null in one of \['g', 'b'\]",
             id='a-lookup-mapping-a-label-to-nothing',
         ),
         pytest.param(
             {**_P_MAX, **_MAP, 'g': _tidy(g=['w', 's'], gen_bus=['n', 'e'])},
-            "is a lookup over 'g'",
+            "is a lookup with a column over 'g'",
             id='a-map-carried-on-the-index-it-runs-over',
         ),
     ],
@@ -453,7 +453,7 @@ def test_an_index_a_declared_map_is_read_against_is_checked_before_the_read(tmp_
     error rules exist to prevent, on a lane whose attacher has the right sentence
     for it two calls later.
     """
-    spec = {**LOOKUP_SPEC, 'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}}}
+    spec = {**LOOKUP_SPEC, 'lookups': {'gen_bus': {'over': ['g', 'b'], 'key': 'g'}}}
     path = _written(tmp_path, spec)
     sources = {**_P_MAX, **_MAP, 'b': _tidy(b=['n', 'e']), 'g': _tidy(gg=['w', 's'])}
 
@@ -485,7 +485,7 @@ def test_a_lookup_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_pa
     built.solve(solver_name='highs', output_flag=False)
     assert float(built.objective.value) == pytest.approx(3.0), 'and the eager lane agrees where the index is clean'
 
-    both_lanes_refuse(path, holed, match="null in 'b'")
+    both_lanes_refuse(path, holed, match=r"null in one of \['g', 'b'\]")
 
 
 def test_a_dimension_index_is_a_table_on_both_lanes(tmp_path):
@@ -532,7 +532,7 @@ def test_a_dimension_index_may_be_a_parquet_path_without_pyarrow(tmp_path, monke
 #: dimension, rather than the dimension the index is of.
 TEMPORAL_LOOKUP_SPEC = {
     'dimensions': {'g': {}, 'd': {'dtype': 'datetime'}},
-    'lookups': {'day_of': {'over': 'g', 'into': 'd'}},
+    'lookups': {'day_of': {'over': ['g', 'd'], 'key': 'g', 'coverage': 'masked'}},
     'parameters': {'p_max': {'dims': ['g']}, 'cap': {'dims': ['d']}},
     'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
     'constraints': {'k': {'foreach': ['d'], 'expression': 'sum(x, by=day_of) <= cap'}},
@@ -603,7 +603,7 @@ def test_a_stray_lookup_value_reads_the_same_over_an_int_labelled_target(tmp_pat
     path = _written(tmp_path, spec)
     sources = {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], b=[1, 99])}
 
-    sentence = both_lanes_refuse(path, sources, match=r'not .b. labels')
+    sentence = both_lanes_refuse(path, sources, match=r"column 'b' holds 2 value\(s\) that are not labels of 'b'")
     assert '99.' in sentence, 'the label as the caller wrote it, not as numpy holds it'
 
 
@@ -688,7 +688,7 @@ def test_an_entity_table_is_a_dimension_index_columns_and_all(tmp_path):
     """
     spec = {
         'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
-        'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}},
+        'lookups': {'gen_bus': {'over': ['g', 'b'], 'key': 'g'}},
         'parameters': {'cap': {'dims': ['g']}},
         'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {'k': {'foreach': ['b'], 'expression': 'sum(x, by=gen_bus) <= 100'}},

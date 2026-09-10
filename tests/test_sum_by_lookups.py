@@ -33,10 +33,9 @@ from math_spec import to_program
 from math_spec.program import GroupSum, Variable
 
 from lpspec.errors import DimensionError
-from tests.conftest import by_coord, override, raw_of, relation, schema_of
+from tests.conftest import by_coord, override, raw_of, relation, schema_of, walk
 from tests.differential import RTOL, differential
 from tests.oracle import operators, pd, xr
-from tests.test_compiler import compiler
 
 SPEC = """
 description: capacity limited per bus and technology at once
@@ -47,8 +46,8 @@ dimensions:
   technology: {dtype: str, description: what a generator is built from}
 
 lookups:
-  gen_bus: {over: generator, into: bus, description: the bus a generator sits on}
-  gen_tech: {over: generator, into: technology, description: the technology it is}
+  gen_bus: {over: [generator, bus], key: generator, description: the bus a generator sits on}
+  gen_tech: {over: [generator, technology], key: generator, description: the technology it is}
 
 parameters:
   cost: {dims: [generator], description: marginal cost of a unit of output}
@@ -240,21 +239,8 @@ def test_two_lookups_lower_to_one_node_and_not_to_a_composition():
     """
     (limit, _demand) = to_program(schema_of(SPEC)).constraints.values()
     assert limit.lhs == GroupSum(
-        Variable('p'), over='generator', coordinate=('gen_bus', 'gen_tech'), into=('bus', 'technology')
+        Variable('p'), (walk('gen_bus', 'generator', 'bus'), walk('gen_tech', 'generator', 'technology'))
     )
-
-
-def test_a_hand_built_node_whose_tuples_disagree_is_refused():
-    """`math_spec.program` is a public IR, so a node can arrive without going through
-    resolution — and the two tuples pair up positionally, so a mismatch would
-    otherwise drop the unpaired coordinate and group by one map too few.
-
-    Nothing in the language can build this: resolution derives both tuples
-    from one list of names. It is the shortest path to the guard.
-    """
-    node = GroupSum(Variable('p'), over='generator', coordinate=('gen_bus', 'gen_tech'), into=('bus',))
-    with pytest.raises(ValueError, match='zip'):
-        compiler().expression(node, 'a hand-built plan')
 
 
 # ---------------------------------------------------------------------------
