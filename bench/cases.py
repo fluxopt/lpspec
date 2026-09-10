@@ -162,7 +162,7 @@ def _dump(frames: dict[str, pd.DataFrame], dest: Path) -> dict[str, str]:
     paths = {}
     for name, df in frames.items():
         path = (dest / f'{name}.parquet').absolute()
-        df.save(path, index=False)
+        df.to_parquet(path, index=False)
         paths[name] = str(path)
     return paths
 
