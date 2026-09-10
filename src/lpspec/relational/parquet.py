@@ -22,6 +22,7 @@ import polars as pl
 from lpspec.errors import LpspecError
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
 
 #: The three kinds of frame a solve answers with, named after the reader each
@@ -47,6 +48,38 @@ class Record(NamedTuple):
     #: say: a run stopped at a limit before any incumbent is ``ok`` with
     #: nothing to read.
     has_primal: bool
+
+
+#: The two files that sit beside the frames, named here because a result and a
+#: sweep both write them and :func:`lpspec.artifact.load_artifact` reads back
+#: whichever wrote: the record of how the solve terminated, and the reasons
+#: behind whatever is deliberately not there.
+RECORD_FILE = 'objective.parquet'
+REASONS_FILE = 'reasons.parquet'
+
+
+def write_reasons(directory: Path, no_duals: str | None, no_expressions: Mapping[str, str]) -> None:
+    """``(kind, name, reason)`` for what a solve could not produce, or no file at all.
+
+    An empty *name* is the whole kind, which is how the duals are absent —
+    an integer variable makes every one of them undefined, never one
+    constraint's. Written only when there is something to say, the way a kind
+    with no values writes no directory.
+    """
+    rows = [] if no_duals is None else [{'kind': 'dual', 'name': '', 'reason': no_duals}]
+    rows += [{'kind': 'expression', 'name': name, 'reason': why} for name, why in no_expressions.items()]
+    if rows:
+        write_whole(pl.DataFrame(rows), directory / REASONS_FILE)
+
+
+def read_reasons(directory: Path) -> tuple[str | None, dict[str, str]]:
+    """What :func:`write_reasons` wrote: the duals' reason, and one per named expression."""
+    file = directory / REASONS_FILE
+    rows: list[tuple[str, str, str]] = pl.read_parquet(file).rows() if file.is_file() else []
+    return (
+        next((why for kind, _, why in rows if kind == 'dual'), None),
+        {name: why for kind, name, why in rows if kind == 'expression'},
+    )
 
 
 def reader_kind(kind: str) -> str:

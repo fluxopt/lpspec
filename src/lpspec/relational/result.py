@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
-from lpspec.relational.parquet import Record, reader_kind, write_whole
+from lpspec.relational.parquet import RECORD_FILE, Record, reader_kind, write_reasons, write_whole
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -643,7 +643,7 @@ class Result:
         primals = self._unclosed('the solution')
         out = Path(directory)
         record = Record(self.status, self.termination_condition, self.objective, self.has_primal)
-        write_whole(pl.DataFrame([record._asdict()]), out / 'objective.parquet')
+        write_whole(pl.DataFrame([record._asdict()]), out / RECORD_FILE)
         if not self._status.is_readable:
             return out
         for name, frame in primals.items():
@@ -652,16 +652,15 @@ class Result:
             write_whole(frame, out / 'dual' / f'{name}.parquet')
         for name, frame in (self._activities or {}).items():
             write_whole(frame, out / 'activity' / f'{name}.parquet')
-        reasons = [] if self._no_duals is None else [{'kind': 'dual', 'name': '', 'reason': self._no_duals}]
+        no_expressions: dict[str, str] = {}
         for name, reader in (self._expressions or {}).items():
             try:
                 evaluated = reader()
             except LpspecError as absent:
-                reasons.append({'kind': 'expression', 'name': name, 'reason': str(absent)})
+                no_expressions[name] = str(absent)
                 continue
             write_whole(evaluated, out / 'expression' / f'{name}.parquet')
-        if reasons:
-            write_whole(pl.DataFrame(reasons), out / 'reasons.parquet')
+        write_reasons(out, self._no_duals, no_expressions)
         return out
 
     def close(self) -> None:

@@ -37,7 +37,7 @@ from lpspec.errors import DataError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
-from lpspec.relational.parquet import Record
+from lpspec.relational.parquet import RECORD_FILE, Record, read_reasons
 from lpspec.relational.result import Result
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
@@ -454,10 +454,10 @@ def load_result(directory: str | Path) -> Result:
             what every answer written there carries.
     """
     out = Path(directory)
-    record_file = out / 'objective.parquet'
+    record_file = out / RECORD_FILE
     if not record_file.is_file():
         raise DataError(
-            f"{str(out)!r} holds no 'objective.parquet', so it is not an answer save() wrote. Every one "
+            f'{str(out)!r} holds no {RECORD_FILE!r}, so it is not an answer save() wrote. Every one '
             f'carries that record whether or not the solve produced values.'
         )
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
@@ -465,13 +465,11 @@ def load_result(directory: str | Path) -> Result:
     if not status.is_readable:
         return Result(status, record.objective, {}, {}, {}, 'nothing')
 
-    reasons = out / 'reasons.parquet'
-    absent: list[tuple[str, str, str]] = pl.read_parquet(reasons).rows() if reasons.is_file() else []
-    no_duals = next((reason for kind, _, reason in absent if kind == 'dual'), None)
+    no_duals, no_expressions = read_reasons(out)
     expressions: dict[str, Callable[[], pl.DataFrame]] = {
         name: (lambda frame=frame: frame.collect()) for name, frame in _saved_frames(out / 'expression').items()
     }
-    expressions.update({name: _absent(reason) for kind, name, reason in absent if kind == 'expression'})
+    expressions.update({name: _absent(why) for name, why in no_expressions.items()})
     return Result(
         status,
         record.objective,

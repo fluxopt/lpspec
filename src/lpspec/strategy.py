@@ -39,7 +39,15 @@ import polars as pl
 from lpspec.api import build, check
 from lpspec.errors import DataError, LpspecError, LpspecWarning, did_you_mean
 from lpspec.frames import as_frame
-from lpspec.relational.parquet import KINDS, LABELS, Record, reader_kind, write_whole
+from lpspec.relational.parquet import (
+    KINDS,
+    LABELS,
+    Record,
+    read_reasons,
+    reader_kind,
+    write_reasons,
+    write_whole,
+)
 from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to_pandas
 from lpspec.sources import least_value
 
@@ -79,6 +87,12 @@ class _Slice(NamedTuple):
     sources: Mapping[str, Source]
     owns: int | None = None
 
+
+#: What a spilled sweep carries beside its frames: the manifest saying whose
+#: sweep the directory is, and the coordinates each window owns. Named here
+#: because :class:`_Spill` writes them and :func:`load_runs` reads them back.
+_MANIFEST_FILE = 'sweep.json'
+_OWNED_FILE = 'owned.parquet'
 
 #: The phases :attr:`Runs.diagnostics` clocks, in the order they run.
 _PHASES = ('attach', 'build', 'handoff', 'solve')
@@ -294,7 +308,7 @@ class _Spill:
             'hand_built': hand_built,
             'original': None if original is None else {'local': original.local, 'dim': original.dim},
         }
-        record = directory / 'sweep.json'
+        record = directory / _MANIFEST_FILE
         if record.exists():
             found = json.loads(record.read_text())
             if found != manifest:
@@ -306,7 +320,7 @@ class _Spill:
         else:
             record.write_text(json.dumps(manifest))
             if original is not None:
-                write_whole(original.owned, directory / 'owned.parquet')
+                write_whole(original.owned, directory / _OWNED_FILE)
         return cls(directory, key_name)
 
     def _file(self, kind: str, position: int, name: str | None = None) -> Path:
@@ -324,18 +338,6 @@ class _Spill:
         write_whole(pl.DataFrame([{self.key_name: key, **answer.cost}]), self._file('diagnostics', position))
         write_whole(pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}]), self._file('objective', position))
         return replace(answer, primals={}, duals={}, expressions={})
-
-    def write_reasons(self, no_duals: str | None, no_expressions: Mapping[str, str]) -> None:
-        """``(kind, name, reason)`` for what the fold could not produce, or no file at all.
-
-        The result's ``reasons.parquet`` one directory up: a sweep carries the
-        first reason any slice gave, so a name absent from every slice is
-        absent for that reason rather than for none.
-        """
-        rows = [] if no_duals is None else [{'kind': 'dual', 'name': '', 'reason': no_duals}]
-        rows += [{'kind': 'expression', 'name': name, 'reason': why} for name, why in no_expressions.items()]
-        if rows:
-            write_whole(pl.DataFrame(rows), self.directory / 'reasons.parquet')
 
     def read_back(self, position: int) -> _Answer:
         """A done slice's record — meta and cost — with no frames, which stay on disk."""
@@ -962,7 +964,7 @@ class Runs:
         """
         self._names_held('primal')
         spill = _Spill.opened(directory, self.key_name, self.keys, self._original, self._hand_built)
-        spill.write_reasons(self._no_duals, self._no_expressions)
+        write_reasons(spill.directory, self._no_duals, self._no_expressions)
         by_key = {
             kind: {name: _by_key(frames, self.key_name) for name, frames in held.items()}
             for kind, held in zip(KINDS, (self._primals, self._duals, self._expressions), strict=True)
@@ -1048,25 +1050,24 @@ def load_runs(directory: str | Path) -> Runs:
             sweep written there carries.
     """
     under = Path(directory)
-    manifest = under / 'sweep.json'
+    manifest = under / _MANIFEST_FILE
     if not manifest.is_file():
         raise DataError(
-            f"{str(under)!r} holds no 'sweep.json', so it is not a sweep save() or to= wrote. A single "
-            f'solve writes no manifest and is read by load_result.'
+            f'{str(under)!r} holds no {_MANIFEST_FILE!r}, so it is not a sweep save() or to= wrote. A '
+            f'single solve writes no manifest and is read by load_result.'
         )
     found = json.loads(manifest.read_text())
     original = found['original']
-    reasons = under / 'reasons.parquet'
-    absent: list[tuple[str, str, str]] = pl.read_parquet(reasons).rows() if reasons.is_file() else []
+    no_duals, no_expressions = read_reasons(under)
     return Runs(
         key_name=found['key_name'],
         objective=pl.read_parquet(sorted((under / 'objective').glob('*.parquet'))),
         diagnostics=pl.read_parquet(sorted((under / 'diagnostics').glob('*.parquet'))),
-        _no_duals=next((why for kind, _, why in absent if kind == 'dual'), None),
-        _no_expressions={name: why for kind, name, why in absent if kind == 'expression'},
+        _no_duals=no_duals,
+        _no_expressions=no_expressions,
         _original=None
         if original is None
-        else _OriginalIndex(original['local'], original['dim'], pl.read_parquet(under / 'owned.parquet')),
+        else _OriginalIndex(original['local'], original['dim'], pl.read_parquet(under / _OWNED_FILE)),
         _hand_built=found['hand_built'],
         _spill=_Spill(under, found['key_name']),
     )
@@ -1171,7 +1172,7 @@ def solve_over(
     )
     folded = Runs._folded(key_name, original, hand_built, answered, spill)
     if spill is not None:
-        spill.write_reasons(folded._no_duals, folded._no_expressions)
+        write_reasons(spill.directory, folded._no_duals, folded._no_expressions)
     return folded
 
 

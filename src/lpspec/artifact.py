@@ -20,7 +20,7 @@ import json
 import os
 import tempfile
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
@@ -44,13 +44,12 @@ __all__ = ['SolveArtifact', 'SweepArtifact', 'load_artifact']
 
 #: The archive's one layout: the file, one parquet member per source key, the
 #: answer under a directory of its own in the shape ``save`` writes, and the
-#: axis where the sources are sliced. A sweep's answer carries ``sweep.json``
-#: of its own, which is what tells the two answers apart on the way back in.
+#: axis where the sources are sliced. ``axis.json`` is also what says which
+#: artifact an archive holds, a sweep being the one whose sources are cut.
 _MODEL_MEMBER = 'model.yaml'
 _AXIS_MEMBER = 'axis.json'
 _SOURCES_DIR = PurePosixPath('sources')
 _ANSWER_DIR = PurePosixPath('answer')
-_SWEEP_MANIFEST = 'sweep.json'
 
 
 @dataclass(frozen=True)
@@ -69,14 +68,11 @@ class SolveArtifact:
             the archive holds — which is the same type, ``Path`` being a
             source like any other.
         answer: What came back, or ``None`` for the question alone.
-        directory: Where an archive was extracted, or ``None`` for one built
-            in memory. Kept because the answer reads lazily off it.
     """
 
     spec: Spec
     sources: Mapping[str, Source]
     answer: Result | None = None
-    directory: Path | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         """Load *spec* if it was given as a path or a mapping, and refuse a lowered program."""
@@ -135,14 +131,12 @@ class SweepArtifact:
             ``(key, sources)`` is refused: those are unrelated questions, so
             they are one :class:`SolveArtifact` each.
         answer: What came back, or ``None`` for the question alone.
-        directory: As :class:`SolveArtifact` holds it.
     """
 
     spec: Spec
     sources: Mapping[str, Source]
     axis: EachCoordinate | EachWindow
     answer: Runs | None = None
-    directory: Path | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         """Refuse an axis nothing can serialise, then load *spec* as the sibling does."""
@@ -318,9 +312,9 @@ def load_artifact(path: str | Path, into: str | Path) -> SolveArtifact | SweepAr
     axis_member = into / _AXIS_MEMBER
     if not axis_member.is_file():
         answer = load_result(into / _ANSWER_DIR) if carried else None
-        return SolveArtifact(spec, sources, answer, into)
+        return SolveArtifact(spec, sources, answer)
     axis = _axis_from(json.loads(axis_member.read_text()))
-    return SweepArtifact(spec, sources, axis, load_runs(into / _ANSWER_DIR) if carried else None, into)
+    return SweepArtifact(spec, sources, axis, load_runs(into / _ANSWER_DIR) if carried else None)
 
 
 def _in_the_layout(member: PurePosixPath) -> bool:
