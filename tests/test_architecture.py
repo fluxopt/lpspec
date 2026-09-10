@@ -439,6 +439,7 @@ PUBLIC_API = {
         'LaneError',
         'DataError',
         'DimensionError',
+        'LayoutError',
         'SchemaError',
         'PiecewiseExpansionError',
         'NoSolutionError',

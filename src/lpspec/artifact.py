@@ -28,7 +28,7 @@ from math_spec import Spec, to_program, to_spec
 from math_spec.program import Program
 
 from lpspec.api import load_result
-from lpspec.errors import DataError, LpspecError
+from lpspec.errors import DataError, LayoutError, LpspecError
 from lpspec.relational.parquet import digest_of
 from lpspec.sources import supplied, tidy_sources
 from lpspec.strategy import EachCoordinate, EachWindow, Runs, carries, load_runs
@@ -317,7 +317,8 @@ def load_artifact(path: str | Path, into: str | Path) -> SolveArtifact | SweepAr
 
     Raises:
         LanguageError: A ``model.yaml`` the language does not accept.
-        DataError: A member outside the layout. Nothing is extracted.
+        LayoutError: A member outside the layout, or an answer whose layout
+            has moved since it was written. Nothing is extracted.
         zipfile.BadZipFile: A file that is not a zip archive.
     """
     into = Path(into)
@@ -325,7 +326,7 @@ def load_artifact(path: str | Path, into: str | Path) -> SolveArtifact | SweepAr
         members = [PurePosixPath(name) for name in archive.namelist() if not name.endswith('/')]
         strays = [str(m) for m in members if not _in_the_layout(m)]
         if strays or PurePosixPath(_MODEL_MEMBER) not in members:
-            raise DataError(_not_an_archive_message(path, strays))
+            raise LayoutError(_not_an_archive_message(path, strays))
         archive.extractall(into)
     spec = to_spec(into / _MODEL_MEMBER)
     sources = {m.stem: into / m for m in members if _is_source_member(m)}

@@ -606,7 +606,7 @@ def test_a_solve_that_left_no_values_loads_back_and_still_has_none(tmp_path):
 def test_a_directory_that_is_not_a_saved_answer_is_refused(tmp_path):
     empty = tmp_path / 'nothing'
     empty.mkdir()
-    with pytest.raises(lps.DataError, match=r'objective\.parquet'):
+    with pytest.raises(lps.LayoutError, match=r'objective\.parquet'):
         lps.load_result(empty)
 
 

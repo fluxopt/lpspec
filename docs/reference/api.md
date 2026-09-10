@@ -43,8 +43,10 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 
 **Every error is one tree, rooted at `LpspecError`.** `LanguageError` (with
 `SchemaError`, `DimensionError`, `PiecewiseExpansionError`) is a fault in the
-spec. `DataError` is a fault in the data attached to it. `LaneError` is a spec
-one lane cannot build. `NoSolutionError` is a solve that left nothing to read.
+spec. `DataError` is a fault in the data attached to it. `LayoutError` is a
+directory or an archive that is not a layout this package reads. `LaneError`
+is a spec one lane cannot build. `NoSolutionError` is a solve that left
+nothing to read.
 Which one you get:
 [errors](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
 

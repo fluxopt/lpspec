@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 import polars as pl
 
-from lpspec.errors import DataError, LpspecError
+from lpspec.errors import LayoutError, LpspecError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -57,12 +57,12 @@ def check_format(directory: Path) -> None:
     directory that is simply not one gets that message rather than this.
 
     Raises:
-        DataError: The layout moved since it was written.
+        LayoutError: The layout moved since it was written.
     """
     file = directory / FORMAT_FILE
     found = json.loads(file.read_text())['answer'] if file.is_file() else None
     if found != ANSWER_FORMAT:
-        raise DataError(
+        raise LayoutError(
             f'{str(directory)!r} holds a saved answer in layout {found}, and this package reads '
             f'{ANSWER_FORMAT}. The layout moves while the package is on 0.0.1aN and nothing reads an '
             f'older one back: solve the model again and save it. An archive Artifact.save() wrote still '

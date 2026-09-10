@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 import polars as pl
 
 from lpspec.api import build, check
-from lpspec.errors import DataError, LpspecError, LpspecWarning, did_you_mean
+from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning, did_you_mean
 from lpspec.frames import as_frame
 from lpspec.relational.parquet import (
     KINDS,
@@ -1049,13 +1049,14 @@ def load_runs(directory: str | Path) -> Runs:
         The sweep, keyed as it was solved.
 
     Raises:
-        DataError: A directory holding no ``sweep.json``, which is what every
-            sweep written there carries.
+        LayoutError: A directory holding no ``sweep.json``, which is what
+            every sweep written there carries, or one whose layout has moved
+            since it was written.
     """
     under = Path(directory)
     manifest = under / _MANIFEST_FILE
     if not manifest.is_file():
-        raise DataError(
+        raise LayoutError(
             f'{str(under)!r} holds no {_MANIFEST_FILE!r}, so it is not a sweep save() or to= wrote. A '
             f'single solve writes no manifest and is read by load_result.'
         )

@@ -157,7 +157,7 @@ def test_a_zip_outside_the_layout_is_refused(members: dict[str, bytes], says: st
     with zipfile.ZipFile(path, 'w') as zipped:
         for name, data in members.items():
             zipped.writestr(name, data)
-    with pytest.raises(lps.DataError) as excinfo:
+    with pytest.raises(lps.LayoutError) as excinfo:
         _question(lps.load_artifact(path, tmp_path / 'out'))
     assert says in str(excinfo.value), 'the message names what was found, and the layout one Artifact.save() writes'
     assert not (tmp_path / 'out').exists(), 'nothing is extracted from a zip that is not an archive'
@@ -326,11 +326,11 @@ def test_an_answer_in_an_older_layout_is_refused_by_name(
         out = solved.save(tmp_path / 'solution')
     (out / 'format.json').write_text(json.dumps({'answer': 0}))
 
-    with pytest.raises(lps.DataError, match='solve the model again and save it'):
+    with pytest.raises(lps.LayoutError, match='solve the model again and save it'):
         lps.load_result(out)
 
     (out / 'format.json').unlink()
-    with pytest.raises(lps.DataError, match='layout None'):
+    with pytest.raises(lps.LayoutError, match='layout None'):
         lps.load_result(out)
 
 

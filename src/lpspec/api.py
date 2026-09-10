@@ -35,7 +35,7 @@ import polars as pl
 from math_spec import advice, to_program, to_spec
 from math_spec.program import Program
 
-from lpspec.errors import DataError, LpspecError, LpspecWarning
+from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
@@ -456,13 +456,14 @@ def load_result(directory: str | Path) -> Result:
         are, so it has to outlive what is read off it.
 
     Raises:
-        DataError: A directory holding no ``objective.parquet``, which is
-            what every answer written there carries.
+        LayoutError: A directory holding no ``objective.parquet``, which is
+            what every answer written there carries, or one whose layout has
+            moved since it was written.
     """
     out = Path(directory)
     record_file = out / RECORD_FILE
     if not record_file.is_file():
-        raise DataError(
+        raise LayoutError(
             f'{str(out)!r} holds no {RECORD_FILE!r}, so it is not an answer save() wrote. Every one '
             f'carries that record whether or not the solve produced values.'
         )

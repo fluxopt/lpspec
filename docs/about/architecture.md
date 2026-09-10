@@ -195,7 +195,7 @@ protects: a new consumer is free, a new primitive is taxed.
 
 ### The Python surface
 
-**Twenty-four names, and the count is the feature.** The model is the YAML
+**Twenty-five names, and the count is the feature.** The model is the YAML
 file, and Python is how you *run* it, so nothing on the surface constructs
 math or reaches the plan. The names, by role: the four verbs `check`, `build`,
 `solve`, `write`; the fold `solve_over` with its two axes; the two artifacts

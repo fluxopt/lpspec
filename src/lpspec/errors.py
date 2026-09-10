@@ -53,6 +53,16 @@ class DataError(LpspecError):
     """Data bound to a valid spec is missing or the wrong shape."""
 
 
+class LayoutError(LpspecError):
+    """What is on disk is not a layout this package reads.
+
+    Its own class rather than a :class:`DataError`, which is the caller's own
+    numbers being wrong: this is a directory or an archive that ``save`` wrote
+    — or did not — so the fix is which path was named, or that the layout has
+    moved since it was written and the model wants solving again.
+    """
+
+
 class NoSolutionError(LpspecError):
     """The solve returned no values to read — infeasible, unbounded, errored.
 
