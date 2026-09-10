@@ -727,3 +727,47 @@ def test_a_walk_the_linopy_lane_cannot_read_is_refused_before_linopy_is_asked(sp
     with pytest.raises(LaneError, match=match) as caught:
         lpspec_linopy.build(spec, sources)
     assert 'relational engine' in str(caught.value), 'the refusal names the lane that takes the model as it stands'
+
+
+#: A calendar keyed by the pair: each plant keeps its own days, so a partition
+#: walking `t` joins on `plant` rather than ranking every plant together.
+PER_PLANT_CALENDAR = {
+    'dimensions': {'t': {'dtype': 'int'}, 'plant': {'dtype': 'str'}, 'day': {'dtype': 'str'}},
+    'lookups': {'day_of': {'over': ['t', 'plant', 'day'], 'key': ['t', 'plant']}},
+    'parameters': {'price': {'dims': ['plant', 't']}},
+    'variables': {'x': {'foreach': ['plant', 't'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {
+        'ramp': {'foreach': ['plant', 't'], 'expression': 'x <= shift(x, over=t, offset=1, edge=0, by=day_of) + 1'}
+    },
+    'objective': {'sense': 'maximize', 'expression': 'sum(x * price)'},
+}
+
+_CALENDAR_SOURCES = {
+    't': [0, 1, 2, 3],
+    'plant': ['p1', 'p2'],
+    'day': ['mon', 'tue'],
+    'day_of': pl.DataFrame(
+        {
+            't': [0, 1, 2, 3, 0, 1, 2, 3],
+            'plant': ['p1'] * 4 + ['p2'] * 4,
+            'day': ['mon', 'mon', 'tue', 'tue', 'mon', 'tue', 'tue', 'tue'],
+        }
+    ),
+    'price': pl.DataFrame({'plant': ['p1'] * 4 + ['p2'] * 4, 't': [0, 1, 2, 3] * 2, 'value': [1.0] * 8}),
+}
+
+
+def test_a_partition_joins_on_the_key_columns_it_does_not_walk():
+    """A ramp of 1 per step, restarting at each plant's own day boundary.
+
+    `p1` runs mon-mon-tue-tue and `p2` mon-tue-tue-tue, so the two see different
+    boundaries at the same coordinates: `p1` climbs 1, 2 and restarts at 1, 2,
+    while `p2` restarts once and climbs 1, 2, 3 — 13 in all. Ranked without the
+    join on `plant`, both plants would sit in one group per day and the
+    within-group positions would be somebody else's.
+    """
+    with lps.solve(PER_PLANT_CALENDAR, _CALENDAR_SOURCES) as result:
+        assert result.objective == pytest.approx(13.0), "each plant's days are its own, so the two restart apart"
+        climbed = by_coord(result, 'x', 'plant', 't')
+    assert climbed[('p2', 3)] == pytest.approx(3.0), 'p2 spends three steps in one day and reaches 3'
+    assert climbed[('p1', 3)] == pytest.approx(2.0), 'p1 spends two, and a new day put it back to 1'
