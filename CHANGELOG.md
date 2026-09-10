@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.317](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.316...v0.0.1-alpha.317) (2026-09-10)
+
+
+### Documentation
+
+* descriptions set as prose under math-spec's escaping, pinned to the head of energy-models/math-spec[#421](https://github.com/fluxopt/lpspec/issues/421) ([#1565](https://github.com/fluxopt/lpspec/issues/1565)) ([5c6b606](https://github.com/fluxopt/lpspec/commit/5c6b60666195e6eb65e6ed4d0181d76d410c7fad))
+
 ## [0.0.1-alpha.316](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.315...v0.0.1-alpha.316) (2026-09-10)
 
 
