@@ -90,7 +90,7 @@ flowchart TB
         DIRECT --> SOL["result.py<br/>label join, never dense"]
     end
 
-    SOL --> ANS["<b>Result</b> — the lane runs to the answer<br/>objective · primal · dual · activity · expression · evaluate<br/>polars tables you can join"]
+    SOL --> ANS["<b>Result</b> — the lane runs to the answer<br/>objective · primal · dual · activity · expression · evaluate · extend<br/>polars tables you can join"]
 
     subgraph LIN["linopy/ — the peer lane"]
         direction TB
@@ -236,7 +236,7 @@ moves them out from under the list a reviewer reads.
 **A return type is not a name.** `build` returns a `Model`, `solve` a `Result`
 and `solve_over` a `Runs`, and none is exported. You reach them by calling,
 and import them from their module only to annotate. What the objects carry
-(`Result` alone has thirteen readers) is [the Python API](../reference/api.md)'s
+(`Result` alone has fourteen readers) is [the Python API](../reference/api.md)'s
 to list. **A handle's methods answer "what do I do with this", never "what is
 this"**: `solve`, `write`, `close` and `update` pass. Anything that changed a
 declaration would be a language feature wearing a method, which hard rule 5
@@ -555,7 +555,7 @@ is structure.
 | `relational/engines/polars/readback.py` | a built row, a solve's tables and a named expression, spelled back out in the model's own labels |
 | `relational/engines/polars/engine.py` | the lifecycle: build, hand to a sink, read back; the counters and clocks `diagnostics()` reports |
 | `relational/result.py` | what a solve returned: status, objective, and the label joins that read values back |
-| `expressions.py` | one expression, spliced into the model as written and lowered with it — what a reader values when the file never named the quantity |
+| `expressions.py` | expressions spliced into the model as written and lowered with it — what a reader values when the file never named the quantity |
 | `relational/parquet.py` | answers on disk: the `<kind>/<name>` layout a result and a sweep both write, and the writer that lands a file whole |
 | `relational/sinks/tables.py` | what every sink reads and no more: the five tables, the batching scalars, and their projection onto the solver's column index |
 | `relational/sinks/capabilities.py` | what a sink can ingest — hard rule 3's *accepts ≠ builds* axis; `lanes.py` declares each **lane** in the same vocabulary |

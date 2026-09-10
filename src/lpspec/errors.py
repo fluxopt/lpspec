@@ -125,6 +125,19 @@ def null_bounds_message(name: str, rows: int) -> str:
     )
 
 
+def already_readable_message(clash: list[str]) -> str:
+    """An expression named after a quantity a result already reads.
+
+    Adding is not replacing: a second entry under one name would answer where
+    the first did, and nothing would say the first had gone.
+    """
+    return (
+        f'{clash} are already readable here, so extending under those names would replace them rather '
+        f'than add to them. Rename them, or read what is there — expression() takes any name this '
+        f'result carries, whether the model declared it or an extend added it.'
+    )
+
+
 def no_written_model_message() -> str:
     """An expression to read in a model that arrived already lowered.
 

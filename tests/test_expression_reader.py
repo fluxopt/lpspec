@@ -17,7 +17,8 @@ import polars as pl
 import pytest
 
 import lpspec as lps
-from lpspec.errors import DataError, LanguageError, LpspecError
+from lpspec import expressions
+from lpspec.errors import DataError, LanguageError, LpspecError, SchemaError
 from lpspec.relational.engines.polars.compiler import PolarsCompiler
 from tests.fixtures import override
 
@@ -408,3 +409,123 @@ def test_an_evaluated_expression_names_nothing_and_so_is_not_a_kind(result, tmp_
     """It is not written, spilled or enumerated: a quantity worth keeping across runs is worth declaring."""
     written = {p.stem for p in (result.to_parquet(tmp_path) / 'expression').glob('*.parquet')}
     assert written == set(SPEC['expressions']), 'to_parquet writes the declared names, and evaluate adds none'
+
+
+# ---------------------------------------------------------------------------
+# extend: this solve, asked more questions
+# ---------------------------------------------------------------------------
+
+
+REPORT = {'expressions': {'burn': 'sum(p * cost, over=generator)', 'shadow': 'dual(balance)'}}
+
+
+@pytest.fixture(scope='module')
+def report(result):
+    return result.extend(REPORT)
+
+
+def test_extending_answers_with_this_solve_rather_than_a_second_one(result, report):
+    assert report.objective == result.objective, 'the solve is not re-run, so its objective is the one it reached'
+    assert report.status == result.status
+    assert report.primal('p').equals(result.primal('p')), 'the primal frames are carried over, not recomputed'
+
+
+def test_an_added_quantity_reads_what_the_primal_implies(result, report):
+    external = (
+        result.primal('p')
+        .join(sources()['cost'].rename({'value': 'cost'}), on='generator')
+        .group_by('snapshot')
+        .agg((pl.col('value') * pl.col('cost')).sum().alias('value'))
+        .sort('snapshot')
+    )
+    assert report.expression('burn').sort('snapshot').equals(external)
+    assert report.expression('shadow').equals(result.dual('balance')), (
+        'an added entry may read a dual like a declared one'
+    )
+
+
+def test_an_added_quantity_sits_beside_the_models_own(report):
+    assert report.expression('total_gen').height == 3, "the model's declared entries are still readable"
+    assert set(report.to_dataset(kind='expression').data_vars) == set(SPEC['expressions']) | {'burn', 'shadow'}, (
+        'every bridge reads the added names, the added ones being named'
+    )
+
+
+def test_an_added_quantity_is_written_like_a_declared_one(report, tmp_path):
+    """Named, so it is a *kind*: unlike `evaluate`, this is spilled and written."""
+    written = {p.stem for p in (report.to_parquet(tmp_path) / 'expression').glob('*.parquet')}
+    assert written == set(SPEC['expressions']) | {'burn', 'shadow'}, (
+        'to_parquet writes the added names beside the declared'
+    )
+
+
+def test_extending_leaves_the_result_it_extended_alone(result, report):
+    assert 'burn' not in result._names('expression'), 'extend adds to a new result and mutates nothing'
+    with pytest.raises(KeyError, match='burn'):
+        result.expression('burn')
+
+
+def test_a_later_block_reads_what_an_earlier_one_added(report):
+    """`expression('burn')` works on this result, so an expression written against it has to as well."""
+    twice = report.extend({'expressions': {'double_burn': 'burn * 2'}})
+    assert twice.expression('double_burn')['value'].to_list() == pytest.approx(
+        [v * 2 for v in report.expression('burn')['value']]
+    ), 'an added name resolves in a later block the way a declared one does'
+
+
+@pytest.mark.parametrize(
+    ('added', 'match'),
+    [
+        pytest.param({'expressions': {'total_gen': '1'}}, 'flat namespace', id='a-declared-expression'),
+        pytest.param({'expressions': {'p': '1'}}, 'flat namespace', id='a-variable'),
+        pytest.param({'expressions': {'cost': '1'}}, 'flat namespace', id='a-parameter'),
+        pytest.param({'expressions': {'snapshot': '1'}}, 'flat namespace', id='a-dimension'),
+    ],
+)
+def test_a_name_the_model_already_declares_is_refused(report, added, match):
+    with pytest.raises(LanguageError, match=match):
+        report.extend(added)
+
+
+@pytest.mark.parametrize(
+    ('added', 'match'),
+    [
+        pytest.param({'parameters': {'x': {'dims': []}}}, r"carries \['parameters'\]", id='a-parameter-section'),
+        pytest.param(
+            {'variables': {'q': {'foreach': []}}, 'expressions': {'e': '1'}},
+            r"carries \['variables'\]",
+            id='a-variable-section-beside-a-good-one',
+        ),
+        pytest.param({'expressions': {}}, 'reads nothing', id='an-empty-block'),
+        pytest.param({}, 'reads nothing', id='no-block-at-all'),
+    ],
+)
+def test_a_fragment_that_would_build_rather_than_read_is_refused(report, added, match):
+    with pytest.raises(SchemaError, match=match):
+        report.extend(added)
+
+
+def test_a_name_already_added_is_refused_rather_than_replaced(report):
+    with pytest.raises(LpspecError, match='already readable'):
+        report.extend({'expressions': {'burn': 'sum(p)'}})
+
+
+def test_a_block_is_lowered_once_however_many_entries_it_has(result, monkeypatch):
+    """The cost the docstring claims: handing in a block beats handing in its entries one at a time."""
+    lowerings = []
+    real = expressions.to_program
+    monkeypatch.setattr(expressions, 'to_program', lambda spec: lowerings.append(1) or real(spec))
+    result.extend({'expressions': {f'q{i}': f'sum(p) * {i}' for i in range(8)}})
+    assert len(lowerings) == 1, 'eight entries, one lowering of the model'
+
+
+def test_extending_a_model_built_from_a_lowered_program_says_why_it_cannot():
+    with pytest.raises(LpspecError, match='lowered Program'):
+        lps.solve(lps.check(SPEC), sources()).extend(REPORT)
+
+
+def test_a_closed_result_refuses_to_extend():
+    result = lps.solve(SPEC, sources())
+    result.close()
+    with pytest.raises(LpspecError, match='was closed'):
+        result.extend(REPORT)

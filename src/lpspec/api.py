@@ -141,14 +141,21 @@ class Model:
         self._fill()
 
     def _lower(self, written: str | Mapping[str, Any]) -> ExpressionNode:
-        """*written* as a plan node, for a result reading an expression the file never named.
+        """One unnamed expression as a plan node, for a result reading a quantity the file never named.
 
         Held here rather than passed to the engine at build, because the model
         *as written* is what lowering reads and the engine may not see it
         (docs/about/architecture.md, hard rule 2).
         """
-        assert self._written is not None, 'a model built from a Program withholds the reader that needs this'
+        assert self._written is not None, 'a model built from a Program withholds the readers that need this'
         return expressions.lower(self._written, written)
+
+    def _lower_all(
+        self, carried: Mapping[str, Any], added: Mapping[str, Any]
+    ) -> tuple[dict[str, ExpressionNode], dict[str, Any]]:
+        """A whole ``expressions:`` block as plan nodes, held here for :meth:`_lower`'s reason."""
+        assert self._written is not None, 'a model built from a Program withholds the readers that need this'
+        return expressions.lower_all(self._written, carried, added)
 
     def _fill(self) -> None:
         """Build the frames from whatever is attached now.
@@ -245,6 +252,7 @@ class Model:
             solver_options=solver_options,
             keep=keep,
             lower=None if self._written is None else self._lower,
+            lower_all=None if self._written is None else self._lower_all,
         )
 
     def write(self, path: str | Path) -> None:

@@ -37,6 +37,22 @@ if TYPE_CHECKING:
     from math_spec import program
 
 
+#: How a whole ``expressions:`` block reaches a plan node, and what a later
+#: block has to be given to read this one's entries. Named because the engine
+#: takes it twice — as an argument, and as what it composes into a reader.
+type _LowerAll = Callable[
+    [Mapping[str, Any], Mapping[str, Any]],
+    tuple[dict[str, program.ExpressionNode], dict[str, Any]],
+]
+
+#: :meth:`~lpspec.relational.result.Result.extend`'s half of the readers, over
+#: this build's snapshot.
+type _Extend = Callable[
+    [Mapping[str, Any], Mapping[str, Any]],
+    tuple[dict[str, Callable[[], pl.DataFrame]], dict[str, Any]],
+]
+
+
 def _no_built_model(doing: str) -> str:
     """Why there is no model *doing*, in the two ways that happens."""
     return (
@@ -142,6 +158,7 @@ class PolarsEngine:
         solver_options: Mapping[str, Any] | None = None,
         keep: Keep = 'solver',
         lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None = None,
+        lower_all: _LowerAll | None = None,
     ) -> Result:
         """Hand the built model to a solver and solve it.
 
@@ -173,6 +190,10 @@ class PolarsEngine:
                 hard rule 2). ``None`` where there is no model as written to
                 read — a build from an already-lowered ``Program`` — and the
                 result then says so rather than evaluating.
+            lower_all: The same, for a whole ``expressions:`` block at once
+                (:meth:`~lpspec.relational.result.Result.extend`). Two
+                callables rather than one because the two doors name their
+                entries differently, and both are absent together.
 
         Returns:
             The solution, holding this engine and the build it answered.
@@ -218,7 +239,7 @@ class PolarsEngine:
                 quadratic_rows=self._quadratic_constraints(),
             )
         )
-        expressions, evaluate = self._readers(answer.primal, answer.dual, no_duals, lower)
+        expressions, evaluate, extend = self._readers(answer.primal, answer.dual, no_duals, lower, lower_all)
         return Result(
             _status=answer.status,
             _objective=answer.objective,
@@ -228,6 +249,7 @@ class PolarsEngine:
             _kept=kept,
             _expressions=expressions,
             _evaluate=evaluate,
+            _extend=extend,
             _no_duals=no_duals,
         )
 
@@ -331,21 +353,25 @@ class PolarsEngine:
         dual: pl.Series | None,
         no_duals: str | None,
         lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
-    ) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, Any]], pl.DataFrame] | None]:
-        """What a result reads expressions through: one reader per declared name, and one for anything else.
+        lower_all: _LowerAll | None,
+    ) -> tuple[
+        dict[str, Callable[[], pl.DataFrame]],
+        Callable[[str | Mapping[str, Any]], pl.DataFrame] | None,
+        _Extend | None,
+    ]:
+        """What a result reads expressions through: one reader per declared name, one for an unnamed expression, one for a block of named ones.
 
         Both close over the same snapshot the result *owns* — the program, the
         attached data, a copy of this build's variable-frame registry and the
         solver's primal vector — so they keep answering after an update or
         ``close()``, at the cost of keeping those frames alive.
 
-        Nothing is compiled yet. A closure compiles its expression when it is
-        first called, so a solve over fifty declared expressions that reads
-        none pays for a dict of closures; the second one lowers as well as
-        compiles, having been given nothing to lower until it is called.
+        Nothing is compiled yet, and an added expression is no different: a
+        block handed to ``extend`` is lowered once, there and then, and each of
+        its entries compiles only when it is read.
         """
         if primal is None:
-            return {}, None
+            return {}, None, None
         model = self._model
         solution = Solution(primal, dual, dict(model.constraints), no_duals)
         compiler = PolarsCompiler(model.program, model.attached, dict(model.variables), solution)
@@ -354,14 +380,20 @@ class PolarsEngine:
             return lambda: readback.expression_frame(name, expression, compiler)
 
         declared = {name: reader(name, e.expression) for name, e in model.program.named_expressions.items()}
-        if lower is None:
-            return declared, None
-        one = lower
+        if lower is None or lower_all is None:
+            return declared, None, None
+        one, block = lower, lower_all
 
         def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
             return readback.expression_frame('the expression', one(written), compiler)
 
-        return declared, evaluate
+        def extend(
+            carried: Mapping[str, Any], added: Mapping[str, Any]
+        ) -> tuple[dict[str, Callable[[], pl.DataFrame]], dict[str, Any]]:
+            nodes, merged = block(carried, added)
+            return {name: reader(name, node) for name, node in nodes.items()}, merged
+
+        return declared, evaluate, extend
 
     def _discrete(self) -> list[str]:
         """The variables this model declared as anything but continuous."""
