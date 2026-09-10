@@ -46,9 +46,8 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(msg) from exc
 
 
-from math_spec import to_program
-
 from lpspec.errors import unknown_name_message
+from lpspec.lanes import lowered
 from lpspec.linopy._notes import note
 from lpspec.linopy.builder import _eval, build_model
 from lpspec.linopy.loader import dimension_coords, load_parameters
@@ -87,7 +86,7 @@ def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
         DataError: A source that is missing, unreadable, or the wrong shape.
     """
     with note(f'while loading {_named(spec)}'):
-        program = to_program(spec)
+        program = lowered(spec)
 
         tidy = tidy_sources(program, sources)
         master_coords, dim_coords = dimension_coords(program, tidy)
@@ -126,7 +125,7 @@ def expression(
         LpspecError: The expression reads a dual and the solve left none.
     """
     with note(f"while reading named expression '{name}' from {_named(spec)}"):
-        program = to_program(spec)
+        program = lowered(spec)
         if name not in program.named_expressions:
             raise KeyError(
                 unknown_name_message('named expression', name, program.named_expressions)

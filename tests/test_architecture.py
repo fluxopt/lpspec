@@ -792,6 +792,30 @@ def test_the_sources_argument_is_one_type_at_every_door():
     )
 
 
+def test_both_lanes_lower_a_spec_through_one_function():
+    """Neither lane accepts a file the other refuses, which is what ``lowered`` is for.
+
+    This package refuses names the language allows — two in one namespace
+    differing only by case — so lowering is where that verdict is reached. A
+    module calling ``to_program`` itself would reach a different one, and the
+    lanes would disagree about what loads while both docstrings claimed they
+    could not. ``lanes.py`` is the one caller because it is what sits above
+    both.
+    """
+    import ast
+
+    calling = {
+        path.relative_to(PKG).as_posix()
+        for path in PKG.rglob('*.py')
+        for node in ast.walk(ast.parse(path.read_text()))
+        if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'to_program'
+    }
+    assert calling == {'lanes.py'}, (
+        f'to_program is called in {sorted(calling)}; every lane lowers through lanes.lowered, which is '
+        f'what refuses a spec this package cannot write down'
+    )
+
+
 def sources_annotations(doors: dict[str, Any]) -> set[str]:
     """What each door annotates ``sources`` with — ``tests/test_linopy_lane.py`` asks the same of the lane's."""
     import inspect

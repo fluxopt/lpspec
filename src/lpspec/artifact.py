@@ -24,11 +24,12 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from math_spec import Spec, to_program, to_spec
+from math_spec import Spec, to_spec
 from math_spec.program import Program
 
 from lpspec.api import load_result
 from lpspec.errors import DataError, LayoutError, LpspecError
+from lpspec.lanes import lowered
 from lpspec.relational.parquet import digest_of
 from lpspec.sources import supplied, tidy_sources
 from lpspec.strategy import EachCoordinate, EachWindow, Runs, carries, load_runs
@@ -238,7 +239,7 @@ def _write(
     which is how a sliced source reaches the archive carrying every slice's
     rows. The file lands whole or not at all.
     """
-    program = to_program(artifact.spec)
+    program = lowered(artifact.spec)
     frames = supplied(program, tidy_sources(program, checked))
     out.parent.mkdir(parents=True, exist_ok=True)
     part = out.with_name(out.name + '.part')

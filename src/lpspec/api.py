@@ -32,11 +32,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import polars as pl
-from math_spec import advice, to_program, to_spec
+from math_spec import advice, to_spec
 from math_spec.program import Program
 
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
-from lpspec.lanes import LANES, Buildable, Label, Source
+from lpspec.lanes import LANES, Buildable, Label, Source, lowered
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.relational.parquet import RECORD_FILE, Record, check_format, digest_of, read_reasons
@@ -105,7 +105,7 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
             nothing to stop it, a construct the named sink takes only
             reformulated. Issued here and nowhere else.
     """
-    program = to_program(spec)
+    program = lowered(spec)
     notes = [str(note) for note in advice(program)]
     refused: str | None = None
     relaxed: list[str] = []
@@ -135,7 +135,7 @@ class Model:
     def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
         declared = None if isinstance(spec, Program) else to_spec(spec)
         self._spec = declared
-        self._program = to_program(spec if declared is None else declared)
+        self._program = lowered(spec if declared is None else declared)
         #: What every answer of this model carries, so two of them can be told
         #: to have answered the same document. A lowered program has none.
         self._digest = None if declared is None else digest_of(declared.to_yaml())
