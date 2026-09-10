@@ -31,7 +31,7 @@ runs = lps.solve_over(
     'window.yaml',
     sources,
     lps.EachWindow('snapshot', length=48, step=24, into='t'),
-    carry={'soc_initial': ('soc', 23)},
+    carry={'soc_initial': 'soc'},
 )
 runs.primal('soc')  # (snapshot_start, t, value) — the window, and the index inside it
 ```
@@ -159,24 +159,30 @@ runs.scan('balance', 'dual', original_index=True).collect()  # the same readers,
 ## Carrying state between slices
 
 `carry` copies one slice's answer into the next slice's data, as a mapping
-`{parameter: (variable, index)}`.
+`{parameter: variable}`.
 
 ```python
 runs = lps.solve_over(
     'window.yaml',
     sources,
     lps.EachWindow('snapshot', length=48, step=24, into='t'),
-    carry={'soc_initial': ('soc', 23)},
+    carry={'soc_initial': 'soc'},
 )
 ```
+
+**You name no coordinate.** The two declarations say which dimension is
+collapsed. The row handed on is the last one the slice owns: label 23 of a window
+keeping 24, not label 47 of the 48 it solved. That is the only row meeting the
+next slice at the seam, so there was never anything to choose.
 
 | Rule | |
 |---|---|
 | **a carry is a copy, never arithmetic** | Accumulation (`existing += built`) is a derived variable in the YAML. |
-| **the two declarations say what is copied** | The carry collapses the one dimension the *variable* has and the *parameter* does not, and `index` names a coordinate of it. Every other dimension rides along. `soc` over `(t, storage)` into `soc_initial` over `(storage)` drops `t` and hands both stores forward. `total` over `(generator)` into `existing` over `(generator)` drops nothing, so `index` is `None`. |
-| **the index is explicit, and it is a kept label** | With `EachWindow(…, 48, 24, …)` the state to carry sits at label 23 of `into`, not 47. The rows from `step` on are the lookahead, so an index there is refused, and the error names 23. |
+| **the two declarations say what is copied** | The carry collapses the one dimension the *variable* has and the *parameter* does not. Every other dimension rides along. `soc` over `(t, storage)` into `soc_initial` over `(storage)` drops `t` and hands both stores forward. `total` over `(generator)` into `existing` over `(generator)` drops nothing, so the whole frame moves. |
+| **the collapsed dimension has to be the one the axis advances along** | It is `EachWindow`'s `into`. Any other dimension has no last-owned row to read, so the carry is refused and the error names the YAML: reduce that dimension in a derived variable, where the typesetter prints it and the oracle checks it. A carry under `EachCoordinate` or a hand-built axis therefore collapses nothing. |
+| **a carried value is a boundary condition, never a pin** | The parameter supplies the state *entering* the window, as `soc == soc_initial + charge * 0.9 - discharge` does at `t == 0`. Writing `soc == soc_initial` there replaces the first row's dynamics instead of seeding them, which leaves its `charge` and `discharge` tied to nothing — the window gets free energy at every seam, and the sweep comes out cheaper than full foresight. |
 | **the first slice needs a seed** | `carry` supplies the parameter from the second slice on. The first slice takes it from `sources`, and a sweep whose sources lack it is refused before a slice is taken. |
-| **a carry is checked before anything is read** | The dims come from the YAML, so a carry that cannot line up raises before the axis has scanned a source: collapsing two dimensions at once, a parameter over more dimensions than the variable, an index where the sides already match, no seed, an index in the lookahead. `check` cannot answer this, because `carry` is an argument to the call, not part of the model. |
+| **a carry is checked before anything is read** | The dims come from the YAML and the axis is an argument, so a carry that cannot line up raises before the axis has scanned a source: collapsing two dimensions at once, a parameter over more dimensions than the variable, a dimension the axis does not advance along, no seed. `check` cannot answer this, because `carry` is an argument to the call, not part of the model. |
 | **the last slice carries nothing** | There is no next slice to read it. |
 | **a slice that leaves nothing to carry stops the sweep** | An infeasible window has no level to hand forward. The error names the slice, how it terminated, and the slice left waiting. A sweep without a carry records the slice in `objective` and goes on. |
 | **`carry` excludes `executor`** | A carried value makes slice *i+1* depend on slice *i*, so the call is refused. |

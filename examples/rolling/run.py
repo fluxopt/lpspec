@@ -88,15 +88,16 @@ def full_foresight() -> lps.Runs:
 def rolling(length: int, step: int) -> lps.Runs:
     """Windows of *length*, advancing *step*, each carrying its final kept level.
 
-    The carry reads local index ``step - 1``: the last row this window *keeps*,
-    not the last it solved. With lookahead those differ, and taking the last
-    solved row would carry a level the next window is about to recompute.
+    The carry names no coordinate: `soc` is over `(t)` and `soc_initial` over
+    `()`, so `t` is what it collapses, and the row handed on is the last one the
+    window *keeps* rather than the last it solved. With lookahead those differ,
+    and the last solved row is a level the next window is about to recompute.
     """
     return lps.solve_over(
         MODEL,
         SOURCES,
         lps.EachWindow('snapshot', length=length, step=step, into='t'),
-        carry={'soc_initial': ('soc', step - 1)},
+        carry={'soc_initial': 'soc'},
     )
 
 
