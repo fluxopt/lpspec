@@ -615,6 +615,18 @@ class Result:
         :meth:`primal`'s order, so the same model and data write the same
         bytes.
 
+        ``activity/<name>.parquet`` goes beside them for every constraint,
+        which no ``kind=`` names — a sweep folds three kinds and never holds
+        these, so a saved result carries them under a name of their own.
+
+        ``reasons.parquet`` holds ``(kind, name, reason)`` for whatever is
+        deliberately not here, and is absent when everything is: one row per
+        expression that failed, and one with an empty *name* for the duals,
+        whose absence is never per-constraint. Written because a directory
+        that simply lacks a file cannot tell "there is none, and here is why"
+        from "no such name", which is the one thing :meth:`dual` and
+        :meth:`expression` do say.
+
         A solve that left no values writes the record and nothing else. A run
         that came back infeasible is an answer a set of saved cases needs on
         disk, rather than a directory that does not exist.
@@ -637,12 +649,18 @@ class Result:
             write_whole(frame, out / 'primal' / f'{name}.parquet')
         for name, frame in (self._duals or {}).items():
             write_whole(frame, out / 'dual' / f'{name}.parquet')
+        for name, frame in (self._activities or {}).items():
+            write_whole(frame, out / 'activity' / f'{name}.parquet')
+        reasons = [] if self._no_duals is None else [{'kind': 'dual', 'name': '', 'reason': self._no_duals}]
         for name, reader in (self._expressions or {}).items():
             try:
                 evaluated = reader()
-            except LpspecError:
+            except LpspecError as absent:
+                reasons.append({'kind': 'expression', 'name': name, 'reason': str(absent)})
                 continue
             write_whole(evaluated, out / 'expression' / f'{name}.parquet')
+        if reasons:
+            write_whole(pl.DataFrame(reasons), out / 'reasons.parquet')
         return out
 
     def close(self) -> None:

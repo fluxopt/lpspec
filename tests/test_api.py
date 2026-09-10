@@ -477,13 +477,63 @@ def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
             result.expression('ratio')
         with pytest.raises(lps.LpspecError, match='integer'):
             result.to_dataset(kind='dual')
-    assert sorted(p.name for p in out.iterdir()) == ['expression', 'objective.parquet', 'primal'], (
-        'the record, and no dual/ — there are none to write'
-    )
+    assert sorted(p.name for p in out.iterdir()) == [
+        'activity',
+        'expression',
+        'objective.parquet',
+        'primal',
+        'reasons.parquet',
+    ], 'no dual/ — there are none to write, and reasons.parquet is where that is said'
     assert [p.name for p in (out / 'expression').iterdir()] == ['twice.parquet'], 'the one that evaluated'
     assert pl.read_parquet(out / 'expression' / 'twice.parquet')['value'].to_list() == [4.0, 6.0], (
         'twice the integer dispatch that meets 1.5 and 2.5'
     )
+
+
+def test_a_saved_solution_carries_the_activities(dispatch_solution, dispatch_yaml, tmp_path):
+    """The fourth reader a result has, and the one the export left behind.
+
+    `activity` is not a `kind=` any bridge takes — a sweep folds three kinds
+    and never holds these — so it needs naming separately or a saved answer
+    cannot answer what a row's left-hand side reached.
+    """
+    out = dispatch_solution.to_parquet(tmp_path / 'solution')
+    constraints = set(lps.check(dispatch_yaml).constraints)
+    assert {p.stem for p in (out / 'activity').iterdir()} == constraints, 'one activity file per constraint'
+    for name in constraints:
+        assert pl.read_parquet(out / 'activity' / f'{name}.parquet').equals(dispatch_solution.activity(name))
+
+
+def test_a_saved_solution_says_why_a_kind_is_absent(tmp_path):
+    """An absence is a fact about the answer, so it is written down.
+
+    Skipping a dual an integer variable made undefined, and an expression this
+    data cannot evaluate, leaves a directory that cannot tell "there is none,
+    and here is why" from "no such name". `dual` and `expression` say why in
+    the process that solved; the file has to say it too.
+    """
+    spec = {
+        'dimensions': {'t': {'dtype': 'int'}},
+        'parameters': {'load': {'dims': ['t']}, 'scale': {'dims': ['t']}},
+        'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
+        'constraints': {'meet': {'foreach': ['t'], 'expression': 'p >= load'}},
+        'expressions': {'twice': '2 * p', 'ratio': 'p / scale'},
+        'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
+    }
+    sources = {'t': range(2), 'load': [1.5, 2.5], 'scale': pl.DataFrame({'t': [0], 'value': [2.0]})}
+    with lps.solve(spec, sources) as result:
+        out = result.to_parquet(tmp_path)
+        with pytest.raises(lps.LpspecError) as no_dual:
+            result.dual('meet')
+        with pytest.raises(lps.LpspecError) as no_ratio:
+            result.expression('ratio')
+
+    absent = pl.read_parquet(out / 'reasons.parquet')
+    assert absent.columns == ['kind', 'name', 'reason'], 'the kind, what is missing under it, and why'
+    assert absent.sort('kind', 'name').rows() == [
+        ('dual', '', str(no_dual.value)),
+        ('expression', 'ratio', str(no_ratio.value)),
+    ], 'the whole kind for the duals, one name for the expression, each with the sentence the reader gives'
 
 
 def test_read_back_is_in_label_order_and_stays_there(dispatch_yaml, dispatch_frame_inputs, tmp_path):

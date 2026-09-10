@@ -6,6 +6,10 @@ constraint carrying a variable's name never collides with it. A result
 writes one file under each name; a sweep one per slice, and reads them back
 as one. Beside them is the :class:`Record`, which says how the solve
 terminated: a result writes one row, a sweep one per slice.
+
+A saved result holds two things a sweep does not: ``activity/<name>`` for
+every constraint, which no ``kind=`` names because no fold carries it, and
+``reasons.parquet`` saying why a kind or a name is deliberately not there.
 """
 
 from __future__ import annotations
