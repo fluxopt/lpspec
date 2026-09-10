@@ -24,7 +24,7 @@ An axis says how the sources split into slices. `solve_over` accepts three.
 |---|---|
 | `lps.EachCoordinate(dim)` | One slice per label of `dim`: scenarios, draws, investment periods. A source carrying `dim` is filtered to one label and the column is dropped; every other source passes through. A spec that declares `dim` is refused. The slices run in the sorted order of the labels, which is the order a `carry` chains them in. |
 | `lps.EachWindow(dim, length, step, into)` | One slice per window of consecutive labels of `dim`. `length` is what the solver sees and `step` is what the window keeps, so `length > step` is overlap. The dimension is re-indexed into a dense `0..n-1` column named `into`, which the spec has to declare. |
-| a sequence of `(key, sources)` pairs | A hand-built axis. The call must pass `key_name=`. |
+| a sequence of `(key, sources)` pairs | A hand-built axis. The call must pass `key_name=`. A list names no dimension, so the model is not asked whether it can be cut that way and `original_index=` is refused. |
 
 ```python
 runs = lps.solve_over(
@@ -85,8 +85,23 @@ runs.expression('spend', original_index=True)  # the model's own quantity, over 
 
 For `EachWindow` this is the stitched answer over the global labels. Each
 window contributes the `step` labels it owns, and the final window all of
-its rows. For `EachCoordinate` and a hand-built axis nothing was re-indexed, so
-the table comes back unchanged.
+its rows. For `EachCoordinate` nothing was re-indexed, and its key column
+already is a label of the sliced dimension, so the table comes back unchanged.
+
+**A hand-built axis refuses it.** A list of slices does not say what its keys
+are labels of, so there is no dimension to read them back over:
+
+```python
+runs = lps.solve_over('window.yaml', sources, windows, key_name='window')
+runs.primal('soc', original_index=True)
+```
+
+```text
+LpspecError: a hand-built axis does not say what its keys are coordinates of,
+so this sweep has no dimension to read 'window' back over. Read it keyed, which
+is what its slices were solved over, or slice with EachWindow — it keys by where
+each window started, records which coordinates each one owns, and stitches.
+```
 
 **Keyed is the default, because stitching is lossy.** It drops the lookahead
 rows the sweep solved. For the same reason `to_dataset` and `to_parquet` have

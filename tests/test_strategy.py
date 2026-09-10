@@ -472,6 +472,33 @@ def test_stitch_keeps_the_whole_of_the_final_short_window():
     )
 
 
+def test_a_hand_built_axis_refuses_to_read_over_a_dimension_it_never_named(tmp_path):
+    """`original_index=True` on a hand-built axis is refused rather than ignored.
+
+    A windowed axis's slices are a plain list, so a caller wanting lengths
+    `EachWindow` cannot express hands that list in directly. The keys are then
+    window *starts* and nothing says so: a list carries no `into`, no sliced
+    dimension and no record of what each window owns, so there is no way back
+    to `snapshot`. Returning the keyed frame answered a different question than
+    the one asked, and under overlap its rows are the lookahead ones the next
+    window recomputed — summing them double-counts.
+
+    `scan` is checked beside it because it reaches the same guard by its own
+    route, not through the eager readers.
+    """
+    sources = horizon_sources(12)
+    windows = lps.EachWindow('snapshot', length=6, step=3, into='t').slices(sources)
+
+    runs = lps.solve_over(WINDOW, sources, windows, key_name='window')
+    assert runs.primal('soc').columns == ['window', 't', 'value'], 'a hand-built axis keys by what it was told'
+    with pytest.raises(lps.LpspecError, match='does not say what its keys are coordinates of'):
+        runs.primal('soc', original_index=True)
+
+    spilled = lps.solve_over(WINDOW, sources, windows, key_name='window', to=tmp_path / 'runs')
+    with pytest.raises(lps.LpspecError, match='does not say what its keys are coordinates of'):
+        spilled.scan('soc', original_index=True)
+
+
 def test_stitching_an_axis_that_re_indexed_nothing_changes_nothing(sweep):
     """A caller handed an axis should not have to ask which kind it is."""
     assert sweep.primal('p', original_index=True).equals(sweep.primal('p')), (
