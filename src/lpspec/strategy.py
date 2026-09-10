@@ -13,7 +13,7 @@ written once.
 
     scenario / sweep    ``EachCoordinate('scenario')``            independent
     myopic pathway      ``EachCoordinate('period')``              + ``carry``
-    rolling horizon     ``EachWindow('snapshot', 48, 24, 't')``   + ``carry``
+    rolling horizon     ``EachWindow('snapshot', steps=24, lookahead=24, into='t')``  + ``carry``
 
 **A partition is a filter on the sources, not a narrower index** — the
 containment check refuses parameter rows outside a narrowed index, so an axis
@@ -216,7 +216,7 @@ class _OriginalIndex:
     """The way back from a windowed sweep's slices to the dimension it sliced.
 
     ``owned`` is ``(key, local, dim)`` for the coordinates each window is
-    *responsible* for — its first ``step``, the rest being lookahead the next
+    *responsible* for — the coordinates its block names, the rest being lookahead the next
     window recomputes. One-way: the lookahead rows are not in it, so a sliced
     frame cannot be rebuilt from it — slicing stays
     :meth:`EachWindow._slice`'s business.
@@ -424,22 +424,25 @@ class EachCoordinate:
 class EachWindow:
     """One slice per window of consecutive coordinates of *dim*.
 
-    ``length`` is what the solver sees, ``step`` is what the window keeps, and
-    ``length > step`` is overlap. Both count coordinates rather than coordinate
+    ``steps`` is what each window keeps and ``lookahead`` is what it sees beyond
+    that, so a window is ``steps + lookahead`` coordinates long and a
+    ``lookahead`` above zero is overlap. An ``int`` keeps the same number every
+    window; a sequence keeps those numbers in order, which is a telescoping
+    horizon or a month at a time. Both count coordinates rather than coordinate
     values, so *dim* need only be orderable — datetimes, strings and gapped
     integers all work. The dimension is re-indexed rather than dropped, into a
     dense ``0..n-1`` column the model addresses by the name ``into`` gives it,
     which the spec has to declare.
 
     Whether the model *can* be sliced this way is asked before it is — the
-    coupling, the reach and the overlap they need are
+    coupling, the reach and the lookahead they need are
     :meth:`_check_the_program`.
     """
 
     dim: str
-    length: int
-    step: int
-    into: str
+    steps: int | Sequence[int] = field(kw_only=True)
+    lookahead: int = field(kw_only=True)
+    into: str = field(kw_only=True)
 
     def slices(self, sources: Mapping[str, Source]) -> list[tuple[Label, Mapping[str, Source]]]:
         """The ``(key, sources)`` list this axis would run — what ``axis=`` takes hand-built.
@@ -453,13 +456,17 @@ class EachWindow:
         return [(current.key, current.sources) for current in self._slice(sources, self._key_name())[0]]
 
     def __post_init__(self) -> None:
-        if self.length < 1 or self.step < 1:
-            raise ValueError(f'length and step must be positive (got length={self.length}, step={self.step})')
-        if self.step > self.length:
+        blocks = [self.steps] if isinstance(self.steps, int) else list(self.steps)
+        if not blocks:
+            raise ValueError('steps is empty, so no window would keep anything — pass an int, or one size per window')
+        if short := [block for block in blocks if block < 1]:
+            raise ValueError(f'every window must keep at least one coordinate (got steps with {short})')
+        if self.lookahead < 0:
             raise ValueError(
-                f'step={self.step} exceeds length={self.length}, which would skip coordinates between '
-                f'windows. step == length is contiguous; step < length overlaps.'
+                f'lookahead={self.lookahead} is negative; zero is contiguous windows, and above it overlaps'
             )
+        if not isinstance(self.steps, int):
+            object.__setattr__(self, 'steps', tuple(blocks))
         if not self.into:
             raise ValueError('into must name the local index the spec declares — it has no default')
         if self.into == self.dim:
@@ -518,12 +525,11 @@ class EachWindow:
                 f'{_listed({r.label: f"through the lookup {r.name!r}" for r in verdict.undecided})}\n'
                 f'Cut a dimension the lookup does not group.'
             )
-        if self.length - self.step < verdict.ahead:
+        if self.lookahead < verdict.ahead:
             raise LpspecError(
-                f'EachWindow(length={self.length}, step={self.step}) looks ahead by '
-                f'{self.length - self.step} coordinate(s), and the model reads {verdict.ahead} ahead along '
-                f"'{self.into}' — a row near a window's end would read past it. Raise length to at least "
-                f'step + {verdict.ahead}.'
+                f'EachWindow(lookahead={self.lookahead}) looks ahead by {self.lookahead} coordinate(s), and '
+                f"the model reads {verdict.ahead} ahead along '{self.into}' — a row near a window's end would "
+                f'read past it. Raise lookahead to at least {verdict.ahead}.'
             )
         if verdict.restarts:
             warnings.warn(
@@ -544,17 +550,17 @@ class EachWindow:
         The filter leads because it is what a scan can push down; the
         re-indexing that follows is over a frame already filtered to one window.
 
-        **A window owns its first ``step`` coordinates**, and the
-        :class:`_OriginalIndex` records which — the rest is lookahead the next window
-        recomputes. The final window can hold no more than ``step``, its start
-        being the last multiple of ``step`` below the end, so the same rule
-        keeps all of it and nothing is dropped off the tail.
+        **A window owns the coordinates its block names**, and the
+        :class:`_OriginalIndex` records which — the rest is lookahead the next
+        window recomputes. :meth:`_blocks` trims the last block to what is left,
+        so the tail window owns all of itself and nothing falls off the end.
         """
         carrying, coordinates = _coordinates(sources, self.dim, 'window')
         out: list[_Slice] = []
         owned: list[dict[str, Any]] = []
-        for start in range(0, len(coordinates), self.step):
-            window = coordinates[start : start + self.length]
+        start = 0
+        for owns in self._blocks(len(coordinates)):
+            window = coordinates[start : start + owns + self.lookahead]
             local = {coordinate: position for position, coordinate in enumerate(window)}
             filtered = {
                 name: (
@@ -564,13 +570,44 @@ class EachWindow:
                 )
                 for name, table in carrying.items()
             }
-            owns = len(window[: self.step])
             out.append(_Slice(window[0], {**sources, **filtered, self.into: range(len(window))}, owns))
             owned.extend(
                 {key_name: window[0], self.into: position, self.dim: coordinate}
                 for position, coordinate in enumerate(window[:owns])
             )
+            start += owns
         return out, _OriginalIndex(self.into, self.dim, pl.DataFrame(owned))
+
+    def _blocks(self, total: int) -> list[int]:
+        """How many coordinates each window owns, in order, summing to exactly *total*.
+
+        An ``int`` repeats until the axis runs out, the last window owning
+        whatever is left — which is why no window in the middle of a sweep can
+        own fewer than ``steps``, and so why a carry always finds its seam. A
+        sequence is taken as written, and one that stops short of the axis is
+        refused rather than dropping the coordinates it never reached.
+
+        Raises:
+            DataError: A sequence of blocks that does not cover the axis.
+        """
+        if isinstance(self.steps, int):
+            blocks = [self.steps] * -(-total // self.steps)
+        else:
+            blocks = list(self.steps)
+            if sum(blocks) < total:
+                raise DataError(
+                    f'steps keeps {sum(blocks)} coordinate(s) across {len(blocks)} window(s), and '
+                    f"'{self.dim}' has {total} — the last {total - sum(blocks)} would be solved by no window. "
+                    f'List a block for them, or pass an int to repeat one size to the end.'
+                )
+        out: list[int] = []
+        left = total
+        for block in blocks:
+            if left <= 0:
+                break
+            out.append(min(block, left))
+            left -= block
+        return out
 
 
 #: What ``axis=`` accepts. A plain list of ``(key, sources)`` is also
