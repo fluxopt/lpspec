@@ -431,7 +431,7 @@ def test_every_repository_path_a_workflow_names_exists():
 PUBLIC_API = {
     'run it': {'build', 'check', 'solve', 'write'},
     'run it many times': {'solve_over', 'EachCoordinate', 'EachWindow'},
-    'carry it': {'pack', 'unpack', 'load_result'},
+    'carry it': {'Artifact', 'load_artifact', 'load_result', 'load_runs'},
     'name what came back': {'Model', 'Result', 'Runs'},
     'catch it': {
         'LpspecError',
@@ -778,7 +778,7 @@ def test_the_sources_argument_is_one_type_at_every_door():
         'build': lpspec.build,
         'solve': lpspec.solve,
         'write': lpspec.write,
-        'pack': lpspec.pack,
+        'Artifact': lpspec.Artifact.__init__,
         'Model': lpspec.Model.__init__,
         'Model.update': lpspec.Model.update,
         'solve_over': solve_over,

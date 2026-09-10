@@ -262,14 +262,24 @@ class _Spill:
     only whole, and the objective file is written last: it is what marks a
     slice done, so one interrupted part way is solved again rather than read
     back short. ``sweep.json`` names the key and the keys, so a directory
-    answers for one sweep and another pointed at it is refused.
+    answers for one sweep and another pointed at it is refused; it also
+    carries what :func:`load_runs` cannot infer from the frames — whether the
+    axis was hand-built, and the dimension a window sliced, whose owned
+    coordinates go beside it in ``owned.parquet``.
     """
 
     directory: Path
     key_name: str
 
     @classmethod
-    def opened(cls, directory: str | Path, key_name: str, keys: Sequence[Label]) -> _Spill:
+    def opened(
+        cls,
+        directory: str | Path,
+        key_name: str,
+        keys: Sequence[Label],
+        original: _OriginalIndex | None = None,
+        hand_built: bool = False,
+    ) -> _Spill:
         """The directory ready to take this sweep, or refused as another's.
 
         Raises:
@@ -278,7 +288,12 @@ class _Spill:
         """
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
-        manifest = {'key_name': key_name, 'keys': [str(key) for key in keys]}
+        manifest: dict[str, Any] = {
+            'key_name': key_name,
+            'keys': [str(key) for key in keys],
+            'hand_built': hand_built,
+            'original': None if original is None else {'local': original.local, 'dim': original.dim},
+        }
         record = directory / 'sweep.json'
         if record.exists():
             found = json.loads(record.read_text())
@@ -290,6 +305,8 @@ class _Spill:
                 )
         else:
             record.write_text(json.dumps(manifest))
+            if original is not None:
+                write_whole(original.owned, directory / 'owned.parquet')
         return cls(directory, key_name)
 
     def _file(self, kind: str, position: int, name: str | None = None) -> Path:
@@ -307,6 +324,18 @@ class _Spill:
         write_whole(pl.DataFrame([{self.key_name: key, **answer.cost}]), self._file('diagnostics', position))
         write_whole(pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}]), self._file('objective', position))
         return replace(answer, primals={}, duals={}, expressions={})
+
+    def write_reasons(self, no_duals: str | None, no_expressions: Mapping[str, str]) -> None:
+        """``(kind, name, reason)`` for what the fold could not produce, or no file at all.
+
+        The result's ``reasons.parquet`` one directory up: a sweep carries the
+        first reason any slice gave, so a name absent from every slice is
+        absent for that reason rather than for none.
+        """
+        rows = [] if no_duals is None else [{'kind': 'dual', 'name': '', 'reason': no_duals}]
+        rows += [{'kind': 'expression', 'name': name, 'reason': why} for name, why in no_expressions.items()]
+        if rows:
+            write_whole(pl.DataFrame(rows), self.directory / 'reasons.parquet')
 
     def read_back(self, position: int) -> _Answer:
         """A done slice's record — meta and cost — with no frames, which stay on disk."""
@@ -932,7 +961,8 @@ class Runs:
                 spilled — its frames are in a directory already.
         """
         self._names_held('primal')
-        spill = _Spill.opened(directory, self.key_name, self.keys)
+        spill = _Spill.opened(directory, self.key_name, self.keys, self._original, self._hand_built)
+        spill.write_reasons(self._no_duals, self._no_expressions)
         by_key = {
             kind: {name: _by_key(frames, self.key_name) for name, frames in held.items()}
             for kind, held in zip(KINDS, (self._primals, self._duals, self._expressions), strict=True)
@@ -995,6 +1025,50 @@ def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], objective
         f'this sweep holds no {kind} frames at all — every one of its {objective.height} slices '
         f'terminated {conditions}. The fold ran; the models did not solve. '
         f'runs.objective carries the status of each slice.'
+    )
+
+
+def load_runs(directory: str | Path) -> Runs:
+    """Read back a sweep :meth:`Runs.save` wrote, or one ``solve_over(to=)`` spilled.
+
+    The sweep comes back **spilled**: its frames stay in *directory* and
+    :meth:`Runs.scan` reads them, which is what a sweep solved with ``to=``
+    already is. :attr:`Runs.objective` and :attr:`Runs.diagnostics` are read
+    whole — they are one row per slice — and ``original_index`` works, the
+    manifest carrying the dimension a window sliced.
+
+    Args:
+        directory: Where the sweep was written.
+
+    Returns:
+        The sweep, keyed as it was solved.
+
+    Raises:
+        DataError: A directory holding no ``sweep.json``, which is what every
+            sweep written there carries.
+    """
+    under = Path(directory)
+    manifest = under / 'sweep.json'
+    if not manifest.is_file():
+        raise DataError(
+            f"{str(under)!r} holds no 'sweep.json', so it is not a sweep save() or to= wrote. A single "
+            f'solve writes no manifest and is read by load_result.'
+        )
+    found = json.loads(manifest.read_text())
+    original = found['original']
+    reasons = under / 'reasons.parquet'
+    absent: list[tuple[str, str, str]] = pl.read_parquet(reasons).rows() if reasons.is_file() else []
+    return Runs(
+        key_name=found['key_name'],
+        objective=pl.read_parquet(sorted((under / 'objective').glob('*.parquet'))),
+        diagnostics=pl.read_parquet(sorted((under / 'diagnostics').glob('*.parquet'))),
+        _no_duals=next((why for kind, _, why in absent if kind == 'dual'), None),
+        _no_expressions={name: why for kind, name, why in absent if kind == 'expression'},
+        _original=None
+        if original is None
+        else _OriginalIndex(original['local'], original['dim'], pl.read_parquet(under / 'owned.parquet')),
+        _hand_built=found['hand_built'],
+        _spill=_Spill(under, found['key_name']),
     )
 
 
@@ -1089,13 +1163,16 @@ def solve_over(
     if not slices:
         raise DataError('the axis produced no slices')
     solving = {'solver_name': solver_name, 'solver_options': dict(solver_options or {}) or None}
-    spill = None if to is None else _Spill.opened(to, key_name, [current.key for current in slices])
+    spill = None if to is None else _Spill.opened(to, key_name, [c.key for c in slices], original, hand_built)
     answered = (
         _serially(program, slices, solving, plan, keep, spill)
         if executor is None
         else _pooled(executor, workers_share_fs, program, slices, solving, spill)
     )
-    return Runs._folded(key_name, original, hand_built, answered, spill)
+    folded = Runs._folded(key_name, original, hand_built, answered, spill)
+    if spill is not None:
+        spill.write_reasons(folded._no_duals, folded._no_expressions)
+    return folded
 
 
 def _check_the_carry(

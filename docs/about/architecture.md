@@ -195,12 +195,13 @@ protects: a new consumer is free, a new primitive is taxed.
 
 ### The Python surface
 
-**Twenty-two names, and the count is the feature.** The model is the YAML
+**Twenty-three names, and the count is the feature.** The model is the YAML
 file, and Python is how you *run* it, so nothing on the surface constructs
 math or reaches the plan. The names, by role: the four verbs `check`, `build`,
-`solve`, `write`; the fold `solve_over` with its two axes; `pack`, `unpack`
-and `load_result`; the three types a verb hands back, `Model`, `Result`,
-`Runs`; the
+`solve`, `write`; the fold `solve_over` with its two axes; the `Artifact` that
+carries a model, its data and its answer, with `load_artifact`, `load_result`
+and `load_runs` to read one back; the three types a verb hands back, `Model`,
+`Result`, `Runs`; the
 error tree under `LpspecError`, `NoSolutionError` and `LpspecWarning`. What
 each one takes and returns is [the Python API](../reference/api.md). A verb
 that answers with no data (`check`) needs nothing but the file.
@@ -538,7 +539,8 @@ is structure.
 | Module | Role |
 |---|---|
 | `math_spec` (a dependency) | the whole language, read, expanded, resolved, judged and lowered there; what crosses is a `Spec` and the `Program` it lowers to — [its own reference](https://math-spec.readthedocs.io/en/latest/reference/language/) |
-| `api.py` | the runner: `check` / `build` / `solve` / `write`, `pack` / `unpack` for a model with its data as one zip, and `load_result` for an answer read back off disk; linopy-free |
+| `api.py` | the runner: `check` / `build` / `solve` / `write`, and `load_result` for an answer read back off disk; linopy-free |
+| `artifact.py` | above the runner and the fold: `Artifact`, a model with its data and its answer as one zip, and `load_artifact` to open one |
 | `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `LANES`, what each lane can build, read by `check` without the extra |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
 | `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |

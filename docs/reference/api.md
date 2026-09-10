@@ -30,9 +30,10 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
 | `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
-| `lps.pack(spec, sources, out, answer=None)` | the file, its data and optionally its answer as one zip: [Archiving a model](#archiving-a-model) |
-| `lps.unpack(path, into)` | the `Spec` and the sources as parquet paths, in the shape every verb takes |
-| `lps.load_result(source, into=None)` | an answer `result.save(dir)` wrote, or one `pack(answer=)` carried, read back as a `Result` |
+| `lps.Artifact(spec, sources, answer=None)` | the model, its data and its answer as one zip: [Archiving a model](#archiving-a-model) |
+| `lps.load_artifact(path, into)` | an archive `artifact.save(out)` wrote, back as an `Artifact` |
+| `lps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
+| `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(to=)` wrote, back as a `Runs` |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
 | `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` or `math_spec.program.Program` |
@@ -370,45 +371,37 @@ from. [#382](https://github.com/fluxopt/lpspec/issues/382) tracks that case.
 ## Archiving a model
 
 ```python
-lps.pack('spec.yaml', sources, 'model.zip')
-result = lps.solve(*lps.unpack('model.zip', 'model/'))
-
-spec, paths = lps.unpack('model.zip', 'model/')
-frames = {name: pl.read_parquet(path) for name, path in paths.items()}  # in memory, when you want them
-```
-
-**With `answer=`, the archive is the whole artifact** — what was asked, the
-data it was asked of, and what came back:
-
-```python
 with lps.solve('spec.yaml', sources) as solved:
-    lps.pack('spec.yaml', sources, 'case.zip', answer=solved)
+    lps.Artifact('spec.yaml', sources, solved).save('case.zip')
 
-answer = lps.load_result('case.zip', into='case/')  # what came back
-spec, sources = lps.unpack('case.zip', 'question/')  # what was asked, to solve again
+case = lps.load_artifact('case.zip', 'case/')
+case.answer.primal('p')  # what came back
+lps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
-The answer goes under `answer/` in the layout `save` writes, so one reader
-reads it whether it came out of a zip or out of a directory. `load_result`
-needs `into=` for an archive and refuses it for a directory: the frames are
-read where they land, which is the same reason `unpack` has to be told. It
-extracts the answer alone — the question comes back through `unpack`, so one
-call never writes another call's sources under its path.
+**An `Artifact` is the model, its data and its answer**, and `save` writes the
+three as one zip: `model.yaml`, `sources/<key>.parquet` for every key the file
+declares, and `answer/` holding what `result.save` writes. The answer is
+optional — an artifact of the question alone is the model and its data.
 
-**`pack` writes a model as one zip**: `model.yaml`, and
-`sources/<key>.parquet` for every key the file declares. The sources go in
-through the same door `build` reads them, so a model `build` refuses is refused
-here and nothing is written. A parquet path is copied as its own bytes; a
-table, a bare label range, a `{label: value}` map or a single number is
-written as the tidy parquet table it stands for. Parquet keeps the dtypes
-[the contract](data.md) checks. Members are stored uncompressed.
+The sources go in through the same door `build` reads them, so a model `build`
+refuses is refused here and nothing is written. A parquet path is copied as its
+own bytes; a table, a bare label range, a `{label: value}` map or a single
+number is written as the tidy parquet table it stands for. Parquet keeps the
+dtypes [the contract](data.md) checks. Members are stored uncompressed.
 
-**`unpack` extracts the archive into a directory** and returns the `Spec` and
-a `{key: Path}`, so attaching streams the files from disk and holds nothing
-here. An `answer/` is extracted with everything else and named by neither
-return value; `load_result` is what reads it. They are checked where they attach, so an archive edited by hand gets
-the same sentence any other source would. Anything in the zip outside that
-layout is refused as not an archive `pack` wrote, and nothing is extracted.
+**`load_artifact` extracts into a directory** and reads the answer lazily off
+what lands there, so that directory has to outlive the artifact. Its `sources`
+come back as the parquet paths they now are — the same type they went in as,
+`Path` being a source like any other — so attaching streams them from disk.
+Anything in the zip outside the layout is refused as not an archive `save`
+wrote, and nothing is extracted.
+
+| Rule | |
+|---|---|
+| **the spec is loaded on the way in** | a path or a mapping becomes a `Spec` in the constructor, so `artifact.spec` is one shape. A lowered `Program` is refused: it has no file to write |
+| **a sweep is not an artifact** | `EachCoordinate('scenario')` slices on a column the model does not declare, so a sweep's whole sources carry more than one row per coordinate and the door that checks one solve's data refuses them. A sweep is saved on its own with `runs.save(directory)` and read back with `lps.load_runs` |
+| **an axis is code, not data** | nothing in an archive says how a sweep was cut. Re-running one supplies the axis again: `solve_over(artifact.spec, artifact.sources, axis)` |
 
 ## Diagnostics
 

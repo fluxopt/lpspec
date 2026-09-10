@@ -1,4 +1,4 @@
-"""``pack`` and ``unpack``: a model and its data as one file, and back.
+"""``Artifact``: a model, its data and its answer as one file, and back.
 
 The property is the one ``tidy_sources`` sees: what attaches from the archive
 is what attached from the caller's own tables, frame for frame, over every
@@ -30,14 +30,23 @@ from tests.conftest import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
+
+    from math_spec import Spec
+
+
+def _question(artifact: lps.Artifact) -> tuple[Spec, Mapping[str, object]]:
+    """The pair every verb takes, read off an artifact."""
+    return artifact.spec, artifact.sources
 
 
 @pytest.mark.parametrize('name', sorted(PORT_REFERENCES), ids=str)
 def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: str, tmp_path: Path) -> None:
     program = to_program(port_spec(name))
     sources = port_sources(name)
-    spec, unpacked = lps.unpack(lps.pack(port_spec(name), sources, tmp_path / 'model.zip'), tmp_path / 'out')
+    archive = lps.Artifact(port_spec(name), sources).save(tmp_path / 'model.zip')
+    spec, unpacked = _question(lps.load_artifact(archive, tmp_path / 'out'))
 
     assert set(unpacked) == set(attachable(program)), (
         'the archive holds one member per attachable key — every declared parameter, dimension and lookup, '
@@ -54,10 +63,10 @@ def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: s
 def test_the_round_trip_solves_to_the_same_objective(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'dispatch.zip')
+    archive = lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'dispatch.zip')
     with (
         lps.solve(dispatch_yaml, dispatch_frame_inputs) as direct,
-        lps.solve(*lps.unpack(archive, tmp_path / 'out')) as unpacked,
+        lps.solve(*_question(lps.load_artifact(archive, tmp_path / 'out'))) as unpacked,
     ):
         assert unpacked.objective == pytest.approx(direct.objective, rel=1e-9), (
             'the archive builds the model the tables did'
@@ -73,7 +82,8 @@ def test_plain_python_shapes_are_written_as_the_tables_they_stand_for(dispatch_y
         'snapshot': range(DISPATCH_SNAPSHOTS),
         'generator': list(DISPATCH_GENERATORS),
     }
-    _, unpacked = lps.unpack(lps.pack(dispatch_yaml, sources, tmp_path / 'dispatch.zip'), tmp_path / 'out')
+    archive = lps.Artifact(dispatch_yaml, sources).save(tmp_path / 'dispatch.zip')
+    _, unpacked = _question(lps.load_artifact(archive, tmp_path / 'out'))
     cost = pl.read_parquet(unpacked['cost'])
     snapshot = pl.read_parquet(unpacked['snapshot'])
 
@@ -84,7 +94,7 @@ def test_plain_python_shapes_are_written_as_the_tables_they_stand_for(dispatch_y
 
 
 def test_the_archive_is_the_file_and_stored_parquet(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
-    archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'dispatch.zip')
+    archive = lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'dispatch.zip')
     with zipfile.ZipFile(archive) as zipped:
         members = {info.filename: info.compress_type for info in zipped.infolist()}
         assert set(members) == {'model.yaml', *(f'sources/{k}.parquet' for k in dispatch_frame_inputs)}, (
@@ -101,7 +111,7 @@ def test_a_parquet_path_is_copied_as_its_own_bytes(dispatch_yaml: Path, dispatch
     load = dispatch_frame_inputs['load'].with_columns(pl.lit('a stray column').alias('note'))
     path = tmp_path / 'load.parquet'
     load.write_parquet(path)
-    archive = lps.pack(dispatch_yaml, {**dispatch_frame_inputs, 'load': str(path)}, tmp_path / 'dispatch.zip')
+    archive = lps.Artifact(dispatch_yaml, {**dispatch_frame_inputs, 'load': str(path)}).save(tmp_path / 'dispatch.zip')
     with zipfile.ZipFile(archive) as zipped:
         assert zipped.read('sources/load.parquet') == path.read_bytes(), (
             'the file travels untouched, stray column included — it is filtered where it attaches, as a path is'
@@ -111,8 +121,8 @@ def test_a_parquet_path_is_copied_as_its_own_bytes(dispatch_yaml: Path, dispatch
 def test_unpack_lays_the_archive_out_in_the_directory(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'dispatch.zip')
-    spec, sources = lps.unpack(archive, tmp_path / 'out')
+    archive = lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'dispatch.zip')
+    spec, sources = _question(lps.load_artifact(archive, tmp_path / 'out'))
 
     assert sources == {k: tmp_path / 'out' / 'sources' / f'{k}.parquet' for k in dispatch_frame_inputs}, (
         'every source comes back as the path it was extracted to, one per key'
@@ -125,7 +135,7 @@ def test_unpack_lays_the_archive_out_in_the_directory(
 def test_a_refused_model_writes_nothing(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
     out = tmp_path / 'dispatch.zip'
     with pytest.raises(lps.DataError, match="no data provided for parameter 'cost'"):
-        lps.pack(dispatch_yaml, {k: v for k, v in dispatch_frame_inputs.items() if k != 'cost'}, out)
+        lps.Artifact(dispatch_yaml, {k: v for k, v in dispatch_frame_inputs.items() if k != 'cost'}).save(out)
     assert not out.exists(), 'the sources are checked before the archive is opened'
 
 
@@ -143,8 +153,8 @@ def test_a_zip_outside_the_layout_is_refused(members: dict[str, bytes], says: st
         for name, data in members.items():
             zipped.writestr(name, data)
     with pytest.raises(lps.DataError) as excinfo:
-        lps.unpack(path, tmp_path / 'out')
-    assert says in str(excinfo.value), 'the message names what was found, and the layout one pack() writes'
+        _question(lps.load_artifact(path, tmp_path / 'out'))
+    assert says in str(excinfo.value), 'the message names what was found, and the layout one Artifact.save() writes'
     assert not (tmp_path / 'out').exists(), 'nothing is extracted from a zip that is not an archive'
 
 
@@ -152,7 +162,7 @@ def test_a_lowered_program_is_refused_by_name(dispatch_yaml: Path, dispatch_fram
     """A lowered program has no file to write, and the docstring says so; the refusal says it too."""
     out = tmp_path / 'dispatch.zip'
     with pytest.raises(lps.LpspecError, match='a lowered Program has no file to write'):
-        lps.pack(lps.check(dispatch_yaml), dispatch_frame_inputs, out)
+        lps.Artifact(lps.check(dispatch_yaml), dispatch_frame_inputs).save(out)
     assert not out.exists(), 'nothing is written'
 
 
@@ -164,7 +174,7 @@ def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp
     from math_spec import Spec
 
     out = tmp_path / 'nested' / 'dispatch.zip'
-    assert lps.pack(dispatch_yaml, dispatch_frame_inputs, out) == out
+    assert lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(out) == out
     assert sorted(p.name for p in out.parent.iterdir()) == ['dispatch.zip'], 'the archive alone, no .part beside it'
 
     def fails(self):
@@ -173,7 +183,7 @@ def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp
     monkeypatch.setattr(Spec, 'to_yaml', fails)
     later = tmp_path / 'later.zip'
     with pytest.raises(RuntimeError, match='went away'):
-        lps.pack(dispatch_yaml, dispatch_frame_inputs, later)
+        lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(later)
     assert not list(tmp_path.glob('later*')), 'a write that did not finish leaves nothing under either name'
 
 
@@ -182,35 +192,61 @@ def test_an_archive_carries_the_answer_beside_the_question(
 ) -> None:
     """The full artifact: what was asked, the data it was asked of, and what came back.
 
-    A saved answer alone cannot say which model produced it, and a packed
-    model alone has to be re-solved to be read. One archive holds both, and
-    the two cannot drift apart or be paired up wrongly.
+    A saved answer alone cannot say which model produced it, and an archived
+    model alone has to be re-solved to be read. One file holds both, and the
+    two cannot drift apart or be paired up wrongly.
     """
     with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
-        archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'case.zip', answer=solved)
-        loaded = lps.load_result(archive, into=tmp_path / 'case')
+        archive = lps.Artifact(dispatch_yaml, dispatch_frame_inputs, solved).save(tmp_path / 'case.zip')
+        loaded = lps.load_artifact(archive, tmp_path / 'case')
 
-        assert loaded.objective == solved.objective
+        assert loaded.answer is not None, 'the archive was given an answer, so it comes back with one'
+        assert loaded.answer.objective == solved.objective
         for name in to_program(to_spec(dispatch_yaml)).variables:
-            assert loaded.primal(name).equals(solved.primal(name))
+            assert loaded.answer.primal(name).equals(solved.primal(name))
 
-    spec, sources = lps.unpack(archive, tmp_path / 'question')
-    with lps.solve(spec, sources) as resolved:
-        assert resolved.objective == pytest.approx(loaded.objective, rel=1e-9), (
+    with lps.solve(*_question(loaded)) as resolved:
+        assert resolved.objective == pytest.approx(loaded.answer.objective, rel=1e-9), (
             'the question in the archive is the one its answer answered'
         )
 
 
-def test_an_archive_with_no_answer_says_so(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
-    archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'question.zip')
-    with pytest.raises(lps.DataError, match='carries no answer'):
-        lps.load_result(archive, into=tmp_path / 'out')
-
-
-def test_loading_an_answer_says_when_it_needs_somewhere_to_put_it(
+def test_an_archive_of_the_question_alone_comes_back_with_no_answer(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    """A zip has to be extracted before it can be read, as `unpack` also has to be told."""
-    archive = lps.pack(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'case.zip')
-    with pytest.raises(lps.DataError, match='into='):
-        lps.load_result(archive)
+    """The answer is optional, and its absence is a value rather than a failure."""
+    archive = lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'question.zip')
+    loaded = lps.load_artifact(archive, tmp_path / 'out')
+    assert loaded.answer is None, 'nothing was given one, so nothing comes back'
+    assert not (tmp_path / 'out' / 'answer').exists(), 'and no answer/ was written to extract'
+
+
+def test_a_sweep_is_refused_by_name(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
+    """A sweep's sources are not this model's sources, and the refusal says where to put one.
+
+    `EachCoordinate` slices on a column the spec does not declare, so the
+    whole sources carry more than one row per coordinate and the door that
+    checks one solve's data refuses them. `Runs.save` is where a sweep goes.
+    """
+    scenarios = ['low', 'high']
+    load = pl.concat(
+        [
+            pl.DataFrame({'snapshot': range(DISPATCH_SNAPSHOTS), 'value': _dispatch_load()}).with_columns(
+                pl.lit(name).alias('scenario')
+            )
+            for name in scenarios
+        ]
+    )
+    sources = {**dispatch_frame_inputs, 'load': load}
+    runs = lps.solve_over(dispatch_yaml, sources, lps.EachCoordinate('scenario'))
+    with pytest.raises(lps.LpspecError, match=r'runs\.save'):
+        lps.Artifact(dispatch_yaml, sources, runs)  # pyrefly: ignore[bad-argument-type]  — what the test asserts
+
+    out = runs.save(tmp_path / 'sweep')
+    assert lps.load_runs(out).objective.equals(runs.objective), 'a sweep round-trips on its own'
+
+
+def test_a_lowered_program_is_refused_by_name_too(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
+    """A lowered program has no file to write, and the refusal says so."""
+    with pytest.raises(lps.LpspecError, match='a lowered Program has no file to write'):
+        lps.Artifact(lps.check(dispatch_yaml), dispatch_frame_inputs)
