@@ -222,10 +222,10 @@ declared `escape:` island rather than into the language.
 
 Read, in order:
 
-1. [the deliberate non-primitives](https://math-spec.readthedocs.io/en/latest/about/ceiling/#deliberate-non-primitives) — parity with
+1. [the deliberate non-primitives](https://math-spec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives) — parity with
    another tool is not by itself a reason to add anything, and several
    plausible-sounding features are refused there on purpose;
-2. [the ceiling in math-spec](https://math-spec.readthedocs.io/en/latest/about/ceiling/#two-tiers-and-the-ceiling) —
+2. [the limits in math-spec](https://math-spec.readthedocs.io/en/latest/about/limits/#what-a-new-primitive-has-to-satisfy) —
    the admissibility test;
 3. [the extension checklists](docs/about/architecture.md#extension-checklists), which sit directly under that
    test. They stay there rather than moving here: *may I?* and *how?* are one

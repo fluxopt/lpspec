@@ -62,7 +62,7 @@ _SOS = ('set', 'type', 'col', 'weight', 'big_m')
 _DTYPES = {
     'col': pl.Int32, 'row': pl.Int64,
     'lb': pl.Float64, 'ub': pl.Float64, 'rhs': pl.Float64, 'coeff': pl.Float64,
-    'sense': SENSE, 'vtype': pl.Enum(get_args(program.VariableType)),
+    'sense': SENSE, 'vtype': pl.Enum(get_args(program.VariableDomain)),
     'set': pl.Int32, 'type': pl.UInt8, 'weight': pl.Int32, 'big_m': pl.Float64,
     'col_l': pl.Int32, 'col_r': pl.Int32,
 }  # fmt: skip
@@ -329,7 +329,7 @@ class Assembly:
             .collect(engine='streaming'),
             'var_label',
         )
-        cols = bounded.select('lb', 'ub', pl.lit(v.variable_type, dtype=_DTYPES['vtype']).alias('vtype'))
+        cols = bounded.select('lb', 'ub', pl.lit(v.domain, dtype=_DTYPES['vtype']).alias('vtype'))
 
         if bounded.get_column('lb').null_count() or bounded.get_column('ub').null_count():
             bad = cols.filter(pl.col('lb').is_null() | pl.col('ub').is_null()).height

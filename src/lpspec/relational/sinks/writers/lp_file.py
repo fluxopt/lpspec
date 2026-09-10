@@ -56,7 +56,7 @@ _LP_SENSE = {sense: '=' if sense == '==' else sense for sense in SENSE_CODES}
 #: than being left out of the file.
 _LP_DOMAIN_SECTION = {
     domain: {'binary': 'binary', 'integer': 'general'}[domain]
-    for domain in get_args(program.VariableType)
+    for domain in get_args(program.VariableDomain)
     if domain != 'continuous'
 }
 
@@ -108,8 +108,8 @@ def write_lp_file(tables: Tables, path: str | Path) -> None:
         f.write(b'\nbounds\n')
         sink(bounds, f)
 
-        for variable_type, keyword in _LP_DOMAIN_SECTION.items():
-            chosen = tables.cols.lazy().with_row_index('col').filter(pl.col('vtype') == variable_type)
+        for domain, keyword in _LP_DOMAIN_SECTION.items():
+            chosen = tables.cols.lazy().with_row_index('col').filter(pl.col('vtype') == domain)
             if chosen.select(pl.len()).collect().item() == 0:
                 continue
             f.write(f'\n{keyword}\n'.encode())

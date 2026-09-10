@@ -28,48 +28,58 @@ Uncapacitated facility location, OR-Library instance cap71: 16 possible warehous
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{W}$ | index $w$ — `warehouse` — sites a warehouse may be opened on |
-| $\mathcal{C}$ | index $c$ — `customer` — customers, each served in full from one warehouse |
+| $`\mathcal{W}`$ | index $`w`$ — `warehouse` — sites a warehouse may be opened on |
+| $`\mathcal{C}`$ | index $`c`$ — `customer` — customers, each served in full from one warehouse |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{fixed\_cost}$ | `fixed_cost` over $\mathcal{W}$ — what opening a warehouse costs, whoever it ends up serving |
-| $\mathrm{serve}^{\mathrm{cost}}$ | `serve_cost` over $\mathcal{W} \times \mathcal{C}$ — what it costs to serve all of this customer's demand from this warehouse |
+| $`\mathrm{fixed\_cost}`$ | `fixed_cost` over $`\mathcal{W}`$ — what opening a warehouse costs, whoever it ends up serving |
+| $`\mathrm{serve}^{\mathrm{cost}}`$ | `serve_cost` over $`\mathcal{W} \times \mathcal{C}`$ — what it costs to serve all of this customer's demand from this warehouse |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{is\_open}$ | `is_open` over $\mathcal{W}$ — is this warehouse open? The only integrality in the model |
-| $\mathit{serve}$ | `serve` over $\mathcal{W} \times \mathcal{C}$ — the share of a customer's demand served from a warehouse |
+| $`\mathit{is\_open}`$ | `is_open` over $`\mathcal{W}`$ — is this warehouse open? The only integrality in the model |
+| $`\mathit{serve}`$ | `serve` over $`\mathcal{W} \times \mathcal{C}`$ — the share of a customer's demand served from a warehouse |
 
-Upright is what the model is given — a parameter such as $\mathrm{fixed\_cost}$, a coordinate map, a label — and italic is what the solver chooses, such as $\mathit{is\_open}$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{fixed\_cost}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{is\_open}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{w \in \mathcal{W}} \mathit{is\_open}_{w} \cdot \mathrm{fixed\_cost}_{w} + \sum_{w \in \mathcal{W},\enspace c \in \mathcal{C}} \mathit{serve}_{w,c} \cdot \mathrm{serve}^{\mathrm{cost}}_{w,c}$$
+```math
+\min \sum_{w \in \mathcal{W}} \mathit{is\_open}_{w} \cdot \mathrm{fixed\_cost}_{w} + \sum_{w \in \mathcal{W},\ c \in \mathcal{C}} \mathit{serve}_{w,c} \cdot \mathrm{serve}^{\mathrm{cost}}_{w,c}
+```
 
 #### Subject to
 
 **`every_customer_served`**
 
-$$\sum_{w \in \mathcal{W}} \mathit{serve}_{w,c} = 1 \qquad \forall\thinspace c \in \mathcal{C}$$
+```math
+\sum_{w \in \mathcal{W}} \mathit{serve}_{w,c} = 1 \qquad \forall\, c \in \mathcal{C}
+```
 
 **`only_from_open_warehouses`**
 
-$$\mathit{serve}_{w,c} - \mathit{is\_open}_{w} \le 0 \qquad \forall\thinspace w \in \mathcal{W},\enspace c \in \mathcal{C}$$
+```math
+\mathit{serve}_{w,c} - \mathit{is\_open}_{w} \le 0 \qquad \forall\, w \in \mathcal{W},\ c \in \mathcal{C}
+```
 
 #### Variable domains
 
 **`is_open`**
 
-$$\mathit{is\_open}_{w} \in \{0, 1\} \qquad \forall\thinspace w \in \mathcal{W}$$
+```math
+\mathit{is\_open}_{w} \in \{0, 1\} \qquad \forall\, w \in \mathcal{W}
+```
 
 **`serve`**
 
-$$0 \le \mathit{serve}_{w,c} \le 1 \qquad \forall\thinspace w \in \mathcal{W},\enspace c \in \mathcal{C}$$
+```math
+0 \le \mathit{serve}_{w,c} \le 1 \qquad \forall\, w \in \mathcal{W},\ c \in \mathcal{C}
+```
 
 </details>
 <!-- math:end -->

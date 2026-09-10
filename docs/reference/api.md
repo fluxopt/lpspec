@@ -101,7 +101,7 @@ its rows off.
 
 Whether a spec is *sayable* does not depend on the solver. Where it can *land*
 is
-[a separate question](https://math-spec.readthedocs.io/en/latest/about/ceiling/#capability-is-not-the-ceiling),
+[a separate question](https://math-spec.readthedocs.io/en/latest/about/limits/#solver-capability),
 and `sink=` asks it:
 
 ```python

@@ -14,50 +14,58 @@ The dispatch model of README.md, plus one macro and one named expression — sma
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{S}$ | index $s$ — `snapshot` — dispatch periods |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units, including oil, which is retired and gets no columns at all |
+| $`\mathcal{S}`$ | index $`s`$ — `snapshot` — dispatch periods |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units, including oil, which is retired and gets no columns at all |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\bar p$ | `p_max` over $\mathcal{G}$ — installed capacity, zero for a retired unit |
-| $\ell$ | `load` over $\mathcal{S}$ — demand to be met |
-| $c$ | `cost` over $\mathcal{G}$ — marginal cost |
+| $`\bar p`$ | `p_max` over $`\mathcal{G}`$ — installed capacity, zero for a retired unit |
+| $`\ell`$ | `load` over $`\mathcal{S}`$ — demand to be met |
+| $`c`$ | `cost` over $`\mathcal{G}`$ — marginal cost |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{S} \times \mathcal{G}$ — output of a generator in a snapshot — the `where` drops the retired unit entirely, so the built model is smaller than the coordinate product |
+| $`p`$ | `p` over $`\mathcal{S} \times \mathcal{G}`$ — output of a generator in a snapshot — the `where` drops the retired unit entirely, so the built model is smaller than the coordinate product |
 
 #### Definitions
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{total\_supply}$ | `total_supply` over $\mathcal{S}$ — what the whole fleet produces in a snapshot |
+| $`\mathit{total\_supply}`$ | `total_supply` over $`\mathcal{S}`$ — what the whole fleet produces in a snapshot |
 
 #### Objective
 
-$$\min \sum_{s \in \mathcal{S}} \sum_{g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
+```math
+\min \sum_{s \in \mathcal{S}} \sum_{g \in \mathcal{G}} p_{s,g} \cdot c_{g}
+```
 
 #### Subject to
 
 **`power_balance`**
 
-$$\mathit{total\_supply}_{s} = \ell_{s} \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+\mathit{total\_supply}_{s} = \ell_{s} \qquad \forall\, s \in \mathcal{S}
+```
 
 #### Definitions
 
 **`total_supply`**
 
-$$\mathit{total\_supply}_{s} = \sum_{g \in \mathcal{G}} p_{s,g} \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+\mathit{total\_supply}_{s} = \sum_{g \in \mathcal{G}} p_{s,g} \qquad \forall\, s \in \mathcal{S}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{s,g} \le \bar p_{g} \qquad \forall\thinspace s \in \mathcal{S},\enspace g \in \mathcal{G} \thinspace:\thinspace \bar p_{g} > 0$$
+```math
+0 \le p_{s,g} \le \bar p_{g} \qquad \forall\, s \in \mathcal{S},\ g \in \mathcal{G} \,:\, \bar p_{g} > 0
+```
 
 </details>
 <!-- math:end -->

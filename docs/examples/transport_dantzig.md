@@ -23,43 +23,51 @@ Dantzig's transportation problem, the first model of the GAMS library: ship cann
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{I}$ | index $i$ — `plant` — canning plants, with limited capacity |
-| $\mathcal{J}$ | index $j$ — `market` — markets, with demand to be met |
+| $`\mathcal{I}`$ | index $`i`$ — `plant` — canning plants, with limited capacity |
+| $`\mathcal{J}`$ | index $`j`$ — `market` — markets, with demand to be met |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $a$ | `capacity` over $\mathcal{I}$ — capacity of each plant |
-| $b$ | `demand` over $\mathcal{J}$ — demand at each market |
-| $d$ | `distance` over $\mathcal{I} \times \mathcal{J}$ — distance from plant to market |
-| $f$ | `freight` (scalar) — freight rate per case per unit distance |
+| $`a`$ | `capacity` over $`\mathcal{I}`$ — capacity of each plant |
+| $`b`$ | `demand` over $`\mathcal{J}`$ — demand at each market |
+| $`d`$ | `distance` over $`\mathcal{I} \times \mathcal{J}`$ — distance from plant to market |
+| $`f`$ | `freight` (scalar) — freight rate per case per unit distance |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $x$ | `shipment` over $\mathcal{I} \times \mathcal{J}$ — cases shipped from a plant to a market |
+| $`x`$ | `shipment` over $`\mathcal{I} \times \mathcal{J}`$ — cases shipped from a plant to a market |
 
 #### Objective
 
-$$\min \sum_{i \in \mathcal{I},\enspace j \in \mathcal{J}} \frac{x_{i,j} \cdot d_{i,j} \cdot f}{1000}$$
+```math
+\min \sum_{i \in \mathcal{I},\ j \in \mathcal{J}} \frac{x_{i,j} \cdot d_{i,j} \cdot f}{1000}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$\sum_{j \in \mathcal{J}} x_{i,j} \le a_{i} \qquad \forall\thinspace i \in \mathcal{I}$$
+```math
+\sum_{j \in \mathcal{J}} x_{i,j} \le a_{i} \qquad \forall\, i \in \mathcal{I}
+```
 
 **`meet_demand`**
 
-$$\sum_{i \in \mathcal{I}} x_{i,j} \ge b_{j} \qquad \forall\thinspace j \in \mathcal{J}$$
+```math
+\sum_{i \in \mathcal{I}} x_{i,j} \ge b_{j} \qquad \forall\, j \in \mathcal{J}
+```
 
 #### Variable domains
 
 **`shipment`**
 
-$$x_{i,j} \ge 0 \qquad \forall\thinspace i \in \mathcal{I},\enspace j \in \mathcal{J}$$
+```math
+x_{i,j} \ge 0 \qquad \forall\, i \in \mathcal{I},\ j \in \mathcal{J}
+```
 
 </details>
 <!-- math:end -->

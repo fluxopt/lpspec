@@ -1,7 +1,7 @@
 """What a sink can ingest — the axis that is not the ceiling.
 
 The ceiling is about streamability and is solver-independent
-(docs/about/ceiling.md); what a *sink* can take is separate, and conflating the
+(math-spec's docs/about/limits.md); what a *sink* can take is separate, and conflating the
 two let one solver's limits read as architectural law. One descriptor per sink,
 so a construct the language says and a sink cannot take is a refusal naming
 both rather than a ``kError`` from inside a library.
@@ -123,7 +123,7 @@ def required(program: Program, /) -> frozenset[Capability]:
     """
     footprint = program.footprint
     needed: set[Capability] = set()
-    if footprint.variable_types - {'continuous'}:
+    if footprint.domains - {'continuous'}:
         needed.add('integrality')
     if 'objective' in footprint.quadratic:
         needed.add('quadratic_objective')
