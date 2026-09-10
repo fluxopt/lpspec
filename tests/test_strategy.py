@@ -193,17 +193,17 @@ def coordinate_sources(coordinates: list, load: float = 5.0) -> dict[str, object
 
 #: Window geometries whose *tail* differs — the only place a windowing rule
 #: goes wrong. Between them these cover a final window of one, a final window
-#: of ``step``, a horizon shorter than a single window, and a tail that divides
+#: of ``steps``, a horizon shorter than a single window, and a tail that divides
 #: exactly so there is no short window at all.
 GEOMETRIES = [
-    pytest.param(periods, length, step, id=f'n{periods}-l{length}-s{step}')
+    pytest.param(periods, steps, lookahead, id=f'n{periods}-s{steps}-la{lookahead}')
     for periods in (1, 2, 5, 7, 12)
-    for length in (1, 2, 3, 6)
-    for step in range(1, length + 1)
+    for steps in (1, 2, 3, 6)
+    for lookahead in range(7 - steps)
 ]
 
 #: The one contiguous geometry most window tests share — frozen, so sharing is safe.
-WINDOW_AXIS = lps.EachWindow('snapshot', length=4, step=4, into='t')
+WINDOW_AXIS = lps.EachWindow('snapshot', steps=4, lookahead=0, into='t')
 
 
 @pytest.fixture(scope='module')
@@ -218,7 +218,7 @@ def overlapping() -> strategy.Runs:
     return lps.solve_over(
         WINDOW,
         horizon_sources(12),
-        lps.EachWindow('snapshot', length=6, step=3, into='t'),
+        lps.EachWindow('snapshot', steps=3, lookahead=3, into='t'),
         carry={'soc_initial': 'soc'},  # the last *kept* row, not the last row
     )
 
@@ -416,28 +416,30 @@ def test_stitch_drops_the_overlap_and_restores_the_global_coordinate(overlapping
     stitched = runs.primal('soc', original_index=True)
     assert stitched.columns == ['snapshot', 'value'], 'the slice bookkeeping is gone'
     assert stitched['snapshot'].to_list() == list(range(12)), 'and every coordinate is present once'
-    assert runs.primal('soc').height == 21, 'every window kept the `step` coordinates it owns'
+    assert runs.primal('soc').height == 21, 'every window kept the `steps` coordinates it owns'
 
 
-@pytest.mark.parametrize(('periods', 'length', 'step'), GEOMETRIES)
-def test_a_window_geometry_covers_every_coordinate_exactly_once(periods, length, step):
+@pytest.mark.parametrize(('periods', 'steps', 'lookahead'), GEOMETRIES)
+def test_a_window_geometry_covers_every_coordinate_exactly_once(periods, steps, lookahead):
     """A stitched sweep reproduces the coordinate list, whatever the tail."""
     runs = lps.solve_over(
         WINDOW,
         horizon_sources(periods),
-        lps.EachWindow('snapshot', length=length, step=step, into='t'),
+        lps.EachWindow('snapshot', steps=steps, lookahead=lookahead, into='t'),
     )
     assert runs.primal('soc', original_index=True)['snapshot'].to_list() == list(range(periods)), (
         'the original index must reproduce the coordinate list, whatever the tail'
     )
-    assert runs.primal('soc')['snapshot_start'].n_unique() == len(range(0, periods, step)), 'one slice per window start'
+    assert runs.primal('soc')['snapshot_start'].n_unique() == len(range(0, periods, steps)), (
+        'one slice per window start'
+    )
 
 
-@pytest.mark.parametrize(('periods', 'length', 'step'), GEOMETRIES)
-def test_a_carry_finds_the_seam_in_every_geometry(periods, length, step):
+@pytest.mark.parametrize(('periods', 'steps', 'lookahead'), GEOMETRIES)
+def test_a_carry_finds_the_seam_in_every_geometry(periods, steps, lookahead):
     """The coordinate a carry hands on is the last one the window owns.
 
-    A non-final window owns exactly ``step``; a final one owns whatever is
+    A non-final window owns exactly ``steps``; a final one owns whatever is
     left, which can be one. Both are in range by construction, because a
     window owns rows it solved — so unlike the index this replaced, there is
     no geometry where the carry reads off the end.
@@ -445,25 +447,25 @@ def test_a_carry_finds_the_seam_in_every_geometry(periods, length, step):
     runs = lps.solve_over(
         WINDOW,
         horizon_sources(periods),
-        lps.EachWindow('snapshot', length=length, step=step, into='t'),
+        lps.EachWindow('snapshot', steps=steps, lookahead=lookahead, into='t'),
         carry={'soc_initial': 'soc'},
     )
     assert runs.primal('soc', original_index=True)['snapshot'].to_list() == list(range(periods)), (
-        'a carry at step - 1 is in range for every geometry, so the sweep completes'
+        'the seam is in range for every geometry, so the sweep completes'
     )
 
 
 def test_stitch_keeps_the_whole_of_the_final_short_window():
-    """A tail window holds at most `step`, so the owning rule keeps all of it.
+    """A tail window holds at most `steps`, so the owning rule keeps all of it.
 
-    12 coordinates at length 6 step 5 leaves a final window of two. Dropping
+    12 coordinates kept 5 at a time leaves a final window of two. Dropping
     `t >= step` uniformly would be right for it too; the risk is a rule that
     drops the tail because it is not a full window, and it must not.
     """
     runs = lps.solve_over(
         WINDOW,
         horizon_sources(12),
-        lps.EachWindow('snapshot', length=6, step=5, into='t'),
+        lps.EachWindow('snapshot', steps=5, lookahead=1, into='t'),
     )
     assert runs.keys == [0, 5, 10], 'three windows, the last of two coordinates'
     assert runs.primal('soc', original_index=True)['snapshot'].to_list() == list(range(12)), (
@@ -486,7 +488,7 @@ def test_a_hand_built_axis_refuses_to_read_over_a_dimension_it_never_named(tmp_p
     route, not through the eager readers.
     """
     sources = horizon_sources(12)
-    windows = lps.EachWindow('snapshot', length=6, step=3, into='t').slices(sources)
+    windows = lps.EachWindow('snapshot', steps=3, lookahead=3, into='t').slices(sources)
 
     runs = lps.solve_over(WINDOW, sources, windows, key_name='window')
     assert runs.primal('soc').columns == ['window', 't', 'value'], 'a hand-built axis keys by what it was told'
@@ -556,7 +558,7 @@ def priced() -> strategy.Runs:
     return lps.solve_over(
         SPENDING,
         horizon_sources(12),
-        lps.EachWindow('snapshot', length=6, step=3, into='t'),
+        lps.EachWindow('snapshot', steps=3, lookahead=3, into='t'),
         carry={'soc_initial': 'soc'},
     )
 
@@ -629,7 +631,7 @@ def test_an_expression_no_slice_could_evaluate_carries_its_reason():
     )
     sources = {**horizon_sources(12), 'scale': pl.DataFrame({'snapshot': [0], 'value': [2.0]})}
     with pytest.warns(lps.LpspecWarning, match="'scale' has no rows for snapshot 1"):
-        runs = lps.solve_over(spec, sources, lps.EachWindow('snapshot', length=6, step=6, into='t'))
+        runs = lps.solve_over(spec, sources, lps.EachWindow('snapshot', steps=6, lookahead=0, into='t'))
 
     assert runs.primal('p').height > 0, 'the failing expression must not fail the sweep'
     assert runs.expression('spend').height > 0, 'nor take the healthy expression with it'
@@ -639,7 +641,7 @@ def test_an_expression_no_slice_could_evaluate_carries_its_reason():
 
 #: Six coordinates, three windows of two, whatever the coordinates *are*.
 #:
-#: `length` and `step` count coordinates rather than coordinate values, and
+#: `steps` and `lookahead` count coordinates rather than coordinate values, and
 #: every row here is a case that measuring in values got wrong. Dense integers
 #: from zero were the one shape that worked, because there value equals
 #: position; spacing them by ten silently produced **26** mostly-empty slices,
@@ -663,7 +665,7 @@ def test_a_window_spans_coordinates_whatever_they_are_numbered(coordinates):
     matching on a dimension with gaps in it.
     """
     runs = lps.solve_over(
-        WINDOW, coordinate_sources(coordinates), lps.EachWindow('snapshot', length=2, step=2, into='t')
+        WINDOW, coordinate_sources(coordinates), lps.EachWindow('snapshot', steps=2, lookahead=0, into='t')
     )
 
     assert len(runs) == 3
@@ -681,7 +683,7 @@ def test_stitch_recovers_coordinates_no_arithmetic_could(coordinates):
     only way back to it: nothing the caller holds could reconstruct these.
     """
     runs = lps.solve_over(
-        WINDOW, coordinate_sources(coordinates, load=10.0), lps.EachWindow('snapshot', length=2, step=2, into='t')
+        WINDOW, coordinate_sources(coordinates, load=10.0), lps.EachWindow('snapshot', steps=2, lookahead=0, into='t')
     )
     assert runs.primal('soc', original_index=True)['snapshot'].to_list() == coordinates
 
@@ -709,30 +711,158 @@ def test_a_window_key_column_never_shadows_the_dimension_it_replaced(sweep):
 @pytest.mark.parametrize(
     ('geometry', 'expected'),
     [
-        pytest.param({'length': 4, 'step': 8, 'into': 't'}, 'exceeds length', id='step-past-length'),
-        pytest.param({'length': 0, 'step': 1, 'into': 't'}, 'must be positive', id='zero-length'),
-        pytest.param({'length': 4, 'step': 4, 'into': 'snapshot'}, 'must differ from dim', id='into-is-the-dim'),
-        pytest.param({'length': 4, 'step': 4, 'into': ''}, 'no default', id='into-is-empty'),
+        pytest.param(
+            {'steps': 0, 'lookahead': 0, 'into': 't'}, 'at least one coordinate', id='a-window-keeping-nothing'
+        ),
+        pytest.param(
+            {'steps': [4, 0], 'lookahead': 0, 'into': 't'},
+            r'at least one coordinate.*\[0\]',
+            id='a-block-keeping-nothing',
+        ),
+        pytest.param({'steps': [], 'lookahead': 0, 'into': 't'}, 'steps is empty', id='no-blocks-at-all'),
+        pytest.param({'steps': 4, 'lookahead': -1, 'into': 't'}, 'is negative', id='a-negative-lookahead'),
+        pytest.param({'steps': 4, 'lookahead': 0, 'into': 'snapshot'}, 'must differ from dim', id='into-is-the-dim'),
+        pytest.param({'steps': 4, 'lookahead': 0, 'into': ''}, 'no default', id='into-is-empty'),
     ],
 )
 def test_the_window_geometry_is_checked_at_construction(geometry, expected):
-    """`__post_init__` is what earns these two a name on the public surface."""
+    """`__post_init__` is what earns these a name on the public surface.
+
+    A step past the length used to be refused here and is now unrepresentable:
+    `lookahead` counts coordinates beyond the block rather than the whole
+    window, so there is no pair of numbers that skips coordinates.
+    """
     with pytest.raises(ValueError, match=expected):
         lps.EachWindow('snapshot', **geometry)
 
 
-def test_a_short_tail_window_carries_off_its_own_last_row():
-    """A final window owns fewer rows than ``step``, and its seam is its own last.
+#: Window blocks that are not all the same size. Between them: a telescoping
+#: horizon that coarsens, one that refines, months of unequal length, and a
+#: sequence overshooting the axis so its tail blocks have nothing to cover.
+BLOCKS = [
+    pytest.param([1, 2, 3, 6], id='coarsening'),
+    pytest.param([6, 3, 2, 1], id='refining'),
+    pytest.param([4, 4, 4], id='uniform-spelled-as-a-sequence'),
+    pytest.param([5, 7], id='two-unequal-months'),
+    pytest.param([5, 7, 99], id='a-block-past-the-end-of-the-axis'),
+]
 
-    12 coordinates at length 6 step 5 leaves a final window of two, which
+
+@pytest.mark.parametrize('blocks', BLOCKS)
+def test_windows_of_unequal_size_cover_every_coordinate_exactly_once(blocks):
+    """`steps` as a sequence keeps those numbers in order, one window each.
+
+    A telescoping horizon is this and nothing else: the stitch, the seam and
+    the separability gate never read a second number, because what a window
+    owns was always per-window and only the schedule was uniform.
+    """
+    runs = lps.solve_over(
+        WINDOW,
+        horizon_sources(12),
+        lps.EachWindow('snapshot', steps=blocks, lookahead=2, into='t'),
+        carry={'soc_initial': 'soc'},
+    )
+    stitched = runs.primal('soc', original_index=True)
+
+    assert stitched['snapshot'].to_list() == list(range(12)), 'every coordinate, once, whatever the block sizes'
+    assert runs.keys == _starts(blocks, 12), 'one window per block, keyed by the coordinate it starts on'
+    assert runs.objective['termination_condition'].to_list() == ['optimal'] * len(runs), 'every window solved'
+
+
+def _starts(blocks: list[int], total: int) -> list[int]:
+    """Where each window starts — the keys a block list implies, a block past the end contributing none."""
+    starts, at = [], 0
+    for block in blocks:
+        if at >= total:
+            break
+        starts.append(at)
+        at += block
+    return starts
+
+
+#: Block lists whose last entry overshoots what the axis has left — an int that
+#: does not divide, and a sequence whose tail reaches past the end.
+OVERSHOOTING = [
+    pytest.param(5, 12, [5, 5, 2], id='an-int-that-does-not-divide'),
+    pytest.param(7, 12, [7, 5], id='an-int-larger-than-the-remainder'),
+    pytest.param(20, 12, [12], id='an-int-larger-than-the-axis'),
+    pytest.param([5, 7, 99], 12, [5, 7], id='a-sequence-reaching-past-the-end'),
+    pytest.param([5, 20], 12, [5, 7], id='a-sequence-whose-last-block-overshoots'),
+]
+
+
+@pytest.mark.parametrize(('steps', 'periods', 'expected'), OVERSHOOTING)
+def test_the_blocks_partition_the_axis_and_never_claim_more_than_is_left(steps, periods, expected):
+    """A probe, because no solved sweep can tell `min(block, left)` from `block`.
+
+    Only the *last* block can overshoot, and the last slice is the one whose
+    carry nobody reads, so trimming it changes no answer. What it keeps true is
+    `_Slice.owns`: a window that claims five coordinates while holding two has
+    lied about what it is responsible for, and the stitch and the seam both read
+    that number. Deleting the trim leaves the suite green, which is why this
+    asserts the arithmetic rather than an answer.
+    """
+    axis = lps.EachWindow('snapshot', steps=steps, lookahead=0, into='t')
+
+    assert axis._blocks(periods) == expected, 'each block is trimmed to what the axis has left'
+    assert sum(axis._blocks(periods)) == periods, 'and together they cover it exactly once'
+
+    slices, _ = axis._slice(horizon_sources(periods), 'snapshot_start')
+    assert [current.owns for current in slices] == expected, 'which is what each slice records owning'
+    for current in slices:
+        assert current.owns <= len(current.sources['t']), 'no window owns more coordinates than it holds'
+
+
+def test_a_block_list_that_stops_short_of_the_axis_is_refused():
+    """The coordinates past the last block would be solved by no window.
+
+    Trimming them silently is the one outcome a sweep must not have: the stitch
+    would come back short and read as a complete schedule.
+    """
+    with pytest.raises(lps.DataError, match=r'keeps 7 coordinate\(s\) across 2 window\(s\).*has 12'):
+        lps.solve_over(
+            WINDOW,
+            horizon_sources(12),
+            lps.EachWindow('snapshot', steps=[3, 4], lookahead=0, into='t'),
+        )
+
+
+def test_the_lookahead_the_model_needs_is_one_number_whatever_the_blocks():
+    """`Separability.ahead` is one integer for the dimension, so the gate is one check.
+
+    `shift(soc, over=t, offset=-1)` reads one coordinate ahead, so a lookahead
+    of zero is refused and one is enough — for uniform blocks and unequal ones
+    alike, since no block size enters the arithmetic.
+    """
+    ahead = 'soc == shift(soc, over=t, offset=-1) + charge * 0.9 - discharge'
+    reaching = override(WINDOW, **{'constraints.soc_step.expression': ahead})
+
+    for steps in (3, [1, 2, 3, 6]):
+        with pytest.raises(lps.LpspecError, match=r'lookahead=0\) looks ahead by 0 coordinate\(s\).*reads 1 ahead'):
+            lps.solve_over(
+                reaching, horizon_sources(12), lps.EachWindow('snapshot', steps=steps, lookahead=0, into='t')
+            )
+
+        runs = lps.solve_over(
+            reaching, horizon_sources(12), lps.EachWindow('snapshot', steps=steps, lookahead=1, into='t')
+        )
+        assert runs.objective['termination_condition'].to_list() == ['optimal'] * len(runs), (
+            'one coordinate of lookahead is what the model reads, so every window is whole'
+        )
+
+
+def test_a_short_tail_window_carries_off_its_own_last_row():
+    """A final window owns fewer rows than ``steps``, and its seam is its own last.
+
+    12 coordinates kept 5 at a time leaves a final window of two, which
     holds no `t == 4`. Nothing reads the last slice's carry, so the value is
-    never computed — but a window short of ``step`` in the *middle* of a sweep
+    never computed — but a window short of ``steps`` in the *middle* of a sweep
     cannot happen, which is what makes the owned count always in range.
     """
     runs = lps.solve_over(
         WINDOW,
         horizon_sources(12),
-        lps.EachWindow('snapshot', length=6, step=5, into='t'),
+        lps.EachWindow('snapshot', steps=5, lookahead=1, into='t'),
         carry={'soc_initial': 'soc'},
     )
     assert runs.keys == [0, 5, 10]
@@ -791,7 +921,7 @@ def test_the_carried_row_is_the_last_one_owned_and_not_the_last_one_solved():
     runs = lps.solve_over(
         WINDOW,
         horizon_sources(12),
-        lps.EachWindow('snapshot', length=6, step=3, into='t'),
+        lps.EachWindow('snapshot', steps=3, lookahead=3, into='t'),
         carry={'soc_initial': 'soc'},
     )
 
@@ -1383,18 +1513,31 @@ def test_a_window_must_look_ahead_as_far_as_the_rows_read():
         {'foreach': ['t'], 'expression': 'sum(p, over=generator) >= shift(load, over=t, offset=-2, edge=0)'}
     )
     with pytest.raises(lps.LpspecError, match=r'looks ahead by 0 coordinate\(s\), and the model reads 2 ahead'):
-        lps.solve_over(spec, horizon_sources(8), lps.EachWindow('snapshot', length=4, step=4, into='t'))
-    runs = lps.solve_over(spec, horizon_sources(8), lps.EachWindow('snapshot', length=6, step=4, into='t'))
+        lps.solve_over(spec, horizon_sources(8), lps.EachWindow('snapshot', steps=4, lookahead=0, into='t'))
+    runs = lps.solve_over(spec, horizon_sources(8), lps.EachWindow('snapshot', steps=4, lookahead=2, into='t'))
     assert runs.keys == [0, 4], 'with the lookahead covered, every window solves'
 
 
 @pytest.mark.parametrize(
     ('delays', 'axis', 'refused'),
     [
-        pytest.param([1, 2], lps.EachWindow('snapshot', 4, 4, into='t'), False, id='a-delay-behind-needs-no-overlap'),
-        pytest.param([-1, -3], lps.EachWindow('snapshot', 4, 4, into='t'), True, id='a-delay-ahead-needs-the-overlap'),
         pytest.param(
-            [-1, -3], lps.EachWindow('snapshot', 7, 4, into='t'), False, id='and-an-overlap-of-three-covers-it'
+            [1, 2],
+            lps.EachWindow('snapshot', steps=4, lookahead=0, into='t'),
+            False,
+            id='a-delay-behind-needs-no-overlap',
+        ),
+        pytest.param(
+            [-1, -3],
+            lps.EachWindow('snapshot', steps=4, lookahead=0, into='t'),
+            True,
+            id='a-delay-ahead-needs-the-overlap',
+        ),
+        pytest.param(
+            [-1, -3],
+            lps.EachWindow('snapshot', steps=4, lookahead=3, into='t'),
+            False,
+            id='and-an-overlap-of-three-covers-it',
         ),
     ],
 )
@@ -1458,7 +1601,7 @@ def test_an_offset_is_read_off_every_shape_a_source_may_arrive_in(delay):
 
 def test_a_window_whose_local_index_the_spec_does_not_declare_is_refused_by_name():
     with pytest.raises(lps.LpspecError, match=r"EachWindow\(into='tt'\).*Did you mean 't'") as refused:
-        lps.solve_over(WINDOW, horizon_sources(8), lps.EachWindow('snapshot', 4, 4, into='tt'))
+        lps.solve_over(WINDOW, horizon_sources(8), lps.EachWindow('snapshot', steps=4, lookahead=0, into='tt'))
     assert 'no such dimension' in str(refused.value), 'the refusal says the spec declares nothing by that name'
 
 
@@ -1602,7 +1745,7 @@ def test_an_axis_hands_out_its_slices_so_one_can_be_built_alone():
     solving it hand-built gives the same answers under the axis's own key.
     """
     sources = horizon_sources(12)
-    axis = lps.EachWindow('snapshot', length=6, step=3, into='t')
+    axis = lps.EachWindow('snapshot', steps=3, lookahead=3, into='t')
     slices = axis.slices(sources)
     assert [key for key, _ in slices] == [0, 3, 6, 9], 'one slice per window, keyed by where it starts'
 
@@ -1651,7 +1794,7 @@ def test_a_sweep_reports_what_each_slice_cost(make_executor):
 # spilling to disk
 # ---------------------------------------------------------------------------
 
-PRICED_AXIS = lps.EachWindow('snapshot', length=6, step=3, into='t')
+PRICED_AXIS = lps.EachWindow('snapshot', steps=3, lookahead=3, into='t')
 PRICED_CARRY = {'soc_initial': 'soc'}
 
 

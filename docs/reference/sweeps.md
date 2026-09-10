@@ -23,38 +23,60 @@ An axis says how the sources split into slices. `solve_over` accepts three.
 | | |
 |---|---|
 | `lps.EachCoordinate(dim)` | One slice per label of `dim`: scenarios, draws, investment periods. A source carrying `dim` is filtered to one label and the column is dropped; every other source passes through. A spec that declares `dim` is refused. The slices run in the sorted order of the labels, which is the order a `carry` chains them in. |
-| `lps.EachWindow(dim, length, step, into)` | One slice per window of consecutive labels of `dim`. `length` is what the solver sees and `step` is what the window keeps, so `length > step` is overlap. The dimension is re-indexed into a dense `0..n-1` column named `into`, which the spec has to declare. |
+| `lps.EachWindow(dim, steps=, lookahead=, into=)` | One slice per window of consecutive labels of `dim`. `steps` is what each window keeps and `lookahead` is what it sees beyond that, so a `lookahead` above zero is overlap. An `int` keeps the same number every window; a sequence keeps those numbers in order. The dimension is re-indexed into a dense `0..n-1` column named `into`, which the spec has to declare. |
 | a sequence of `(key, sources)` pairs | A hand-built axis. The call must pass `key_name=`. A list names no dimension, so the model is not asked whether it can be cut that way and `original_index=` is refused. |
 
 ```python
 runs = lps.solve_over(
     'window.yaml',
     sources,
-    lps.EachWindow('snapshot', length=48, step=24, into='t'),
+    lps.EachWindow('snapshot', steps=24, lookahead=24, into='t'),
     carry={'soc_initial': 'soc'},
 )
 runs.primal('soc')  # (snapshot_start, t, value) — the window, and the index inside it
 ```
 
-**A window spans labels, not values.** `length=48` is forty-eight snapshots
+**A window spans labels, not values.** `steps=24` is twenty-four snapshots
 however they are numbered. The dimension only has to be orderable:
 datetimes, strings and gapped integers all work. `into` has no default, and a
 seam's `where: "t == 0"` matches on it.
 
-**"Each calendar month" is a precomputed column plus `EachCoordinate`.** A
-window cannot express unequal groups; only `EachWindow` offers overlap.
+**`steps` as a sequence is one block per window**, which is a telescoping
+horizon, or a month at a time with a few days of overlap:
+
+```python
+lps.EachWindow('snapshot', steps=[24, 24, 168, 168, 720], lookahead=12, into='t')
+lps.EachWindow('snapshot', steps=days_in_each_month, lookahead=48, into='t')
+```
+
+The blocks are taken in order and laid end to end. A sequence that stops short
+of the axis is refused. The labels past the last block would be solved by no
+window, and the stitch would come back short:
+
+```text
+DataError: steps keeps 7 coordinate(s) across 2 window(s), and 'snapshot' has 12 —
+the last 5 would be solved by no window. List a block for them, or pass an int to
+repeat one size to the end.
+```
+
+A sequence reaching past the end is not: its trailing blocks simply have
+nothing to cover.
+
+**`lookahead` is one number whatever the blocks.** What a model reads ahead is
+one integer for the dimension, so no block size enters the check. The same
+`lookahead` satisfies uniform windows and unequal ones.
 
 **`axis.slices(sources)` is the list the axis would run**, as the
 `(key, sources)` pairs a hand-built axis takes:
 
 ```python
-slices = lps.EachWindow('snapshot', 48, 24, into='t').slices(sources)
+slices = lps.EachWindow('snapshot', steps=24, lookahead=24, into='t').slices(sources)
 lps.build('window.yaml', slices[37][1]).write('window-37.lp')  # the one that was infeasible
 ```
 
-Solved as a list, the slices key by `key_name=` and nothing is stitched. Two
-axes compose as a comprehension over the slices of one, each sliced again by
-the other.
+Solved as a list, the slices key by `key_name=` and `original_index=` is
+refused. Two axes compose as a comprehension over the slices of one, each
+sliced again by the other.
 
 **Sources cross a slice in every shape `build` takes.** A table carrying the
 axis, table or parquet path, is filtered. A number, a `{label: value}` map or a
@@ -84,7 +106,7 @@ runs.expression('spend', original_index=True)  # the model's own quantity, over 
 ```
 
 For `EachWindow` this is the stitched answer over the global labels. Each
-window contributes the `step` labels it owns, and the final window all of
+window contributes the labels its block owns, and the final window all of
 its rows. For `EachCoordinate` nothing was re-indexed, and its key column
 already is a label of the sliced dimension, so the table comes back unchanged.
 
@@ -142,7 +164,7 @@ already hold: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 goes rather than held, so the sweep's memory stays at one slice:
 
 ```python
-runs = lps.solve_over('window.yaml', sources, lps.EachWindow('snapshot', 48, 24, into='t'), to='runs/')
+runs = lps.solve_over('window.yaml', sources, lps.EachWindow('snapshot', steps=24, lookahead=24, into='t'), to='runs/')
 runs.scan('soc')  # a LazyFrame: (snapshot_start, t, value), every window, in order
 runs.scan('balance', 'dual', original_index=True).collect()  # the same readers, the same keywords
 ```
@@ -165,7 +187,7 @@ runs.scan('balance', 'dual', original_index=True).collect()  # the same readers,
 runs = lps.solve_over(
     'window.yaml',
     sources,
-    lps.EachWindow('snapshot', length=48, step=24, into='t'),
+    lps.EachWindow('snapshot', steps=24, lookahead=24, into='t'),
     carry={'soc_initial': 'soc'},
 )
 ```

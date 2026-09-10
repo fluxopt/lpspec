@@ -81,12 +81,12 @@ def full_foresight() -> lps.Runs:
     return lps.solve_over(
         MODEL,
         SOURCES,
-        lps.EachWindow('snapshot', length=PERIODS, step=PERIODS, into='t'),
+        lps.EachWindow('snapshot', steps=PERIODS, lookahead=0, into='t'),
     )
 
 
-def rolling(length: int, step: int) -> lps.Runs:
-    """Windows of *length*, advancing *step*, each carrying its final kept level.
+def rolling(steps: int, lookahead: int) -> lps.Runs:
+    """Windows keeping *steps* coordinates and seeing *lookahead* beyond them.
 
     The carry names no coordinate: `soc` is over `(t)` and `soc_initial` over
     `()`, so `t` is what it collapses, and the row handed on is the last one the
@@ -96,7 +96,7 @@ def rolling(length: int, step: int) -> lps.Runs:
     return lps.solve_over(
         MODEL,
         SOURCES,
-        lps.EachWindow('snapshot', length=length, step=step, into='t'),
+        lps.EachWindow('snapshot', steps=steps, lookahead=lookahead, into='t'),
         carry={'soc_initial': 'soc'},
     )
 
@@ -120,8 +120,8 @@ def main() -> None:
     print(f'full foresight   one window                      cost {best:>9.2f}   peak soc {peak:>6.1f}')
     print()
 
-    for length in (STEP, STEP + 4, STEP + 8):
-        runs = rolling(length, STEP)
+    for lookahead in (0, 4, 8):
+        runs = rolling(STEP, lookahead)
         stitched = runs.primal('soc', original_index=True)
         assert stitched['snapshot'].to_list() == list(range(PERIODS)), 'the stitch must cover the horizon'
 
@@ -129,7 +129,7 @@ def main() -> None:
         assert cost >= best - 1e-6, 'rolling cannot beat full foresight'
         assert stitched['value'].max() > 0, 'the store must be used in every schedule'
         print(
-            f'rolling  length={length:<3} step={STEP:<3} lookahead={length - STEP:<3} '
+            f'rolling  steps={STEP:<3} lookahead={lookahead:<3} '
             f'windows {len(runs):>2}   cost {cost:>9.2f}   peak soc {stitched["value"].max():>6.1f}'
             f'   +{100 * (cost - best) / best:>5.1f}%'
         )
