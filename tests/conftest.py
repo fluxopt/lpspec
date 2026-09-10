@@ -33,6 +33,7 @@ import polars as pl
 import pytest
 import yaml as pyyaml
 from math_spec import to_program
+from math_spec.program import LookupDeclaration, Walk
 
 from lpspec.relational.sinks import SOLVERS
 from lpspec.sources import attachable
@@ -74,6 +75,21 @@ def relation(over: str, into: str, labels: Sequence[Any], values: Sequence[Any])
     """
     rows = [(a, b) for a, b in zip(labels, values, strict=True) if b is not None]
     return pl.DataFrame({over: [a for a, _ in rows], into: [b for _, b in rows]})
+
+
+def declared_lookup(name: str, key: str, value: str, *, coverage: str = 'total') -> LookupDeclaration:
+    """A lookup of the one shape most fixtures here declare: one key column, one value column, each named after its dimension."""
+    return LookupDeclaration(name, ((key, key), (value, value)), (key,), coverage)
+
+
+def walk(name: str, consumed: str, produced: str, *, coverage: str = 'total') -> Walk:
+    """One such lookup, walked from its key column to its value column.
+
+    The shape every fixture here writes, and the one a hand-built node has to
+    match exactly — a walk carries the declaration, so a node built with a
+    different key or coverage is a different node than the lowering produced.
+    """
+    return Walk(declared_lookup(name, consumed, produced, coverage=coverage), (consumed,), (produced,), ())
 
 
 def port_sources(name: str) -> dict[str, Any]:
@@ -417,7 +433,7 @@ def masked_operand_spec(constraint: str, expression: str, *, grouped: bool = Fal
     }
     if grouped:
         spec['dimensions']['season'] = {'dtype': 'str'}
-        spec['lookups'] = {'season_of': {'over': 't', 'into': 'season'}}
+        spec['lookups'] = {'season_of': {'over': ['t', 'season'], 'key': 't', 'coverage': 'masked'}}
     if not masked:
         del spec['parameters']
         del spec['variables']['level']['where']

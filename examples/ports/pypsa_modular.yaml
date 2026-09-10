@@ -18,8 +18,8 @@ dimensions:
 lookups:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    over: [generator, bus]
+    key: generator
 
 parameters:
   p_nom_mod:

@@ -28,8 +28,8 @@ PyPSA linear optimal power flow on a meshed AC-DC network whose generators sit o
 | Symbol | Meaning |
 |---|---|
 | $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{C}$ | index $c$ — `carrier` — what a generator burns, and what its emissions are a property of |
+| $\mathcal{B}$ | index $b$ — `bus` with $\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\enspace \mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{line\_to}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{link\_from}: \mathcal{I} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{I} \to \mathcal{B}$ — network nodes |
+| $\mathcal{C}$ | index $c$ — `carrier` with $\mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}$ — what a generator burns, and what its emissions are a property of |
 | $\mathcal{E}$ | index $e$ — `generator` with $\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\enspace \mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}$ — generating units, each sitting on a bus and burning a carrier — two coordinates on one dimension, landing on two different axes |
 | $\mathcal{L}$ | index $l$ — `line` with $\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}$ — passive AC lines, each joining two buses |
 | $\mathcal{I}$ | index $i$ — `link` with $\mathrm{link\_from}: \mathcal{I} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{I} \to \mathcal{B}$ — controllable connections, each joining two buses |
@@ -174,28 +174,28 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        over: [generator, bus]
+        key: generator
       gen_carrier:
         description: the carrier a generator burns
-        over: generator
-        into: carrier
+        over: [generator, carrier]
+        key: generator
       line_from:
         description: the bus a line leaves
-        over: line
-        into: bus
+        over: [line, bus]
+        key: line
       line_to:
         description: the bus a line arrives at
-        over: line
-        into: bus
+        over: [line, bus]
+        key: line
       link_from:
         description: the bus a link leaves
-        over: link
-        into: bus
+        over: [link, bus]
+        key: link
       link_to:
         description: the bus a link arrives at
-        over: link
-        into: bus
+        over: [link, bus]
+        key: link
 
     parameters:
       load:

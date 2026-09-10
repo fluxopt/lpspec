@@ -61,11 +61,21 @@ reads positionally.
 parameters. Which labels an axis has is data's to say, and that rule is
 [the language's](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/).
 
-**A map goes under
+**A lookup's relation goes under
 [the lookup's own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#the-map-is-supplied-under-the-lookups-own-name)**,
-as a table of the rows it has. Attach reads it against the labels the index
-supplied: a label no row mentions is unmapped, and a key matching no label is
-refused as a typo.
+as a table with one column per column it declares, each named after that
+column. Attach reads every one of them against the labels its dimension's
+index supplied, so a value matching none is refused as a typo rather than
+placing its terms nowhere.
+
+**`key:` and `coverage:` are claims about that table, and attach is where they
+are held.** A keyed relation may hold each key tuple once; under the default
+`coverage: total` it must hold *every* key tuple, so a generator on no bus is
+named here rather than dropping its terms in the join that places them.
+`coverage: masked` is the file saying the gap is meant — the key with no row
+reaches nothing, which is what every operator walking the table already means
+by a row that is not there. A bare relation has no key, declares no coverage,
+and is the rows it has.
 
 ## What attaching refuses and accepts
 
@@ -86,23 +96,20 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | a sequence whose length is not the dimension's | positional, so one entry per label |
 | a sequence for a dimension nothing else supplies labels for | names the three ways to supply them |
 | a key naming neither a parameter, a dimension nor a lookup | names the near miss |
-| a lookup relation short of either column | names the pair, and what each is |
-| a lookup relation with a null in its value column | a map is partial by omitting a row |
-| a lookup relation mapping one label twice | a lookup is single-valued |
-| a map with both authors, or neither | names them, and says which way out |
-| an index carrying a column named after a lookup over it | names the key it belongs under |
+| a lookup relation short of a column it declares | names every column, and which are missing |
+| a lookup relation with a null in any column | a relation is partial by omitting a row |
+| a lookup relation holding one key tuple twice | names the tuples, and what `key:` claims |
+| a `total` lookup short of a key tuple | names the keys with no row, and the `coverage: masked` that would mean it |
+| an index carrying a column named after a lookup with a column over it | names the key it belongs under |
 | a table missing a declared dimension column, or `value` | names the columns needed |
 | a `value` column carrying a null or a NaN | names the parameter and the coordinates |
 | a label outside the dimension's index | names the parameter and the strays |
 | two rows for one coordinate | |
-| a lookup with two values for one label | |
-| a lookup value that is not a label of its target | one wording, checked once for both lanes |
-| a dimension carrying lookups with no index | |
+| a lookup value that is not a label of its column's dimension | one wording, checked once for both lanes |
+| a dimension a lookup has a column over, with no index | |
 | a dimension nothing can supply labels for | names both ways to fix it |
 | a dimension the spec declares and the caller also supplies | names the declaration and the colliding key |
-| a lookup whose map the spec declares and the caller also supplies | names the map and the colliding column |
-| a declared map whose labels nothing supplies | names the map, and asks only for the labels |
-| a declared map keyed by something the labels do not carry | names the lookup and the strays |
+| a dimension a supplied lookup has a column over, with nothing supplying its labels | names the lookups, and asks only for the labels |
 | a column that is not the declared `dtype` | names both, and the declaration the data would satisfy |
 | a divisor with no value where the model divides by it | names the parameter and how many rows ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/)) |
 | a comparison's whole constant side with no value where the row is built | the same, naming the constraint |

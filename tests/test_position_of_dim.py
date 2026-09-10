@@ -237,7 +237,7 @@ dimensions:
   period: {dtype: int}
 
 lookups:
-  period_of: {over: snapshot, into: period}
+  period_of: {over: [snapshot, period], key: snapshot, coverage: masked}
 
 parameters:
   price: {dims: [snapshot]}
@@ -333,22 +333,27 @@ def test_a_coordinate_in_no_group_has_no_boundary(where):
     assert 99 not in _masked(where), f'{where} claimed a coordinate that is in no group'
 
 
-def test_a_label_space_groups_a_position_like_a_targeted_lookup():
-    """`position(by=)` takes the label space that `sum`, `at` and `shift` refuse.
+def test_a_second_lookup_over_one_dimension_groups_a_position_of_its_own():
+    """Two lookups keyed by `snapshot` partition it two ways, and each is its own group.
 
-    The asymmetry is the language's own (math-spec#281 pins it upstream): a
-    boundary within each group needs no target axis to land terms on, so a
-    map that owns its values groups it as well as one into a dimension. No
-    corpus model writes this spelling — every `by=` elsewhere uses a targeted
-    lookup — so without this test either lane could drop the label-space form
-    and stay green.
+    A dimension carries as many lookups as it likes, and a position is
+    counted inside the groups the one `by=` names — never the intersection of
+    every lookup keyed there. No corpus model writes a second one, so without
+    this test either lane could read the wrong table and stay green.
     """
     spec = MASK.replace(
-        '  period_of: {over: snapshot, into: period}',
-        '  period_of: {over: snapshot, into: period}\n  block: {over: snapshot, dtype: str}',
+        '  period: {dtype: int}',
+        '  period: {dtype: int}\n  block_kind: {dtype: str}',
+    ).replace(
+        '  period_of: {over: [snapshot, period], key: snapshot, coverage: masked}',
+        '  period_of: {over: [snapshot, period], key: snapshot, coverage: masked}\n'
+        '  block: {over: [snapshot, block_kind], key: snapshot, coverage: masked}',
     )
     blocks = ['a', 'a', 'b', 'b', 'b', None]
-    sources = _grouped_sources() | {'block': relation('snapshot', 'block', GROUPED_SNAPSHOTS, blocks)}
+    sources = _grouped_sources() | {
+        'block_kind': ['a', 'b'],
+        'block': relation('snapshot', 'block_kind', GROUPED_SNAPSHOTS, blocks),
+    }
 
     def masked(where: str) -> list[int]:
         with differential(spec.replace('WHERE', where), sources) as run:
@@ -405,11 +410,11 @@ def test_a_lookup_over_another_dimension_carries_no_position():
         MASK.replace('WHERE', 'position(snapshot, by=plant_period) == 0')
         .replace('  period: {dtype: int}', '  period: {dtype: int}\n  plant: {dtype: str}')
         .replace(
-            '  period_of: {over: snapshot, into: period}',
-            '  period_of: {over: snapshot, into: period}\n  plant_period: {over: plant, into: period}',
+            '  period_of: {over: [snapshot, period], key: snapshot, coverage: masked}',
+            '  period_of: {over: [snapshot, period], key: snapshot, coverage: masked}\n  plant_period: {over: [plant, period], key: plant}',
         )
     )
-    with pytest.raises(LanguageError, match=r"counts positions along 'snapshot' but groups by a lookup over 'plant'"):
+    with pytest.raises(LanguageError, match=r"'plant_period' has no key column over 'snapshot'"):
         schema_of(spec)
 
 
@@ -467,7 +472,7 @@ dimensions:
   season: {dtype: str}
 
 lookups:
-  season_of: {over: snapshot, into: season}
+  season_of: {over: [snapshot, season], key: snapshot, coverage: masked}
 
 parameters:
   inflow: {dims: [snapshot]}
@@ -576,9 +581,9 @@ def test_a_lookup_over_another_dimension_cannot_partition_a_translation():
         _partitioned("edge='wrap', by=plant_season")
         .replace(
             'lookups:\n  season_of:',
-            'lookups:\n  plant_season: {over: plant, into: season}\n  season_of:',
+            'lookups:\n  plant_season: {over: [plant, season], key: plant}\n  season_of:',
         )
         .replace('  season: {dtype: str}', '  season: {dtype: str}\n  plant: {dtype: str}')
     )
-    with pytest.raises(LpspecError, match=r"walks 'snapshot' but groups by a lookup over 'plant'"):
+    with pytest.raises(LpspecError, match=r"'plant_season' has no key column over 'snapshot'"):
         schema_of(spec)

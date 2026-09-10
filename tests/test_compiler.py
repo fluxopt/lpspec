@@ -51,6 +51,9 @@ from lpspec.errors import LaneError
 from lpspec.relational.engines.polars.attaching import AttachedSources
 from lpspec.relational.engines.polars.compiler import PolarsCompiler
 from lpspec.relational.engines.polars.labels import Labelled
+from tests.conftest import declared_lookup, walk
+
+_BUS = declared_lookup('bus', 'generator', 'bus')
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -66,8 +69,8 @@ PROGRAM = program.Program(
     objective=program.ObjectiveDeclaration('minimize', program.Variable('p')),
     dimensions={
         'snapshot': program.DimensionDeclaration(),
-        'generator': program.DimensionDeclaration(lookups=(program.LookupDeclaration('bus', 'bus'),)),
-        'bus': program.DimensionDeclaration(),
+        'generator': program.DimensionDeclaration(lookups=(_BUS,)),
+        'bus': program.DimensionDeclaration(lookups=(_BUS,)),
     },
 )
 
@@ -276,7 +279,7 @@ def test_sum_over_an_absent_dim_scales_by_that_dims_cardinality():
 
 
 def test_sum_swaps_the_source_dim_for_the_target_and_emits_no_aggregate():
-    node = program.GroupSum(program.Variable('p'), over='generator', coordinate=('bus',), into=('bus',))
+    node = program.GroupSum(program.Variable('p'), (walk('bus', 'generator', 'bus'),))
     fragment = compiler().expression(node, 'test').terms[0]
     assert fragment.dims == ('snapshot', 'bus')
     assert columns(fragment.frame) == ['snapshot', 'bus', 'var_label', 'coeff']

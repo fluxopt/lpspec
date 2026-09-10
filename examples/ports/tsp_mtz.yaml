@@ -15,8 +15,8 @@ dimensions:
     dtype: str
 
 lookups:
-  as_from: {over: city, into: from_city}
-  as_to: {over: city, into: to_city}
+  as_from: {over: [city, from_city], key: city}
+  as_to: {over: [city, to_city], key: city}
 
 parameters:
   distance:

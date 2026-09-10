@@ -92,9 +92,8 @@ def test_each_many_to_many_shape_moves_the_optimum(mutate, direction):
 
 def test_the_instance_actually_holds_every_shape():
     """The mutations above prove effect; this pins presence, so neither can rot alone."""
-    assert set(lps.check(RESERVES_YAML).dimensions['offer'].targets) == {'gen_of', 'market_of', 'tranche_of'}, (
-        'the offer set is three-legged — the k-ary case'
-    )
+    keyed_by_offer = {lk.name for lk in lps.check(RESERVES_YAML).dimensions['offer'].lookups if lk.key == ('offer',)}
+    assert keyed_by_offer == {'gen_of', 'market_of', 'tranche_of'}, 'the offer set is three-legged — the k-ary case'
     sources = port_sources('reserves')
     endpoints = (
         sources['line_from']

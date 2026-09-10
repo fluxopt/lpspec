@@ -123,7 +123,7 @@ def required(program: Program, /) -> frozenset[Capability]:
     """
     footprint = program.footprint
     needed: set[Capability] = set()
-    if footprint.variable_types - {'continuous'}:
+    if footprint.domains - {'continuous'}:
         needed.add('integrality')
     if 'objective' in footprint.quadratic:
         needed.add('quadratic_objective')

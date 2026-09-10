@@ -20,8 +20,8 @@ dimensions:
 lookups:
   period_of:
     description: the investment period a snapshot falls in
-    over: snapshot
-    into: period
+    over: [snapshot, period]
+    key: snapshot
 
 parameters:
   load:

@@ -25,16 +25,16 @@ dimensions:
 lookups:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    over: [generator, bus]
+    key: generator
   from:
     description: the bus a line leaves
-    over: line
-    into: bus
+    over: [line, bus]
+    key: line
   to:
     description: the bus a line arrives at
-    over: line
-    into: bus
+    over: [line, bus]
+    key: line
 
 parameters:
   p_nom:

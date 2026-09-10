@@ -20,8 +20,8 @@ dimensions:
 lookups:
   call_of:
     description: the city pair a path serves, end to end
-    over: path
-    into: call
+    over: [path, call]
+    key: path
 
 parameters:
   capacity:

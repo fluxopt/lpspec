@@ -25,7 +25,7 @@ PyPSA energy-total bounds: a generator's dispatch reduced over the whole horizon
 | Symbol | Meaning |
 |---|---|
 | $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
+| $\mathcal{B}$ | index $b$ — `bus` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — network nodes |
 | $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
 
 #### Parameters
@@ -98,8 +98,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        over: [generator, bus]
+        key: generator
 
     parameters:
       weighting:

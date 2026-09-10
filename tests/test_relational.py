@@ -31,7 +31,6 @@ from math_spec.program import (
     ConstraintDeclaration,
     DimensionDeclaration,
     GroupSum,
-    LookupDeclaration,
     Mask,
     Negate,
     ObjectiveDeclaration,
@@ -51,7 +50,15 @@ from lpspec.relational.sinks import SOLVERS
 from lpspec.relational.sinks.solvers.highs import Highs
 from lpspec.relational.sinks.tables import ranges
 from lpspec.sources import tidy_sources
-from tests.conftest import SOLVER_VECTOR_LOAD, SOLVER_VECTOR_SPEC, by_coord, override, solve_written_file
+from tests.conftest import (
+    SOLVER_VECTOR_LOAD,
+    SOLVER_VECTOR_SPEC,
+    by_coord,
+    declared_lookup,
+    override,
+    solve_written_file,
+    walk,
+)
 from tests.differential import RTOL, differential
 from tests.oracle import linopy, lpspec_linopy, pd, transport_eager_objective, xr
 
@@ -207,10 +214,10 @@ def dispatch_eager_objective(gens: pd.DataFrame, load: pd.DataFrame) -> float:
 def transport_program() -> Program:
     injection = Add(
         Add(
-            GroupSum(Variable('p'), over='generator', coordinate=('gen_bus',), into=('bus',)),
-            GroupSum(Variable('f'), over='line', coordinate=('to',), into=('bus',)),
+            GroupSum(Variable('p'), (walk('gen_bus', 'generator', 'bus'),)),
+            GroupSum(Variable('f'), (walk('to', 'line', 'bus'),)),
         ),
-        Negate(GroupSum(Variable('f'), over='line', coordinate=('from',), into=('bus',))),
+        Negate(GroupSum(Variable('f'), (walk('from', 'line', 'bus'),))),
     )
     return Program(
         parameters={
@@ -245,11 +252,16 @@ def transport_program() -> Program:
         ),
         dimensions={
             'snapshot': DimensionDeclaration(dtype='int'),
-            'bus': DimensionDeclaration(),
-            'generator': DimensionDeclaration((LookupDeclaration('gen_bus', 'bus'),)),
-            'line': DimensionDeclaration((LookupDeclaration('from', 'bus'), LookupDeclaration('to', 'bus'))),
+            'bus': DimensionDeclaration((_GEN_BUS, _FROM, _TO)),
+            'generator': DimensionDeclaration((_GEN_BUS,)),
+            'line': DimensionDeclaration((_FROM, _TO)),
         },
     )
+
+
+_GEN_BUS = declared_lookup('gen_bus', 'generator', 'bus')
+_FROM = declared_lookup('from', 'line', 'bus')
+_TO = declared_lookup('to', 'line', 'bus')
 
 
 def transport_sources(gens, lines, load) -> dict:
@@ -494,7 +506,7 @@ class TestWhatBindRefusesAndWhatItTakes:
 #: that used to be reported one coordinate at a time.
 TWO_BAD_COORDS_SPEC = {
     'dimensions': {'bus': {'dtype': 'str'}, 'line': {}},
-    'lookups': {'from': {'over': 'line', 'into': 'bus'}, 'to': {'over': 'line', 'into': 'bus'}},
+    'lookups': {'from': {'over': ['line', 'bus'], 'key': 'line'}, 'to': {'over': ['line', 'bus'], 'key': 'line'}},
     'parameters': {'cap': {'dims': ['line']}},
     'variables': {'f': {'foreach': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
     'constraints': {'k': {'foreach': ['line'], 'expression': 'f <= cap'}},
@@ -790,6 +802,7 @@ class TestTheLabelSpace:
         data = {
             'cap': pl.DataFrame({'line': ['l1', 'l2'], 'value': [1.0, 1.0]}),
             'line': pl.DataFrame({'line': ['l1', 'l2']}),
+            'bus': ['b1', 'b2'],
             'from': pl.DataFrame({'line': ['l1', 'l1', 'l2', 'l2'], 'bus': ['b1', 'b2', 'b1', 'b2']}),
             'to': pl.DataFrame({'line': ['l1', 'l2'], 'bus': ['b2', 'b1']}),
         }
@@ -861,7 +874,7 @@ def _network(ends: tuple[str, str]) -> tuple[dict, dict]:
             'bus': {'dtype': 'str'},
             'line': {},
         },
-        'lookups': {'from': {'over': 'line', 'into': 'bus'}, 'to': {'over': 'line', 'into': 'bus'}},
+        'lookups': {'from': {'over': ['line', 'bus'], 'key': 'line'}, 'to': {'over': ['line', 'bus'], 'key': 'line'}},
         'parameters': {'cap': {'dims': ['line']}, 'load': {'dims': ['snapshot', 'bus']}},
         'variables': {'f': {'foreach': ['snapshot', 'line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {
@@ -1535,7 +1548,7 @@ def _constant_beside_a_term(expression: str, *, over_the_dim: bool = False) -> d
         parameters['d'] = {'dims': ['t']}
     if 'r_of' in expression:
         spec['dimensions'] = {**spec['dimensions'], 'r': {'dtype': 'str'}}
-        spec['lookups'] = {'r_of': {'over': 't', 'into': 'r'}}
+        spec['lookups'] = {'r_of': {'over': ['t', 'r'], 'key': 't'}}
     return {
         **spec,
         'parameters': parameters,
@@ -1575,7 +1588,7 @@ ABSENT_SLOT_SOURCES = {
 def _absent_slot_spec(expression: str) -> dict:
     return {
         'dimensions': {'t': {'dtype': 'int'}, 'r': {'dtype': 'str'}},
-        'lookups': {'r_of': {'over': 't', 'into': 'r'}},
+        'lookups': {'r_of': {'over': ['t', 'r'], 'key': 't'}},
         'parameters': {'k': {'dims': ['t']}, 'd': {'dims': ['t']}, 'load': {'dims': []}},
         'variables': {'x': {'foreach': ['t'], 'where': 't != 2', 'bounds': {'lower': 0}}},
         'constraints': {'bal': {'foreach': [], 'expression': expression}},

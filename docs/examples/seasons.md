@@ -43,7 +43,7 @@ A store that cycles inside each season rather than across the horizon, with seas
 | Symbol | Meaning |
 |---|---|
 | $\mathcal{T}$ | index $t$ — `snapshot` with $\mathrm{season\_of}: \mathcal{T} \to \mathcal{S}$ — dispatch periods in order |
-| $\mathcal{S}$ | index $s$ — `season` — the blocks the store cycles over |
+| $\mathcal{S}$ | index $s$ — `season` with $\mathrm{season\_of}: \mathcal{T} \to \mathcal{S}$ — the blocks the store cycles over |
 
 #### Parameters
 
@@ -109,8 +109,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       season_of:
         description: the season a snapshot falls in
-        over: snapshot
-        into: season
+        over: [snapshot, season]
+        key: snapshot
 
     parameters:
       inflow:

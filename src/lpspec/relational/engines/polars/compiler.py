@@ -39,6 +39,7 @@ from lpspec.relational.engines.polars.fragments import (
     absence_restrictions,
     both_regions,
     constant_scalar,
+    grouped_column,
     join_mul,
     join_on,
     join_pow,
@@ -70,6 +71,26 @@ if TYPE_CHECKING:
 #: unit needs a column to exist in, and every path drops it by selecting the
 #: dims and the label instead.
 UNIT = '__unit__'
+
+#: A dim a walk lands on, while the join still holds the dim it entered on.
+#: The spaces make it unrepresentable as a declared name, so a self-map's two
+#: columns over one dimension cannot collide.
+_LANDED = '__landed {dim}__'
+
+
+def _consumed_dims(walks: tuple[program.Walk, ...]) -> tuple[str, ...]:
+    """The dims the operand is met on — every walk in one call consumes the same ones."""
+    return tuple(dict.fromkeys(walk.dim(role) for walk in walks for role in walk.consumed))
+
+
+def _produced_dims(walks: tuple[program.Walk, ...]) -> tuple[str, ...]:
+    """The dims the result carries in place of them, in walk order."""
+    return tuple(dict.fromkeys(walk.dim(role) for walk in walks for role in walk.produced))
+
+
+def _joined_dims(walks: tuple[program.Walk, ...]) -> tuple[str, ...]:
+    """The dims of the key columns no walk walks — carried by the operand and kept by the result."""
+    return tuple(dict.fromkeys(walk.dim(role) for walk in walks for role in walk.joined))
 
 
 def _presence(held: Labelled, dims: tuple[str, ...], label: str) -> pl.LazyFrame:
@@ -678,93 +699,33 @@ class PolarsCompiler:
         return TermFragment(keep, frame, p.kind)
 
     def _group_fragment(self, p: TermFragment, g: program.GroupSum, context: str) -> TermFragment:
-        """Relabel dim ``over`` to ``into`` through declared coordinates.
+        """Trade the dims a sum's walks consume for the ones they produce.
 
-        No aggregate either: the dim table holds one row per label and its
-        coordinates were checked for containment at build time, so the join
-        neither duplicates nor drops a term, and rows landing on one ``into``
-        are added by the terminal aggregate as ``Sum``'s are. A group is a sum,
-        so it constructs rather than ``replace``s — see :meth:`_sum_fragment`.
+        No aggregate: a lookup's relation holds each of its rows once and
+        every column was checked against its dimension's labels at the door,
+        so the join neither invents a term nor drops one, and rows landing on
+        one produced tuple are added by the terminal aggregate as ``Sum``'s
+        are. A group is a sum, so it constructs rather than ``replace``s — see
+        :meth:`_sum_fragment`.
 
-        Grouping through several coordinates costs nothing extra here: they
-        ride the same dim table and the same single join, which is why the
-        surface is a list rather than a composition of calls.
+        Walking several lookups at once costs nothing extra here: they meet on
+        the dims they all consume and ride the same single join, which is why
+        the surface is a list rather than a composition of calls.
         """
-        if g.over not in p.dims:
-            refuse_a_fragment_without_the_dims(p, [g.over], context, f'sum(by=) over {g.over!r}')
-        grouped = self._remap_fragment(p, g, consumed=(g.over,), produced=g.into)
+        if missing := [d for d in g.over if d not in p.dims]:
+            refuse_a_fragment_without_the_dims(p, missing, context, f'sum(by=) consuming {missing!r}')
+        grouped = self._remap_fragment(p, g.walks, context)
         if p.kind != 'const':
             return grouped
         return replace(grouped, frame=pl.concat([grouped.frame, self._empty_groups(grouped, g)]))
 
-    def _mapping(self, over: str, coordinate: tuple[str, ...], into: tuple[str, ...]) -> pl.LazyFrame:
-        """The ``(over, into…)`` table a group or a pullback joins against.
-
-        One relation per coordinate, met on ``over`` by **inner** joins: a
-        label some coordinate does not map has no row in that relation and so
-        none here, which is what "reaches no slot" means for the whole tuple.
-        Reading several at once therefore costs joins and no null bookkeeping —
-        the tuple exists exactly where every coordinate does.
-        """
-        pairs = list(zip(coordinate, into, strict=True))
-        mapping, *rest = (self.data.lookups[c].select(pl.col(over), pl.col(c).alias(i)) for c, i in pairs)
-        for other in rest:
-            mapping = mapping.join(other, on=over, how='inner')
-        return mapping
-
-    def partitioned(self, dim: str, lookup: str) -> pl.LazyFrame:
-        """*dim*'s ``(val, ord, lookup, GROUP_RANK, GROUP_SIZE)``, only for labels the map places in a group.
-
-        The inner join is where "this coordinate is in no group" comes from:
-        it has no row in the relation, so it has none here, and every rank,
-        span and neighbour a walk reads sees only labels that are in one.
-        """
-        rows = self.data.lookups[lookup].select(pl.col(dim).alias('val'), pl.col(lookup))
-        group = pl.col(lookup)
-        return (
-            self.data.dimensions[dim]
-            .join(rows, on='val', how='inner')
-            .with_columns(
-                (pl.col('ord').rank('ordinal').over(group) - 1).cast(pl.Int64).alias(GROUP_RANK),
-                pl.len().over(group).cast(pl.Int64).alias(GROUP_SIZE),
-            )
-        )
-
-    def _empty_groups(self, p: TermFragment, g: program.GroupSum) -> pl.LazyFrame:
-        """The ``into`` combinations no member maps to, as constant rows worth zero.
-
-        A group with no members contributes nothing, so on a constant side it
-        holds a *value* — the empty sum — and not a hole. The two are the same
-        missing row to :meth:`PolarsEngine._build_constraint`'s coverage check,
-        which reads what the fragment produced and cannot see why a label is
-        absent, so the value is written down here where the reason is known
-        (#1026).
-
-        Several coordinates land on a *product* of targets, and a combination
-        no member sits at is empty for the reason one unreached label is — so
-        what the reached set is subtracted from is that product.
-
-        Only for a constant part: an empty group contributes no *term*, and a
-        row left with no terms is not built at all.
-        """
-        universe = self.data.dimensions[g.into[0]].select(pl.col('val').alias(g.into[0]))
-        for target in g.into[1:]:
-            labels = self.data.dimensions[target].select(pl.col('val').alias(target))
-            universe = universe.join(labels, how='cross')
-        reached = self._mapping(g.over, g.coordinate, g.into).select(*g.into)
-        empty = universe.join(reached, on=list(g.into), how='anti')
-        spanned = [d for d in p.dims if d not in g.into]
-        if spanned:
-            empty = p.frame.select(spanned).unique().join(empty, how='cross')
-        return empty.with_columns(pl.lit(0.0, dtype=pl.Float64).alias('cval')).select(*p.dims, *p.carried)
-
     def _at_fragment(self, p: TermFragment, a: program.At, context: str) -> TermFragment:
-        """Spread ``into`` back out over ``over`` — the adjoint of a group.
+        """Spread the dims a read consumes back over the ones it produces — the adjoint of a group.
 
-        The same mapping table as :meth:`_group_fragment`, joined on the other
-        columns, so the join **fans out**: one row per ``into`` tuple lands on
-        every ``over`` sharing it. Still one equi-join against a table the
-        frame holds, so the locality class does not move.
+        The same tables walked the other way, so the join **fans out**: one row
+        per consumed tuple lands on every produced tuple sharing it. Still one
+        equi-join against a table the frame holds, so the locality class does
+        not move.
 
         A pullback duplicates a label — the same ``var_label`` at every fine
         coordinate of its component — so a later reduction can bring two copies
@@ -776,69 +737,175 @@ class PolarsCompiler:
         """
         absent = [d for d in a.into if d not in p.dims]
         assert not absent, f'in {context}: At through {absent}, which the expression does not span'
-        remapped = self._remap_fragment(p, a, consumed=a.into, produced=(a.over,))
+        remapped = self._remap_fragment(p, a.walks, context)
         return replace(remapped, presences=self._pulled_back_presences(p, a))
 
+    def _remap_fragment(self, p: TermFragment, walks: tuple[program.Walk, ...], context: str) -> TermFragment:
+        """Trade the dims *walks* consume for the dims they produce, in one inner join.
+
+        Written once so the adjoints cannot drift: the declaration fixes no
+        direction and the walk carries the one the call made, so a group and a
+        read differ in what they do with the result and not in how the table
+        is met — and a change to how the relation joins is a change to both.
+
+        Three sets of columns key the join, and each is one of the language's
+        rules made a join key: the dims consumed, the dims the walks join on
+        — the key columns not walked — and a produced dim the operand **already
+        carries**, which makes the walk a mask rather than a relabelling.
+        """
+        consumed = _consumed_dims(walks)
+        joined = _joined_dims(walks)
+        assert all(d in p.dims for d in joined), f'in {context}: a walk joins on {joined}, which the frame lacks'
+        produced = _produced_dims(walks)
+        masked = tuple(d for d in produced if d in p.dims and d not in consumed)
+        fresh = tuple(d for d in produced if d not in masked)
+
+        keep = tuple(d for d in p.dims if d not in consumed)
+        relation = self._relation(walks, masked)
+        frame = p.frame.join(relation, on=[*consumed, *joined, *masked], how='inner').select(
+            *keep, *(pl.col(_LANDED.format(dim=d)).alias(d) for d in fresh), *p.carried
+        )
+        return TermFragment((*keep, *fresh), frame, p.kind)
+
+    def _relation(self, walks: tuple[program.Walk, ...], masked: tuple[str, ...] = ()) -> pl.LazyFrame:
+        """The rows *walks* have, as the one table a remap joins against.
+
+        Every column the operand is met on comes under its own dimension; a
+        produced one comes under a scratch name unless it is *masked*, so a
+        walk between two columns over one dimension — a self-map — does not
+        ask one column to be both. Several walks are met on the columns they
+        share by **inner** joins: a coordinate some walk has no row for has
+        none here, which is what "reaches no slot" means for the whole tuple.
+        """
+        frames = []
+        for walk in walks:
+            columns = [pl.col(role).alias(walk.dim(role)) for role in (*walk.consumed, *walk.joined)]
+            columns += [
+                pl.col(role).alias(walk.dim(role) if walk.dim(role) in masked else _LANDED.format(dim=walk.dim(role)))
+                for role in walk.produced
+            ]
+            frames.append(self.data.lookups[walk.name].select(columns))
+        relation, *rest = frames
+        for other in rest:
+            shared = [c for c in relation.collect_schema().names() if c in other.collect_schema().names()]
+            relation = join_on(relation, other, shared, 'inner')
+        return relation
+
+    def partitioned(self, walk: program.Walk) -> pl.LazyFrame:
+        """The walked dimension's ``(val, ord, group…, joined…, GROUP_RANK, GROUP_SIZE)``.
+
+        The group columns come under a scratch name and the joined ones under
+        their own dimension, which is the one the operand carries and is met
+        on.
+
+        A partition walks the one key column over the dimension it walks and
+        groups by the value columns ``into=`` named, joining on the key columns
+        it does not walk — so a rank is counted inside one group *at* one
+        coordinate of those, and a table keyed by two columns partitions the
+        second one entity at a time.
+
+        The inner join is where "this coordinate is in no group" comes from:
+        it has no row in the relation, so it has none here, and every rank,
+        span and neighbour a walk reads sees only labels that are in one.
+        """
+        dim = walk.dim(walk.consumed[0])
+        rows = self.data.lookups[walk.name].select(
+            pl.col(walk.consumed[0]).alias('val'),
+            *(pl.col(role).alias(grouped_column(role)) for role in walk.produced),
+            *(pl.col(role).alias(walk.dim(role)) for role in walk.joined),
+        )
+        group = [pl.col(c) for c in (*map(grouped_column, walk.produced), *walk.joined_dims)]
+        return (
+            self.data.dimensions[dim]
+            .join(rows, on='val', how='inner')
+            .with_columns(
+                (pl.col('ord').rank('ordinal').over(group) - 1).cast(pl.Int64).alias(GROUP_RANK),
+                pl.len().over(group).cast(pl.Int64).alias(GROUP_SIZE),
+            )
+        )
+
+    def _empty_groups(self, p: TermFragment, g: program.GroupSum) -> pl.LazyFrame:
+        """The produced combinations no member lands on, as constant rows worth zero.
+
+        A group with no members contributes nothing, so on a constant side it
+        holds a *value* — the empty sum — and not a hole. The two are the same
+        missing row to :meth:`PolarsEngine._build_constraint`'s coverage check,
+        which reads what the fragment produced and cannot see why a label is
+        absent, so the value is written down here where the reason is known
+        (#1026).
+
+        Several walks land on a *product* of dims, and a combination no member
+        sits at is empty for the reason one unreached label is — so what the
+        reached set is subtracted from is that product.
+
+        Only for a constant part: an empty group contributes no *term*, and a
+        row left with no terms is not built at all.
+        """
+        universe = self.data.dimensions[g.into[0]].select(pl.col('val').alias(g.into[0]))
+        for target in g.into[1:]:
+            labels = self.data.dimensions[target].select(pl.col('val').alias(target))
+            universe = universe.join(labels, how='cross')
+        reached = self._landings(g.walks, g.into)
+        empty = universe.join(reached, on=list(g.into), how='anti')
+        spanned = [d for d in p.dims if d not in g.into]
+        if spanned:
+            empty = p.frame.select(spanned).unique().join(empty, how='cross')
+        return empty.with_columns(pl.lit(0.0, dtype=pl.Float64).alias('cval')).select(*p.dims, *p.carried)
+
+    def _landings(self, walks: tuple[program.Walk, ...], dims: tuple[str, ...]) -> pl.LazyFrame:
+        """The combinations of *dims* the walks actually land on, under their own names."""
+        landed = (pl.col(_LANDED.format(dim=d)).alias(d) for d in dims)
+        return self._relation(walks).select(*landed).unique()
+
     def _pulled_back_presences(self, p: TermFragment, a: program.At) -> tuple[Presence, ...]:
-        """Where a pullback's variables exist, keyed by the fine dim they now span.
+        """Where a pullback's variables exist, keyed by the dims it now spans.
 
         Two absences reach the fine coordinate and :meth:`_remap_fragment`'s
         inner join swallows both — the operand's own, and the **lookup's**,
-        where the map has no row for the label. Unreported, the term merely
-        vanishes and its row survives to assert `x <= 0` where the model said
-        nothing (#968).
+        where the relation has no row at the coordinate read. Unreported, the
+        term merely vanishes and its row survives to assert `x <= 0` where the
+        model said nothing (#968).
 
-        A total lookup over an operand with nothing to report yields nothing
-        rather than a restriction admitting everything, so a model with no
-        absence in it does not pay for the machinery that carries one. The key
-        is stated rather than left implied because a later product widens the
-        fragment's dims while this frame keeps the one column that matters —
-        the hazard :class:`Presence` names.
+        A read that reaches every fine coordinate over an operand with nothing
+        to report yields nothing rather than a restriction admitting
+        everything, so a model with no absence in it does not pay for the
+        machinery that carries one. That shortcut needs the reach to be a fact
+        about the produced dims alone, so a walk that joins on a key column it
+        does not walk does not take it. The key is stated rather than left
+        implied because a later product widens the fragment's dims while this
+        frame keeps the columns that matter — the hazard :class:`Presence`
+        names.
         """
-        reachable = self._mapping(a.over, a.coordinate, a.into)
+        joined = _joined_dims(a.walks)
+        consumed = _consumed_dims(a.walks)
+        keys = (*a.over, *joined)
+        reachable = self._relation(a.walks)
+        landed = [pl.col(_LANDED.format(dim=d)).alias(d) for d in a.over]
+
         if not p.presences:
-            total = self.data.cardinality[a.over] == reachable.select(pl.len()).collect().item()
-            return () if total else (Presence(reachable.select(a.over), (a.over,)),)
+            reached = reachable.select(*landed, *joined).unique()
+            if not joined and self._is_every_coordinate(reached, a.over):
+                return ()
+            return (Presence(reached, keys),)
 
         def pulled(presence: Presence) -> Presence:
-            keys = presence.keys(p.dims)
-            if not keys:
-                return Presence(presence.restrict(reachable.select(a.over), keys), (a.over,))
-            carries_targets = all(i in keys for i in a.into)
-            source, keys = (
-                (presence.frame, keys) if carries_targets else (self.widen(presence.frame, keys, p.dims), p.dims)
-            )
-            kept = tuple(k for k in keys if k not in a.into)
-            return Presence(source.join(reachable, on=list(a.into), how='inner').select(*kept, a.over), (*kept, a.over))
+            have = presence.keys(p.dims)
+            if not have:
+                return Presence(presence.restrict(reachable.select(*landed).unique(), have), a.over)
+            reads = all(d in have for d in (*consumed, *joined))
+            source, have = (presence.frame, have) if reads else (self.widen(presence.frame, have, p.dims), p.dims)
+            kept = tuple(k for k in have if k not in consumed)
+            on = [*consumed, *(d for d in joined if d in have)]
+            return Presence(source.join(reachable, on=on, how='inner').select(*kept, *landed), (*kept, *a.over))
 
         return tuple(pulled(x) for x in p.presences)
 
-    def _remap_fragment(
-        self,
-        p: TermFragment,
-        node: program.GroupSum | program.At,
-        *,
-        consumed: tuple[str, ...],
-        produced: tuple[str, ...],
-    ) -> TermFragment:
-        """Trade dims *consumed* for *produced* through *node*'s coordinates.
-
-        The mapping table is :meth:`_mapping` — the declared coordinates' own
-        relations, keyed by ``over`` and named for the dims they target — and
-        the rewrite is a single inner equi-join on *consumed*. A group consumes
-        ``over`` (:meth:`_group_fragment`); an ``At`` reads the same table
-        backwards (:meth:`_at_fragment`). Written once so the adjoints cannot
-        drift: a change to how the mapping joins is a change to both.
-
-        One of the two sides is always a single dim — a group consumes the one
-        the coordinates are over, a pullback produces it — so exactly one join
-        happens whatever the arity.
-        """
-        dropped = set(consumed)
-        keep = tuple(x for x in p.dims if x not in dropped)
-        mapping = self._mapping(node.over, node.coordinate, node.into)
-        frame = p.frame.join(mapping, on=list(consumed), how='inner').select(*keep, *produced, *p.carried)
-        return TermFragment((*keep, *produced), frame, p.kind)
+    def _is_every_coordinate(self, frame: pl.LazyFrame, dims: tuple[str, ...]) -> bool:
+        """Whether *frame* holds the whole coordinate product of *dims* — nothing to restrict."""
+        product = 1
+        for d in dims:
+            product *= self.data.cardinality[d]
+        return product == frame.select(pl.len()).collect().item()
 
     def widen(self, presence: pl.LazyFrame, have: tuple[str, ...], want: tuple[str, ...]) -> pl.LazyFrame:
         """*presence* over every dim in *want*, saying the same thing.

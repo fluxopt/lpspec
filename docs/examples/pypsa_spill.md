@@ -25,7 +25,7 @@ PyPSA storage spillage: water a reservoir cannot hold leaves through a second si
 | Symbol | Meaning |
 |---|---|
 | $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
+| $\mathcal{B}$ | index $b$ — `bus` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\enspace \mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}$ — network nodes |
 | $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
 | $\mathcal{S}$ | index $s$ — `storage` with $\mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}$ — storage units, each sitting on one bus |
 
@@ -126,12 +126,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     lookups:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        over: [generator, bus]
+        key: generator
       storage_bus:
         description: the bus a storage unit sits on
-        over: storage
-        into: bus
+        over: [storage, bus]
+        key: storage
 
     parameters:
       p_nom:

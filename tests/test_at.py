@@ -101,7 +101,7 @@ COMPONENT_GATE = {
         'component': {'dtype': 'str'},
         't': {'dtype': 'int'},
     },
-    'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
+    'lookups': {'component_of': {'over': ['flow', 'component'], 'key': 'flow'}},
     'parameters': {'cost': {'dims': ['flow']}, 'oncost': {'dims': ['component']}},
     'variables': {
         'rate': {'foreach': ['flow', 't'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -169,7 +169,7 @@ def test_at_agrees_with_the_oracle_through_a_reduction():
             'flow': {'dtype': 'str'},
             'component': {'dtype': 'str'},
         },
-        'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
+        'lookups': {'component_of': {'over': ['flow', 'component'], 'key': 'flow'}},
         'parameters': {'cost': {'dims': ['flow']}, 'share': {'dims': ['flow']}},
         'variables': {
             'level': {'foreach': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -230,7 +230,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
     spec = {
         'dimensions': {'unit': {'dtype': 'str'}, 't': {'dtype': 'int'}, 'tf': {'dtype': 'int'}},
         # every `tf` is the same moment as one `t` — single-valued, so a lookup
-        'lookups': {'same_moment': {'over': 'tf', 'into': 't'}},
+        'lookups': {'same_moment': {'over': ['tf', 't'], 'key': 'tf'}},
         'parameters': {
             'window': {'dims': ['unit', 't', 'tf']},
             'load': {'dims': ['t']},
@@ -297,7 +297,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
 #: the row built, its right-hand side is zero and it cannot move at all.
 DANGLING = {
     'dimensions': {'flow': {'dtype': 'str'}, 'component': {'dtype': 'str'}},
-    'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
+    'lookups': {'component_of': {'over': ['flow', 'component'], 'key': 'flow', 'coverage': 'masked'}},
     'variables': {
         'level': {'foreach': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'foreach': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -371,8 +371,8 @@ def test_at_through_a_null_lookup_agrees_between_lanes():
 DANGLING_PAIR = {
     'dimensions': {'flow': {'dtype': 'str'}, 'component': {'dtype': 'str'}, 'kind': {'dtype': 'str'}},
     'lookups': {
-        'component_of': {'over': 'flow', 'into': 'component'},
-        'kind_of': {'over': 'flow', 'into': 'kind'},
+        'component_of': {'over': ['flow', 'component'], 'key': 'flow', 'coverage': 'masked'},
+        'kind_of': {'over': ['flow', 'kind'], 'key': 'flow', 'coverage': 'masked'},
     },
     'variables': {
         'level': {'foreach': ['component', 'kind'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -451,7 +451,7 @@ DANGLING_SHIFTED = {
         't': {'dtype': 'int'},
         'u': {'dtype': 'str'},
     },
-    'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
+    'lookups': {'component_of': {'over': ['flow', 'component'], 'key': 'flow', 'coverage': 'masked'}},
     'variables': {
         'level': {'foreach': ['component', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'foreach': ['flow', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},

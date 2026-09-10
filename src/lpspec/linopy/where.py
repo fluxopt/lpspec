@@ -44,14 +44,15 @@ _PREDICATE_OPS: dict[str, Callable[[Any, Any], Any]] = {
 class EvaluationContext:
     """Everything evaluating a plan needs beyond the node: the data, the axes, the model, the lookups, the program.
 
-    ``dim_coords`` carries the attached lookup columns, which a predicate on a
-    lookup and a grouped operator both read instead of the parameter dataset.
+    ``lookups`` carries each keyed lookup's value columns as arrays over its
+    key, which a predicate on a lookup and a walked operator both read instead
+    of the parameter dataset.
     """
 
     dataset: xr.Dataset
     master_coords: Mapping[str, pd.Index]
     model: linopy.Model
-    dim_coords: Mapping[str, Mapping[str, xr.DataArray]]
+    lookups: Mapping[str, Mapping[str, xr.DataArray]]
     program: program.Program
     #: Whether *model* is solved and the plan is read at its solution — a
     #: variable is then its ``.solution`` and ``dual(c)`` the constraint's
@@ -113,7 +114,7 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
     if isinstance(node, program.DimensionPositionNode):
         labels = master_coords[node.name]
         if node.by is not None:
-            arr = _group_offsets(node, bound_lookup(node.by, node.name, ctx.dim_coords), np.asarray(labels))
+            arr = _group_offsets(node, bound_lookup(str(node.by), node.group[0], ctx.lookups), np.asarray(labels))
             return (_PREDICATE_OPS[node.op](arr, 0) & arr.notnull()).fillna(value=False).astype(bool)
         at = node.position + len(labels) if node.position < 0 else node.position
         if not 0 <= at < len(labels):
@@ -122,17 +123,17 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
         return _PREDICATE_OPS[node.op](arr, at).astype(bool)
 
     if isinstance(node, program.LookupComparisonNode):
-        arr = bound_lookup(node.name, node.over, ctx.dim_coords)
+        arr = bound_lookup(node.name, node.column, ctx.lookups)
         return (_PREDICATE_OPS[node.op](arr, node.value) & arr.notnull()).fillna(value=False).astype(bool)
 
     if isinstance(node, program.LookupPairComparisonNode):
-        left = bound_lookup(node.name, node.over, ctx.dim_coords)
-        right = bound_lookup(node.other, node.over, ctx.dim_coords)
+        left = bound_lookup(node.name, node.column, ctx.lookups)
+        right = bound_lookup(node.other, node.other_column, ctx.lookups)
         defined = left.notnull() & right.notnull()
         return (_PREDICATE_OPS[node.op](left, right) & defined).fillna(value=False).astype(bool)
 
     if isinstance(node, program.LookupDefinedNode):
-        return bound_lookup(node.name, node.over, ctx.dim_coords).notnull()
+        return _has_a_row(node.name, ctx)
 
     if isinstance(node, program.NotNode):
         return ~evaluate(node.operand)
@@ -180,20 +181,31 @@ def _group_offsets(node: program.DimensionPositionNode, groups: xr.DataArray, la
     return partition.within.where(partition.grouped) - target
 
 
-def unbound_lookup_message(name: str, over: str) -> str:
-    """A declared lookup read with no attached map."""
+def _has_a_row(name: str, ctx: EvaluationContext) -> xr.DataArray:
+    """Where a bare ``where: <lookup>`` finds a row — the key tuples the relation has.
+
+    Every value column comes off the same row, so one of them answers for the
+    row; the language refuses the bare name on a ``total`` lookup, where the
+    answer would be "everywhere".
+    """
+    declared = ctx.program.lookups[name]
+    return bound_lookup(name, declared.values[0], ctx.lookups).notnull()
+
+
+def unbound_lookup_message(name: str, column: str) -> str:
+    """A declared lookup read with no attached table."""
     return (
-        f"lookup '{name}' over dimension '{over}' has no attached values. "
-        f"Pass it under key '{name}' as a table with columns ['{over}', '{name}']."
+        f"lookup '{name}' has no attached column '{column}'. "
+        f"Pass it under key '{name}' as a table with one column per column it declares."
     )
 
 
-def bound_lookup(name: str, over: str, dim_coords: Mapping[str, Mapping[str, xr.DataArray]]) -> xr.DataArray:
-    """A lookup's attached values as an array over the dim it is over."""
+def bound_lookup(name: str, column: str, lookups: Mapping[str, Mapping[str, xr.DataArray]]) -> xr.DataArray:
+    """One value column of a keyed lookup, as an array over the dims of its key."""
     try:
-        return dim_coords[over][name]
+        return lookups[name][column]
     except KeyError:
-        raise DataError(unbound_lookup_message(name, over)) from None
+        raise DataError(unbound_lookup_message(name, column)) from None
 
 
 def as_linopy_mask(mask: xr.DataArray) -> xr.DataArray | None:

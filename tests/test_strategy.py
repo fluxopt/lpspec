@@ -1567,7 +1567,7 @@ def test_a_reach_a_lookup_decides_is_refused_with_the_lookup_named():
         day_cap={'dims': ['day']},
     )
     spec['dimensions'] = {**spec['dimensions'], 'day': {'dtype': 'int'}}
-    spec['lookups'] = {'day_of': {'over': 't', 'into': 'day'}}
+    spec['lookups'] = {'day_of': {'over': ['t', 'day'], 'key': 't', 'coverage': 'masked'}}
     with pytest.raises(lps.LpspecError, match=r"constraint 'extra': through the lookup 'day_of'"):
         lps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
 

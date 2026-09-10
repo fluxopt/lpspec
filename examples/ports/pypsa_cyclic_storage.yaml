@@ -23,20 +23,20 @@ dimensions:
 lookups:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    over: [generator, bus]
+    key: generator
   link_from:
     description: the bus a link leaves
-    over: link
-    into: bus
+    over: [link, bus]
+    key: link
   link_to:
     description: the bus a link arrives at
-    over: link
-    into: bus
+    over: [link, bus]
+    key: link
   storage_bus:
     description: the bus a storage unit sits on
-    over: storage
-    into: bus
+    over: [storage, bus]
+    key: storage
 
 parameters:
   p_nom:

@@ -48,9 +48,9 @@ The model a plain `n.optimize()` builds, stated in one file. Every declaration i
 | Symbol | Meaning |
 |---|---|
 | $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{N}$ | index $n$ — `bus` — network nodes |
+| $\mathcal{N}$ | index $n$ — `bus` with $\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N},\enspace \mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N},\enspace \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N},\enspace \mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N},\enspace \mathrm{Line\_bus0}: \mathcal{K} \to \mathcal{N},\enspace \mathrm{Line\_bus1}: \mathcal{K} \to \mathcal{N}$ — network nodes |
 | $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N}$ — generating units, each on one bus |
-| $\mathcal{L}$ | index $l$ — `link` with $\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N}$ — controllable connections, each from one bus to the buses it delivers to |
+| $\mathcal{L}$ | index $l$ — `link` with $\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N},\enspace \mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L}$ — controllable connections, each from one bus to the buses it delivers to |
 | $\mathcal{O}$ | index $o$ — `link_output` with $\mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L},\enspace \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N}$ — a link's output ports, one label per port a link declares — PyPSA's `bus1`, `bus2`, … columns read long, so a link of any number of output ports is one term in the balance, data prep |
 | $\mathcal{D}$ | index $d$ — `load` with $\mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}$ — demands, each on one bus |
 | $\mathcal{K}$ | index $k$ — `line` with $\mathrm{Line\_bus0}: \mathcal{K} \to \mathcal{N},\enspace \mathrm{Line\_bus1}: \mathcal{K} \to \mathcal{N}$ — passive branches, each between two buses, their flow set by impedance |
@@ -228,15 +228,15 @@ $$F_{l} \in \mathbb{R} \qquad \forall\thinspace l \in \mathcal{L} \thinspace:\th
       cycle: {description: 'independent cycles of the passive network graph — the cycle basis, data prep'}
       global_constraint: {description: 'PyPSA''s `GlobalConstraint` rows, one label per declared limit'}
     lookups:
-      Generator_bus: {description: the bus a generator sits on, over: generator, into: bus}
-      Link_bus0: {description: the bus a link leaves, over: link, into: bus}
-      Link_output_link: {description: the link an output port belongs to, over: link_output, into: link}
+      Generator_bus: {description: the bus a generator sits on, over: [generator, bus], key: generator}
+      Link_bus0: {description: the bus a link leaves, over: [link, bus], key: link}
+      Link_output_link: {description: the link an output port belongs to, over: [link_output, link], key: link_output}
       Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
           A link of three output ports is three labels here rather than a third lookup, so the file states
-          any number of them', over: link_output, into: bus}
-      Load_bus: {description: the bus a load sits on, over: load, into: bus}
-      Line_bus0: {description: the bus a line's flow is measured at, over: line, into: bus}
-      Line_bus1: {description: the bus at a line's other end, over: line, into: bus}
+          any number of them', over: [link_output, bus], key: link_output}
+      Load_bus: {description: the bus a load sits on, over: [load, bus], key: load}
+      Line_bus0: {description: the bus a line's flow is measured at, over: [line, bus], key: line}
+      Line_bus1: {description: the bus at a line's other end, over: [line, bus], key: line}
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
