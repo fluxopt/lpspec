@@ -149,6 +149,9 @@ def _refuse_what_the_lane_cannot_build(p: program.Program) -> None:
     for walk in _every_walk(p):
         if not _reads_as_a_function(walk):
             raise LaneError(_walk_the_lane_cannot_read_message(walk))
+    for name in _lookups_a_mask_reads(p):
+        if not p.lookups[name].key:
+            raise LaneError(_relation_a_mask_reads_message(name))
 
 
 def _every_walk(p: program.Program) -> Iterator[program.Walk]:
@@ -158,6 +161,31 @@ def _every_walk(p: program.Program) -> Iterator[program.Walk]:
             yield from node.walks
         elif isinstance(node, program.Translate | program.Window) and node.partition is not None:
             yield node.partition
+
+
+def _lookups_a_mask_reads(p: program.Program) -> Iterator[str]:
+    """Every lookup named by a ``where``, wherever the mask stands."""
+    masks = [
+        *(v.where for v in p.variables.values() if v.where is not None),
+        *(c.where for c in p.constraints.values() if c.where is not None),
+        *(
+            region.when
+            for node in program.walk(*p.expressions)
+            if isinstance(node, program.Cases)
+            for region in node.regions
+        ),
+    ]
+    for mask in masks:
+        yield from (name for name in mask.names_read if name in p.lookups)
+
+
+def _relation_a_mask_reads_message(name: str) -> str:
+    """A bare relation a ``where`` tests, which this lane holds no array for."""
+    return (
+        f"the linopy lane cannot read lookup '{name}' in a where: it declares no key, so it is a relation "
+        f'this lane has no array for. Build this model on the relational engine — lps.solve() and '
+        f'lps.build() take it as it stands.'
+    )
 
 
 def _reads_as_a_function(walk: program.Walk) -> bool:

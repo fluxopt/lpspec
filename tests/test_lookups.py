@@ -771,3 +771,64 @@ def test_a_partition_joins_on_the_key_columns_it_does_not_walk():
         climbed = by_coord(result, 'x', 'plant', 't')
     assert climbed[('p2', 3)] == pytest.approx(3.0), 'p2 spends three steps in one day and reaches 3'
     assert climbed[('p1', 3)] == pytest.approx(2.0), 'p1 spends two, and a new day put it back to 1'
+
+
+def test_a_bare_relation_in_a_where_is_read_relationally_and_refused_on_the_lane():
+    """`where: connection` tests that a row exists, at every column of a bare relation.
+
+    So the frame carries both, and the three related pairs are the three rows
+    the constraint builds out of four. The relational engine meets that as a
+    semi-join on the pair; the linopy lane holds a lookup as an array indexed
+    by a key, and a relation with no key has none, so it says so rather than
+    failing inside the mask.
+    """
+    from tests.oracle import lpspec_linopy
+
+    spec = {
+        **BARE,
+        'constraints': {'related': {'foreach': ['generator', 'bus'], 'where': 'connection', 'expression': 'p <= load'}},
+        'objective': {'sense': 'maximize', 'expression': 'sum(p, over=generator)'},
+    }
+    with lps.build(spec, _BARE_SOURCES) as model:
+        assert model.diagnostics().rows == 3, 'g1 is related to both buses and g2 to one, so four pairs make three rows'
+
+    with pytest.raises(LaneError, match="cannot read lookup 'connection' in a where"):
+        lpspec_linopy.build(spec, _BARE_SOURCES)
+
+
+def test_a_composite_key_read_in_a_where_agrees_between_the_lanes():
+    """A keyed lookup is read at its key, and a key of two columns is read at both.
+
+    Nothing about that is the relational engine's alone — the eager lane holds
+    the value column as an array over the pair — so this is the one shape of
+    `where` that both lanes take and only this test walks.
+    """
+    from tests.differential import differential
+    from tests.oracle import pd
+
+    spec = {
+        **COMPOSITE,
+        'parameters': {},
+        'constraints': {
+            'northern': {
+                'foreach': ['generator', 'period'],
+                'where': "zone_of == 'north'",
+                'expression': 'p <= 2',
+            }
+        },
+        'objective': {'sense': 'maximize', 'expression': 'sum(p)'},
+    }
+    sources = {
+        'generator': ['g1', 'g2'],
+        'period': [2030, 2040],
+        'zone': ['north', 'south'],
+        'zone_of': pd.DataFrame(
+            {
+                'generator': ['g1', 'g1', 'g2', 'g2'],
+                'period': [2030, 2040, 2030, 2040],
+                'zone': ['north', 'south', 'south', 'south'],
+            }
+        ),
+    }
+    with differential(spec, sources) as run:
+        assert run.result.objective == pytest.approx(32.0), 'only (g1, 2030) is northern, and it alone is capped at 2'
