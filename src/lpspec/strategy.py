@@ -64,14 +64,20 @@ _COMPRESSION = 'zstd'
 
 
 class _Slice(NamedTuple):
-    """One slice of a sweep: the key, and the sources that build it.
+    """One slice of a sweep: the key, the sources that build it, and what it owns.
 
     A tuple on purpose: a hand-built axis is a plain list of ``(key, sources)``,
-    and those unpack the same way.
+    and those unpack the same way — which is why ``owns`` has a default.
+
+    ``owns`` is how many coordinates of the re-indexed dimension this slice is
+    responsible for, the rest being lookahead the next slice recomputes. It is
+    what a ``carry`` reads the seam off, and ``None`` on an axis that re-indexed
+    nothing, where a carry cannot drop a dimension at all.
     """
 
     key: Label
     sources: Mapping[str, Source]
+    owns: int | None = None
 
 
 class _SliceMeta(NamedTuple):
@@ -108,23 +114,26 @@ def _slice_cost(after: Diagnostics, before: Diagnostics | None) -> dict[str, Any
 class _CarryRule:
     """One resolved carry: which variable moves into a parameter, and how.
 
-    ``dropped`` is the one dimension the carry collapses — ``None`` when the
-    whole frame moves forward — and ``index`` names a coordinate of it.
+    ``dropped`` is the one dimension the carry collapses, and ``None`` where the
+    whole frame moves forward. Which coordinate of it is handed on is not
+    recorded, because it is not the caller's to choose: a carry exists to meet
+    the next slice at the seam, so the coordinate is the last one this slice
+    owns, and only the axis knows which that is.
     """
 
     variable: str
     dropped: str | None
-    index: int | None
 
     @classmethod
-    def resolved(cls, program: Program, parameter: str, variable: str, index: int | None) -> _CarryRule:
+    def resolved(cls, program: Program, parameter: str, variable: str) -> _CarryRule:
         """One carry checked against the plan — construction and validation, together.
 
         The variable's dims minus the parameter's is the one dimension the
         carry collapses; everything else passes through, so a myopic pathway
         hands a whole capacity vector forward rather than one number at a time.
         Nothing here reads data, which is why the plan resolves before the axis
-        slices any.
+        slices any. Whether the dropped dimension is one the axis can answer for
+        is :func:`_check_the_carry`'s, which is where the axis is.
         """
         if parameter not in program.parameters:
             raise LpspecError(f'carry writes parameter {parameter!r}, which the spec does not declare')
@@ -142,42 +151,38 @@ class _CarryRule:
         if len(dropped) > 1:
             raise LpspecError(
                 f'carry {parameter!r} <- {variable!r} would collapse {dropped} at once: {variable!r} is over '
-                f'{source} and {parameter!r} over {over}. An index names a coordinate of one dimension, so '
-                f'reduce the others in the YAML — a derived variable is where the oracle can see the math.'
+                f'{source} and {parameter!r} over {over}. A carry collapses the one dimension the sweep '
+                f'advances along, so reduce the others in the YAML — a derived variable is where the oracle '
+                f'can see the math.'
             )
-        if dropped and index is None:
-            raise LpspecError(
-                f'carry {parameter!r} <- {variable!r} drops {dropped[0]!r} and so needs an index: '
-                f'({variable!r}, <{dropped[0]}>). With overlap the coordinate to carry is the last one you '
-                f'*keep* — EachWindow(length=48, step=24) carries at 23, not 47 — which is why there is no default.'
-            )
-        if not dropped and index is not None:
-            raise LpspecError(
-                f'carry {parameter!r} <- ({variable!r}, {index}) has nothing to index: both are over {over}, '
-                f'so the whole frame is what moves forward. Pass ({variable!r}, None).'
-            )
-        return cls(variable, dropped[0] if dropped else None, index)
+        return cls(variable, dropped[0] if dropped else None)
 
-    def value_from(self, frames: Mapping[str, pl.DataFrame], parameter: str, key: Label) -> pl.DataFrame:
+    def value_from(
+        self, frames: Mapping[str, pl.DataFrame], parameter: str, key: Label, owns: int | None
+    ) -> pl.DataFrame:
         """What this rule hands the next slice, read out of one slice's primals.
 
-        ``index`` is a **coordinate** of the dropped dimension, never a row
-        number — the only one of the two that still means something once a
-        second dimension is there.
+        *owns* is how many coordinates of the dropped dimension this slice is
+        responsible for, so the coordinate handed on is ``owns - 1`` — the last
+        one kept rather than the last one solved. Those differ under an
+        overlapping window, and the lookahead row is never the state at the
+        seam.
 
         Raises:
-            LpspecError: The slice built no row of the variable at ``index``
-                — a ``where`` or an absence rule took it.
+            LpspecError: The slice built no row of the variable there — a
+                ``where`` or an absence rule took it.
         """
         frame = frames[self.variable]
         if self.dropped is None:
             return frame
-        picked = frame.filter(pl.col(self.dropped) == self.index).drop(self.dropped)
+        assert owns is not None, 'a carry that drops a dimension is refused unless the axis owns it'
+        seam = owns - 1
+        picked = frame.filter(pl.col(self.dropped) == seam).drop(self.dropped)
         if picked.is_empty():
             raise LpspecError(
-                f'carry {parameter!r} <- ({self.variable!r}, {self.index}) has nothing to copy: slice {key!r} '
-                f'built no {self.variable!r} at {self.dropped} == {self.index}, so there is no value there '
-                f'to hand forward.'
+                f'carry {parameter!r} <- {self.variable!r} has nothing to copy: slice {key!r} built no '
+                f'{self.variable!r} at {self.dropped} == {seam}, the last coordinate it owns, so there is no '
+                f'value there to hand forward.'
             )
         return picked
 
@@ -375,7 +380,7 @@ class EachCoordinate:
 
         For building one slice alone: ``lps.build(spec, axis.slices(sources)[3][1])``.
         """
-        return list(self._slice(sources, self._key_name())[0])
+        return [(current.key, current.sources) for current in self._slice(sources, self._key_name())[0]]
 
     def _key_name(self) -> str:
         """The dimension itself: a slice key *is* a coordinate of it."""
@@ -440,11 +445,12 @@ class EachWindow:
         """The ``(key, sources)`` list this axis would run — what ``axis=`` takes hand-built.
 
         For building one window alone: ``lps.build(spec, axis.slices(sources)[37][1])``.
-        Solved as a list the slices key by ``key_name=`` and ``original_index``
-        is refused: a list carries no record of which coordinates each window
-        owns, so stitching stays this axis's own.
+        Pairs, so a window's ownership is not in them: solved as a list the
+        slices key by ``key_name=``, ``original_index`` is refused and a
+        ``carry`` cannot collapse a dimension, because none of the three has
+        anything to read the seam off. Windowing stays this axis's own.
         """
-        return list(self._slice(sources, self._key_name())[0])
+        return [(current.key, current.sources) for current in self._slice(sources, self._key_name())[0]]
 
     def __post_init__(self) -> None:
         if self.length < 1 or self.step < 1:
@@ -558,10 +564,11 @@ class EachWindow:
                 )
                 for name, table in carrying.items()
             }
-            out.append(_Slice(window[0], {**sources, **filtered, self.into: range(len(window))}))
+            owns = len(window[: self.step])
+            out.append(_Slice(window[0], {**sources, **filtered, self.into: range(len(window))}, owns))
             owned.extend(
                 {key_name: window[0], self.into: position, self.dim: coordinate}
-                for position, coordinate in enumerate(window[: self.step])
+                for position, coordinate in enumerate(window[:owns])
             )
         return out, _OriginalIndex(self.into, self.dim, pl.DataFrame(owned))
 
@@ -966,7 +973,7 @@ def solve_over(
     sources: Mapping[str, Source],
     axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
     *,
-    carry: Mapping[str, tuple[str, int | None]] | None = None,
+    carry: Mapping[str, str] | None = None,
     key_name: str | None = None,
     executor: Executor | None = None,
     workers_share_fs: bool | None = None,
@@ -988,9 +995,11 @@ def solve_over(
             the rest through.
         axis: :class:`EachCoordinate`, :class:`EachWindow`, or a list of
             ``(key, sources)`` written by hand.
-        carry: ``{parameter: (variable, index)}`` — one slice's answer copied
-            into the next slice's data. The first slice takes the parameter
-            from *sources*, its seed.
+        carry: ``{parameter: variable}`` — one slice's answer copied into the
+            next slice's data. Where the two are over different dimensions the
+            value handed on is the last coordinate the slice owns, which is the
+            only one that meets the next slice at the seam. The first slice
+            takes the parameter from *sources*, its seed.
         key_name: What to call the slice column; a class axis names its own,
             a hand-built list has to be told.
         executor: Any :class:`concurrent.futures.Executor`; ``None`` runs the
@@ -1015,8 +1024,8 @@ def solve_over(
         Every slice's answers, keyed by slice.
 
     Raises:
-        LpspecError: A carry that cannot line up, has no seed, reads a
-            coordinate the next window recomputes, or is asked together with
+        LpspecError: A carry that cannot line up, has no seed, collapses a
+            dimension the axis does not advance along, or is asked together with
             an executor; a key that collides with a column the frames carry;
             an axis the program does not allow; a *to* directory holding
             another sweep. All refused before a slice is taken, and every
@@ -1035,18 +1044,18 @@ def solve_over(
             "slice i's answer, so the slices cannot run concurrently. Drop the executor, or drop the carry."
         )
     program = check(spec)
-    plan = {p: _CarryRule.resolved(program, p, v, i) for p, (v, i) in (carry or {}).items()}
+    plan = {p: _CarryRule.resolved(program, p, v) for p, v in (carry or {}).items()}
     key_name = _key_column(axis, key_name, program)
 
     if isinstance(axis, (EachCoordinate, EachWindow)):
         _check_the_carry(plan, axis, sources)
         axis._check_the_program(program, sources)
-        sliced, original = axis._slice(sources, key_name)
+        slices, original = axis._slice(sources, key_name)
         hand_built = False
     else:
-        sliced, original, hand_built = list(axis), None, True
-        _check_the_carry(plan, axis, sliced[0][1] if sliced else {})
-    slices = [_Slice(*entry) for entry in sliced]
+        slices = [_Slice(*entry) for entry in axis]
+        original, hand_built = None, True
+        _check_the_carry(plan, axis, slices[0].sources if slices else {})
     if not slices:
         raise DataError('the axis produced no slices')
     solving = {'solver_name': solver_name, 'solver_options': dict(solver_options or {}) or None}
@@ -1064,12 +1073,15 @@ def _check_the_carry(
     axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
     first: Mapping[str, Source],
 ) -> None:
-    """Refuse a carry with no seed, or one that reads what the next window recomputes.
+    """Refuse a carry with no seed, or one whose dropped dimension no axis can answer for.
 
     Both are answered before a source is read: the seed is a key of the first
-    slice's sources, and the lookahead is arithmetic on the window. A carry
-    at ``index >= step`` hands forward a row the next window solves again,
-    which is never the state at the seam.
+    slice's sources, and which dimension an axis owns is the axis itself.
+
+    A carry that collapses a dimension hands on the last coordinate the slice
+    owns, so the dimension has to be the one the axis advances along —
+    :attr:`EachWindow.into`. Any other is a coordinate nothing here can choose,
+    and choosing one would be model arithmetic in a driver argument.
     """
     for parameter, rule in plan.items():
         if parameter not in first:
@@ -1077,20 +1089,17 @@ def _check_the_carry(
                 f'carry writes {parameter!r} from the second slice on, and the first slice has nothing to '
                 f'start from: supply {parameter!r} in sources as the seed.'
             )
-        if not (isinstance(axis, EachWindow) and rule.dropped == axis.into and rule.index is not None):
+        if rule.dropped is None:
             continue
-        if rule.index >= axis.length:
-            raise LpspecError(
-                f'carry {parameter!r} <- ({rule.variable!r}, {rule.index}) is out of range: a window of '
-                f'length {axis.length} holds {axis.into} 0..{axis.length - 1}.'
-            )
-        if rule.index >= axis.step:
-            raise LpspecError(
-                f'carry {parameter!r} <- ({rule.variable!r}, {rule.index}) reads {axis.into} == {rule.index}, '
-                f'which is in the lookahead: EachWindow(length={axis.length}, step={axis.step}) keeps '
-                f'{axis.into} 0..{axis.step - 1} and the next window recomputes the rest. The state at the '
-                f'seam is the last coordinate kept, {axis.step - 1}.'
-            )
+        if isinstance(axis, EachWindow) and rule.dropped == axis.into:
+            continue
+        owned = f'this axis advances along {axis.into!r}' if isinstance(axis, EachWindow) else 'this axis owns none'
+        raise LpspecError(
+            f'carry {parameter!r} <- {rule.variable!r} collapses {rule.dropped!r}, and {owned}: a carry hands '
+            f'on the last coordinate a slice owns, so it can only collapse the dimension the sweep advances '
+            f'along. Reduce {rule.dropped!r} in the YAML — a derived variable is where the oracle can see the '
+            f'math — so that {parameter!r} and {rule.variable!r} are over the same dimensions.'
+        )
 
 
 def _serially(
@@ -1180,7 +1189,7 @@ def _carried(
             f'{sorted({rule.variable for rule in plan.values()})} to start from. A carried sweep '
             f'stops at the first slice that leaves nothing to carry; the {position} before it solved.'
         )
-    return {p: rule.value_from(primals, p, current.key) for p, rule in plan.items()}
+    return {p: rule.value_from(primals, p, current.key, current.owns) for p, rule in plan.items()}
 
 
 @contextmanager

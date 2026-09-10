@@ -219,7 +219,7 @@ def overlapping() -> strategy.Runs:
         WINDOW,
         horizon_sources(12),
         lps.EachWindow('snapshot', length=6, step=3, into='t'),
-        carry={'soc_initial': ('soc', 2)},  # the last *kept* row, not the last row
+        carry={'soc_initial': 'soc'},  # the last *kept* row, not the last row
     )
 
 
@@ -319,7 +319,7 @@ def test_a_carried_fold_still_builds_once(builds):
     """
     built = builds(strategy)
 
-    runs = lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': ('soc', 3)})
+    runs = lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'})
 
     assert runs.keys == [0, 4, 8]
     assert len(built) == 1, f'{len(built)} builds for three windows — the carry cost the fold its fast path'
@@ -392,7 +392,7 @@ def test_a_rolling_horizon_carries_state_across_the_seam():
     `soc_initial` is updated per window from the previous window's last `soc`,
     which is the carry doing its one job — a copy, at a named index.
     """
-    runs = lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': ('soc', 3)})
+    runs = lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'})
 
     assert runs.keys == [0, 4, 8]
     assert runs.primal('p').height == 3 * 4 * 2
@@ -434,20 +434,19 @@ def test_a_window_geometry_covers_every_coordinate_exactly_once(periods, length,
 
 
 @pytest.mark.parametrize(('periods', 'length', 'step'), GEOMETRIES)
-def test_a_carry_at_step_minus_one_is_in_range_for_every_geometry(periods, length, step):
-    """A non-final window always holds at least ``step`` coordinates.
+def test_a_carry_finds_the_seam_in_every_geometry(periods, length, step):
+    """The coordinate a carry hands on is the last one the window owns.
 
-    It can still be shorter than ``length`` — 10 coordinates at ``length=6,
-    step=3`` gives a window at 6 holding four — but never shorter than
-    ``step``, since a later window starting ``step`` on means that many were
-    left. So the carry api.md recommends, the last row each window *keeps*,
-    can never fall off the end of the window it reads from.
+    A non-final window owns exactly ``step``; a final one owns whatever is
+    left, which can be one. Both are in range by construction, because a
+    window owns rows it solved — so unlike the index this replaced, there is
+    no geometry where the carry reads off the end.
     """
     runs = lps.solve_over(
         WINDOW,
         horizon_sources(periods),
         lps.EachWindow('snapshot', length=length, step=step, into='t'),
-        carry={'soc_initial': ('soc', step - 1)},
+        carry={'soc_initial': 'soc'},
     )
     assert runs.primal('soc', original_index=True)['snapshot'].to_list() == list(range(periods)), (
         'a carry at step - 1 is in range for every geometry, so the sweep completes'
@@ -558,7 +557,7 @@ def priced() -> strategy.Runs:
         SPENDING,
         horizon_sources(12),
         lps.EachWindow('snapshot', length=6, step=3, into='t'),
-        carry={'soc_initial': ('soc', 2)},
+        carry={'soc_initial': 'soc'},
     )
 
 
@@ -722,18 +721,19 @@ def test_the_window_geometry_is_checked_at_construction(geometry, expected):
         lps.EachWindow('snapshot', **geometry)
 
 
-def test_a_short_tail_window_does_not_have_to_hold_the_carry_index():
-    """Nothing reads the last slice's carry, so it is never computed.
+def test_a_short_tail_window_carries_off_its_own_last_row():
+    """A final window owns fewer rows than ``step``, and its seam is its own last.
 
     12 coordinates at length 6 step 5 leaves a final window of two, which
-    cannot answer `t == 4`. Computing a value no later slice will read would
-    fail a sweep that had already solved every window.
+    holds no `t == 4`. Nothing reads the last slice's carry, so the value is
+    never computed — but a window short of ``step`` in the *middle* of a sweep
+    cannot happen, which is what makes the owned count always in range.
     """
     runs = lps.solve_over(
         WINDOW,
         horizon_sources(12),
         lps.EachWindow('snapshot', length=6, step=5, into='t'),
-        carry={'soc_initial': ('soc', 4)},
+        carry={'soc_initial': 'soc'},
     )
     assert runs.keys == [0, 5, 10]
     assert runs.objective['termination_condition'].to_list() == ['optimal'] * 3
@@ -744,11 +744,11 @@ def test_a_carry_collapses_one_dimension_and_every_other_rides_along():
     """`soc` is over `(t, storage)` and `soc_initial` over `(storage)`.
 
     The two declarations say what is copied: `t` is what the parameter lacks,
-    so `t` is what the index names, and `storage` passes through — both stores
-    are handed forward, each its own level. That is the general case; a scalar
-    `soc_initial` is only the one where nothing is left to ride.
+    so `t` is the one the carry collapses, and `storage` passes through — both
+    stores are handed forward, each its own level. That is the general case; a
+    scalar `soc_initial` is only the one where nothing is left to ride.
     """
-    runs = lps.solve_over(MULTI_STORE, multi_store_sources(), WINDOW_AXIS, carry={'soc_initial': ('soc', 3)})
+    runs = lps.solve_over(MULTI_STORE, multi_store_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'})
 
     assert runs.keys == [0, 4, 8]
     assert set(runs.primal('soc').columns) == {'snapshot_start', 't', 'storage', 'value'}
@@ -776,19 +776,57 @@ def test_a_carry_collapses_one_dimension_and_every_other_rides_along():
     assert not fresh.primal('soc').equals(runs.primal('soc')), 'the carry changed nothing'
 
 
-def test_a_myopic_pathway_carries_a_whole_vector_with_no_index():
+def test_the_carried_row_is_the_last_one_owned_and_not_the_last_one_solved():
+    """Under overlap the two differ, and only the owned one is the state at the seam.
+
+    At `length=6, step=3` a window solves `t` 0..5 and owns 0..2. The lookahead
+    rows 3..5 are solved against a horizon that ends at 5, so the store empties
+    into them; the next window recomputes those coordinates from its own
+    horizon. Handing row 5 forward would seed it with a level that was never
+    going to happen, which is what the index this replaced let a caller do.
+
+    The first assertion is what makes the rest discriminating: where the two
+    rows hold the same level, reading either passes.
+    """
+    runs = lps.solve_over(
+        WINDOW,
+        horizon_sources(12),
+        lps.EachWindow('snapshot', length=6, step=3, into='t'),
+        carry={'soc_initial': 'soc'},
+    )
+
+    def at(name: str, start: int, t: int) -> float:
+        frame = runs.primal(name).filter((pl.col('snapshot_start') == start) & (pl.col('t') == t))
+        return frame['value'].item()
+
+    for start in (0, 3, 6):
+        assert at('soc', start, 2) != pytest.approx(at('soc', start, 5), abs=1e-6), (
+            'the owned row and the last solved row must differ, or this test cannot tell them apart'
+        )
+
+    for previous, start in ((0, 3), (3, 6), (6, 9)):
+        opened = at('soc', start, 0) - at('charge', start, 0) * 0.9 + at('discharge', start, 0)
+        assert opened == pytest.approx(at('soc', previous, 2), abs=1e-6), (
+            'the window opens on the last row the previous one owned'
+        )
+        assert opened != pytest.approx(at('soc', previous, 5), abs=1e-6), (
+            'and not on the last row it solved, which is lookahead the next window recomputes'
+        )
+
+
+def test_a_myopic_pathway_carries_a_whole_vector():
     """Capacity per generator, handed forward as a frame rather than a number.
 
     `total` and `existing` are both over `(generator)`, so nothing is dropped
-    and there is no coordinate to name — the frame *is* the carry. This is the
-    shape that a row index could never express, and the reason the index is
-    read off the two declarations rather than off the frame.
+    and the frame *is* the carry. The two declarations decide that, which is why
+    a coordinate sweep needs no axis-owned dimension to carry this shape while
+    one that drops a dimension is refused.
     """
     runs = lps.solve_over(
         MYOPIC,
         myopic_sources(),
         lps.EachCoordinate('period'),
-        carry={'existing': ('total', None)},
+        carry={'existing': 'total'},
     )
 
     assert runs.keys == [1, 2, 3]
@@ -800,44 +838,34 @@ def test_a_myopic_pathway_carries_a_whole_vector_with_no_index():
     assert total == pytest.approx([10.0, 25.0, 40.0]), 'demand 10 -> 25 -> 40 is met exactly'
 
 
-#: The seven ways a carry cannot line up. Each `id` is the case, so a failure
+#: The five ways a carry cannot line up. Each `id` is the case, so a failure
 #: names it rather than a line number: `-k collapses-two-dimensions`.
 _PERIOD_AXIS = lps.EachCoordinate('period')
 UNSOUND_CARRIES = [
     pytest.param(
-        WINDOW, horizon_sources, WINDOW_AXIS, {'soc_initial': ('p', 3)},
+        WINDOW, horizon_sources, WINDOW_AXIS, {'soc_initial': 'p'},
         r'would collapse .*at once', "['t', 'generator']",
-        id='collapses-two-dimensions-where-an-index-names-one',
+        id='collapses-two-dimensions',
     ),
     pytest.param(
-        WINDOW, horizon_sources, WINDOW_AXIS, {'soc_initial': ('soc', None)},
-        r"drops 't' and so needs an index", None,
-        id='drops-a-dimension-without-naming-a-coordinate',
-    ),
-    pytest.param(
-        MYOPIC, myopic_sources, _PERIOD_AXIS, {'existing': ('total', 0)},
-        'has nothing to index', None,
-        id='indexes-two-sides-that-already-line-up',
-    ),
-    pytest.param(
-        WINDOW, horizon_sources, WINDOW_AXIS, {'p_max': ('soc', 3)},
+        WINDOW, horizon_sources, WINDOW_AXIS, {'p_max': 'soc'},
         'cannot line up', None,
         id='parameter-over-more-than-the-variable',
     ),
     pytest.param(
-        WINDOW, horizon_sources, WINDOW_AXIS, {'soc_initial': ('nope', 3)},
+        WINDOW, horizon_sources, WINDOW_AXIS, {'soc_initial': 'nope'},
         'does not declare', None,
         id='a-name-neither-side-declares',
     ),
     pytest.param(
-        WINDOW, horizon_sources, WINDOW_AXIS, {'soc_initial': ('soc', 99)},
-        'out of range', None,
-        id='an-index-outside-the-window',
+        WINDOW, horizon_sources, lps.EachCoordinate('scenario'), {'soc_initial': 'soc'},
+        r"collapses 't', and this axis owns none", 'Reduce',
+        id='a-coordinate-sweep-collapsing-a-dimension-it-does-not-advance-along',
     ),
     pytest.param(
-        WINDOW, horizon_sources, lps.EachWindow('snapshot', length=6, step=3, into='t'), {'soc_initial': ('soc', 5)},
-        r'is in the lookahead', 'last coordinate kept, 2',
-        id='an-index-in-the-lookahead',
+        MULTI_STORE, multi_store_sources, WINDOW_AXIS, {'load': 'soc'},
+        r"collapses 'storage', and this axis advances along 't'", 'Reduce',
+        id='a-window-collapsing-a-dimension-that-is-not-its-own',
     ),
 ]  # fmt: skip
 
@@ -846,8 +874,10 @@ UNSOUND_CARRIES = [
 def test_a_carry_that_cannot_line_up_says_so_before_anything_solves(spec, sources, axis, carry, expected, names):
     """Every one of these is answerable from the two declarations and the axis alone.
 
-    The axis matters twice: a window's length bounds the index a carry may
-    name, and scenarios have no "next" slice for a value to move into.
+    The axis decides the last two: the coordinate handed on is the last one a
+    slice owns, so only the dimension the axis advances along can be the one a
+    carry collapses. Any other and there is no coordinate to choose without
+    doing the model's arithmetic here.
     """
     with pytest.raises(lps.LpspecError, match=expected) as raised:
         lps.solve_over(spec, sources(), axis, carry=carry)
@@ -867,10 +897,10 @@ def test_a_carry_is_refused_before_a_single_source_is_read(tmp_path):
     sources = {**horizon_sources(), 'load': str(missing)}
 
     with pytest.raises(lps.LpspecError, match='does not declare'):
-        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': ('nope', 3)})
+        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'nope'})
 
     with pytest.raises(Exception, match='not-written-yet') as raised:
-        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': ('soc', 3)})
+        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'soc'})
     assert not isinstance(raised.value, lps.LpspecError), 'the file, not the carry, is what failed'
 
 
@@ -887,7 +917,7 @@ def test_carry_and_executor_are_refused_together():
             WINDOW,
             horizon_sources(),
             WINDOW_AXIS,
-            carry={'soc_initial': ('soc', 3)},
+            carry={'soc_initial': 'soc'},
             executor=object(),
         )
 
@@ -1485,7 +1515,7 @@ def test_a_source_short_of_a_coordinate_of_the_axis_is_reported():
     sources = myopic_sources()
     sources['cost'] = pl.DataFrame({'period': [1, 1, 2, 2], 'generator': GENERATORS * 2, 'value': [1.0, 50.0] * 2})
     with pytest.warns(lps.LpspecWarning, match=r"'cost' has no rows for period 3, which 'demand' has"):
-        runs = lps.solve_over(MYOPIC, sources, lps.EachCoordinate('period'), carry={'existing': ('total', None)})
+        runs = lps.solve_over(MYOPIC, sources, lps.EachCoordinate('period'), carry={'existing': 'total'})
     assert runs.objective['objective'].to_list()[-1] == 0.0, 'the sweep still runs, and period 3 is free'
 
 
@@ -1497,7 +1527,7 @@ def test_a_carry_with_no_seed_says_the_first_slice_needs_one():
     sources = horizon_sources(12)
     del sources['soc_initial']
     with pytest.raises(lps.LpspecError, match=r"carry writes 'soc_initial' from the second slice on"):
-        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': ('soc', 3)})
+        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'soc'})
 
 
 def test_a_slice_that_leaves_nothing_to_carry_stops_the_sweep_by_name():
@@ -1510,7 +1540,7 @@ def test_a_slice_that_leaves_nothing_to_carry_stops_the_sweep_by_name():
         pl.when(pl.col('snapshot') == 5).then(10_000.0).otherwise(pl.col('value')).alias('value')
     )
     with pytest.raises(lps.LpspecError, match=r'slice 4 .*infeasible') as raised:
-        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': ('soc', 3)})
+        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'soc'})
     assert 'slice 8' in str(raised.value), 'the message names the slice that had nothing to start from'
 
 
@@ -1622,7 +1652,7 @@ def test_a_sweep_reports_what_each_slice_cost(make_executor):
 # ---------------------------------------------------------------------------
 
 PRICED_AXIS = lps.EachWindow('snapshot', length=6, step=3, into='t')
-PRICED_CARRY = {'soc_initial': ('soc', 2)}
+PRICED_CARRY = {'soc_initial': 'soc'}
 
 
 def _spilled(directory, **kwargs) -> strategy.Runs:
