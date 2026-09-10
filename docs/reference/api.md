@@ -30,8 +30,9 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
 | `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
-| `lps.Artifact(spec, sources, answer=None, axis=None)` | the model, its data and its answer as one zip: [Archiving a model](#archiving-a-model) |
-| `lps.load_artifact(path, into)` | an archive `artifact.save(out)` wrote, back as an `Artifact` |
+| `lps.SolveArtifact(spec, sources, answer=None)` | the model, its data and one solve's answer as one zip: [Archiving a model](#archiving-a-model) |
+| `lps.SweepArtifact(spec, sources, axis, answer=None)` | the same for a sweep, the axis beside the sources it cuts |
+| `lps.load_artifact(path, into)` | an archive either `save` wrote, back as whichever it holds |
 | `lps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
 | `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(to=)` wrote, back as a `Runs` |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
@@ -372,25 +373,25 @@ from. [#382](https://github.com/fluxopt/lpspec/issues/382) tracks that case.
 
 ```python
 with lps.solve('spec.yaml', sources) as solved:
-    lps.Artifact('spec.yaml', sources, solved).save('case.zip')
+    lps.SolveArtifact('spec.yaml', sources, solved).save('case.zip')
 
 case = lps.load_artifact('case.zip', 'case/')
 case.answer.primal('p')  # what came back
 lps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
-**An `Artifact` is the model, its data and its answer**, and `save` writes them
+**An artifact is the model, its data and its answer**, and `save` writes them
 as one zip: `model.yaml`, `sources/<key>.parquet` for every key the file
 declares, `answer/` holding what `result.save` or `runs.save` writes, and
-`axis.json` where the sources are sliced. The answer is optional — an artifact
-of the question alone is the model and its data.
+`axis.json` for a sweep. The answer is optional — an artifact of the question
+alone is the model and its data.
 
-**A sweep is an artifact too, and the axis is what makes it one:**
+**A sweep is its own artifact, because its sources are cut:**
 
 ```python
 axis = lps.EachCoordinate('scenario')
 runs = lps.solve_over('spec.yaml', sources, axis)
-lps.Artifact('spec.yaml', sources, runs, axis).save('study.zip')
+lps.SweepArtifact('spec.yaml', sources, axis, runs).save('study.zip')
 
 study = lps.load_artifact('study.zip', 'study/')
 study.answer.primal('p')  # keyed by scenario
@@ -414,9 +415,9 @@ wrote, and nothing is extracted.
 | Rule | |
 |---|---|
 | **the spec is loaded on the way in** | a path or a mapping becomes a `Spec` in the constructor, so `artifact.spec` is one shape. A lowered `Program` is refused: it has no file to write |
-| **the axis is present exactly when the sources are sliced** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. A `Runs` answer without an axis is refused, and so is an axis beside one solve's answer. An axis with no answer is an archived sweep question |
+| **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. `SweepArtifact` requires it and `SolveArtifact` has no such field, so nothing has to police the pairing. `load_artifact` returns whichever the archive holds |
 | **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |
-| **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one artifact each |
+| **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one `SolveArtifact` each |
 | **the model's own fitness for slicing stays `solve_over`'s** | whether a window can carry this model's coupling and reach is asked when the sweep is run, not when it is archived |
 | **a sweep's answer reads back spilled** | its frames stay in the extracted directory and `runs.scan(name)` reads them, which is what `solve_over(to=)` already produces. `original_index` works: the dimension a window sliced and the coordinates each owns are in the manifest |
 

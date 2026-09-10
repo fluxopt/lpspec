@@ -1,8 +1,12 @@
 """The whole thing in one file: a model, the data it was solved with, and what came back.
 
 An answer alone cannot say which model produced it, and a model alone has to
-be solved again to be read. :class:`Artifact` holds both, and :meth:`save`
-writes them as one zip so they cannot drift apart or be paired up wrongly.
+be solved again to be read. An artifact holds both, and :meth:`save` writes
+them as one zip so they cannot drift apart or be paired up wrongly.
+
+Two of them, because a sweep's sources are cut and one solve's are not:
+:class:`SolveArtifact` and :class:`SweepArtifact`. They share the archive's
+layout and nothing else; :func:`load_artifact` reads either.
 
 Above ``api`` and ``strategy`` rather than beside them: an artifact carries
 either kind of answer, so it is the one place that knows about both a
@@ -25,16 +29,18 @@ from math_spec.program import Program
 
 from lpspec.api import load_result
 from lpspec.errors import DataError, LpspecError
-from lpspec.relational.result import Result
 from lpspec.sources import supplied, tidy_sources
 from lpspec.strategy import EachCoordinate, EachWindow, Runs, carries, load_runs
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from lpspec.lanes import Source
+    import polars as pl
 
-__all__ = ['Artifact', 'load_artifact']
+    from lpspec.lanes import Source
+    from lpspec.relational.result import Result
+
+__all__ = ['SolveArtifact', 'SweepArtifact', 'load_artifact']
 
 #: The archive's one layout: the file, one parquet member per source key, the
 #: answer under a directory of its own in the shape ``save`` writes, and the
@@ -48,25 +54,12 @@ _SWEEP_MANIFEST = 'sweep.json'
 
 
 @dataclass(frozen=True)
-class Artifact:
-    """A model, the data it was solved with, and what came back.
+class SolveArtifact:
+    """A model, the data it was solved with, and what one solve of it returned.
 
-    The full artifact, and the unit an archived study travels as. Construct
-    one and :meth:`save` it; :func:`load_artifact` gives it back.
-
-    A sweep is one of these, and ``axis`` is what makes it one: its sources
-    carry the column the axis slices on, which the model does not declare, so
-    they are legible only beside the axis that cuts them. **The axis is
-    present exactly when the sources are sliced** — a
-    :class:`~lpspec.strategy.Runs` without one is refused, and so is an axis
-    beside a single solve's answer. A hand-built list of ``(key, sources)``
-    is refused too: those are unrelated questions, so they are one artifact
-    each.
-
-    ``answer`` is whichever the solve produced. The two disagree about one
-    name — ``Result.objective`` is a number and ``Runs.objective`` a frame,
-    one row per slice — so code that does not know which it holds asks
-    ``isinstance(artifact.answer, Runs)``.
+    The unit an archived case travels as. Construct one and :meth:`save` it;
+    :func:`load_artifact` gives it back. A sweep is its sibling,
+    :class:`SweepArtifact`.
 
     Attributes:
         spec: The model as written. A path or a mapping is loaded on the way
@@ -76,76 +69,35 @@ class Artifact:
             the archive holds — which is the same type, ``Path`` being a
             source like any other.
         answer: What came back, or ``None`` for the question alone.
-        axis: How the sources were cut, where they were. ``None`` for a
-            single solve.
+        directory: Where an archive was extracted, or ``None`` for one built
+            in memory. Kept because the answer reads lazily off it.
     """
 
     spec: Spec
     sources: Mapping[str, Source]
-    answer: Result | Runs | None = None
-    axis: EachCoordinate | EachWindow | None = None
-    #: Where an archive was extracted, for the answer that reads lazily off
-    #: it. Kept so the directory is named by the object that depends on it.
+    answer: Result | None = None
     directory: Path | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
-        """Hold the three to their invariant, and load *spec* if it was given as a path or a mapping.
-
-        The axis is present exactly when the sources are sliced, which is what
-        makes them legible: without it a sweep's carry a column the model does
-        not declare, and with it beside one solve's answer it claims a cut
-        that did not happen. Frozen, so the loaded spec goes back through
-        ``object``: a field that is sometimes a path and sometimes a ``Spec``
-        would put the same branch in every reader.
-        """
-        if self.axis is not None and not isinstance(self.axis, (EachCoordinate, EachWindow)):
-            raise LpspecError(
-                'an artifact takes EachCoordinate or EachWindow, which say how one set of sources was cut. '
-                'A hand-built list is a set of sources per slice, which are unrelated questions — archive '
-                'one artifact each.'
-            )
-        if isinstance(self.answer, Runs) and self.axis is None:
-            raise LpspecError(
-                "a sweep's answer needs the axis that produced it: its sources carry the column the axis "
-                'slices on, which the model does not declare, so nothing can check or write them without '
-                'it. Pass the axis solve_over was given.'
-            )
-        if self.axis is not None and isinstance(self.answer, Result):
-            raise LpspecError(
-                'an axis says the sources are cut into slices, and this answer came back from one solve of '
-                'all of them. Drop the axis, or pass the sweep that ran it.'
-            )
-        if isinstance(self.spec, Program):
-            raise LpspecError(
-                'an artifact holds the model as written — a path, a mapping or a Spec — and a lowered '
-                'Program has no file to write. Pass what it was lowered from.'
-            )
-        object.__setattr__(self, 'spec', to_spec(self.spec))
+        """Load *spec* if it was given as a path or a mapping, and refuse a lowered program."""
+        _load_the_spec(self)
 
     def save(self, out: str | Path) -> Path:
         """Write the model, its data and its answer as one zip file.
 
         The archive holds ``model.yaml``, ``sources/<key>.parquet`` for every
-        key the file declares, ``answer/`` holding what
-        :meth:`~lpspec.relational.result.Result.save` or
-        :meth:`~lpspec.strategy.Runs.save` writes, and ``axis.json`` where the
-        sources are sliced. A parquet path is copied as its own bytes; a table
-        is written as parquet; a plain-Python shape — a number, a label
-        sequence, a ``{label: value}`` map — as the tidy table it stands for.
-        Members are stored uncompressed, because parquet already is.
+        key the file declares, and ``answer/`` holding what
+        :meth:`~lpspec.relational.result.Result.save` writes. A parquet path
+        is copied as its own bytes; a table is written as parquet; a
+        plain-Python shape — a number, a label sequence, a ``{label: value}``
+        map — as the tidy table it stands for. Members are stored
+        uncompressed, because parquet already is.
 
-        The sources go in through the same door that reads them, so what is
-        refused there is refused here and nothing is written: :func:`build`'s
-        for a single solve, and for a sweep the door
-        :func:`~lpspec.strategy.solve_over` uses, which is one slice of them.
-        A source the axis cuts is written **whole** — the archive holds the
-        sources as the sweep was given them, not one copy per slice. Whether
-        the *model* can be cut this way stays ``solve_over``'s question, asked
-        when it is run.
-
-        The archive lands whole: written beside *out* and renamed into place,
-        its directory made if it does not exist, and nothing left under either
-        name by a write that did not finish.
+        The sources go in through the same door :func:`~lpspec.api.build`
+        reads them, so what is refused there is refused here and nothing is
+        written. The archive lands whole: written beside *out* and renamed
+        into place, its directory made if it does not exist, and nothing left
+        under either name by a write that did not finish.
 
         Args:
             out: Where to write; a ``.zip`` suffix is the convention.
@@ -157,51 +109,145 @@ class Artifact:
             LanguageError: A file the language does not accept.
             DataError: A source that is missing, unreadable, or the wrong
                 shape.
-            LpspecError: An answer that was closed, or a sweep that holds no
-                values.
+            LpspecError: An answer that was closed.
         """
-        program = to_program(self.spec)
-        frames = supplied(program, tidy_sources(program, self._as_the_model_sees_them()))
-        whole = {} if self.axis is None else carries(self.sources, self.axis.dim)
-        out = Path(out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        part = out.with_name(out.name + '.part')
-        try:
-            with zipfile.ZipFile(part, 'w', compression=zipfile.ZIP_STORED) as archive:
-                archive.writestr(_MODEL_MEMBER, self.spec.to_yaml())
-                for name, frame in frames.items():
-                    member = str(_SOURCES_DIR / f'{name}.parquet')
-                    given = self.sources.get(name)
-                    if isinstance(given, (str, Path)):
-                        archive.write(given, member)
-                    else:
-                        buffer = io.BytesIO()
-                        whole.get(name, frame).collect().write_parquet(buffer, compression='zstd')
-                        archive.writestr(member, buffer.getvalue())
-                if self.axis is not None:
-                    archive.writestr(_AXIS_MEMBER, json.dumps(_axis_manifest(self.axis)))
-                if self.answer is not None:
-                    _write_answer(archive, self.answer, beside=out.parent)
-        except BaseException:
-            part.unlink(missing_ok=True)
-            raise
-        os.replace(part, out)
-        return out
+        return _write(self, Path(out), self.sources, whole={}, axis=None)
 
-    def _as_the_model_sees_them(self) -> Mapping[str, Source]:
-        """The sources with the axis column gone — one slice of a sweep's, or all of one solve's.
 
-        A sweep's whole sources carry a column the model does not declare, so
-        the door that checks one solve's data would refuse them for having
-        more than one row per coordinate. One slice is what the model is
-        actually built from, so it is what the check has to see.
+@dataclass(frozen=True)
+class SweepArtifact:
+    """A model, the data a sweep was solved over, the axis that cut it, and what came back.
+
+    :class:`SolveArtifact`'s sibling, and the axis is what separates them: a
+    sweep's sources carry the column it slices on, which the model does not
+    declare, so they are legible only beside it. That is why the axis is a
+    field and not an argument — without it nothing could check or write them.
+
+    ``lps.solve_over(sweep.spec, sweep.sources, sweep.axis)`` runs it again.
+
+    Attributes:
+        spec: The model as written, as :class:`SolveArtifact` holds it.
+        sources: What the sweep was given — **whole**, carrying every slice's
+            rows, because one copy per slice is what a sweep exists not to
+            write.
+        axis: :class:`~lpspec.strategy.EachCoordinate` or
+            :class:`~lpspec.strategy.EachWindow`. A hand-built list of
+            ``(key, sources)`` is refused: those are unrelated questions, so
+            they are one :class:`SolveArtifact` each.
+        answer: What came back, or ``None`` for the question alone.
+        directory: As :class:`SolveArtifact` holds it.
+    """
+
+    spec: Spec
+    sources: Mapping[str, Source]
+    axis: EachCoordinate | EachWindow
+    answer: Runs | None = None
+    directory: Path | None = field(default=None, compare=False)
+
+    def __post_init__(self) -> None:
+        """Refuse an axis nothing can serialise, then load *spec* as the sibling does."""
+        if not isinstance(self.axis, (EachCoordinate, EachWindow)):
+            raise LpspecError(
+                'a sweep artifact takes EachCoordinate or EachWindow, which say how one set of sources was '
+                'cut. A hand-built list is a set of sources per slice, which are unrelated questions — '
+                'archive one SolveArtifact each.'
+            )
+        _load_the_spec(self)
+
+    def save(self, out: str | Path) -> Path:
+        """Write the model, its data, its axis and its answer as one zip file.
+
+        :meth:`SolveArtifact.save`'s layout with ``axis.json`` beside it, and
+        ``answer/`` holding what :meth:`~lpspec.strategy.Runs.save` writes.
+
+        Two things differ, both because the sources are cut. **What the check
+        sees is one slice of them** — the door
+        :func:`~lpspec.strategy.solve_over` uses, so what that refuses this
+        refuses. **What is written is all of them**, the column the axis cuts
+        on included. Whether the *model* can be cut this way stays
+        ``solve_over``'s question, asked when the sweep is run.
+
+        Args:
+            out: Where to write; a ``.zip`` suffix is the convention.
+
+        Returns:
+            The path written.
+
+        Raises:
+            LanguageError: A file the language does not accept.
+            DataError: A source that is missing, unreadable or the wrong
+                shape, or an axis that produced no slices.
+            LpspecError: A sweep that holds no values.
         """
-        if self.axis is None:
-            return self.sources
+        return _write(self, Path(out), self._one_slice(), carries(self.sources, self.axis.dim), self.axis)
+
+    def _one_slice(self) -> Mapping[str, Source]:
+        """The sources as the model sees them, which is what the check has to see.
+
+        The whole sources carry a column the model does not declare, so the
+        door that checks one solve's data would refuse them for having more
+        than one row per coordinate.
+        """
         cut = self.axis.slices(self.sources)
         if not cut:
             raise DataError('the axis produced no slices, so there is nothing the model would be built from')
         return cut[0][1]
+
+
+def _load_the_spec(artifact: SolveArtifact | SweepArtifact) -> None:
+    """Normalise ``spec`` in place, and refuse a lowered program.
+
+    Frozen dataclasses, so the loaded value goes back through ``object``: a
+    field that is sometimes a path and sometimes a ``Spec`` would put the same
+    branch in every reader.
+    """
+    if isinstance(artifact.spec, Program):
+        raise LpspecError(
+            'an artifact holds the model as written — a path, a mapping or a Spec — and a lowered '
+            'Program has no file to write. Pass what it was lowered from.'
+        )
+    object.__setattr__(artifact, 'spec', to_spec(artifact.spec))
+
+
+def _write(
+    artifact: SolveArtifact | SweepArtifact,
+    out: Path,
+    checked: Mapping[str, Source],
+    whole: Mapping[str, pl.LazyFrame],
+    axis: EachCoordinate | EachWindow | None,
+) -> Path:
+    """The archive both artifacts write, differing only in *checked*, *whole* and *axis*.
+
+    *checked* is the sources the declarations are checked against — all of
+    them, or one slice. *whole* is what to write instead of the checked frame,
+    which is how a sliced source reaches the archive carrying every slice's
+    rows. The file lands whole or not at all.
+    """
+    program = to_program(artifact.spec)
+    frames = supplied(program, tidy_sources(program, checked))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    part = out.with_name(out.name + '.part')
+    try:
+        with zipfile.ZipFile(part, 'w', compression=zipfile.ZIP_STORED) as archive:
+            archive.writestr(_MODEL_MEMBER, artifact.spec.to_yaml())
+            for name, frame in frames.items():
+                member = str(_SOURCES_DIR / f'{name}.parquet')
+                given = artifact.sources.get(name)
+                if isinstance(given, (str, Path)):
+                    archive.write(given, member)
+                else:
+                    buffer = io.BytesIO()
+                    whole.get(name, frame).collect().write_parquet(buffer, compression='zstd')
+                    archive.writestr(member, buffer.getvalue())
+            if axis is not None:
+                archive.writestr(_AXIS_MEMBER, json.dumps(_axis_manifest(axis)))
+            if artifact.answer is not None:
+                _write_answer(archive, artifact.answer, beside=out.parent)
+    except BaseException:
+        part.unlink(missing_ok=True)
+        raise
+    os.replace(part, out)
+    return out
 
 
 def _axis_manifest(axis: EachCoordinate | EachWindow) -> dict[str, Any]:
@@ -234,11 +280,13 @@ def _write_answer(archive: zipfile.ZipFile, answer: Result | Runs, beside: Path)
                 archive.write(file, str(_ANSWER_DIR / file.relative_to(saved).as_posix()))
 
 
-def load_artifact(path: str | Path, into: str | Path) -> Artifact:
-    """Read back an archive :meth:`Artifact.save` wrote.
+def load_artifact(path: str | Path, into: str | Path) -> SolveArtifact | SweepArtifact:
+    """Read back an archive either artifact's ``save`` wrote.
 
-    ``lps.solve(artifact.spec, artifact.sources)`` asks the question again;
-    ``artifact.answer`` is what it answered the first time.
+    Which comes back is read off the archive, not asked for: it carries an
+    axis or it does not. ``lps.solve(artifact.spec, artifact.sources)`` asks
+    the question again — ``lps.solve_over(…, artifact.axis)`` for a sweep —
+    and ``artifact.answer`` is what it answered the first time.
 
     Args:
         path: The zip file.
@@ -247,8 +295,10 @@ def load_artifact(path: str | Path, into: str | Path) -> Artifact:
             lazily off them, so it has to outlive what is read.
 
     Returns:
-        The model as written, its sources keyed as the file declares them, and
-        the answer — ``None`` where the archive holds none.
+        A :class:`SweepArtifact` where the archive carries an axis and a
+        :class:`SolveArtifact` where it does not, holding the model as
+        written, its sources keyed as the file declares them, and the answer —
+        ``None`` where the archive holds none.
 
     Raises:
         LanguageError: A ``model.yaml`` the language does not accept.
@@ -262,24 +312,15 @@ def load_artifact(path: str | Path, into: str | Path) -> Artifact:
         if strays or PurePosixPath(_MODEL_MEMBER) not in members:
             raise DataError(_not_an_archive_message(path, strays))
         archive.extractall(into)
+    spec = to_spec(into / _MODEL_MEMBER)
+    sources = {m.stem: into / m for m in members if _is_source_member(m)}
+    carried = any(_ANSWER_DIR in m.parents for m in members)
     axis_member = into / _AXIS_MEMBER
-    axis = _axis_from(json.loads(axis_member.read_text())) if axis_member.is_file() else None
-    return Artifact(
-        to_spec(into / _MODEL_MEMBER),
-        {m.stem: into / m for m in members if _is_source_member(m)},
-        _read_answer(into / _ANSWER_DIR) if any(_ANSWER_DIR in m.parents for m in members) else None,
-        axis,
-        into,
-    )
-
-
-def _read_answer(under: Path) -> Result | Runs:
-    """Whichever answer is under *under*, read as itself.
-
-    A sweep writes a manifest of its own and a single solve does not, so the
-    archive says which without being told.
-    """
-    return load_runs(under) if (under / _SWEEP_MANIFEST).is_file() else load_result(under)
+    if not axis_member.is_file():
+        answer = load_result(into / _ANSWER_DIR) if carried else None
+        return SolveArtifact(spec, sources, answer, into)
+    axis = _axis_from(json.loads(axis_member.read_text()))
+    return SweepArtifact(spec, sources, axis, load_runs(into / _ANSWER_DIR) if carried else None, into)
 
 
 def _in_the_layout(member: PurePosixPath) -> bool:

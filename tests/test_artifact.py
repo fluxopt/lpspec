@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from math_spec import Spec
 
 
-def _question(artifact: lps.Artifact) -> tuple[Spec, Mapping[str, object]]:
+def _question(artifact: lps.SolveArtifact | lps.SweepArtifact) -> tuple[Spec, Mapping[str, object]]:
     """The pair every verb takes, read off an artifact."""
     return artifact.spec, artifact.sources
 
@@ -45,7 +45,7 @@ def _question(artifact: lps.Artifact) -> tuple[Spec, Mapping[str, object]]:
 def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: str, tmp_path: Path) -> None:
     program = to_program(port_spec(name))
     sources = port_sources(name)
-    archive = lps.Artifact(port_spec(name), sources).save(tmp_path / 'model.zip')
+    archive = lps.SolveArtifact(port_spec(name), sources).save(tmp_path / 'model.zip')
     spec, unpacked = _question(lps.load_artifact(archive, tmp_path / 'out'))
 
     assert set(unpacked) == set(attachable(program)), (
@@ -63,7 +63,7 @@ def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: s
 def test_the_round_trip_solves_to_the_same_objective(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    archive = lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'dispatch.zip')
+    archive = lps.SolveArtifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'dispatch.zip')
     with (
         lps.solve(dispatch_yaml, dispatch_frame_inputs) as direct,
         lps.solve(*_question(lps.load_artifact(archive, tmp_path / 'out'))) as unpacked,
@@ -82,7 +82,7 @@ def test_plain_python_shapes_are_written_as_the_tables_they_stand_for(dispatch_y
         'snapshot': range(DISPATCH_SNAPSHOTS),
         'generator': list(DISPATCH_GENERATORS),
     }
-    archive = lps.Artifact(dispatch_yaml, sources).save(tmp_path / 'dispatch.zip')
+    archive = lps.SolveArtifact(dispatch_yaml, sources).save(tmp_path / 'dispatch.zip')
     _, unpacked = _question(lps.load_artifact(archive, tmp_path / 'out'))
     cost = pl.read_parquet(unpacked['cost'])
     snapshot = pl.read_parquet(unpacked['snapshot'])
@@ -94,7 +94,7 @@ def test_plain_python_shapes_are_written_as_the_tables_they_stand_for(dispatch_y
 
 
 def test_the_archive_is_the_file_and_stored_parquet(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
-    archive = lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'dispatch.zip')
+    archive = lps.SolveArtifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'dispatch.zip')
     with zipfile.ZipFile(archive) as zipped:
         members = {info.filename: info.compress_type for info in zipped.infolist()}
         assert set(members) == {'model.yaml', *(f'sources/{k}.parquet' for k in dispatch_frame_inputs)}, (
@@ -111,7 +111,9 @@ def test_a_parquet_path_is_copied_as_its_own_bytes(dispatch_yaml: Path, dispatch
     load = dispatch_frame_inputs['load'].with_columns(pl.lit('a stray column').alias('note'))
     path = tmp_path / 'load.parquet'
     load.write_parquet(path)
-    archive = lps.Artifact(dispatch_yaml, {**dispatch_frame_inputs, 'load': str(path)}).save(tmp_path / 'dispatch.zip')
+    archive = lps.SolveArtifact(dispatch_yaml, {**dispatch_frame_inputs, 'load': str(path)}).save(
+        tmp_path / 'dispatch.zip'
+    )
     with zipfile.ZipFile(archive) as zipped:
         assert zipped.read('sources/load.parquet') == path.read_bytes(), (
             'the file travels untouched, stray column included — it is filtered where it attaches, as a path is'
@@ -121,7 +123,7 @@ def test_a_parquet_path_is_copied_as_its_own_bytes(dispatch_yaml: Path, dispatch
 def test_unpack_lays_the_archive_out_in_the_directory(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    archive = lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'dispatch.zip')
+    archive = lps.SolveArtifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'dispatch.zip')
     spec, sources = _question(lps.load_artifact(archive, tmp_path / 'out'))
 
     assert sources == {k: tmp_path / 'out' / 'sources' / f'{k}.parquet' for k in dispatch_frame_inputs}, (
@@ -135,7 +137,7 @@ def test_unpack_lays_the_archive_out_in_the_directory(
 def test_a_refused_model_writes_nothing(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
     out = tmp_path / 'dispatch.zip'
     with pytest.raises(lps.DataError, match="no data provided for parameter 'cost'"):
-        lps.Artifact(dispatch_yaml, {k: v for k, v in dispatch_frame_inputs.items() if k != 'cost'}).save(out)
+        lps.SolveArtifact(dispatch_yaml, {k: v for k, v in dispatch_frame_inputs.items() if k != 'cost'}).save(out)
     assert not out.exists(), 'the sources are checked before the archive is opened'
 
 
@@ -162,7 +164,7 @@ def test_a_lowered_program_is_refused_by_name(dispatch_yaml: Path, dispatch_fram
     """A lowered program has no file to write, and the docstring says so; the refusal says it too."""
     out = tmp_path / 'dispatch.zip'
     with pytest.raises(lps.LpspecError, match='a lowered Program has no file to write'):
-        lps.Artifact(lps.check(dispatch_yaml), dispatch_frame_inputs).save(out)
+        lps.SolveArtifact(lps.check(dispatch_yaml), dispatch_frame_inputs).save(out)
     assert not out.exists(), 'nothing is written'
 
 
@@ -174,7 +176,7 @@ def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp
     from math_spec import Spec
 
     out = tmp_path / 'nested' / 'dispatch.zip'
-    assert lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(out) == out
+    assert lps.SolveArtifact(dispatch_yaml, dispatch_frame_inputs).save(out) == out
     assert sorted(p.name for p in out.parent.iterdir()) == ['dispatch.zip'], 'the archive alone, no .part beside it'
 
     def fails(self):
@@ -183,7 +185,7 @@ def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp
     monkeypatch.setattr(Spec, 'to_yaml', fails)
     later = tmp_path / 'later.zip'
     with pytest.raises(RuntimeError, match='went away'):
-        lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(later)
+        lps.SolveArtifact(dispatch_yaml, dispatch_frame_inputs).save(later)
     assert not list(tmp_path.glob('later*')), 'a write that did not finish leaves nothing under either name'
 
 
@@ -197,7 +199,7 @@ def test_an_archive_carries_the_answer_beside_the_question(
     two cannot drift apart or be paired up wrongly.
     """
     with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
-        archive = lps.Artifact(dispatch_yaml, dispatch_frame_inputs, solved).save(tmp_path / 'case.zip')
+        archive = lps.SolveArtifact(dispatch_yaml, dispatch_frame_inputs, solved).save(tmp_path / 'case.zip')
         loaded = lps.load_artifact(archive, tmp_path / 'case')
 
         assert loaded.answer is not None, 'the archive was given an answer, so it comes back with one'
@@ -215,7 +217,7 @@ def test_an_archive_of_the_question_alone_comes_back_with_no_answer(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     """The answer is optional, and its absence is a value rather than a failure."""
-    archive = lps.Artifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'question.zip')
+    archive = lps.SolveArtifact(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'question.zip')
     loaded = lps.load_artifact(archive, tmp_path / 'out')
     assert loaded.answer is None, 'nothing was given one, so nothing comes back'
     assert not (tmp_path / 'out' / 'answer').exists(), 'and no answer/ was written to extract'
@@ -233,7 +235,7 @@ def test_a_scenario_sweep_is_an_artifact_and_runs_again(
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
     runs = lps.solve_over(dispatch_yaml, sources, axis)
 
-    archive = lps.Artifact(dispatch_yaml, sources, runs, axis).save(tmp_path / 'study.zip')
+    archive = lps.SweepArtifact(dispatch_yaml, sources, axis, runs).save(tmp_path / 'study.zip')
     study = lps.load_artifact(archive, tmp_path / 'study')
 
     assert study.axis == axis, 'the axis comes back as the value it went in as'
@@ -261,7 +263,7 @@ def test_a_rolling_horizon_keeps_the_way_back_to_the_dimension_it_sliced(tmp_pat
     runs = lps.solve_over(WINDOW, sources, axis, carry={'soc_initial': 'soc'})
     stitched = runs.primal('soc', original_index=True)
 
-    archive = lps.Artifact(WINDOW, sources, runs, axis).save(tmp_path / 'roll.zip')
+    archive = lps.SweepArtifact(WINDOW, sources, axis, runs).save(tmp_path / 'roll.zip')
     loaded = lps.load_artifact(archive, tmp_path / 'roll')
 
     assert loaded.axis == axis
@@ -271,41 +273,16 @@ def test_a_rolling_horizon_keeps_the_way_back_to_the_dimension_it_sliced(tmp_pat
     )
 
 
-@pytest.mark.parametrize(
-    ('artifact', 'says'),
-    [
-        pytest.param(
-            lambda spec, sources, runs, axis: (spec, sources, runs, None),
-            'Pass the axis solve_over was given',
-            id='sweep-without-axis',
-        ),
-        pytest.param(
-            lambda spec, sources, runs, axis: (spec, sources, None, [('a', sources)]),
-            'archive one artifact each',
-            id='hand-built-axis',
-        ),
-    ],
-)
-def test_the_axis_is_present_exactly_when_the_sources_are_sliced(
-    artifact, says: str, dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """An answer and an axis that disagree about whether the sources were cut is refused."""
-    axis = lps.EachCoordinate('scenario')
+def test_a_hand_built_axis_is_refused(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
+    """A list of `(key, sources)` is a set of sources per slice.
+
+    Nothing serialises it but a copy of every slice's data, and the slices are
+    unrelated questions anyway — so the refusal sends them to one artifact
+    each rather than inventing a layout for them.
+    """
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
-    runs = lps.solve_over(dispatch_yaml, sources, axis)
-    with pytest.raises(lps.LpspecError, match=says):
-        lps.Artifact(*artifact(dispatch_yaml, sources, runs, axis))
-
-
-def test_an_axis_beside_one_solves_answer_is_refused(
-    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """The other half of the same invariant: this answer saw every slice at once."""
-    with (
-        lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved,
-        pytest.raises(lps.LpspecError, match='Drop the axis'),
-    ):
-        lps.Artifact(dispatch_yaml, dispatch_frame_inputs, solved, lps.EachCoordinate('scenario'))
+    with pytest.raises(lps.LpspecError, match='archive one SolveArtifact each'):
+        lps.SweepArtifact(dispatch_yaml, sources, [('a', sources)])  # pyrefly: ignore[bad-argument-type]
 
 
 def _by_scenario(names: list[str]) -> pl.DataFrame:
@@ -322,4 +299,4 @@ def _by_scenario(names: list[str]) -> pl.DataFrame:
 def test_a_lowered_program_is_refused_by_name_too(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
     """A lowered program has no file to write, and the refusal says so."""
     with pytest.raises(lps.LpspecError, match='a lowered Program has no file to write'):
-        lps.Artifact(lps.check(dispatch_yaml), dispatch_frame_inputs)
+        lps.SolveArtifact(lps.check(dispatch_yaml), dispatch_frame_inputs)

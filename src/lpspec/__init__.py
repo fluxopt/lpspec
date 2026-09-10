@@ -23,7 +23,7 @@ from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _installed_version
 
 from lpspec.api import Model, build, check, load_result, solve, write
-from lpspec.artifact import Artifact, load_artifact
+from lpspec.artifact import SolveArtifact, SweepArtifact, load_artifact
 from lpspec.errors import (
     DataError,
     DimensionError,
@@ -39,7 +39,6 @@ from lpspec.relational.result import Result
 from lpspec.strategy import EachCoordinate, EachWindow, Runs, load_runs, solve_over
 
 __all__ = [
-    'Artifact',
     'DataError',
     'DimensionError',
     'EachCoordinate',
@@ -54,6 +53,8 @@ __all__ = [
     'Result',
     'Runs',
     'SchemaError',
+    'SolveArtifact',
+    'SweepArtifact',
     'build',
     'check',
     'load_artifact',
