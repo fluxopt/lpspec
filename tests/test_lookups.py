@@ -832,3 +832,176 @@ def test_a_composite_key_read_in_a_where_agrees_between_the_lanes():
     }
     with differential(spec, sources) as run:
         assert run.result.objective == pytest.approx(32.0), 'only (g1, 2030) is northern, and it alone is capped at 2'
+
+
+def test_a_dimension_a_walk_lands_on_draws_no_advice():
+    """`sum(by=)` lands terms on the dimension it produces, so that dimension is
+    an axis even when nothing is declared over it — an objective groups and
+    implicitly sums, and no warning fires."""
+    spec = {
+        'dimensions': {'bus': {}, 'generator': {}},
+        'lookups': {'gen_bus': {'over': ['generator', 'bus'], 'key': 'generator'}},
+        'parameters': {'cost': {'dims': ['generator']}},
+        'variables': {'p': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 1}}},
+        'constraints': {'c': {'foreach': ['generator'], 'expression': 'p <= 1'}},
+        'objective': {'sense': 'minimize', 'expression': 'sum(sum(p * cost, by=gen_bus), over=bus)'},
+    }
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        lps.check(spec)
+
+
+# ---------------------------------------------------------------------------
+# a column over a dimension nothing spans yet (#488)
+# ---------------------------------------------------------------------------
+
+
+def _unspanned_spec(month: dict) -> dict:
+    """#488's incremental multi-period shape.
+
+    The flat ``snapshot`` index declares every lookup it will need, but no
+    constraint walks into ``month`` yet — only ``period`` is walked.
+    """
+    return {
+        'dimensions': {'snapshot': {'dtype': 'int'}, 'period': {'dtype': 'int'}, 'month': month},
+        'lookups': {
+            'period_of': {'over': ['snapshot', 'period'], 'key': 'snapshot'},
+            'month_of': {'over': ['snapshot', 'month'], 'key': 'snapshot'},
+        },
+        'parameters': {'cap': {'dims': ['period']}},
+        'variables': {'p': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
+        'constraints': {'budget': {'foreach': ['period'], 'expression': 'sum(p, by=period_of) <= cap'}},
+        'objective': {'sense': 'maximize', 'expression': 'sum(p, over=snapshot)'},
+    }
+
+
+def _unspanned_sources() -> dict:
+    return {
+        'snapshot': pl.DataFrame({'snapshot': [0, 1, 2]}),
+        'period_of': pl.DataFrame({'snapshot': [0, 1, 2], 'period': [2030, 2030, 2050]}),
+        'month_of': pl.DataFrame({'snapshot': [0, 1, 2], 'month': ['jan', 'feb', 'jan']}),
+        'period': pl.DataFrame({'period': [2030, 2050]}),
+        'cap': pl.DataFrame({'period': [2030, 2050], 'value': [5.0, 5.0]}),
+    }
+
+
+@pytest.mark.parametrize(
+    ('month', 'extra'),
+    [
+        pytest.param({'dtype': 'str'}, {'month': pl.DataFrame({'month': ['jan', 'feb']})}, id='a-table'),
+        pytest.param({'dtype': 'str'}, {'month': ['jan', 'feb']}, id='a-bare-sequence'),
+    ],
+)
+def test_a_lookup_may_have_a_column_over_a_dimension_nothing_spans_yet(month, extra):
+    """#488: the first build after declaring a lookup, before its constraint exists."""
+    with lps.solve(_unspanned_spec(month), _unspanned_sources() | extra) as solution:
+        assert solution.objective == pytest.approx(10.0), 'each period caps its snapshots at 5, so the model builds'
+
+
+@pytest.mark.parametrize('lane', ['relational', 'eager'])
+def test_an_unwalked_column_still_checks_containment(lane):
+    """A column over a dimension no constraint walks into is checked all the same.
+
+    On both lanes, because the check runs where the relation is read rather
+    than where each engine holds one — the eager lane never spans `month`
+    either, and used to reach this only through its own copy.
+    """
+    from tests.oracle import lpspec_linopy
+
+    build = lps.build if lane == 'relational' else lpspec_linopy.build
+    short = {'month': pl.DataFrame({'month': ['jan']})}
+    with pytest.raises(DataError, match=r"column 'month' holds 1 value\(s\) that are not labels of 'month'"):
+        build(_unspanned_spec({'dtype': 'str'}), _unspanned_sources() | short)
+
+
+@pytest.mark.parametrize('lane', ['relational', 'eager'])
+def test_an_unwalked_column_without_an_index_is_refused_with_the_true_reason(lane):
+    """The old message blamed missing data the caller may well have supplied (#488)."""
+    from tests.oracle import lpspec_linopy
+
+    build = lps.build if lane == 'relational' else lpspec_linopy.build
+    with pytest.raises(DataError, match='has lookups with a column over it') as caught:
+        build(_unspanned_spec({'dtype': 'str'}), _unspanned_sources())
+    assert "Pass the labels under key 'month'" in str(caught.value), 'the refusal has to say what would satisfy it'
+
+
+# ---------------------------------------------------------------------------
+# two lookups between one pair of dimensions
+# ---------------------------------------------------------------------------
+
+
+#: The PyPSA shape, where a line has a sending and a receiving bus. What it is
+#: here for: every check over a dimension's lookups has to run per lookup, and
+#: one of them cannot tell a loop that runs once from a loop that runs per name.
+TWO_LOOKUPS = {
+    'dimensions': {'line': {}, 'bus': {'dtype': 'str'}},
+    'lookups': {
+        'line_from': {'over': ['line', 'bus'], 'key': 'line'},
+        'line_to': {'over': ['line', 'bus'], 'key': 'line'},
+    },
+    'parameters': {'flow_max': {'dims': ['line']}, 'load': {'dims': ['bus']}},
+    'variables': {'f': {'foreach': ['line'], 'bounds': {'lower': 0, 'upper': 'flow_max'}}},
+    'constraints': {'served': {'foreach': ['bus'], 'expression': 'sum(f, by=line_to) >= load'}},
+    'objective': {'sense': 'minimize', 'expression': 'sum(f, over=line)'},
+}
+
+_TWO_LOOKUP_SOURCES = {
+    'line': ['l1', 'l2'],
+    'bus': ['north', 'south'],
+    'flow_max': pl.DataFrame({'line': ['l1', 'l2'], 'value': [10.0, 10.0]}),
+    'load': pl.DataFrame({'bus': ['north', 'south'], 'value': [1.0, 2.0]}),
+    'line_from': pl.DataFrame({'line': ['l1', 'l2'], 'bus': ['south', 'north']}),
+    'line_to': pl.DataFrame({'line': ['l1', 'l2'], 'bus': ['north', 'south']}),
+}
+
+
+def test_two_lookups_between_one_pair_of_dimensions_each_take_their_own_key():
+    """Two relations of identical schema, told apart by the key they arrive under.
+
+    The alternative — one table per pair of dimensions — has nowhere to put the
+    second, which is why the key is the lookup and not the pair.
+    """
+    with lps.solve(TWO_LOOKUPS, _TWO_LOOKUP_SOURCES) as result:
+        assert result.objective == pytest.approx(3.0), 'each line serves the bus line_to sends it to'
+
+
+def test_the_second_lookup_is_checked_as_hard_as_the_first():
+    """Per lookup, not per dimension: the check runs for `line_from` as for `line_to`."""
+    index = pl.DataFrame({'line': ['l1', 'l2'], 'line_from': ['south', 'north']})
+    with pytest.raises(DataError, match=re.escape("carries a 'line_from' column")):
+        lps.solve(TWO_LOOKUPS, {**_TWO_LOOKUP_SOURCES, 'line': index})
+
+
+#: A parameter written positionally over a dimension a supplied relation has a
+#: column over. `cost` is a bare list, so which label each number belongs to is
+#: the index's row order — the order a join must not disturb. `cap` pins the
+#: solution to `t = 0` alone, so the objective *is* that label's cost.
+POSITIONAL = {
+    'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
+    'lookups': {'g_of': {'over': ['t', 'g'], 'key': 't'}},
+    'parameters': {'cost': {'dims': ['t']}, 'cap': {'dims': ['t']}},
+    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'constraints': {'c': {'foreach': ['t'], 'expression': 'x >= cap'}},
+    'objective': {'sense': 'minimize', 'expression': 'sum(x * cost, over=t)'},
+}
+
+
+def test_a_supplied_relation_does_not_reorder_the_index_it_joins_onto():
+    """A label's position is its ordinal, and joining a relation on may not move it.
+
+    A positional shape is placed against the labels read back off the index
+    *after* the relation has been joined onto it, so a join free to reorder
+    hands every one of these numbers to the wrong label — and `shift`, which
+    reads ordinals, moves every coordinate with it. Both lanes then agree on a
+    model neither caller wrote, which is why the check is a number here rather
+    than a comparison between the two.
+    """
+    sources = {
+        't': pl.DataFrame({'t': [0, 1, 2]}),
+        'g': ['n', 's'],
+        'g_of': pl.DataFrame({'t': [0, 1, 2], 'g': ['n', 'n', 's']}),
+        'cost': [1.0, 10.0, 100.0],
+        'cap': pl.DataFrame({'t': [0, 1, 2], 'value': [1.0, 0.0, 0.0]}),
+    }
+    with lps.solve(POSITIONAL, sources) as result:
+        assert result.objective == pytest.approx(1.0), "the first number is the first label's, whatever the join did"

@@ -30,8 +30,8 @@ GenX's piecewise-fuel case: a day of dispatch for two carbon-capture plants and 
 | $\mathcal{H}$ | index $h$ — `hour` — hours of a representative day that repeats |
 | $\mathcal{S}$ | index $s$ — `segment` — a piece of the fuel curve |
 | $\mathcal{T}$ | index $t$ — `step` — a block of demand that may be shed, each dearer than the last |
-| $\mathcal{C}$ | index $c$ — `commitment_mode` with $\mathrm{commitment}: \mathcal{P} \to \mathcal{C}$ — committed unit by unit, or dispatched freely |
-| $\mathcal{F}$ | index $f$ — `fuel_model` with $\mathrm{fuel\_use}: \mathcal{P} \to \mathcal{F}$ — fuel read off the piecewise curve, or off a flat heat rate |
+| $\mathcal{C}$ | index $c$ — `commitment_mode` with $\mathrm{commitment}: \mathcal{P} \to \mathcal{C}$ — the ways a plant may be committed |
+| $\mathcal{F}$ | index $f$ — `fuel_use_mode` with $\mathrm{fuel\_use}: \mathcal{P} \to \mathcal{F}$ — the ways a plant's fuel use may be read |
 
 #### Parameters
 
@@ -224,10 +224,10 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: a block of demand that may be shed, each dearer than the last
         dtype: int
       commitment_mode:
-        description: committed unit by unit, or dispatched freely
+        description: the ways a plant may be committed
         dtype: str
-      fuel_model:
-        description: fuel read off the piecewise curve, or off a flat heat rate
+      fuel_use_mode:
+        description: the ways a plant's fuel use may be read
         dtype: str
 
     lookups:
@@ -237,7 +237,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         key: plant
       fuel_use:
         description: whether a plant's fuel use is read off the piecewise curve or a flat heat rate
-        over: [plant, fuel_model]
+        over: [plant, fuel_use_mode]
         key: plant
 
     parameters:

@@ -1,7 +1,7 @@
 """Solving strategies: one plan per slice, folded.
 
 A plan cannot contain a loop; a *process* may loop over plans
-(docs/about/ceiling.md). So a strategy is a driver above :mod:`lpspec.api`,
+(math-spec's docs/about/limits.md). So a strategy is a driver above :mod:`lpspec.api`,
 built from the public verbs — never a language or engine feature.
 
 Every strategy is the same fold: **partition → attach → solve → carry → stitch**.

@@ -1432,7 +1432,7 @@ def test_a_static_case_still_reads_its_committed_model(name: str) -> None:
     )
 
 
-def test_the_milp_case_lowers_with_both_variable_types() -> None:
+def test_the_milp_case_lowers_with_both_domains() -> None:
     """`commitment` only measures the vtype stream if the plan actually carries it.
 
     The ladder's other cases are all-continuous, so a YAML edit that dropped
@@ -1443,8 +1443,8 @@ def test_the_milp_case_lowers_with_both_variable_types() -> None:
     from math_spec import to_program, to_spec
 
     program = to_program(to_spec(str(CASES['commitment'].spec)))
-    types = {n: v.domain for n, v in program.variables.items()}
-    assert types == {'u': 'binary', 'p': 'continuous'}, (
+    domains = {n: v.domain for n, v in program.variables.items()}
+    assert domains == {'u': 'binary', 'p': 'continuous'}, (
         'the MILP case must declare one binary and one continuous variable, or vtype streaming goes unmeasured'
     )
 

@@ -72,7 +72,7 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
     """Parse, expand, validate and lower a spec; attach no data.
 
     With *sink*, also: **will that sink take it?** The two are separate axes
-    (docs/about/ceiling.md) — whether a spec is sayable is solver-independent,
+    (math-spec's docs/about/limits.md) — whether a spec is sayable is solver-independent,
     where it can land is not — so bare ``check`` stays silent about
     portability. The answer is read off a declared table with no data
     attached, so it needs no solver installed. The solver-independent advice

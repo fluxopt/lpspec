@@ -8,7 +8,7 @@ A PR that changes the structure described here updates this file. The language
 is
 [the language reference](https://math-spec.readthedocs.io/en/latest/reference/language/).
 What may enter it is
-[the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/). Plans
+[the limits of the language](https://math-spec.readthedocs.io/en/latest/about/limits/). Plans
 and refusals are [the roadmap](roadmap.md). Measured results are
 [the benchmarks](benchmarks.md), produced by the harness in
 [bench/](https://github.com/fluxopt/lpspec/blob/main/bench/README.md), which is
@@ -190,7 +190,7 @@ the resolved AST: a `piecewise:` block prints as the λ-formulation it expands
 to. It lives in the package that owns the language, and this package does not
 depend on it. A consumer that reads the AST and nothing else needs no part of
 this repository to run. The waist is **closed**, which is what
-[the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/)
+[the limits of the language](https://math-spec.readthedocs.io/en/latest/about/limits/)
 protects: a new consumer is free, a new primitive is taxed.
 
 ### The Python surface
@@ -313,7 +313,7 @@ rulebook.
    (`capabilities.LINOPY_LANE`), answerable before any build
    (`check(spec, sink='linopy')`) and refused in the language's own words. It
    is the axis
-   [the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/#capability-is-not-the-ceiling)
+   [the ceiling](https://math-spec.readthedocs.io/en/latest/about/limits/#solver-capability)
    draws for sinks, one level up. **What it costs is the oracle.** A construct
    one lane builds is checked by one lane, through two independent encodings
    reaching one optimum and a residual at the returned primal.
@@ -484,7 +484,7 @@ from here is `genconstr`, plus a semi-continuous threshold on `cols`.
 
 **The fourth stream is the one that lands unevenly**, because its destination
 differs per sink (see
-[Capability is not the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/#capability-is-not-the-ceiling)).
+[Capability is not the ceiling](https://math-spec.readthedocs.io/en/latest/about/limits/#solver-capability)).
 So a solver **declares** how it satisfies one, `native` or `reformulated`, and
 the *family* acts on the answer (`solvers.ingestible`). A sink that cannot take
 a set is handed the same feasible region as binaries and linking rows
