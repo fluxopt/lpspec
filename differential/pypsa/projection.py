@@ -37,6 +37,15 @@ def terms(expression: str) -> list[str]:
     return [t for t in out if t]
 
 
+def _columns(over: Any) -> set[str]:
+    """The dimensions a lookup's ``over:`` relates, in either spelling.
+
+    A list names each column after its dimension; a mapping gives the columns
+    roles of their own, and the dimension is the value.
+    """
+    return set(over.values()) if isinstance(over, dict) else set(over)
+
+
 def names(text: str) -> set[str]:
     return set(NAME.findall(text or ''))
 
@@ -130,7 +139,7 @@ def project(raw: dict[str, Any], parity: dict[str, Any]) -> dict[str, Any]:
     for p in parameters.values():
         dims |= set(p.get('dims', []))
     for lk in lookups.values():
-        dims |= {lk['over'], lk.get('into')} - {None}
+        dims |= _columns(lk['over'])
     dimensions = {n: d for n, d in raw['dimensions'].items() if n in dims}
     out = {k: v for k, v in raw.items() if k in ('version', 'description')}
     out['dimensions'] = dimensions

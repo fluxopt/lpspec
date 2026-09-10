@@ -289,15 +289,35 @@ $$q_{t,v} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace v \
       storage_unit: {description: 'storage units, dispatch and store behind one bus connection'}
       store: {description: 'pure energy stores, each on one bus'}
     lookups:
-      Generator_bus: {description: the bus a generator sits on, over: [generator, bus], key: generator}
-      Link_bus0: {description: the bus a link leaves, over: [link, bus], key: link}
-      Link_output_link: {description: the link an output port belongs to, over: [link_output, link], key: link_output}
-      Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-          A link of three output ports is three labels here rather than a third lookup, so the file states
-          any number of them', over: [link_output, bus], key: link_output}
-      Load_bus: {description: the bus a load sits on, over: [load, bus], key: load}
-      StorageUnit_bus: {description: the bus a storage unit sits on, over: [storage_unit, bus], key: storage_unit}
-      Store_bus: {description: the bus a store sits on, over: [store, bus], key: store}
+      Generator_bus:
+        description: the bus a generator sits on
+        over: [generator, bus]
+        key: generator
+      Link_bus0:
+        description: the bus a link leaves
+        over: [link, bus]
+        key: link
+      Link_output_link:
+        description: the link an output port belongs to
+        over: [link_output, link]
+        key: link_output
+      Link_output_bus:
+        description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
+          output ports is three labels here rather than a third lookup, so the file states any number of them
+        over: [link_output, bus]
+        key: link_output
+      Load_bus:
+        description: the bus a load sits on
+        over: [load, bus]
+        key: load
+      StorageUnit_bus:
+        description: the bus a storage unit sits on
+        over: [storage_unit, bus]
+        key: storage_unit
+      Store_bus:
+        description: the bus a store sits on
+        over: [store, bus]
+        key: store
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -809,7 +829,7 @@ The tables this rung is the first to declare (31), as the prep produced them:
 `StorageUnit_bus.csv`
 
 ```csv
-storage_unit,StorageUnit_bus
+storage_unit,bus
 battery,south
 reservoir,south
 ```
@@ -985,7 +1005,7 @@ snapshot,storage_unit,value
 `Store_bus.csv`
 
 ```csv
-store,Store_bus
+store,bus
 cavern,south
 ```
 

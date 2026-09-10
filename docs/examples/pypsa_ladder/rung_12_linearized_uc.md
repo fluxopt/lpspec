@@ -253,13 +253,27 @@ $$\mathit{dn}_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g 
           data prep'}
       load: {description: 'demands, each on one bus'}
     lookups:
-      Generator_bus: {description: the bus a generator sits on, over: [generator, bus], key: generator}
-      Link_bus0: {description: the bus a link leaves, over: [link, bus], key: link}
-      Link_output_link: {description: the link an output port belongs to, over: [link_output, link], key: link_output}
-      Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-          A link of three output ports is three labels here rather than a third lookup, so the file states
-          any number of them', over: [link_output, bus], key: link_output}
-      Load_bus: {description: the bus a load sits on, over: [load, bus], key: load}
+      Generator_bus:
+        description: the bus a generator sits on
+        over: [generator, bus]
+        key: generator
+      Link_bus0:
+        description: the bus a link leaves
+        over: [link, bus]
+        key: link
+      Link_output_link:
+        description: the link an output port belongs to
+        over: [link_output, link]
+        key: link_output
+      Link_output_bus:
+        description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
+          output ports is three labels here rather than a third lookup, so the file states any number of them
+        over: [link_output, bus]
+        key: link_output
+      Load_bus:
+        description: the bus a load sits on
+        over: [load, bus]
+        key: load
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -726,7 +740,7 @@ The tables this rung is the first to declare (35), as the prep produced them:
 `Generator_bus.csv`
 
 ```csv
-generator,Generator_bus
+generator,bus
 coal,north
 cold12,south
 gas,south
@@ -948,7 +962,7 @@ uc12,1
 `Link_bus0.csv`
 
 ```csv
-link,Link_bus0
+link,bus
 wire,north
 ```
 
@@ -972,14 +986,14 @@ snapshot,link,value
 `Link_output_bus.csv`
 
 ```csv
-link_output,Link_output_bus
+link_output,bus
 wire_bus1,south
 ```
 
 `Link_output_link.csv`
 
 ```csv
-link_output,Link_output_link
+link_output,link
 wire_bus1,wire
 ```
 
@@ -1013,7 +1027,7 @@ wire,40.0
 `Load_bus.csv`
 
 ```csv
-load,Load_bus
+load,bus
 north_load,north
 south_load,south
 swing12,north

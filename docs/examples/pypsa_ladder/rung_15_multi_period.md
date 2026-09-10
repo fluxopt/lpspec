@@ -171,15 +171,35 @@ $$P_{g} \in \mathbb{R} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\th
       load: {description: 'demands, each on one bus'}
       carrier: {description: 'energy carriers, what a growth limit is set per'}
     lookups:
-      snapshot_period: {description: the investment period a snapshot falls in, over: [snapshot, period], key: snapshot}
-      Generator_carrier: {description: the carrier a generator converts from, over: [generator, carrier], key: generator}
-      Generator_bus: {description: the bus a generator sits on, over: [generator, bus], key: generator}
-      Link_bus0: {description: the bus a link leaves, over: [link, bus], key: link}
-      Link_output_link: {description: the link an output port belongs to, over: [link_output, link], key: link_output}
-      Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-          A link of three output ports is three labels here rather than a third lookup, so the file states
-          any number of them', over: [link_output, bus], key: link_output}
-      Load_bus: {description: the bus a load sits on, over: [load, bus], key: load}
+      snapshot_period:
+        description: the investment period a snapshot falls in
+        over: [snapshot, period]
+        key: snapshot
+      Generator_carrier:
+        description: the carrier a generator converts from
+        over: [generator, carrier]
+        key: generator
+      Generator_bus:
+        description: the bus a generator sits on
+        over: [generator, bus]
+        key: generator
+      Link_bus0:
+        description: the bus a link leaves
+        over: [link, bus]
+        key: link
+      Link_output_link:
+        description: the link an output port belongs to
+        over: [link_output, link]
+        key: link_output
+      Link_output_bus:
+        description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
+          output ports is three labels here rather than a third lookup, so the file states any number of them
+        over: [link_output, bus]
+        key: link_output
+      Load_bus:
+        description: the bus a load sits on
+        over: [load, bus]
+        key: load
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -562,7 +582,7 @@ snapshot,generator,value
 `Generator_bus.csv`
 
 ```csv
-generator,Generator_bus
+generator,bus
 gas30,south
 old_gas,north
 wind20,north
@@ -592,7 +612,7 @@ wind30,0.5
 `Generator_carrier.csv`
 
 ```csv
-generator,Generator_carrier
+generator,carrier
 gas30,gas
 old_gas,gas
 wind20,wind
@@ -770,7 +790,7 @@ wind30,0.0
 `Link_bus0.csv`
 
 ```csv
-link,Link_bus0
+link,bus
 wire15,north
 ```
 
@@ -798,14 +818,14 @@ snapshot,link,value
 `Link_output_bus.csv`
 
 ```csv
-link_output,Link_output_bus
+link_output,bus
 wire15_bus1,south
 ```
 
 `Link_output_link.csv`
 
 ```csv
-link_output,Link_output_link
+link_output,link
 wire15_bus1,wire15
 ```
 
@@ -847,7 +867,7 @@ wire15,60.0
 `Load_bus.csv`
 
 ```csv
-load,Load_bus
+load,bus
 port15,south
 town15,north
 ```
@@ -955,7 +975,7 @@ snapshot
 `snapshot_period.csv`
 
 ```csv
-snapshot,snapshot_period
+snapshot,period
 2020-01-01T00:00:00.000000,2020
 2020-01-01T01:00:00.000000,2020
 2020-01-01T02:00:00.000000,2020

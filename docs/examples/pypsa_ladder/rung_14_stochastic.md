@@ -200,13 +200,27 @@ $$CVaR \in \mathbb{R}$$
           data prep'}
       load: {description: 'demands, each on one bus'}
     lookups:
-      Generator_bus: {description: the bus a generator sits on, over: [generator, bus], key: generator}
-      Link_bus0: {description: the bus a link leaves, over: [link, bus], key: link}
-      Link_output_link: {description: the link an output port belongs to, over: [link_output, link], key: link_output}
-      Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-          A link of three output ports is three labels here rather than a third lookup, so the file states
-          any number of them', over: [link_output, bus], key: link_output}
-      Load_bus: {description: the bus a load sits on, over: [load, bus], key: load}
+      Generator_bus:
+        description: the bus a generator sits on
+        over: [generator, bus]
+        key: generator
+      Link_bus0:
+        description: the bus a link leaves
+        over: [link, bus]
+        key: link
+      Link_output_link:
+        description: the link an output port belongs to
+        over: [link_output, link]
+        key: link_output
+      Link_output_bus:
+        description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
+          output ports is three labels here rather than a third lookup, so the file states any number of them
+        over: [link_output, bus]
+        key: link_output
+      Load_bus:
+        description: the bus a load sits on
+        over: [load, bus]
+        key: load
     parameters:
       scenario_weight:
         description: PyPSA's `scenario_weightings.weight` — the probability of a future
@@ -504,7 +518,7 @@ value
 `Generator_bus.csv`
 
 ```csv
-generator,Generator_bus
+generator,bus
 coal,north
 gas,south
 wind14,south
@@ -624,7 +638,7 @@ wind14,0.0
 `Link_bus0.csv`
 
 ```csv
-link,Link_bus0
+link,bus
 wire,north
 ```
 
@@ -648,14 +662,14 @@ snapshot,link,value
 `Link_output_bus.csv`
 
 ```csv
-link_output,Link_output_bus
+link_output,bus
 wire_bus1,south
 ```
 
 `Link_output_link.csv`
 
 ```csv
-link_output,Link_output_link
+link_output,link
 wire_bus1,wire
 ```
 
@@ -689,7 +703,7 @@ wire,40.0
 `Load_bus.csv`
 
 ```csv
-load,Load_bus
+load,bus
 north_load,north
 port14,south
 south_load,south

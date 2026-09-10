@@ -261,15 +261,35 @@ $$S_{k} \in \mathbb{R} \qquad \forall\thinspace k \in \mathcal{K} \thinspace:\th
       cycle: {description: 'independent cycles of the passive network graph — the cycle basis, data prep'}
       global_constraint: {description: 'PyPSA''s `GlobalConstraint` rows, one label per declared limit'}
     lookups:
-      Generator_bus: {description: the bus a generator sits on, over: [generator, bus], key: generator}
-      Link_bus0: {description: the bus a link leaves, over: [link, bus], key: link}
-      Link_output_link: {description: the link an output port belongs to, over: [link_output, link], key: link_output}
-      Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-          A link of three output ports is three labels here rather than a third lookup, so the file states
-          any number of them', over: [link_output, bus], key: link_output}
-      Load_bus: {description: the bus a load sits on, over: [load, bus], key: load}
-      Line_bus0: {description: the bus a line's flow is measured at, over: [line, bus], key: line}
-      Line_bus1: {description: the bus at a line's other end, over: [line, bus], key: line}
+      Generator_bus:
+        description: the bus a generator sits on
+        over: [generator, bus]
+        key: generator
+      Link_bus0:
+        description: the bus a link leaves
+        over: [link, bus]
+        key: link
+      Link_output_link:
+        description: the link an output port belongs to
+        over: [link_output, link]
+        key: link_output
+      Link_output_bus:
+        description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
+          output ports is three labels here rather than a third lookup, so the file states any number of them
+        over: [link_output, bus]
+        key: link_output
+      Load_bus:
+        description: the bus a load sits on
+        over: [load, bus]
+        key: load
+      Line_bus0:
+        description: the bus a line's flow is measured at
+        over: [line, bus]
+        key: line
+      Line_bus1:
+        description: the bus at a line's other end
+        over: [line, bus]
+        key: line
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -838,7 +858,7 @@ The tables this rung is the first to declare (16), as the prep produced them:
 `Line_bus0.csv`
 
 ```csv
-line,Line_bus0
+line,bus
 ab,a
 bc,b
 ca,c
@@ -849,7 +869,7 @@ ca3,c
 `Line_bus1.csv`
 
 ```csv
-line,Line_bus1
+line,bus
 ab,b
 bc,c
 ca,a
