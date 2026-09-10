@@ -276,7 +276,7 @@ xarray, from the `[linopy]` extra.
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
 | **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `save` |
 | **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default. One kind per call |
-| **`save` writes the whole answer** | `objective.parquet` says how the solve terminated — `status`, `termination_condition`, `objective`, `has_primal`, `spec_digest` — in the columns a sweep keys per slice, so cases solved apart concatenate. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `activity/<name>.parquet` and `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out, and `reasons.parquet` says why |
+| **`save` writes the whole answer** | `objective.parquet` says how the solve terminated — `status`, `termination_condition`, `objective`, `has_primal`, `spec_digest` — in the columns a sweep keys per slice, so cases solved apart concatenate. A solve that reached no objective writes null there rather than `nan`, so a mean over a set of cases is the mean over the ones that solved. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `activity/<name>.parquet` and `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out, and `reasons.parquet` says why |
 | **`load_result` reads it back whole** | every reader answers what it answered, and an absence raises the sentence the solve gave. Two session facts do not survive: `kept` reads `nothing`, and a refusal carries the termination condition rather than the solver's verbatim wording. The frames are read lazily, so the directory has to outlive the result |
 
 **Nothing has to be released.** `primal` and the `to_*` readers stay valid for
@@ -415,10 +415,35 @@ come back as the parquet paths they now are — the same type they went in as,
 Anything in the zip outside the layout is refused as not an archive `save`
 wrote, and nothing is extracted.
 
+**The extracted directory is a parquet tree.** A query engine reads it where
+it lands, under the `into` path `load_artifact` was given. Every frame is
+tidy: the model's own dimension columns, and a `value` column. An answer
+therefore joins to the sources it was solved from, on the coordinates both
+carry.
+
+```sql
+-- what each scenario cost, off a sweep archive extracted to study/
+select scenario, objective
+from 'study/answer/objective/*.parquet'
+where has_primal
+order by objective;
+
+-- generation priced by the load it met, answer joined to source
+select p.scenario, p.snapshot, p.generator, p.value, load.value as load
+from 'study/answer/primal/p/*.parquet' p
+join 'study/sources/load.parquet' load using (scenario, snapshot);
+```
+
+A sweep keys every file it writes with one column of one type. The files under
+a kind are one table, and the kinds join to each other on that key. What a file
+holds is named by its path, not by a column. Read a kind with a glob, and add
+the engine's own filename column where the declaration has to travel with the
+rows.
+
 | Rule | |
 |---|---|
 | **the spec is loaded on the way in** | a path or a mapping becomes a `Spec` in the constructor, so `artifact.spec` is one shape. A lowered `Program` is refused: it has no file to write |
-| **a saved answer is stamped with its layout** | `format.json` beside the frames. The layout moves while the package is on `0.0.1aN` and nothing reads an older one back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the model and the data to do that with |
+| **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving and counting from `1` the day it settles. Nothing reads an older layout back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the model and the data to do that with |
 | **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an artifact is built. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an answer paired with a different spec is refused rather than archived. A solve run off a lowered `Program` has no document and carries `None` |
 | **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. `SweepArtifact` requires it and `SolveArtifact` has no such field, so nothing has to police the pairing. `load_artifact` returns whichever the archive holds |
 | **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |

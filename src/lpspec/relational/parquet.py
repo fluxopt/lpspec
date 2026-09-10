@@ -33,14 +33,18 @@ KINDS = ('primal', 'dual', 'expression')
 LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expression'}
 
 
-#: What the layout under a directory looks like, bumped whenever it moves —
-#: a column added to the record, a kind that writes a new directory, a file
-#: beside them. **Compared, never branched on.** The project holds no
+#: What the layout under a directory looks like. **Zero while the layout is
+#: still moving**, and it starts counting at one the day that stops: a number
+#: spent on every move — a column added, a column's type changed, a kind that
+#: writes a new directory — says only that something changed, and the
+#: ``0.0.1aN`` stream says that already. So an answer another zero-era build
+#: wrote reads as current, and what the stamp catches is one written before
+#: there was a stamp. **Compared, never branched on.** The project holds no
 #: compatibility promise, so there is no version this reads an old layout
 #: back through; the number exists to turn a missing column into a sentence
-#: naming the recovery. The day something writes ``if version == 1`` it has
+#: naming the recovery. The day something writes ``if version == 0`` it has
 #: become the deprecation path this project refuses.
-ANSWER_FORMAT = 1
+ANSWER_FORMAT = 0
 FORMAT_FILE = 'format.json'
 
 
@@ -57,7 +61,8 @@ def check_format(directory: Path) -> None:
     directory that is simply not one gets that message rather than this.
 
     Raises:
-        LayoutError: The layout moved since it was written.
+        LayoutError: A stamp that is not this package's, which is every
+            answer written before there was one.
     """
     file = directory / FORMAT_FILE
     found = json.loads(file.read_text())['answer'] if file.is_file() else None
@@ -96,16 +101,38 @@ class Record(NamedTuple):
 
     status: str
     termination_condition: str
-    objective: float
+    #: What the solve reached, or ``None`` where it reached nothing. Null
+    #: rather than ``nan`` because this is a table column: nan is a *number*
+    #: to every aggregate that meets it, so one infeasible case among a
+    #: hundred would make the mean of the hundred nan, here and in any engine
+    #: reading the same files. :attr:`Result.objective` is a float and reads
+    #: it back as ``nan``, having no null to return.
+    objective: float | None
     #: Whether the solve produced values, which the condition alone does not
     #: say: a run stopped at a limit before any incumbent is ``ok`` with
     #: nothing to read.
     has_primal: bool
     #: :func:`digest_of` the spec this answered, or ``None`` where the solve
-    #: was run off a lowered program and there was no document to digest.
+    #: was run off a lowered program and there was no document to digest. Null
+    #: on disk, never an empty string, so a comparison table counts the
+    #: answers that named a document rather than one more distinct value.
     #: Carried so that answers written apart can be *told* to be comparable:
     #: one distinct value across a concatenated table means one spec.
     spec_digest: str | None
+
+
+#: :class:`Record`'s columns as they are written, so a row whose ``objective``
+#: or ``spec_digest`` is absent writes that column's own type holding null
+#: rather than the ``Null`` one polars would infer from a single row. Passed
+#: as ``schema_overrides``, so a sweep's key column beside them keeps the type
+#: its own value infers to.
+RECORD_SCHEMA = {
+    'status': pl.String,
+    'termination_condition': pl.String,
+    'objective': pl.Float64,
+    'has_primal': pl.Boolean,
+    'spec_digest': pl.String,
+}
 
 
 #: The two files that sit beside the frames, named here because a result and a

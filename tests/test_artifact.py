@@ -313,18 +313,20 @@ def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispat
     )
 
 
-def test_an_answer_in_an_older_layout_is_refused_by_name(
+def test_an_answer_in_another_layout_is_refused_by_name(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     """The layout moves while the package is on 0.0.1aN, so a stale one says so.
 
-    Nothing reads an older layout back — there is no migration and there will
+    Nothing reads another layout back — there is no migration and there will
     not be one — so the stamp exists to turn a missing column into a sentence
-    naming what to do instead.
+    naming what to do instead. The stamp stays zero while the layout moves, so
+    what it catches is an answer written before there was one; a number is
+    written here to reach the sentence from the other side too.
     """
     with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
         out = solved.save(tmp_path / 'solution')
-    (out / 'format.json').write_text(json.dumps({'answer': 0}))
+    (out / 'format.json').write_text(json.dumps({'answer': 1}))
 
     with pytest.raises(lps.LayoutError, match='solve the model again and save it'):
         lps.load_result(out)

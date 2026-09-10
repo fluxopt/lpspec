@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Literal
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
 from lpspec.relational.parquet import (
     RECORD_FILE,
+    RECORD_SCHEMA,
     Record,
     reader_kind,
     write_format,
@@ -628,7 +629,9 @@ class Result:
 
         ``objective.parquet`` holds the
         :class:`~lpspec.relational.parquet.Record` — how the solve terminated
-        and what it reached, in the columns a sweep keys and folds. Then
+        and what it reached, in the columns a sweep keys and folds. A solve
+        that reached no objective writes null there rather than ``nan``, so a
+        directory per case is a table an aggregate reads. Then
         ``primal/<name>.parquet`` for every variable, ``dual/<name>.parquet``
         for every constraint where the duals are defined, and
         ``expression/<name>.parquet`` for every named expression this data
@@ -665,8 +668,9 @@ class Result:
         primals = self._unclosed('the solution')
         out = Path(directory)
         write_format(out)
-        record = Record(self.status, self.termination_condition, self.objective, self.has_primal, self._spec_digest)
-        write_whole(pl.DataFrame([record._asdict()]), out / RECORD_FILE)
+        reached = self.objective if self.has_primal else None
+        record = Record(self.status, self.termination_condition, reached, self.has_primal, self._spec_digest)
+        write_whole(pl.DataFrame([record._asdict()], schema_overrides=RECORD_SCHEMA), out / RECORD_FILE)
         if not self._status.is_readable:
             return out
         for name, frame in primals.items():

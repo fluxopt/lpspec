@@ -382,13 +382,12 @@ def test_a_sweep_that_solved_nothing_blames_the_solve():
     runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
 
     assert len(runs) == 3, 'an unsolvable slice is still a row of the record'
-    assert runs.objective['objective'].is_nan().all()
+    assert runs.objective['objective'].null_count() == 3, 'no slice reached one, and none is written as nan'
     with pytest.raises(lps.LpspecError, match='holds no variable frames at all') as raised:
         runs.primal('p')
     assert 'infeasible' in str(raised.value), 'the message names what the slices actually did'
 
 
-@pytest.mark.xfail(reason='the fold writes nan, which no aggregate skips', strict=True)
 def test_a_slice_that_reached_no_objective_does_not_poison_the_sweep():
     """`objective` is a table, and in a table an absent number is null.
 
@@ -1371,7 +1370,6 @@ def test_save_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(pri
     assert reopened.scan('spend', 'expression').collect().equals(priced.expression('spend'))
 
 
-@pytest.mark.xfail(reason='the frames key through pl.lit, which reads an int as Int32', strict=True)
 def test_a_sweep_keys_every_file_it_writes_with_one_type(priced, tmp_path):
     """One key, one dtype, or the files a sweep writes are not one table.
 

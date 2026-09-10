@@ -444,7 +444,10 @@ def load_result(directory: str | Path) -> Result:
     Two things do not come back, both being facts about a session rather than
     about an answer: :attr:`~lpspec.relational.result.Result.kept` reads
     ``nothing``, this result holding no solver, and the solver's verbatim
-    wording behind a refusal is not recorded — the termination condition is.
+    wording behind a refusal is not recorded — the termination condition is. A
+    solve that reached no objective wrote null and reads back as ``nan``,
+    which is what :attr:`~lpspec.relational.result.Result.objective` has to
+    return, being a float.
 
     Args:
         directory: Where :meth:`~lpspec.relational.result.Result.save` wrote
@@ -470,8 +473,9 @@ def load_result(directory: str | Path) -> Result:
     check_format(out)
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
     status = SolveStatus(record.termination_condition, has_primal=record.has_primal)
+    objective = float('nan') if record.objective is None else record.objective
     if not status.is_readable:
-        return Result(status, record.objective, {}, {}, {}, 'nothing', _spec_digest=record.spec_digest)
+        return Result(status, objective, {}, {}, {}, 'nothing', _spec_digest=record.spec_digest)
 
     no_duals, no_expressions = read_reasons(out)
     expressions: dict[str, Callable[[], pl.DataFrame]] = {
@@ -480,7 +484,7 @@ def load_result(directory: str | Path) -> Result:
     expressions.update({name: _absent(why) for name, why in no_expressions.items()})
     return Result(
         status,
-        record.objective,
+        objective,
         _saved_frames(out / 'primal'),
         _saved_frames(out / 'dual'),
         _saved_frames(out / 'activity'),

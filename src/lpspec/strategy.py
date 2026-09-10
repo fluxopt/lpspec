@@ -42,6 +42,7 @@ from lpspec.frames import as_frame
 from lpspec.relational.parquet import (
     KINDS,
     LABELS,
+    RECORD_SCHEMA,
     Record,
     check_format,
     read_reasons,
@@ -264,8 +265,16 @@ class _OriginalIndex:
 
 
 def _keyed(frame: pl.DataFrame, key_name: str, key: Label) -> pl.DataFrame:
-    """*frame* with the slice key prepended — the shape every reader returns."""
-    return frame.select(pl.lit(key).alias(key_name), pl.all())
+    """*frame* with the slice key prepended — the shape every reader returns.
+
+    The literal takes the dtype *key* infers to as a column value rather than
+    ``pl.lit``'s own, which reads a Python int as ``Int32`` where every
+    dict-built frame here reads it as ``Int64``. A sweep whose record and
+    whose frames disagree about the type of its own key still joins in polars
+    and still casts in duckdb, but cannot be concatenated or loaded into one
+    typed table — and the files outlive the process that could paper over it.
+    """
+    return frame.select(pl.lit(key, dtype=pl.Series([key]).dtype).alias(key_name), pl.all())
 
 
 @dataclass(frozen=True)
@@ -338,7 +347,10 @@ class _Spill:
             for name, frame in produced.items():
                 write_whole(_keyed(frame, self.key_name, key), self._file(kind, position, name))
         write_whole(pl.DataFrame([{self.key_name: key, **answer.cost}]), self._file('diagnostics', position))
-        write_whole(pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}]), self._file('objective', position))
+        write_whole(
+            pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}], schema_overrides=RECORD_SCHEMA),
+            self._file('objective', position),
+        )
         return replace(answer, primals={}, duals={}, expressions={})
 
     def read_back(self, position: int) -> _Answer:
@@ -661,7 +673,9 @@ class Runs:
     #: ``(key, status, termination_condition, objective, has_primal, spec_digest)``,
     #: in slice order — how every slice terminated, whether or not it produced
     #: an answer, ``has_primal`` saying which of the two it was and ``spec_digest``
-    #: which document every slice answered.
+    #: which document every slice answered. A slice that reached no objective
+    #: holds null there rather than ``nan``, so the column aggregates over the
+    #: slices that solved.
     objective: pl.DataFrame
     #: ``(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)``,
     #: in slice order — :meth:`~lpspec.api.Model.diagnostics` one dimension
@@ -739,7 +753,7 @@ class Runs:
                         into[name].append(_keyed(frame, key_name, key))
         return cls(
             key_name=key_name,
-            objective=pl.DataFrame(rows),
+            objective=pl.DataFrame(rows, schema_overrides=RECORD_SCHEMA),
             diagnostics=pl.DataFrame(costs),
             _primals=dict(primals),
             _duals=dict(duals),
@@ -1388,7 +1402,7 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
     meta = Record(
         status=result.status,
         termination_condition=result.termination_condition,
-        objective=result.objective if result.has_primal else float('nan'),
+        objective=result.objective if result.has_primal else None,
         has_primal=result.has_primal,
         spec_digest=result.spec_digest,
     )

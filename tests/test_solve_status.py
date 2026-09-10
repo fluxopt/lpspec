@@ -183,10 +183,9 @@ def test_a_solve_that_left_no_values_writes_the_record_and_no_frames(tmp_path):
     )
     record = pl.read_parquet(out / 'objective.parquet')
     assert record.row(0, named=True)['termination_condition'] == 'infeasible'
-    assert record['objective'].is_nan().to_list() == [True], 'nan, as the reader reports it'
+    assert record['objective'].to_list() == [None], 'no objective was reached, so the column holds none'
 
 
-@pytest.mark.xfail(reason='the record writes nan, which no aggregate skips', strict=True)
 def test_a_case_that_reached_no_objective_does_not_poison_the_others(tmp_path):
     """A directory per case is a table, and in a table an absent number is null.
 
@@ -206,6 +205,31 @@ def test_a_case_that_reached_no_objective_does_not_poison_the_others(tmp_path):
     assert table['objective'].mean() == table.filter('has_primal')['objective'].item(), (
         'so the mean over the cases is the mean over the ones that solved'
     )
+
+
+def test_a_case_with_no_spec_digest_concatenates_with_one_that_has_it(tmp_path):
+    """The same claim on the other nullable column, which is the record's own.
+
+    A solve run off a lowered program has no document to digest, so its
+    record's `spec_digest` is absent. Inferred from the row it would be a
+    `Null` column rather than an empty `String` one, and concatenating cases
+    solved apart is what the record is written for: `Null` first refuses the
+    string that follows it, and string first widens. An order the reader
+    happens to pick is not a schema. The columns are declared instead, so an
+    absence is that column's own type holding none.
+    """
+    spec, sources = CASES['LP']
+    for name, model in (('document', spec), ('lowered', lps.check(spec))):
+        with lps.solve(model, sources) as solution:
+            solution.save(tmp_path / name)
+
+    each = {name: pl.read_parquet(tmp_path / name / 'objective.parquet') for name in ('document', 'lowered')}
+    assert [frame.schema['spec_digest'] for frame in each.values()] == [pl.String, pl.String], (
+        'a string column wherever it is written, whether or not this solve named a document'
+    )
+    assert each['lowered']['spec_digest'].to_list() == [None], 'a solve off a lowered program names none'
+    both = pl.concat([each['lowered'], each['document']])
+    assert both['spec_digest'].null_count() == 1, 'and the two concatenate whichever is read first'
 
 
 # ---------------------------------------------------------------------------
