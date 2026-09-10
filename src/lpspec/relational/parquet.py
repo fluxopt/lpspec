@@ -43,6 +43,10 @@ class Record(NamedTuple):
     status: str
     termination_condition: str
     objective: float
+    #: Whether the solve produced values, which the condition alone does not
+    #: say: a run stopped at a limit before any incumbent is ``ok`` with
+    #: nothing to read.
+    has_primal: bool
 
 
 def reader_kind(kind: str) -> str:

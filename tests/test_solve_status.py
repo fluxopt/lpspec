@@ -177,7 +177,7 @@ def test_a_solve_that_left_no_values_writes_the_record_and_no_frames(tmp_path):
     still raises — there is none — and that is the test above.
     """
     with lps.solve(*CASES['INFEASIBLE']) as solution:
-        out = solution.to_parquet(tmp_path / 'infeasible')
+        out = solution.save(tmp_path / 'infeasible')
     assert [entry.name for entry in out.iterdir()] == ['objective.parquet'], (
         'no values, so no primal/, dual/ or expression/'
     )

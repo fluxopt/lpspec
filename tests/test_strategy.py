@@ -251,7 +251,7 @@ def test_a_scenario_sweep_solves_each_slice_and_keys_the_answers(sweep):
 
     assert len(runs) == 3
     assert runs.keys == ['high', 'low', 'mid'], 'keys come back sorted, not in data order'
-    assert runs.objective.columns == ['scenario', 'status', 'termination_condition', 'objective']
+    assert runs.objective.columns == ['scenario', 'status', 'termination_condition', 'objective', 'has_primal']
     assert set(runs.primal('p').columns) == {'scenario', 'snapshot', 'generator', 'value'}
     assert runs.primal('p').height == 3 * 4 * 2
 
@@ -1313,11 +1313,11 @@ def test_every_bridge_takes_a_kind_on_a_sweep(priced):
         priced.to_pandas('soc', 'objective')
 
 
-def test_to_parquet_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(priced, builds, tmp_path):
-    """`to_parquet` is the spill after the fact: the same layout, all three
+def test_save_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(priced, builds, tmp_path):
+    """`save` is the spill after the fact: the same layout, all three
     kinds and the record, so `scan` reads it and the same call pointed at it
     with `to=` reads it back without solving a slice."""
-    out = priced.to_parquet(tmp_path / 'sweep')
+    out = priced.save(tmp_path / 'sweep')
     assert out == tmp_path / 'sweep', 'the directory comes back, not a dict nobody indexes'
     assert sorted(p.name for p in out.iterdir()) == [
         'diagnostics',
@@ -1351,7 +1351,7 @@ def test_a_saved_result_carries_the_row_a_sweep_keys(sweep, tmp_path):
     sources = scenario_sources()
     low = {**sources, 'load': sources['load'].filter(pl.col('scenario') == 'low').drop('scenario')}
     with lps.solve(DISPATCH, low) as alone:
-        one = pl.read_parquet(alone.to_parquet(tmp_path / 'low') / 'objective.parquet')
+        one = pl.read_parquet(alone.save(tmp_path / 'low') / 'objective.parquet')
 
     assert one.columns == [column for column in sweep.objective.columns if column != sweep.key_name], (
         'the fold keys the record it writes; a lone solve writes the same columns unkeyed'
@@ -1367,7 +1367,7 @@ def test_a_saved_result_carries_the_row_a_sweep_keys(sweep, tmp_path):
     )
 
 
-@pytest.mark.parametrize('export', ['to_dataset', 'to_parquet'], ids=['to_dataset', 'to_parquet'])
+@pytest.mark.parametrize('export', ['to_dataset', 'save'], ids=['to_dataset', 'save'])
 def test_a_bulk_export_of_a_sweep_that_solved_nothing_is_refused(export, tmp_path):
     """Neither export writes an empty answer: a sweep every slice of which was
     infeasible holds no variable frames, and both refuse with the same
@@ -1377,7 +1377,7 @@ def test_a_bulk_export_of_a_sweep_that_solved_nothing_is_refused(export, tmp_pat
     sources['load'] = sources['load'].with_columns(pl.col('value') + 1_000)
     runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
 
-    arguments = (tmp_path / 'sweep',) if export == 'to_parquet' else ()
+    arguments = (tmp_path / 'sweep',) if export == 'save' else ()
     with pytest.raises(lps.LpspecError, match='holds no variable frames at all'):
         getattr(runs, export)(*arguments)
     assert not (tmp_path / 'sweep').exists(), 'a refused export leaves no directory behind'
@@ -1852,7 +1852,7 @@ def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_
         pytest.param(lambda runs: runs.primal('soc'), id='primal'),
         pytest.param(lambda runs: runs.dual('balance'), id='dual'),
         pytest.param(lambda runs: runs.expression('spend'), id='expression'),
-        pytest.param(lambda runs: runs.to_parquet('elsewhere'), id='to_parquet'),
+        pytest.param(lambda runs: runs.save('elsewhere'), id='save'),
         pytest.param(lambda runs: runs.to_dataset(), id='to_dataset'),
     ],
 )

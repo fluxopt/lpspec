@@ -32,6 +32,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
 | `lps.pack(spec, sources, out)` | the file and its data as one zip: [Archiving a model](#archiving-a-model) |
 | `lps.unpack(path, into)` | the `Spec` and the sources as parquet paths, in the shape every verb takes |
+| `lps.load_result(source)` | an answer `result.save(dir)` wrote, read back as a `Result` |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
 | `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` or `math_spec.program.Program` |
@@ -249,9 +250,10 @@ result.to_dataarray('p')  # the same, labelled: .sel / resample / plot
 result.to_dataarray('power_balance', 'dual')  # a price, labelled — every bridge takes kind=
 result.to_dataset()  # every variable by default; names for a subset
 result.to_dataset(kind='dual')  # every dual; one kind per dataset
-result.to_parquet(
+result.save(
     directory
-)  # the record and every kind: objective.parquet, primal/ dual/ expression/; primals streamed, never through this process
+)  # the whole answer to disk: objective.parquet, primal/ dual/ activity/ expression/, reasons.parquet
+lps.load_result(directory)  # and back, every reader answering what it answered
 ```
 
 **`primal` returns a `polars.DataFrame`**, one row per coordinate: a *frame*.
@@ -262,14 +264,15 @@ xarray, from the `[linopy]` extra.
 | Rule | |
 |---|---|
 | **`is_ok` is not `has_primal`** | `is_ok` rolls up the termination condition. `has_primal` adds the solver's verdict on whether an incumbent exists, and every reader gates on it. A MIP that hits `time_limit` before a feasible point is `ok` with nothing to read |
-| **reading with no primal raises** | `NoSolutionError`; `objective` is `nan`. `to_parquet` is the exception: it writes the record and no frames, an infeasible run being an answer a set of saved cases needs on disk |
+| **reading with no primal raises** | `NoSolutionError`; `objective` is `nan`. `save` is the exception: it writes the record and no frames, an infeasible run being an answer a set of saved cases needs on disk |
 | **`expression` takes a declared name** | the value of a [named expression](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions) at the solution, aggregated to its own dimensions; never an expression string. An unknown name is a `KeyError` listing what is declared. It is compiled at the read, so unread expressions cost nothing |
 | **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `LpspecError`. Any integer or binary variable makes duals undefined |
 | **a solver can make a model mixed-integer** | an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set reaches a solver with no SOS concept as binaries, so an otherwise continuous model solved on `highs` has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
-| **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `to_parquet` |
+| **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `save` |
 | **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default. One kind per call |
-| **`to_parquet` writes the record and every kind** | `objective.parquet` says how the solve terminated — `status`, `termination_condition`, `objective` — in the columns a sweep keys per slice, so cases solved apart concatenate. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out; `dual` and `expression` still say why |
+| **`save` writes the whole answer** | `objective.parquet` says how the solve terminated — `status`, `termination_condition`, `objective`, `has_primal` — in the columns a sweep keys per slice, so cases solved apart concatenate. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `activity/<name>.parquet` and `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out, and `reasons.parquet` says why |
+| **`load_result` reads it back whole** | every reader answers what it answered, and an absence raises the sentence the solve gave. Two session facts do not survive: `kept` reads `nothing`, and a refusal carries the termination condition rather than the solver's verbatim wording. The frames are read lazily, so the directory has to outlive the result |
 
 **Nothing has to be released.** `primal` and the `to_*` readers stay valid for
 as long as the `Result` does. `close()` and the context-manager protocol hand a

@@ -60,7 +60,7 @@ def unknown_keep_message(keep: object) -> str:
 _NEEDS_THE_EXTRA = (
     '{module} ships with the [linopy] extra rather than with the engine, so this build cannot bridge out '
     'to it: pip install "lpspec[linopy]". A result needs nothing added to be read as it stands — primal() '
-    'and dual() return polars frames, and to_parquet() writes one file per declaration.'
+    'and dual() return polars frames, and save() writes one file per declaration.'
 )
 
 
@@ -457,9 +457,10 @@ class Result:
         """*frames*, or why they cannot be read — closed first, then the status."""
         self._unclosed(what)
         if not self._status.is_readable:
+            wording = f' ({self._status.solver_wording})' if self._status.solver_wording else ''
             raise NoSolutionError(
-                f'cannot read {what}: the solve terminated {self.termination_condition!r} '
-                f'({self._status.solver_wording}), so there are no values to read. Test '
+                f'cannot read {what}: the solve terminated {self.termination_condition!r}'
+                f'{wording}, so there are no values to read. Test '
                 f'`has_primal` first. This raises rather than returning, because the solver '
                 f'hands back a full-length vector of zeros either way and it is '
                 f'indistinguishable from an answer.'
@@ -592,7 +593,7 @@ class Result:
         One kind per call: a dual and a variable of the same name would
         collide, and mean something else per row. Each arrives dense over its
         own dims, all at once — on a large model name the few you need, or use
-        :meth:`to_parquet`, which writes every kind.
+        :meth:`save`, which writes every kind.
 
         Args:
             names: What to include; none means every name of *kind*.
@@ -600,7 +601,7 @@ class Result:
         """
         return tidy_to_dataset(names or self._names(kind), lambda name: self.to_dataarray(name, kind))
 
-    def to_parquet(self, directory: str | Path) -> Path:
+    def save(self, directory: str | Path) -> Path:
         """Every kind this solve answered with, one file per name, into *directory*.
 
         ``objective.parquet`` holds the
@@ -641,7 +642,7 @@ class Result:
 
         primals = self._unclosed('the solution')
         out = Path(directory)
-        record = Record(self.status, self.termination_condition, self.objective)
+        record = Record(self.status, self.termination_condition, self.objective, self.has_primal)
         write_whole(pl.DataFrame([record._asdict()]), out / 'objective.parquet')
         if not self._status.is_readable:
             return out

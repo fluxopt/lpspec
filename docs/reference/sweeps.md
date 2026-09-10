@@ -12,7 +12,7 @@ fold.
 import lpspec as lps
 
 runs = lps.solve_over('spec.yaml', sources, lps.EachCoordinate('scenario'))
-runs.objective  # (scenario, status, termination_condition, objective)
+runs.objective  # (scenario, status, termination_condition, objective, has_primal)
 runs.primal('p')  # (scenario, snapshot, generator, value)
 ```
 
@@ -89,7 +89,7 @@ how a model masks, so the gap is reported rather than refused.
 
 **`Runs` reads like [`Result`](api.md#reading-a-result), one dimension wider.**
 `primal`, `dual`, `expression`, `to_pandas`, `to_dataarray`, `to_dataset` and
-`to_parquet` keep their names, and every table has the slice key prepended.
+`save` keep their names, and every table has the slice key prepended.
 
 **You name the extra dimension, not the library.** `EachCoordinate('scenario')`
 keys on `scenario`, so `runs.to_dataarray('p')` is
@@ -126,14 +126,14 @@ each window started, records which coordinates each one owns, and stitches.
 ```
 
 **Keyed is the default, because stitching is lossy.** It drops the lookahead
-rows the sweep solved. For the same reason `to_dataset` and `to_parquet` have
+rows the sweep solved. For the same reason `to_dataset` and `save` have
 no `original_index`.
 
 **`original_index` sits beside `kind=` where a reader has one**, so
 `runs.to_dataarray('balance', 'dual', original_index=True)` is the stitched
 price over time.
 
-**`to_parquet` writes every kind.** `runs.to_parquet('runs/')` writes what
+**`save` writes every kind.** `runs.save('runs/')` writes what
 `to=` would have written, so the directory is a spilled sweep. `scan` reads it,
 and the call that made the sweep, pointed at it with `to=`, reads it back
 without solving.
@@ -153,7 +153,7 @@ already hold: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 | **a hand-built axis names its own key** | A plain list cannot say what its keys are labels *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name on any axis. It is refused only when it collides with a column the tables already carry: a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective`. |
 | **`runs.diagnostics` says what each slice cost** | One row per slice, `(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)`: `model.diagnostics()` one dimension wider, its counts and clocks only. `loaded` says the solver took the model from scratch. A serial sweep loads once and pushes values after, so a later `True` is a slice whose data moved a mask; under `executor=` every slice loads. The clocks are that slice's own seconds. |
 | **a slice that fails says which slice** | The error is the engine's own, with a note on it: `in slice 'bad' (3 of 3)`. |
-| **a sweep's memory grows with its answer, unless it is spilled** | The models are released as the fold goes; the tables accumulate. `to=` writes them out instead ([below](#spilling-a-sweep-to-disk)), and `to_parquet` writes a held sweep out the same way, after the fact. |
+| **a sweep's memory grows with its answer, unless it is spilled** | The models are released as the fold goes; the tables accumulate. `to=` writes them out instead ([below](#spilling-a-sweep-to-disk)), and `save` writes a held sweep out the same way, after the fact. |
 
 ## Spilling a sweep to disk
 

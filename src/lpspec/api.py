@@ -2,8 +2,9 @@
 
 Math is defined in YAML only — there is no Python API for constructing specs,
 and the logical plan is internal. Four verbs run a model: ``check``, ``build``
-(YAML + sources → a :class:`Model`), ``solve`` and ``write``. Two carry one:
-``pack`` puts the file and its data in one archive, ``unpack`` takes them out.
+(YAML + sources → a :class:`Model`), ``solve`` and ``write``. Three carry one:
+``pack`` puts the file and its data in one archive, ``unpack`` takes them out,
+and ``load_result`` reads back an answer :meth:`Result.save` wrote.
 
 This is the relational lane (docs/about/architecture.md): validated at load
 time, lowered to the plan, executed relationally. The same file builds as a
@@ -32,6 +33,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Literal
 
+import polars as pl
 from math_spec import advice, to_program, to_spec
 from math_spec.program import Program
 
@@ -39,18 +41,21 @@ from lpspec.errors import DataError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
+from lpspec.relational.parquet import Record
+from lpspec.relational.result import Result
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
+from lpspec.relational.status import SolveStatus
 from lpspec.sources import attachable, supplied, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from math_spec import Spec
 
-    from lpspec.relational.result import ConstraintRow, Diagnostics, Keep, Result
+    from lpspec.relational.result import ConstraintRow, Diagnostics, Keep
 
-__all__ = ['build', 'check', 'pack', 'solve', 'unpack', 'write']
+__all__ = ['build', 'check', 'load_result', 'pack', 'solve', 'unpack', 'write']
 
 
 def _portability(program: Program, sink: str) -> tuple[str | None, list[str]]:
@@ -395,6 +400,91 @@ def write(
     with build(spec, sources) as model:
         model.write(out)
     return out
+
+
+def _saved_frames(under: Path) -> dict[str, pl.LazyFrame]:
+    """Every ``<name>.parquet`` under *under*, keyed by name; empty where it does not exist.
+
+    Lazy, so loading a large answer reads nothing until a reader asks: the
+    kinds a solve did not answer with are simply missing directories, which is
+    how the writer says a kind is absent.
+    """
+    if not under.is_dir():
+        return {}
+    return {file.stem: pl.scan_parquet(file) for file in sorted(under.glob('*.parquet'))}
+
+
+def _absent(reason: str) -> Callable[[], pl.DataFrame]:
+    """A named expression's reader, for one the solve could not evaluate.
+
+    The reader is the contract for an expression (deferred, called at the
+    read), so a value that was never produced has to fail *there* — with the
+    sentence the solve gave, which ``reasons.parquet`` carries for exactly
+    this.
+    """
+
+    def read() -> pl.DataFrame:
+        raise LpspecError(reason)
+
+    return read
+
+
+def load_result(source: str | Path) -> Result:
+    """Read back an answer :meth:`Result.save` wrote — a solve, off disk.
+
+    Every reader answers what it answered in the session that solved: the
+    values, the duals and activities, each named expression, and the reason
+    behind anything the solve could not produce. A `Result` is frames and a
+    few scalars, so none of it needs the build that made it or the solver
+    that filled it — which is what makes an archived answer comparable with
+    one solved today.
+
+    Two things do not come back, both being facts about a session rather than
+    about an answer: :attr:`~lpspec.relational.result.Result.kept` reads
+    ``nothing``, this result holding no solver, and the solver's verbatim
+    wording behind a refusal is not recorded — the termination condition is.
+
+    Args:
+        source: A directory :meth:`~lpspec.relational.result.Result.save`
+            wrote.
+
+    Returns:
+        The result, reading lazily from *source*: the files stay where they
+        are, so the directory has to outlive what is read off it.
+
+    Raises:
+        DataError: A directory holding no ``objective.parquet``, which is
+            what every answer written there carries.
+    """
+    out = Path(source)
+    record_file = out / 'objective.parquet'
+    if not record_file.is_file():
+        raise DataError(
+            f"{str(out)!r} holds no 'objective.parquet', so it is not an answer save() wrote. Every one "
+            f'carries that record whether or not the solve produced values.'
+        )
+    record = Record(**pl.read_parquet(record_file).row(0, named=True))
+    status = SolveStatus(record.termination_condition, has_primal=record.has_primal)
+    if not status.is_readable:
+        return Result(status, record.objective, {}, {}, {}, 'nothing')
+
+    reasons = out / 'reasons.parquet'
+    absent: list[tuple[str, str, str]] = pl.read_parquet(reasons).rows() if reasons.is_file() else []
+    no_duals = next((reason for kind, _, reason in absent if kind == 'dual'), None)
+    expressions: dict[str, Callable[[], pl.DataFrame]] = {
+        name: (lambda frame=frame: frame.collect()) for name, frame in _saved_frames(out / 'expression').items()
+    }
+    expressions.update({name: _absent(reason) for kind, name, reason in absent if kind == 'expression'})
+    return Result(
+        status,
+        record.objective,
+        _saved_frames(out / 'primal'),
+        _saved_frames(out / 'dual'),
+        _saved_frames(out / 'activity'),
+        'nothing',
+        expressions,
+        no_duals,
+    )
 
 
 # ---------------------------------------------------------------------------

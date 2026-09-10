@@ -625,8 +625,9 @@ class Runs:
     """
 
     key_name: str
-    #: ``(key, status, termination_condition, objective)``, in slice order —
-    #: how every slice terminated, whether or not it produced an answer.
+    #: ``(key, status, termination_condition, objective, has_primal)``, in
+    #: slice order — how every slice terminated, whether or not it produced an
+    #: answer, ``has_primal`` saying which of the two it was.
     objective: pl.DataFrame
     #: ``(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)``,
     #: in slice order — :meth:`~lpspec.api.Model.diagnostics` one dimension
@@ -895,10 +896,10 @@ class Runs:
         One kind per call: a dual and a variable of the same name would
         collide, and mean something else per row. Costs more than
         ``Result``'s does — each name arrives dense over its own dims *and*
-        over every slice. Name the few you need, or use :meth:`to_parquet`,
+        over every slice. Name the few you need, or use :meth:`save`,
         which writes every kind.
 
-        No ``original_index``: this and :meth:`to_parquet` export what the
+        No ``original_index``: this and :meth:`save` export what the
         sweep *holds*, and the original index is lossy — a bulk export is the
         wrong place to drop the lookahead rows.
 
@@ -913,7 +914,7 @@ class Runs:
         """
         return tidy_to_dataset(names or self._names_held(kind), lambda name: self.to_dataarray(name, kind))
 
-    def to_parquet(self, directory: str | Path) -> Path:
+    def save(self, directory: str | Path) -> Path:
         """Everything the sweep holds, written as ``to=`` would have written it.
 
         The same layout: ``<kind>/<name>/<position>.parquet`` for every
@@ -1305,6 +1306,7 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
         status=result.status,
         termination_condition=result.termination_condition,
         objective=result.objective if result.has_primal else float('nan'),
+        has_primal=result.has_primal,
     )
     if not result.has_primal:
         return _Answer(meta, cost, {}, {}, {}, None, {})
