@@ -15,13 +15,14 @@ from __future__ import annotations
 
 import ast
 import inspect
-from typing import Any
+from typing import Any, NamedTuple
 
 import polars as pl
 import pytest
 
 import lpspec as lps
 from lpspec.errors import NoSolutionError
+from lpspec.relational.parquet import Record, _column_types
 from lpspec.relational.sinks.solvers.gurobi import _CONDITION_OF_GUROBI_STATUS, _LINOPY_DIVERGENCES
 from lpspec.relational.sinks.solvers.highs import _CONDITION_OF_HIGHS_STATUS
 from lpspec.relational.sinks.solvers.xpress import _CONDITION_OF_SOL_STATUS
@@ -205,6 +206,23 @@ def test_a_case_that_reached_no_objective_does_not_poison_the_others(tmp_path):
     assert table['objective'].mean() == table.filter('has_primal')['objective'].item(), (
         'so the mean over the cases is the mean over the ones that solved'
     )
+
+
+def test_a_record_column_that_names_no_written_type_is_refused_at_import():
+    """The schema is derived from `Record`, so a column added to it cannot skip declaring one.
+
+    Restated by hand it could: the next nullable column would go back to the
+    type polars infers from a single row — the defect the schema exists to
+    close, reintroduced with a green suite and nothing to show it.
+    """
+
+    class Unwritable(NamedTuple):
+        when: bytes
+
+    with pytest.raises(lps.LpspecError, match='_WRITTEN_AS'):
+        _column_types(Unwritable)
+
+    assert tuple(_column_types(Record)) == Record._fields, 'and Record itself derives all of its own'
 
 
 def test_a_case_with_no_spec_digest_concatenates_with_one_that_has_it(tmp_path):

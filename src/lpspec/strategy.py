@@ -264,17 +264,44 @@ class _OriginalIndex:
         return stitched if isinstance(frame, pl.LazyFrame) else stitched.collect()  # pyrefly: ignore[bad-return]  — the branch matches the frame's own kind
 
 
-def _keyed(frame: pl.DataFrame, key_name: str, key: Label) -> pl.DataFrame:
+def _one_key_type(keys: Sequence[Label], key_name: str) -> pl.DataType:
+    """The type every file writes *key_name* as, settled over the whole sweep.
+
+    Refused rather than coerced where the keys disagree: an ``int`` beside a
+    ``float`` would widen every key to a float, so a sweep keyed 1 and 2 would
+    read back keyed 1.0 and 2.0 — the caller's own labels, changed to make the
+    files line up.
+
+    Raises:
+        LpspecError: The keys are of more than one type.
+    """
+    try:
+        return pl.Series(keys).dtype
+    except TypeError as mixed:
+        kinds = sorted({type(key).__name__ for key in keys})
+        raise LpspecError(
+            f'the keys of this sweep are of more than one type ({", ".join(kinds)}), so its files could not '
+            f'all write {key_name!r} as one. Every file carries the key, and a column that changes type '
+            f'between them cannot be concatenated or loaded into one table. Key the slices consistently.'
+        ) from mixed
+
+
+def _keyed(frame: pl.DataFrame, key_name: str, key: Label, dtype: pl.DataType) -> pl.DataFrame:
     """*frame* with the slice key prepended — the shape every reader returns.
 
-    The literal takes the dtype *key* infers to as a column value rather than
-    ``pl.lit``'s own, which reads a Python int as ``Int32`` where every
-    dict-built frame here reads it as ``Int64``. A sweep whose record and
-    whose frames disagree about the type of its own key still joins in polars
-    and still casts in duckdb, but cannot be concatenated or loaded into one
-    typed table — and the files outlive the process that could paper over it.
+    The literal takes *dtype* rather than ``pl.lit``'s own, which reads a
+    Python int as ``Int32`` where every dict-built frame here reads it as
+    ``Int64``. A sweep whose record and whose frames disagree about the type
+    of its own key still joins in polars and still casts in duckdb, but cannot
+    be concatenated or loaded into one typed table — and the files outlive the
+    process that could paper over it.
+
+    *dtype* is the whole sweep's, never this key's: keys of ``[1, 2.5]`` infer
+    per file to ``Int64`` and ``Float64``, which is the same split one file
+    later, so the type has to be settled over the keys before any of them is
+    written.
     """
-    return frame.select(pl.lit(key, dtype=pl.Series([key]).dtype).alias(key_name), pl.all())
+    return frame.select(pl.lit(key, dtype=dtype).alias(key_name), pl.all())
 
 
 @dataclass(frozen=True)
@@ -295,6 +322,9 @@ class _Spill:
 
     directory: Path
     key_name: str
+    #: What every file writes the key column as — settled over the sweep's
+    #: keys by whoever opened this, never inferred per file.
+    key_dtype: pl.DataType
 
     @classmethod
     def opened(
@@ -302,17 +332,24 @@ class _Spill:
         directory: str | Path,
         key_name: str,
         keys: Sequence[Label],
+        key_dtype: pl.DataType,
         original: _OriginalIndex | None = None,
         hand_built: bool = False,
     ) -> _Spill:
         """The directory ready to take this sweep, or refused as another's.
 
+        A directory already holding a sweep is **checked**, never re-stamped:
+        resuming into one an earlier build wrote would otherwise overwrite the
+        layout it is in and mix two under one manifest, which is the one
+        failure the stamp exists to catch. Only a directory that holds no
+        sweep yet is stamped, and it is stamped with the manifest.
+
         Raises:
+            LayoutError: The directory holds a sweep in another layout.
             LpspecError: The directory holds a sweep keyed differently, or
                 over other keys.
         """
         directory = Path(directory)
-        write_format(directory)
         manifest: dict[str, Any] = {
             'key_name': key_name,
             'keys': [str(key) for key in keys],
@@ -321,6 +358,7 @@ class _Spill:
         }
         record = directory / _MANIFEST_FILE
         if record.exists():
+            check_format(directory)
             found = json.loads(record.read_text())
             if found != manifest:
                 raise LpspecError(
@@ -329,10 +367,11 @@ class _Spill:
                     f'point to= at an empty one, or delete this one to solve it again.'
                 )
         else:
+            write_format(directory)
             record.write_text(json.dumps(manifest))
             if original is not None:
                 write_whole(original.owned, directory / _OWNED_FILE)
-        return cls(directory, key_name)
+        return cls(directory, key_name, key_dtype)
 
     def _file(self, kind: str, position: int, name: str | None = None) -> Path:
         under = self.directory / kind if name is None else self.directory / kind / name
@@ -345,7 +384,7 @@ class _Spill:
         """*answer*'s frames and record on disk, and the answer with the frames released."""
         for kind, produced in zip(KINDS, (answer.primals, answer.duals, answer.expressions), strict=True):
             for name, frame in produced.items():
-                write_whole(_keyed(frame, self.key_name, key), self._file(kind, position, name))
+                write_whole(_keyed(frame, self.key_name, key, self.key_dtype), self._file(kind, position, name))
         write_whole(pl.DataFrame([{self.key_name: key, **answer.cost}]), self._file('diagnostics', position))
         write_whole(
             pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}], schema_overrides=RECORD_SCHEMA),
@@ -711,6 +750,7 @@ class Runs:
         hand_built: bool,
         answered: Generator[tuple[Any, _Answer], None, None],
         spill: _Spill | None,
+        key_dtype: pl.DataType,
     ) -> Runs:
         """Every slice's answer absorbed, in the order they arrive.
 
@@ -729,6 +769,8 @@ class Runs:
                 names no dimension to read the keys back over.
             answered: ``(key, answer)`` per slice, in slice order.
             spill: Where the frames went, or ``None`` where they are held.
+            key_dtype: What to write the key column as, settled over the
+                sweep's keys rather than inferred from each one.
         """
         rows: list[dict[str, Any]] = []
         costs: list[dict[str, Any]] = []
@@ -750,7 +792,7 @@ class Runs:
                     (expressions, answer.expressions),
                 ):
                     for name, frame in produced.items():
-                        into[name].append(_keyed(frame, key_name, key))
+                        into[name].append(_keyed(frame, key_name, key, key_dtype))
         return cls(
             key_name=key_name,
             objective=pl.DataFrame(rows, schema_overrides=RECORD_SCHEMA),
@@ -980,7 +1022,14 @@ class Runs:
                 spilled — its frames are in a directory already.
         """
         self._names_held('primal')
-        spill = _Spill.opened(directory, self.key_name, self.keys, self._original, self._hand_built)
+        spill = _Spill.opened(
+            directory,
+            self.key_name,
+            self.keys,
+            self.objective[self.key_name].dtype,
+            self._original,
+            self._hand_built,
+        )
         write_reasons(spill.directory, self._no_duals, self._no_expressions)
         by_key = {
             kind: {name: _by_key(frames, self.key_name) for name, frames in held.items()}
@@ -1078,9 +1127,11 @@ def load_runs(directory: str | Path) -> Runs:
     found = json.loads(manifest.read_text())
     original = found['original']
     no_duals, no_expressions = read_reasons(under)
+    key_name = found['key_name']
+    objective = pl.read_parquet(sorted((under / 'objective').glob('*.parquet')))
     return Runs(
-        key_name=found['key_name'],
-        objective=pl.read_parquet(sorted((under / 'objective').glob('*.parquet'))),
+        key_name=key_name,
+        objective=objective,
         diagnostics=pl.read_parquet(sorted((under / 'diagnostics').glob('*.parquet'))),
         _no_duals=no_duals,
         _no_expressions=no_expressions,
@@ -1088,7 +1139,7 @@ def load_runs(directory: str | Path) -> Runs:
         if original is None
         else _OriginalIndex(original['local'], original['dim'], pl.read_parquet(under / _OWNED_FILE)),
         _hand_built=found['hand_built'],
-        _spill=_Spill(under, found['key_name']),
+        _spill=_Spill(under, key_name, objective[key_name].dtype),
     )
 
 
@@ -1183,13 +1234,15 @@ def solve_over(
     if not slices:
         raise DataError('the axis produced no slices')
     solving = {'solver_name': solver_name, 'solver_options': dict(solver_options or {}) or None}
-    spill = None if to is None else _Spill.opened(to, key_name, [c.key for c in slices], original, hand_built)
+    keys = [current.key for current in slices]
+    key_dtype = _one_key_type(keys, key_name)
+    spill = None if to is None else _Spill.opened(to, key_name, keys, key_dtype, original, hand_built)
     answered = (
         _serially(program, slices, solving, plan, keep, spill)
         if executor is None
         else _pooled(executor, workers_share_fs, program, slices, solving, spill)
     )
-    folded = Runs._folded(key_name, original, hand_built, answered, spill)
+    folded = Runs._folded(key_name, original, hand_built, answered, spill, key_dtype)
     if spill is not None:
         write_reasons(spill.directory, folded._no_duals, folded._no_expressions)
     return folded

@@ -17,7 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, get_args, get_type_hints
 
 import polars as pl
 
@@ -121,18 +121,43 @@ class Record(NamedTuple):
     spec_digest: str | None
 
 
+#: What each Python type a record column is annotated with is written as.
+#: A column whose annotation is not here fails at import rather than at the
+#: write, which is the moment its author is choosing the type.
+_WRITTEN_AS: Mapping[type, type[pl.DataType]] = {
+    str: pl.String,
+    float: pl.Float64,
+    bool: pl.Boolean,
+    int: pl.Int64,
+}
+
+
+def _column_types(record: type[NamedTuple]) -> dict[str, type[pl.DataType]]:
+    """*record*'s columns as they are written, off its own annotations.
+
+    Derived rather than restated: a column added to :class:`Record` and not
+    here would silently go back to the type polars infers from a single row,
+    which is the defect this schema exists to close and one a green suite
+    would not show. ``X | None`` is written as ``X`` holding null.
+    """
+    written: dict[str, type[pl.DataType]] = {}
+    for name, hint in get_type_hints(record).items():
+        declared = next((arg for arg in get_args(hint) if arg is not type(None)), hint)
+        if declared not in _WRITTEN_AS:
+            raise LpspecError(
+                f'{record.__name__}.{name} is annotated {declared!r}, which nothing here writes. A record '
+                f'column has to say what type it is written as: add it to _WRITTEN_AS.'
+            )
+        written[name] = _WRITTEN_AS[declared]
+    return written
+
+
 #: :class:`Record`'s columns as they are written, so a row whose ``objective``
 #: or ``spec_digest`` is absent writes that column's own type holding null
 #: rather than the ``Null`` one polars would infer from a single row. Passed
 #: as ``schema_overrides``, so a sweep's key column beside them keeps the type
 #: its own value infers to.
-RECORD_SCHEMA = {
-    'status': pl.String,
-    'termination_condition': pl.String,
-    'objective': pl.Float64,
-    'has_primal': pl.Boolean,
-    'spec_digest': pl.String,
-}
+RECORD_SCHEMA = _column_types(Record)
 
 
 #: The two files that sit beside the frames, named here because a result and a

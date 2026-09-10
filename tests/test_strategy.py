@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import json
 import multiprocessing
 import sys
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
@@ -1388,6 +1389,32 @@ def test_a_sweep_keys_every_file_it_writes_with_one_type(priced, tmp_path):
     }
     assert len(set(keyed.values())) == 1, f'one type for {priced.key_name!r}, and these files disagree: {keyed}'
     assert set(keyed.values()) == {pl.Int64}, 'the type a Python int infers to everywhere else here'
+
+
+def test_a_resume_checks_the_layout_it_is_extending_rather_than_restamping_it(tmp_path) -> None:
+    """`to=` at a directory an earlier build wrote is the one place the stamp has to hold.
+
+    Was: opening a spill wrote the stamp before asking whether the directory
+    already held a sweep, so a resume overwrote the layout it was extending
+    and mixed two under one manifest — the one failure the stamp exists to
+    catch, defeated by the path most likely to hit it.
+    """
+    out = tmp_path / 'sweep'
+    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=out)
+    (out / 'format.json').write_text(json.dumps({'answer': 99}))
+
+    with pytest.raises(lps.LayoutError, match='layout 99'):
+        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=out)
+    assert json.loads((out / 'format.json').read_text()) == {'answer': 99}, (
+        'and the stamp it was refused over is left as it was found'
+    )
+
+
+def test_a_sweep_keyed_in_more_than_one_type_is_refused(tmp_path) -> None:
+    """Refused rather than widened: the caller's own labels are not ours to change."""
+    sources = scenario_sources()
+    with pytest.raises(lps.LpspecError, match='more than one type'):
+        lps.solve_over(DISPATCH, sources, [(1, sources), (2.5, sources)], key_name='draw')
 
 
 def test_a_saved_result_carries_the_row_a_sweep_keys(sweep, tmp_path):
