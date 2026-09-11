@@ -386,6 +386,67 @@ def test_an_archive_whose_answer_names_another_model_is_refused(
     )
 
 
+def test_every_slice_of_a_sweep_names_the_model_it_answered(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A sweep's digest is the sweep's, not each slice's.
+
+    Every slice is built off the one lowered program, which has no document to
+    digest. Left to the slice, every row would carry null: the comparison
+    could not run, and the pairing an archive checks on the way in would have
+    nothing to compare.
+    """
+    sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
+    runs = lps.solve_over(dispatch_yaml, sources, lps.EachCoordinate('scenario'))
+    alone = lps.solve(dispatch_yaml, dispatch_frame_inputs)
+
+    assert runs.objective['spec_digest'].null_count() == 0, 'no slice is left without the document it answered'
+    assert runs.objective['spec_digest'].unique().to_list() == [alone.spec_digest], (
+        'and it is the same digest one solve of the same file carries'
+    )
+
+
+def test_a_sweep_archive_whose_answer_names_another_model_is_refused(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The sibling of the one-solve check, and the one that was vacuous.
+
+    A sweep's guard reads every slice's digest. While those were null it could
+    not fire at all, so a swapped `model.yaml` loaded happily.
+    """
+    sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
+    lps.solve_over(dispatch_yaml, sources, lps.EachCoordinate('scenario'), archive=tmp_path / 'study')
+    other = override(raw_of(dispatch_yaml), **{'variables.p.bounds.upper': 1.0})
+    (tmp_path / 'study' / 'model.yaml').write_text(pyyaml.safe_dump(other))
+
+    with pytest.raises(lps.LpspecError, match='came back from a different model'):
+        lps.load_archive(tmp_path / 'study')
+
+
+def test_saving_an_answer_twice_leaves_only_the_second(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A directory holds one answer, so the first one's frames do not survive.
+
+    Without this a second save leaves both models' frames side by side, and
+    `load_result` reports the second model's digest while answering for a
+    variable only the first declared.
+    """
+    renamed = raw_of(dispatch_yaml)
+    renamed['variables']['q'] = renamed['variables'].pop('p')
+    renamed['constraints']['power_balance']['expression'] = 'sum(q, over=generator) == load'
+    renamed['objective']['expression'] = 'sum(q * cost)'
+
+    lps.solve(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'shared')
+    out = lps.solve(renamed, dispatch_frame_inputs).save(tmp_path / 'shared')
+
+    assert sorted(f.stem for f in (out / 'primal').glob('*.parquet')) == ['q'], (
+        "only the second model's variable is left"
+    )
+    with pytest.raises(KeyError, match='unknown variable'):
+        lps.load_result(out).primal('p')
+
+
 def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path) -> None:
     """Why the digest is written rather than only checked.
 

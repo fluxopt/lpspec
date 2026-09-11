@@ -37,7 +37,7 @@ from math_spec.program import Program
 
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source
-from lpspec.layout import beside, write_archive
+from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.relational.parquet import RECORD_FILE, Record, check_format, digest_of, read_reasons
@@ -225,14 +225,16 @@ class Model:
                 comparing against a cold baseline needs and what no solver
                 option can promise. A preference: a model whose structure
                 moved is loaded again whatever was asked.
-            archive: Where to write the whole thing as one zip — the model,
-                the data attached to it **now**, and this answer — so that
-                :func:`~lpspec.archive.load_archive` gives all three back
-                and the model solves again from the file alone. Written here
-                rather than assembled afterwards, because this is the one
-                moment all three exist together: after an :meth:`update` the
-                spec is unchanged, so nothing outside this call could tell the
-                question it answered from the one before it.
+            archive: Where to write the whole thing — the model, the data
+                attached to it **now**, and this answer — so that
+                :func:`~lpspec.archive.load_archive` gives all three back and
+                the model solves again from the file alone. A ``.zip`` suffix
+                packs it into one file and anything else is a directory.
+                Written here rather than assembled afterwards, because this is
+                the one moment all three exist together: after an
+                :meth:`update` the spec is unchanged, so nothing outside this
+                call could tell the question it answered from the one before
+                it.
 
         Returns:
             The solution, holding this model.
@@ -243,6 +245,8 @@ class Model:
                 :data:`~lpspec.relational.result.KEEPS`, or an *archive* asked
                 of a model built from a lowered ``Program``, which has no
                 document to write.
+            LayoutError: An *archive* directory that already holds something.
+                Refused before the solve, as the ``Program`` case is.
         """
         out = None if archive is None else _the_model_can_be_archived(self._spec, Path(archive))
         answered = replace(
@@ -363,6 +367,7 @@ def _the_model_can_be_archived(declared: Spec | None, out: Path) -> tuple[Path, 
             'lowered from: whatever was handed to lps.check() or math_spec.to_program(). The Program stays '
             'the argument that solves.'
         )
+    check_the_target(out)
     return out, declared
 
 
@@ -413,8 +418,8 @@ def solve(
             which needs the ``[gurobi]`` extra.
         solver_options: Forwarded to the solver verbatim, in its own
             vocabulary (``{'time_limit': 60}``).
-        archive: Where to write the model, its data and this answer as one
-            zip, as :meth:`Model.solve` takes it.
+        archive: Where to write the model, its data and this answer, as
+            :meth:`Model.solve` takes it — a ``.zip``, or a directory.
 
     Returns:
         The solution, self-contained: it owns the frames it reads, so the built

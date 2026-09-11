@@ -207,6 +207,22 @@ RECORD_FILE = 'objective.parquet'
 REASONS_FILE = 'reasons.parquet'
 
 
+def clear_the_answer(directory: Path) -> None:
+    """Remove what a saved answer holds, leaving anything else in *directory* alone.
+
+    A second save into one directory would otherwise leave the first answer's
+    frames beside the second's: a name the new model never declared, readable
+    through a reader that reports the new model's digest. Only the layout's own
+    members go, so a directory the caller also keeps other files in survives.
+    """
+    import shutil
+
+    for kind in (*KINDS, 'activity'):
+        shutil.rmtree(directory / kind, ignore_errors=True)
+    for member in (RECORD_FILE, REASONS_FILE, FORMAT_FILE):
+        (directory / member).unlink(missing_ok=True)
+
+
 def write_reasons(directory: Path, no_duals: str | None, no_expressions: Mapping[str, str]) -> None:
     """``(kind, name, reason)`` for what a solve could not produce, or no file at all.
 

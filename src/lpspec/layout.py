@@ -58,6 +58,24 @@ def beside(out: Path) -> Iterator[Path]:
         yield Path(scratch)
 
 
+def check_the_target(out: Path) -> None:
+    """Refuse a directory target that already holds something, before anything is solved.
+
+    Called where the archive is asked for as well as where it is written, so
+    an hour of solving does not end in a refusal the call already implied.
+
+    A ``.zip`` target is replaced, because renaming one file over another is
+    one atomic step. A directory cannot be replaced that way, so merging into
+    what is there would leave two archives readable as one.
+    """
+    if out.suffix != '.zip' and out.is_dir() and any(out.iterdir()):
+        raise LayoutError(
+            f'{str(out)!r} already holds something, and a directory archive is written whole rather than '
+            f'merged into what is there. Name a directory that does not exist, or delete this one. A .zip '
+            f'target is replaced instead, one file over another being a single step.'
+        )
+
+
 def write_archive(
     out: Path,
     spec: Spec,
@@ -79,9 +97,12 @@ def write_archive(
         out: Where to write, ``.zip`` or a directory. Its parent is made if it
             does not exist.
         spec: The model as written, held as ``model.yaml``.
-        sources: What was attached, keyed as the file declares. A parquet path
-            is copied as its own bytes; anything else is written as the tidy
-            table it stands for.
+        sources: What was attached, keyed as the file declares, and the whole
+            of what the archive holds. A parquet path is copied as its own
+            bytes; anything else is written as the tidy table it stands for.
+            A name *checked* carries and this does not is one the axis made,
+            such as a window's local index, and is not written: the axis in
+            the archive makes it again.
         checked: The sources the declarations are checked against — all of
             them for one solve, one slice for a sweep, whose whole sources
             carry a column the model does not declare.
@@ -101,21 +122,19 @@ def write_archive(
         DataError: A source that is missing, unreadable or the wrong shape.
         LayoutError: A directory target that already holds something.
     """
+    check_the_target(out)
     program = to_program(spec)
     frames = supplied(program, tidy_sources(program, checked))
     out.parent.mkdir(parents=True, exist_ok=True)
-    if out.suffix != '.zip' and out.is_dir() and any(out.iterdir()):
-        raise LayoutError(
-            f'{str(out)!r} already holds something, and an archive is written whole rather than merged into '
-            f'what is there. Name a directory that does not exist, or delete this one.'
-        )
     part = out.with_name(out.name + '.part')
     members = _Members.under(part, zipped=out.suffix == '.zip')
     try:
         members.put(MODEL_MEMBER, spec.to_yaml().encode())
         for name, frame in frames.items():
+            if name not in sources:
+                continue
             member = str(SOURCES_DIR / f'{name}.parquet')
-            given = sources.get(name)
+            given = sources[name]
             if isinstance(given, (str, Path)):
                 members.copy(Path(given), member)
             else:

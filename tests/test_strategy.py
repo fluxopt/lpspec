@@ -1444,20 +1444,37 @@ def test_a_saved_result_carries_the_row_a_sweep_keys(sweep, tmp_path):
     )
 
 
-@pytest.mark.parametrize('export', ['to_dataset', 'save'], ids=['to_dataset', 'save'])
-def test_a_bulk_export_of_a_sweep_that_solved_nothing_is_refused(export, tmp_path):
-    """Neither export writes an empty answer: a sweep every slice of which was
-    infeasible holds no variable frames, and both refuse with the same
-    sentence `primal` gives. `to_dataset` resolves the names before xarray is
-    reached, so a bare install gets the sentence rather than an ImportError."""
+def test_a_bulk_export_of_a_sweep_that_solved_nothing_is_refused():
+    """`to_dataset` writes no empty answer: a sweep every slice of which was
+    infeasible holds no variable frames, and it refuses with the sentence
+    `primal` gives. The names are resolved before xarray is reached, so a bare
+    install gets the sentence rather than an ImportError."""
     sources = scenario_sources()
     sources['load'] = sources['load'].with_columns(pl.col('value') + 1_000)
     runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
 
-    arguments = (tmp_path / 'sweep',) if export == 'save' else ()
     with pytest.raises(lps.LpspecError, match='holds no variable frames at all'):
-        getattr(runs, export)(*arguments)
-    assert not (tmp_path / 'sweep').exists(), 'a refused export leaves no directory behind'
+        runs.to_dataset()
+
+
+def test_a_sweep_that_solved_nothing_still_saves_its_records(tmp_path):
+    """`save` is not an export, and an infeasible study is an answer.
+
+    A single solve that left no values writes its record and no frames, and a
+    sweep of them does the same: a set of saved cases needs the study that
+    did not solve on disk, not a call that refuses.
+    """
+    sources = scenario_sources()
+    sources['load'] = sources['load'].with_columns(pl.col('value') + 1_000)
+    runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
+
+    out = runs.save(tmp_path / 'sweep')
+    records = pl.read_parquet(sorted((out / 'objective').glob('*.parquet')))
+    assert records['termination_condition'].unique().to_list() == ['infeasible'], (
+        'every slice terminated infeasible, and the record says so'
+    )
+    assert not (out / 'primal').exists(), 'and no frames are written, there being none'
+    assert lps.load_runs(out).objective.height == records.height, 'the saved study reads back'
 
 
 def test_a_reader_for_a_name_the_sweep_lacks_fails_the_way_primal_does(sweep):
@@ -1827,6 +1844,8 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     """
     from math_spec import Spec, lowering
 
+    from lpspec import strategy
+
     parsed: list[object] = []
     original = lowering.to_spec
 
@@ -1836,6 +1855,7 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
         return original(model)
 
     monkeypatch.setattr(lowering, 'to_spec', spy)
+    monkeypatch.setattr(strategy, 'to_spec', spy)
     with _entered(make_executor()) as executor:
         lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor)
     assert len(parsed) == 1, f'the model was parsed {len(parsed)} times for three slices'
