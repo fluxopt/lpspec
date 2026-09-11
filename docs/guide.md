@@ -30,7 +30,8 @@ program = lps.check('dispatch.yaml')
 ```
 
 `check` lowers the file to a plan with no data attached, and raises if the
-file uses something outside the language.
+file uses something outside the language. The plan is for reading — the verbs
+below take the file, or a `math_spec.to_spec` of it, not the plan.
 
 ## 4. Attach the numbers and solve
 

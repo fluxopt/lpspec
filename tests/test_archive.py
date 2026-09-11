@@ -232,22 +232,26 @@ def test_a_directory_that_already_holds_something_is_refused(
     assert sorted(f.name for f in out.iterdir()) == ['mine.txt'], 'and what was there is untouched'
 
 
-def test_a_lowered_program_is_refused_before_it_is_solved(
-    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """Lowering has no inverse, and the refusal names the argument to change.
+@pytest.mark.parametrize(
+    'verb',
+    [
+        pytest.param(lambda spec, sources: lps.build(spec, sources), id='build'),
+        pytest.param(lambda spec, sources: lps.solve(spec, sources), id='solve'),
+        pytest.param(
+            lambda spec, sources: lps.solve_over(spec, sources, lps.EachCoordinate('generator')), id='solve_over'
+        ),
+    ],
+)
+def test_a_lowered_program_is_not_a_model_any_verb_takes(verb, dispatch_yaml: Path, dispatch_frame_inputs) -> None:
+    """Lowering has no inverse, so a Program is refused at the door, not at the archive.
 
-    A Program builds and solves, so only the archive is out of reach — and
-    whether it is out of reach is answerable from how the model was built. So
-    the refusal comes before the solver runs rather than after, and the message
-    says which earlier call to keep the model from.
+    An answer from one could not name the document it came back from, and
+    nothing built from one could be archived. Every verb reads a model through
+    one function, so the sentence is written once and arrives before anything
+    is built.
     """
-    out = tmp_path / 'dispatch.zip'
-    with lps.build(lps.check(dispatch_yaml), dispatch_frame_inputs) as model:
-        with pytest.raises(lps.LpspecError, match='was lowered from'):
-            model.solve(archive=out)
-        assert model.solve().objective > 0, 'and the model still solves — only the archive is refused'
-    assert not out.exists(), 'nothing is written'
+    with pytest.raises(lps.LpspecError, match='lowered Program is not a model this takes'):
+        verb(lps.check(dispatch_yaml), dispatch_frame_inputs)
 
 
 def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path, monkeypatch) -> None:
@@ -465,30 +469,6 @@ def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispat
     assert table['spec_digest'].n_unique() == 2, 'two models, so the table is not comparing like with like'
     assert lps.load_result(tmp_path / 'base').spec_digest == table.filter(pl.col('case') == 'base')['spec_digest'][0], (
         'and a loaded answer carries the digest its record holds'
-    )
-
-
-def test_a_table_of_answers_with_no_digest_makes_no_claim(
-    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """The limit of the digest: a null abstains, and a table of abstentions agrees with itself.
-
-    One null beside real digests counts as its own distinct value, so the
-    comparison breaks loudly. Every row null counts *one* distinct value and
-    passes a check that verified nothing — which is why comparing means asking
-    that the digests are there as well as that they agree.
-    """
-    program = lps.check(dispatch_yaml)
-    records = []
-    for name in ('one', 'two'):
-        with lps.solve(program, dispatch_frame_inputs) as solved:
-            out = solved.save(tmp_path / name)
-        records.append(pl.read_parquet(out / 'objective.parquet'))
-
-    table = pl.concat(records)
-    assert table['spec_digest'].null_count() == 2, 'a lowered program has no document, so neither answer names one'
-    assert table['spec_digest'].n_unique() == 1, (
-        'and the count alone cannot tell two unnamed documents from one, so it is not the whole check'
     )
 
 

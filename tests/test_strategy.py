@@ -18,6 +18,7 @@ from unittest import mock
 
 import polars as pl
 import pytest
+from math_spec import to_spec
 
 import lpspec as lps
 from lpspec import strategy
@@ -1201,18 +1202,19 @@ def test_a_thread_pool_does_not_encode_for_a_boundary_it_never_crosses(monkeypat
     assert seen, 'a process pool did not encode its sources'
 
 
-def test_a_lowered_program_crosses_a_process():
-    """A `Program` is what a worker is handed, under every executor.
+def test_the_model_and_its_plan_both_cross_a_process():
+    """A worker is handed the document and the lowered plan, under every executor.
 
-    It used to be refused under a pool that crosses a process, because the
+    Both used to be refused by a pool that crosses a process, because the
     language sealed its groups behind a `MappingProxyType` that pickle
-    refuses; the seal pickles since math-spec alpha.78, so the worker takes
-    the lowered program and lowers nothing itself.
+    refuses; the seal pickles since math-spec alpha.78. A slice reads no file:
+    it is handed the `Spec`, and re-validating one it already has costs
+    nothing.
     """
-    program = lps.check(DISPATCH)
-    serial = lps.solve_over(program, scenario_sources(), lps.EachCoordinate('scenario'))
+    spec = to_spec(DISPATCH)
+    serial = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'))
     with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool:
-        pooled = lps.solve_over(program, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
+        pooled = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
     assert pooled.objective.equals(serial.objective)
     assert pooled.primal('p').equals(serial.primal('p'))
 
@@ -1839,12 +1841,12 @@ def test_a_key_that_collides_with_a_fixed_column_is_refused(key_name):
 def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     """The model is parsed once per call, whichever executor runs the slices.
 
-    What a worker receives is the lowered program, so no slice reads the
-    YAML or lowers it again. Counted at the language's own front door.
+    What a worker receives is the document already read, so no slice reads
+    the YAML again. Counted at the language's own front door.
     """
     from math_spec import Spec, lowering
 
-    from lpspec import strategy
+    from lpspec import lanes
 
     parsed: list[object] = []
     original = lowering.to_spec
@@ -1855,7 +1857,7 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
         return original(model)
 
     monkeypatch.setattr(lowering, 'to_spec', spy)
-    monkeypatch.setattr(strategy, 'to_spec', spy)
+    monkeypatch.setattr(lanes, 'to_spec', spy)
     with _entered(make_executor()) as executor:
         lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor)
     assert len(parsed) == 1, f'the model was parsed {len(parsed)} times for three slices'

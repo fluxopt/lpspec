@@ -719,16 +719,16 @@ def test_every_plan_node_is_handled_by_the_compiler():
         assert not unhandled, f'{qualifier} nodes unknown to {module.name}: {unhandled}'
 
 
-def test_the_model_argument_is_exactly_what_the_language_takes():
-    """Every verb here opens a model the way ``to_program`` does, and no other way.
+def test_the_model_argument_is_what_the_language_takes_minus_the_lowered_form():
+    """Every verb here opens a model the way ``to_program`` does, less the one shape it refuses.
 
     ``Buildable`` is what ``check``, ``build``, ``solve``, ``write``,
-    ``solve_over``, ``Model`` and both linopy-lane verbs annotate their
-    first argument with, and each hands it straight over — so the union is
-    upstream's fact and this is the copy of it. Restated rather than imported
-    because math-spec exports no alias for it; checked here so the copy cannot
-    quietly narrow, which would refuse a shape the language accepts, or widen,
-    which would promise one it does not.
+    ``solve_over``, ``Model`` and both linopy-lane verbs annotate their first
+    argument with. It is upstream's union minus ``Program``: lowering has no
+    inverse, so an answer built from one could not name the document it came
+    from and nothing built from one could be archived. Checked here so the
+    copy cannot quietly narrow further, which would refuse a shape the
+    language accepts, or widen, which would promise one this package does not.
 
     Textual, and deliberately: upstream's annotation is a string under
     ``from __future__ import annotations`` that ``get_type_hints`` cannot
@@ -745,11 +745,11 @@ def test_the_model_argument_is_exactly_what_the_language_takes():
     def members(annotation: str) -> set[str]:
         return {part.strip().removeprefix('program.') for part in annotation.split('|')}
 
-    upstream = str(inspect.signature(to_program).parameters['spec'].annotation)
-    ours = type_alias_value(PKG / 'lanes.py', 'Buildable')
-    assert members(ours) == members(upstream), (
-        f'lpspec.lanes.Buildable is {ours!r} and math_spec.to_program takes {upstream!r} — '
-        f'every verb passes its model straight to that function, so the two are one union'
+    upstream = members(str(inspect.signature(to_program).parameters['spec'].annotation))
+    ours = members(type_alias_value(PKG / 'lanes.py', 'Buildable'))
+    assert upstream - ours == {'Program'}, (
+        f'the language takes {sorted(upstream)} and lpspec.lanes.Buildable takes {sorted(ours)} — '
+        f'the one shape this package refuses is the lowered Program, and it refuses no other'
     )
 
 

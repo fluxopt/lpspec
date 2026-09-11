@@ -32,11 +32,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import polars as pl
-from math_spec import Spec, advice, to_program, to_spec
-from math_spec.program import Program
+from math_spec import advice, to_program
 
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
-from lpspec.lanes import LANES, Buildable, Label, Source
+from lpspec.lanes import LANES, Buildable, Label, Source, declared
 from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
@@ -48,6 +47,8 @@ from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
+
+    from math_spec.program import Program
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep
 
@@ -80,9 +81,7 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
     is issued either way.
 
     Args:
-        spec: A YAML path, a mapping, or anything :func:`math_spec.to_program`
-            already takes — a ``Spec`` from ``math_spec.to_spec``, or a
-            ``Program`` from an earlier call to this.
+        spec: A YAML path, a mapping, or a ``Spec``.
         sink: A solver name (``highs``, ``gurobi``, ``xpress``), an output
             suffix (``.lp``, ``.mps``), or a lane (``linopy``). ``None`` asks
             only whether the spec is sayable.
@@ -133,12 +132,11 @@ class Model:
     """
 
     def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
-        declared = None if isinstance(spec, Program) else to_spec(spec)
-        self._spec = declared
-        self._program = to_program(spec if declared is None else declared)
+        self._spec = declared(spec)
+        self._program = to_program(self._spec)
         #: What every answer of this model carries, so two of them can be told
-        #: to have answered the same document. A lowered program has none.
-        self._digest = None if declared is None else digest_of(declared.to_yaml())
+        #: to have answered the same document.
+        self._digest = digest_of(self._spec.to_yaml())
         self._sources = dict(sources)
         self._engine = PolarsEngine()
         self._fill()
@@ -241,22 +239,20 @@ class Model:
 
         Raises:
             LpspecError: A solver name nothing serves, one this environment
-                cannot run, a *keep* outside
-                :data:`~lpspec.relational.result.KEEPS`, or an *archive* asked
-                of a model built from a lowered ``Program``, which has no
-                document to write.
-            LayoutError: An *archive* directory that already holds something.
-                Refused before the solve, as the ``Program`` case is.
+                cannot run, or a *keep* outside
+                :data:`~lpspec.relational.result.KEEPS`.
+            LayoutError: An *archive* directory that already holds something,
+                refused before the solve rather than after it.
         """
-        out = None if archive is None else _the_model_can_be_archived(self._spec, Path(archive))
+        out = None if archive is None else _the_archive_target(Path(archive))
         answered = replace(
             self._engine.solve(solver_name, solver_options=solver_options, keep=keep), _spec_digest=self._digest
         )
         if out is not None:
-            self._archive(*out, answered)
+            self._archive(out, answered)
         return answered
 
-    def _archive(self, out: Path, declared: Spec, answered: Result) -> None:
+    def _archive(self, out: Path, answered: Result) -> None:
         """Pack this model, what is attached to it now, and *answered* into one zip.
 
         The answer is laid out in a scratch directory beside *out* first,
@@ -267,7 +263,7 @@ class Model:
         with beside(out) as scratch:
             write_archive(
                 out,
-                declared,
+                self._spec,
                 self._sources,
                 checked=self._sources,
                 whole={},
@@ -353,22 +349,14 @@ def _refuse_unknown(given: Mapping[str, Any], declared: Mapping[str, Any]) -> No
         raise DataError(unknown_source_keys_message(unknown, declared))
 
 
-def _the_model_can_be_archived(declared: Spec | None, out: Path) -> tuple[Path, Spec]:
-    """Where the archive goes and the model it holds, or the reason there is none.
+def _the_archive_target(out: Path) -> Path:
+    """*out*, once it is somewhere an archive can be written.
 
-    Asked before the solve rather than after it: the answer is in how the
-    model was built, and a solve should not end in a refusal the call already
-    implied.
+    Asked before the solve rather than after it, so a solve does not end in a
+    refusal the call already implied.
     """
-    if declared is None:
-        raise LpspecError(
-            'archive= holds the model as written — a path, a mapping or a Spec — and this model was built '
-            'from a lowered Program, which cannot be written back out as one. Build it from what it was '
-            'lowered from: whatever was handed to lps.check() or math_spec.to_program(). The Program stays '
-            'the argument that solves.'
-        )
     check_the_target(out)
-    return out, declared
+    return out
 
 
 def build(spec: Buildable, sources: Mapping[str, Source]) -> Model:

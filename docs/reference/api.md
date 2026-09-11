@@ -24,7 +24,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 
 | | |
 |---|---|
-| `lps.check(spec, sink=None)` | parse, expand, validate and lower; attach no data. With a `sink`, also say whether that sink takes it. Returns the lowered `Program`, which every verb takes back |
+| `lps.check(spec, sink=None)` | parse, expand, validate and lower; attach no data. With a `sink`, also say whether that sink takes it. Returns the lowered `Program`, for reading the plan — no verb takes one back |
 | `math_spec.to_spec(spec)` | the file as written, for editing and typesetting; the language's own verb |
 | `lps.build(spec, sources)` | attach data and build; returns a `Model` |
 | `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
@@ -36,7 +36,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Runs` |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
-| `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` or `math_spec.program.Program` |
+| `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` |
 
 ## Errors and warnings
 
@@ -55,27 +55,27 @@ fail CI on it.
 
 ## The spec argument
 
-**Every verb takes the spec as a path, a `str`, a `dict`, a `Spec` or a
-`Program`**: exactly what `math_spec.to_program` takes. So a framework that
-emits declarations never writes a temporary file to run them:
+**Every verb takes the spec as a path, a `str`, a `dict` or a `Spec`**: what
+`math_spec.to_program` takes, less the lowered `Program` it returns. So a
+framework that emits declarations never writes a temporary file to run them:
 
 ```python
 spec = {'dimensions': ..., 'variables': ..., 'constraints': ..., 'objective': ...}
 
 lps.solve(spec, sources)  # a dict runs like a file
-checked = lps.check(spec)  # ...or lower once and keep the plan
-lps.solve(checked, sources)  # a Program is passed through, not re-lowered
+kept = to_spec(spec)  # ...or read once and keep the document
+lps.solve(kept, sources)  # a Spec is not read again
 
 to_spec(spec).to_yaml()  # the review copy — a dict-built spec still gets a file
 ```
 
-**A lowered `Program` cannot be archived, so keep what it was lowered from.**
-Lowering has no inverse — a `Program` is the math with the macros already
-expanded, and nothing writes one back out as a file — so
-[an artifact](#archiving-a-model) refuses one and an answer solved off one
-carries no `spec_digest`. Pass the `Program` to `build` and `solve` for the
-speed; build from the path, mapping or `Spec` it came from where you want
-`archive=`.
+**Keep the `Spec`, not the `Program`.** `lps.check` hands back a lowered
+`Program` for reading the plan, and no verb takes one: lowering has no
+inverse, so an answer built from one could not name the document it came from
+and nothing built from one could be archived. Keeping the `Spec` is also the
+faster half — reading a file costs about ten times what lowering it does, and
+a `Spec` handed back to a verb is not read again
+([#1579](https://github.com/fluxopt/lpspec/pull/1579)).
 
 **A framework emits data, not YAML text, and never merges files.** A generated
 spec must be able to show you a file. Hand-written math still starts as one.

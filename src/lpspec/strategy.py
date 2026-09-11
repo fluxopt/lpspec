@@ -35,12 +35,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 
 import polars as pl
-from math_spec import to_spec
-from math_spec.program import Program
 
 from lpspec.api import build, check
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning, did_you_mean
 from lpspec.frames import as_frame
+from lpspec.lanes import declared
 from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational.parquet import (
     KINDS,
@@ -48,7 +47,6 @@ from lpspec.relational.parquet import (
     RECORD_SCHEMA,
     Record,
     check_format,
-    digest_of,
     read_reasons,
     reader_kind,
     write_format,
@@ -64,6 +62,7 @@ if TYPE_CHECKING:
     import pandas as pd
     import xarray as xr
     from math_spec import Spec
+    from math_spec.program import Program
 
     from lpspec.api import Model
     from lpspec.lanes import Buildable, Label, Source
@@ -1169,7 +1168,7 @@ def axis_from(manifest: Mapping[str, Any]) -> EachCoordinate | EachWindow:
 
 def _what_an_archive_needs(
     archive: str | Path | None,
-    declared: Spec | None,
+    document: Spec,
     axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
 ) -> tuple[Path, Spec, EachCoordinate | EachWindow] | None:
     """Where the archive goes, the model it holds and the axis that re-runs it — ``None`` for no archive.
@@ -1181,12 +1180,6 @@ def _what_an_archive_needs(
     """
     if archive is None:
         return None
-    if declared is None:
-        raise LpspecError(
-            'archive= holds the model as written — a path, a mapping or a Spec — and a lowered Program '
-            'cannot be written back out as one. Solve what it was lowered from: whatever was handed to '
-            'lps.check() or math_spec.to_program(). The Program stays the argument that solves.'
-        )
     if not isinstance(axis, (EachCoordinate, EachWindow)):
         raise LpspecError(
             'archive= takes a sweep cut by EachCoordinate or EachWindow, which say how one set of sources '
@@ -1195,7 +1188,7 @@ def _what_an_archive_needs(
         )
     out = Path(archive)
     check_the_target(out)
-    return out, declared, axis
+    return out, document, axis
 
 
 def solve_over(
@@ -1283,10 +1276,9 @@ def solve_over(
             'carry and executor are mutually exclusive: a carried value makes slice i+1 depend on '
             "slice i's answer, so the slices cannot run concurrently. Drop the executor, or drop the carry."
         )
-    declared = None if isinstance(spec, Program) else to_spec(spec)
-    archiving = _what_an_archive_needs(archive, declared, axis)
-    digest = None if declared is None else digest_of(declared.to_yaml())
-    program = check(spec if declared is None else declared)
+    document = declared(spec)
+    archiving = _what_an_archive_needs(archive, document, axis)
+    program = check(document)
     plan = {p: _CarryRule.resolved(program, p, v) for p, v in (carry or {}).items()}
     key_name = _key_column(axis, key_name, program)
 
@@ -1306,9 +1298,9 @@ def solve_over(
     key_dtype = _one_key_type(keys, key_name)
     spill = None if spill_to is None else _Spill.opened(spill_to, key_name, keys, key_dtype, original, hand_built)
     answered = (
-        _serially(program, digest, slices, solving, plan, keep, spill)
+        _serially(program, document, slices, solving, plan, keep, spill)
         if executor is None
-        else _pooled(executor, workers_share_fs, program, digest, slices, solving, spill)
+        else _pooled(executor, workers_share_fs, program, document, slices, solving, spill)
     )
     folded = Runs._folded(key_name, original, hand_built, answered, spill, key_dtype)
     if spill is not None:
@@ -1384,7 +1376,7 @@ def _check_the_carry(
 
 def _serially(
     program: Program,
-    digest: str | None,
+    document: Spec,
     slices: Sequence[_Slice],
     solving: Mapping[str, Any],
     plan: Mapping[str, _CarryRule],
@@ -1434,9 +1426,9 @@ def _serially(
                 else:
                     if model is not None:
                         model.close()
-                    model, named, before = build(program, sources), names, None
+                    model, named, before = build(document, sources), names, None
                 result = model.solve(**solving, keep=keep)
-                answer = _answers(result, program, digest, _slice_cost(model.diagnostics(), before))
+                answer = _answers(result, program, _slice_cost(model.diagnostics(), before))
             primals = answer.primals
             if spill is not None:
                 answer = spill.write(position, current.key, answer)
@@ -1492,7 +1484,7 @@ def _pooled(
     executor: Executor,
     workers_share_fs: bool | None,
     program: Program,
-    digest: str | None,
+    document: Spec,
     slices: Sequence[_Slice],
     solving: Mapping[str, Any],
     spill: _Spill | None,
@@ -1519,7 +1511,7 @@ def _pooled(
         else executor.submit(
             _run_slice,
             program,
-            digest,
+            document,
             _encode(current.sources, memo, workers_share_fs=shared) if crosses else dict(current.sources),
             crosses,
             call,
@@ -1542,12 +1534,8 @@ def _pooled(
         yield current.key, spill.write(position, current.key, answer) if spill is not None else answer
 
 
-def _answers(result: Result, program: Program, digest: str | None, cost: dict[str, Any]) -> _Answer:
+def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
     """One slice's answer, read out of *result*: its meta row, its cost, and its frames.
-
-    *digest* is the sweep's, not the slice's. Every slice is built off the one
-    lowered program, which has no document to digest, so the row would carry
-    null and a table of slices could not say which model it answered.
 
     Read here rather than held, so that what a sweep accumulates is frames and
     never results — holding a result per slice would hold that slice's label
@@ -1559,7 +1547,9 @@ def _answers(result: Result, program: Program, digest: str | None, cost: dict[st
     slice must not fail a whole sweep. ``Result.dual`` already writes the
     sentence saying why, so it is caught and carried rather than rewritten.
     """
-    meta = Record.of(result.termination_condition, result.objective, has_primal=result.has_primal, spec_digest=digest)
+    meta = Record.of(
+        result.termination_condition, result.objective, has_primal=result.has_primal, spec_digest=result.spec_digest
+    )
     if not result.has_primal:
         return _Answer(meta, cost, {}, {}, {}, None, {})
     primals = {name: result.primal(name) for name in program.variables}
@@ -1579,7 +1569,7 @@ def _answers(result: Result, program: Program, digest: str | None, cost: dict[st
 
 def _run_slice(
     program: Program,
-    digest: str | None,
+    document: Spec,
     encoded: dict[str, Any],
     encode_out: bool,
     call: dict[str, Any],
@@ -1590,8 +1580,8 @@ def _run_slice(
     what it is handed, and a bound method or a lambda over the axis object
     cannot cross.
     """
-    with build(program, _decode(encoded)) as model, model.solve(**call) as result:
-        answer = _answers(result, program, digest, _slice_cost(model.diagnostics(), None))
+    with build(document, _decode(encoded)) as model, model.solve(**call) as result:
+        answer = _answers(result, program, _slice_cost(model.diagnostics(), None))
         if not encode_out:
             return answer
         return replace(

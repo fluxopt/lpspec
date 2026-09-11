@@ -121,17 +121,13 @@ table = pl.concat(
 ```
 
 **Check the digests before you read the numbers.** `spec_digest` is a digest of
-the model file an answer came back from. One distinct value across the table is
-the claim that every row answered the same document:
+the model file an answer came back from. Every answer carries one, so a single
+distinct value across the table is the claim that every row answered the same
+document:
 
 ```python
-digests = table['spec_digest']
-assert digests.null_count() == 0 and digests.n_unique() == 1, 'one model, or this compares nothing'
+assert table['spec_digest'].n_unique() == 1, 'one model, or this compares nothing'
 ```
-
-Ask that the digests are there as well as equal. A solve run off a lowered
-`Program` has no document to digest, so it writes null. A table of nothing but
-nulls has one distinct value while having checked nothing.
 
 ## Query an archive from a database
 
@@ -159,21 +155,6 @@ first, because no query engine reads inside one.
 
 ## What an archive will not take
 
-**A model built from a lowered `Program`.** `lps.check` hands one back, and
-lowering has no inverse, so there is no file to write:
-
-```python
-lps.solve(lps.check('dispatch.yaml'), sources, archive='case/')
-```
-
-```text
-archive= holds the model as written — a path, a mapping or a Spec — and this
-model was built from a lowered Program, which cannot be written back out as
-one. Build it from what it was lowered from: whatever was handed to
-lps.check() or math_spec.to_program(). The Program stays the argument that
-solves.
-```
-
 **A sweep cut by a hand-built axis.** A list of `(key, sources)` is a set of
 sources per slice, which are unrelated questions:
 
@@ -184,5 +165,11 @@ is a set of sources per slice, which are unrelated questions — archive one
 solve each.
 ```
 
-Both are refused before the first slice is solved, so nothing is written and
-no solver time is spent on an archive you cannot have.
+Refused before the first slice is solved, so nothing is written and no solver
+time is spent on an archive you cannot have. A directory that already holds
+something is refused the same way, rather than merged into.
+
+Nothing else is out of reach. Every model a verb accepts can be archived,
+because every verb reads a model through one door and that door takes only
+what has a document behind it — a path, a mapping or a `Spec`, never the
+lowered `Program` `lps.check` hands back.

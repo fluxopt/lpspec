@@ -225,31 +225,6 @@ def test_a_record_column_that_names_no_written_type_is_refused_at_import():
     assert tuple(_column_types(Record)) == Record._fields, 'and Record itself derives all of its own'
 
 
-def test_a_case_with_no_spec_digest_concatenates_with_one_that_has_it(tmp_path):
-    """The same claim on the other nullable column, which is the record's own.
-
-    A solve run off a lowered program has no document to digest, so its
-    record's `spec_digest` is absent. Inferred from the row it would be a
-    `Null` column rather than an empty `String` one, and concatenating cases
-    solved apart is what the record is written for: `Null` first refuses the
-    string that follows it, and string first widens. An order the reader
-    happens to pick is not a schema. The columns are declared instead, so an
-    absence is that column's own type holding none.
-    """
-    spec, sources = CASES['LP']
-    for name, model in (('document', spec), ('lowered', lps.check(spec))):
-        with lps.solve(model, sources) as solution:
-            solution.save(tmp_path / name)
-
-    each = {name: pl.read_parquet(tmp_path / name / 'objective.parquet') for name in ('document', 'lowered')}
-    assert [frame.schema['spec_digest'] for frame in each.values()] == [pl.String, pl.String], (
-        'a string column wherever it is written, whether or not this solve named a document'
-    )
-    assert each['lowered']['spec_digest'].to_list() == [None], 'a solve off a lowered program names none'
-    both = pl.concat([each['lowered'], each['document']])
-    assert both['spec_digest'].null_count() == 1, 'and the two concatenate whichever is read first'
-
-
 # ---------------------------------------------------------------------------
 # solver options, and the incumbent question they make reachable
 # ---------------------------------------------------------------------------

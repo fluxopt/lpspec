@@ -276,14 +276,15 @@ def test_runtime_is_linopy_free(dispatch_yaml):
 
 @pytest.mark.parametrize(
     'form',
-    ['path', 'str', 'dict', 'spec', 'program'],
+    ['path', 'str', 'dict', 'spec'],
 )
 def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispatch_frame_inputs, tmp_path, form):
     """One first argument across the five verbs, and it is `to_program`'s own.
 
-    A caller who has already read the file — `to_spec` for the math, `check`
-    for the plan — hands that back rather than the path, and every verb takes
-    it. Asserted per verb rather than on `check` alone: each annotates
+    A caller who has already read the file hands the `to_spec` back rather
+    than the path, and every verb takes it. A lowered `Program` is the one
+    shape none of them takes, which `test_a_lowered_program_is_not_a_model_any_verb_takes`
+    holds. Asserted per verb rather than on `check` alone: each annotates
     `Buildable` and each has its own door, so one that forgot to pass the
     model through would only show up here.
     """
@@ -292,7 +293,6 @@ def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispa
         'str': str(dispatch_yaml),
         'dict': to_spec(dispatch_yaml).to_dict(),
         'spec': to_spec(dispatch_yaml),
-        'program': lps.check(dispatch_yaml),
     }[form]
     with lps.solve(dispatch_yaml, dispatch_frame_inputs) as reference:
         expected = reference.objective
