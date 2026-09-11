@@ -43,7 +43,6 @@ from lpspec.relational.parquet import RECORD_FILE, Record, check_format, digest_
 from lpspec.relational.result import Result
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
-from lpspec.relational.status import SolveStatus
 from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
@@ -472,7 +471,7 @@ def load_result(directory: str | Path) -> Result:
         )
     check_format(out)
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
-    status = SolveStatus(record.termination_condition, has_primal=record.has_primal)
+    status = record.solve_status
     objective = float('nan') if record.objective is None else record.objective
     if not status.is_readable:
         return Result(status, objective, {}, {}, {}, 'nothing', _spec_digest=record.spec_digest)

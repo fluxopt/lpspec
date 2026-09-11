@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, NamedTuple, get_args, get_type_hints
 import polars as pl
 
 from lpspec.errors import LayoutError, LpspecError
+from lpspec.relational.status import SolveStatus, status_of
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -119,6 +120,44 @@ class Record(NamedTuple):
     #: Carried so that answers written apart can be *told* to be comparable:
     #: one distinct value across a concatenated table means one spec.
     spec_digest: str | None
+
+    @classmethod
+    def of(cls, termination_condition: str, objective: float, *, has_primal: bool, spec_digest: str | None) -> Record:
+        """The row a solve that terminated this way writes.
+
+        The one home for how an answer becomes columns: ``status`` is derived
+        here rather than passed, and an objective is dropped to null here
+        rather than at each writer. Keyword-only past the condition because
+        ``status`` and ``termination_condition`` are both strings, so a
+        positional call is one field order away from writing a wrong file that
+        no type checker and no test would object to.
+
+        Args:
+            termination_condition: What the solver said.
+            objective: What the solve reached. Written only where there are
+                values to read — ``nan`` is a *number* to every aggregate.
+            has_primal: Whether there are values, which the condition alone
+                does not say.
+            spec_digest: :func:`digest_of` the spec answered, or ``None``.
+        """
+        return cls(
+            status_of(termination_condition),
+            termination_condition,
+            objective if has_primal else None,
+            has_primal,
+            spec_digest,
+        )
+
+    @property
+    def solve_status(self) -> SolveStatus:
+        """The status this row records — the way back from columns.
+
+        The solver's own wording is gone, being a sentence to read rather than
+        a column to group by, and ``status`` is derived again rather than read
+        off the row: a file whose two columns disagree is answered by the
+        table that owns the rollup.
+        """
+        return SolveStatus(self.termination_condition, has_primal=self.has_primal)
 
 
 #: What each Python type a record column is annotated with is written as.

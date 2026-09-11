@@ -1452,12 +1452,8 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
     slice must not fail a whole sweep. ``Result.dual`` already writes the
     sentence saying why, so it is caught and carried rather than rewritten.
     """
-    meta = Record(
-        status=result.status,
-        termination_condition=result.termination_condition,
-        objective=result.objective if result.has_primal else None,
-        has_primal=result.has_primal,
-        spec_digest=result.spec_digest,
+    meta = Record.of(
+        result.termination_condition, result.objective, has_primal=result.has_primal, spec_digest=result.spec_digest
     )
     if not result.has_primal:
         return _Answer(meta, cost, {}, {}, {}, None, {})

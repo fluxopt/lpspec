@@ -668,8 +668,9 @@ class Result:
         primals = self._unclosed('the solution')
         out = Path(directory)
         write_format(out)
-        reached = self.objective if self.has_primal else None
-        record = Record(self.status, self.termination_condition, reached, self.has_primal, self._spec_digest)
+        record = Record.of(
+            self.termination_condition, self.objective, has_primal=self.has_primal, spec_digest=self._spec_digest
+        )
         write_whole(pl.DataFrame([record._asdict()], schema_overrides=RECORD_SCHEMA), out / RECORD_FILE)
         if not self._status.is_readable:
             return out
