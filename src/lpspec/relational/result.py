@@ -22,6 +22,7 @@ from lpspec.relational.parquet import (
     RECORD_FILE,
     RECORD_SCHEMA,
     Record,
+    clear_the_answer,
     reader_kind,
     write_format,
     write_reasons,
@@ -657,6 +658,11 @@ class Result:
         that came back infeasible is an answer a set of saved cases needs on
         disk, rather than a directory that does not exist.
 
+        **The directory holds this answer and no other.** Whatever a previous
+        save left there is removed first, so a re-run cannot leave one model's
+        frames beside another's record. Files that are not part of the layout
+        are left alone.
+
         Returns:
             The directory.
 
@@ -667,9 +673,11 @@ class Result:
 
         primals = self._unclosed('the solution')
         out = Path(directory)
+        clear_the_answer(out)
         write_format(out)
-        reached = self.objective if self.has_primal else None
-        record = Record(self.status, self.termination_condition, reached, self.has_primal, self._spec_digest)
+        record = Record.of(
+            self.termination_condition, self.objective, has_primal=self.has_primal, spec_digest=self._spec_digest
+        )
         write_whole(pl.DataFrame([record._asdict()], schema_overrides=RECORD_SCHEMA), out / RECORD_FILE)
         if not self._status.is_readable:
             return out

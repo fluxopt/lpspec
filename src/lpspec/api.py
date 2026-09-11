@@ -4,7 +4,7 @@ Math is defined in YAML only — there is no Python API for constructing specs,
 and the logical plan is internal. Four verbs run a model: ``check``, ``build``
 (YAML + sources → a :class:`Model`), ``solve`` and ``write``. ``load_result`` reads back an
 answer :meth:`Result.save` wrote; the question and the answer as one archive
-is :class:`lpspec.artifact.Artifact`.
+is :class:`lpspec.archive.SolveArchive`.
 
 This is the relational lane (docs/about/architecture.md): validated at load
 time, lowered to the plan, executed relationally. The same file builds as a
@@ -32,22 +32,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import polars as pl
-from math_spec import advice, to_spec
-from math_spec.program import Program
+from math_spec import advice
 
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
-from lpspec.lanes import LANES, Buildable, Label, Source, lowered
+from lpspec.lanes import LANES, Buildable, Label, Source, declared, lowered
+from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.relational.parquet import RECORD_FILE, Record, check_format, digest_of, read_reasons
 from lpspec.relational.result import Result
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
-from lpspec.relational.status import SolveStatus
 from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
+
+    from math_spec.program import Program
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep
 
@@ -80,9 +81,7 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
     is issued either way.
 
     Args:
-        spec: A YAML path, a mapping, or anything :func:`math_spec.to_program`
-            already takes — a ``Spec`` from ``math_spec.to_spec``, or a
-            ``Program`` from an earlier call to this.
+        spec: A YAML path, a mapping, or a ``Spec``.
         sink: A solver name (``highs``, ``gurobi``, ``xpress``), an output
             suffix (``.lp``, ``.mps``), or a lane (``linopy``). ``None`` asks
             only whether the spec is sayable.
@@ -133,12 +132,11 @@ class Model:
     """
 
     def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
-        declared = None if isinstance(spec, Program) else to_spec(spec)
-        self._spec = declared
-        self._program = lowered(spec if declared is None else declared)
+        self._spec = declared(spec)
+        self._program = lowered(self._spec)
         #: What every answer of this model carries, so two of them can be told
-        #: to have answered the same document. A lowered program has none.
-        self._digest = None if declared is None else digest_of(declared.to_yaml())
+        #: to have answered the same document.
+        self._digest = digest_of(self._spec.to_yaml())
         self._sources = dict(sources)
         self._engine = PolarsEngine()
         self._fill()
@@ -198,6 +196,7 @@ class Model:
         *,
         solver_options: Mapping[str, Any] | None = None,
         keep: Keep = 'solver',
+        archive: str | Path | None = None,
     ) -> Result:
         """Hand the built model to a solver and solve it.
 
@@ -224,6 +223,16 @@ class Model:
                 comparing against a cold baseline needs and what no solver
                 option can promise. A preference: a model whose structure
                 moved is loaded again whatever was asked.
+            archive: Where to write the whole thing — the model, the data
+                attached to it **now**, and this answer — so that
+                :func:`~lpspec.archive.load_archive` gives all three back and
+                the model solves again from the file alone. A ``.zip`` suffix
+                packs it into one file and anything else is a directory.
+                Written here rather than assembled afterwards, because this is
+                the one moment all three exist together: after an
+                :meth:`update` the spec is unchanged, so nothing outside this
+                call could tell the question it answered from the one before
+                it.
 
         Returns:
             The solution, holding this model.
@@ -232,9 +241,35 @@ class Model:
             LpspecError: A solver name nothing serves, one this environment
                 cannot run, or a *keep* outside
                 :data:`~lpspec.relational.result.KEEPS`.
+            LayoutError: An *archive* directory that already holds something,
+                refused before the solve rather than after it.
         """
-        answered = self._engine.solve(solver_name, solver_options=solver_options, keep=keep)
-        return replace(answered, _spec_digest=self._digest)
+        out = None if archive is None else _the_archive_target(Path(archive))
+        answered = replace(
+            self._engine.solve(solver_name, solver_options=solver_options, keep=keep), _spec_digest=self._digest
+        )
+        if out is not None:
+            self._archive(out, answered)
+        return answered
+
+    def _archive(self, out: Path, answered: Result) -> None:
+        """Pack this model, what is attached to it now, and *answered* into one zip.
+
+        The answer is laid out in a scratch directory beside *out* first,
+        because that is the layout an archive's ``answer/`` is and because a
+        large primal is streamed to disk rather than passed through this
+        process.
+        """
+        with beside(out) as scratch:
+            write_archive(
+                out,
+                self._spec,
+                self._sources,
+                checked=self._sources,
+                whole={},
+                axis=None,
+                answer=answered.save(scratch),
+            )
 
     def write(self, path: str | Path) -> None:
         """Stream the built model to *path*, in the format its suffix names.
@@ -314,6 +349,16 @@ def _refuse_unknown(given: Mapping[str, Any], declared: Mapping[str, Any]) -> No
         raise DataError(unknown_source_keys_message(unknown, declared))
 
 
+def _the_archive_target(out: Path) -> Path:
+    """*out*, once it is somewhere an archive can be written.
+
+    Asked before the solve rather than after it, so a solve does not end in a
+    refusal the call already implied.
+    """
+    check_the_target(out)
+    return out
+
+
 def build(spec: Buildable, sources: Mapping[str, Source]) -> Model:
     """Bind *sources* to *spec* and build it — the model with your data on it.
 
@@ -341,6 +386,7 @@ def solve(
     solver_name: str = 'highs',
     *,
     solver_options: Mapping[str, Any] | None = None,
+    archive: str | Path | None = None,
 ) -> Result:
     """Build *spec* and solve it in one call.
 
@@ -360,6 +406,8 @@ def solve(
             which needs the ``[gurobi]`` extra.
         solver_options: Forwarded to the solver verbatim, in its own
             vocabulary (``{'time_limit': 60}``).
+        archive: Where to write the model, its data and this answer, as
+            :meth:`Model.solve` takes it — a ``.zip``, or a directory.
 
     Returns:
         The solution, self-contained: it owns the frames it reads, so the built
@@ -372,7 +420,7 @@ def solve(
     solver(solver_name)
     model = build(spec, sources)
     try:
-        return model.solve(solver_name, solver_options=solver_options)
+        return model.solve(solver_name, solver_options=solver_options, archive=archive)
     finally:
         model.close()
 
@@ -452,7 +500,7 @@ def load_result(directory: str | Path) -> Result:
     Args:
         directory: Where :meth:`~lpspec.relational.result.Result.save` wrote
             it. One that came out of an archive is
-            :func:`~lpspec.artifact.load_artifact`'s to find.
+            :func:`~lpspec.archive.load_archive`'s to find.
 
     Returns:
         The result, reading lazily from *directory*: the files stay where they
@@ -472,7 +520,7 @@ def load_result(directory: str | Path) -> Result:
         )
     check_format(out)
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
-    status = SolveStatus(record.termination_condition, has_primal=record.has_primal)
+    status = record.solve_status
     objective = float('nan') if record.objective is None else record.objective
     if not status.is_readable:
         return Result(status, objective, {}, {}, {}, 'nothing', _spec_digest=record.spec_digest)

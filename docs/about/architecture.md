@@ -199,8 +199,8 @@ protects: a new consumer is free, a new primitive is taxed.
 file, and Python is how you *run* it, so nothing on the surface constructs
 math or reaches the plan. The names, by role: the four verbs `check`, `build`,
 `solve`, `write`; the fold `solve_over` with its two axes; the two artifacts
-that carry a model, its data and its answer, `SolveArtifact` and
-`SweepArtifact`, with `load_artifact`, `load_result` and `load_runs` to read
+that carry a model, its data and its answer, `SolveArchive` and
+`SweepArchive`, with `load_archive`, `load_result` and `load_runs` to read
 one back; the three types a verb hands back, `Model`, `Result`, `Runs`; the
 error tree under `LpspecError`, `NoSolutionError` and `LpspecWarning`. What
 each one takes and returns is [the Python API](../reference/api.md). A verb
@@ -540,7 +540,8 @@ is structure.
 |---|---|
 | `math_spec` (a dependency) | the whole language, read, expanded, resolved, judged and lowered there; what crosses is a `Spec` and the `Program` it lowers to — [its own reference](https://math-spec.readthedocs.io/en/latest/reference/language/) |
 | `api.py` | the runner: `check` / `build` / `solve` / `write`, and `load_result` for an answer read back off disk; linopy-free |
-| `artifact.py` | above the runner and the fold: `SolveArtifact` and `SweepArtifact`, a model with its data and its answer as one zip, and `load_artifact` to open either |
+| `layout.py` | below every verb that solves: what an archive holds — `model.yaml`, `sources/`, `answer/`, `axis.json` — written as one zip or as a directory, because a solve is the one moment all three exist together |
+| `archive.py` | above the runner and the fold: `load_archive` and the two values it gives back, `SolveArchive` and `SweepArchive`. It reads; it never writes |
 | `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `LANES`, what each lane can build, read by `check` without the extra |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
 | `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |

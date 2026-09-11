@@ -39,6 +39,8 @@ import polars as pl
 from lpspec.api import build, check
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning, did_you_mean
 from lpspec.frames import as_frame
+from lpspec.lanes import declared
+from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational.parquet import (
     KINDS,
     LABELS,
@@ -59,6 +61,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
     import xarray as xr
+    from math_spec import Spec
     from math_spec.program import Program
 
     from lpspec.api import Model
@@ -364,7 +367,7 @@ class _Spill:
                 raise LpspecError(
                     f'{str(directory)!r} holds a sweep keyed by {found["key_name"]!r} over {found["keys"]}, and '
                     f'this one is keyed by {key_name!r} over {manifest["keys"]}. A directory holds one sweep: '
-                    f'point to= at an empty one, or delete this one to solve it again.'
+                    f'point spill_to= at an empty one, or delete this one to solve it again.'
                 )
         else:
             write_format(directory)
@@ -739,7 +742,7 @@ class Runs:
     #: frame. Not the same fact as ``_original is None``, which
     #: :class:`EachCoordinate` is too and where the keyed frame *is* the answer.
     _hand_built: bool = field(repr=False, default=False)
-    #: Where the frames are instead, for a sweep solved with ``to=``.
+    #: Where the frames are instead, for a sweep solved with ``spill_to=``.
     _spill: _Spill | None = field(repr=False, default=None)
 
     @classmethod
@@ -839,7 +842,7 @@ class Runs:
     def scan(self, name: str, kind: str = 'primal', *, original_index: bool = False) -> pl.LazyFrame:
         """One name's values across every slice as a :class:`polars.LazyFrame`, the slice key prepended.
 
-        The reader for a sweep solved with ``to=``, whose frames are on disk;
+        The reader for a sweep solved with ``spill_to=``, whose frames are on disk;
         on one held in memory it is :meth:`primal`, :meth:`dual` or
         :meth:`expression` made lazy, so the same line reads either.
 
@@ -1005,23 +1008,28 @@ class Runs:
         return tidy_to_dataset(names or self._names_held(kind), lambda name: self.to_dataarray(name, kind))
 
     def save(self, directory: str | Path) -> Path:
-        """Everything the sweep holds, written as ``to=`` would have written it.
+        """Everything the sweep holds, written as ``spill_to=`` would have written it.
 
         The same layout: ``<kind>/<name>/<position>.parquet`` for every
         primal, dual and expression, the slice key a column of each, with
         ``objective/``, ``diagnostics/`` and the manifest beside them. So the
         directory is a spilled sweep: :meth:`scan` reads it, and the call
-        that made this sweep, pointed at it with ``to=``, reads it back
+        that made this sweep, pointed at it with ``spill_to=``, reads it back
         without solving a slice.
 
         Returns:
             The directory.
 
+        A sweep whose every slice terminated without values writes each
+        slice's record and no frames, as one such solve does: an infeasible
+        study is an answer a set of saved cases needs on disk, not an export
+        that refuses.
+
         Raises:
-            LpspecError: The sweep holds no variable values at all, or is
-                spilled — its frames are in a directory already.
+            LpspecError: The sweep is spilled — its frames are in a directory
+                already.
         """
-        self._names_held('primal')
+        self._held_here()
         spill = _Spill.opened(
             directory,
             self.key_name,
@@ -1097,10 +1105,10 @@ def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], objective
 
 
 def load_runs(directory: str | Path) -> Runs:
-    """Read back a sweep :meth:`Runs.save` wrote, or one ``solve_over(to=)`` spilled.
+    """Read back a sweep :meth:`Runs.save` wrote, or one ``solve_over(spill_to=)`` spilled.
 
     The sweep comes back **spilled**: its frames stay in *directory* and
-    :meth:`Runs.scan` reads them, which is what a sweep solved with ``to=``
+    :meth:`Runs.scan` reads them, which is what a sweep solved with ``spill_to=``
     already is. :attr:`Runs.objective` and :attr:`Runs.diagnostics` are read
     whole — they are one row per slice — and ``original_index`` works, the
     manifest carrying the dimension a window sliced.
@@ -1120,7 +1128,7 @@ def load_runs(directory: str | Path) -> Runs:
     manifest = under / _MANIFEST_FILE
     if not manifest.is_file():
         raise LayoutError(
-            f'{str(under)!r} holds no {_MANIFEST_FILE!r}, so it is not a sweep save() or to= wrote. A '
+            f'{str(under)!r} holds no {_MANIFEST_FILE!r}, so it is not a sweep save() or spill_to= wrote. A '
             f'single solve writes no manifest and is read by load_result.'
         )
     check_format(under)
@@ -1143,6 +1151,46 @@ def load_runs(directory: str | Path) -> Runs:
     )
 
 
+def axis_manifest(axis: EachCoordinate | EachWindow) -> dict[str, Any]:
+    """*axis* as the JSON an archive carries — the one home for that shape, with :func:`axis_from`."""
+    if isinstance(axis, EachCoordinate):
+        return {'each': 'coordinate', 'dim': axis.dim}
+    steps = axis.steps if isinstance(axis.steps, int) else list(axis.steps)
+    return {'each': 'window', 'dim': axis.dim, 'steps': steps, 'lookahead': axis.lookahead, 'into': axis.into}
+
+
+def axis_from(manifest: Mapping[str, Any]) -> EachCoordinate | EachWindow:
+    """The axis :func:`axis_manifest` wrote."""
+    if manifest['each'] == 'coordinate':
+        return EachCoordinate(manifest['dim'])
+    return EachWindow(manifest['dim'], steps=manifest['steps'], lookahead=manifest['lookahead'], into=manifest['into'])
+
+
+def _what_an_archive_needs(
+    archive: str | Path | None,
+    document: Spec,
+    axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
+) -> tuple[Path, Spec, EachCoordinate | EachWindow] | None:
+    """Where the archive goes, the model it holds and the axis that re-runs it — ``None`` for no archive.
+
+    One value, so that "this sweep is being archived" is a single thing to
+    test rather than three that have to agree. Asked before a slice is solved:
+    both refusals are answerable from the arguments, and an hour of solving
+    should not end in one the call already implied.
+    """
+    if archive is None:
+        return None
+    if not isinstance(axis, (EachCoordinate, EachWindow)):
+        raise LpspecError(
+            'archive= takes a sweep cut by EachCoordinate or EachWindow, which say how one set of sources '
+            'was cut and so how the archive can be re-run. A hand-built list is a set of sources per '
+            'slice, which are unrelated questions — archive one solve each.'
+        )
+    out = Path(archive)
+    check_the_target(out)
+    return out, document, axis
+
+
 def solve_over(
     spec: Buildable,
     sources: Mapping[str, Source],
@@ -1155,7 +1203,8 @@ def solve_over(
     solver_options: Mapping[str, Any] | None = None,
     solver_name: str = 'highs',
     keep: Keep = 'solver',
-    to: str | Path | None = None,
+    spill_to: str | Path | None = None,
+    archive: str | Path | None = None,
 ) -> Runs:
     """Solve *spec* once per slice of *axis* and fold the answers together.
 
@@ -1188,12 +1237,21 @@ def solve_over(
         keep: As :meth:`~lpspec.api.Model.solve` takes it, reaching every
             slice. Under an executor every slice is a first solve and keeps
             nothing, whatever was asked.
-        to: A directory to write each slice's frames to as the fold goes,
+        spill_to: A directory to write each slice's frames to as the fold goes,
             so the sweep's memory stays at one slice however many there
             are. Read back through :meth:`Runs.scan`. A directory holds
             one sweep: run the same sweep at it again and the slices already
             there are not solved again, which is how an interrupted sweep
             resumes.
+        archive: Where to write the whole thing — the model, the sources the
+            sweep was cut from, the axis that cut them, and every slice's
+            answer — so that ``lps.load_archive`` gives all four back and the
+            sweep runs again from the file alone. A ``.zip`` suffix packs it
+            into one file and anything else is a directory. Given beside
+            *spill_to*, the spill is what the archive packs, so a sweep too
+            large to hold is archived without ever being held. The archive is
+            a second copy of the answers on disk; the memory is what
+            *spill_to* bounds.
 
     Returns:
         Every slice's answers, keyed by slice.
@@ -1202,7 +1260,7 @@ def solve_over(
         LpspecError: A carry that cannot line up, has no seed, collapses a
             dimension the axis does not advance along, or is asked together with
             an executor; a key that collides with a column the frames carry;
-            an axis the program does not allow; a *to* directory holding
+            an axis the program does not allow; a *spill_to* directory holding
             another sweep. All refused before a slice is taken, and every
             one answerable from the declarations before a source is read.
         DataError: No source carries the axis, or the axis produced no
@@ -1218,7 +1276,9 @@ def solve_over(
             'carry and executor are mutually exclusive: a carried value makes slice i+1 depend on '
             "slice i's answer, so the slices cannot run concurrently. Drop the executor, or drop the carry."
         )
-    program = check(spec)
+    document = declared(spec)
+    archiving = _what_an_archive_needs(archive, document, axis)
+    program = check(document)
     plan = {p: _CarryRule.resolved(program, p, v) for p, v in (carry or {}).items()}
     key_name = _key_column(axis, key_name, program)
 
@@ -1236,16 +1296,48 @@ def solve_over(
     solving = {'solver_name': solver_name, 'solver_options': dict(solver_options or {}) or None}
     keys = [current.key for current in slices]
     key_dtype = _one_key_type(keys, key_name)
-    spill = None if to is None else _Spill.opened(to, key_name, keys, key_dtype, original, hand_built)
+    spill = None if spill_to is None else _Spill.opened(spill_to, key_name, keys, key_dtype, original, hand_built)
     answered = (
-        _serially(program, slices, solving, plan, keep, spill)
+        _serially(program, document, slices, solving, plan, keep, spill)
         if executor is None
-        else _pooled(executor, workers_share_fs, program, slices, solving, spill)
+        else _pooled(executor, workers_share_fs, program, document, slices, solving, spill)
     )
     folded = Runs._folded(key_name, original, hand_built, answered, spill, key_dtype)
     if spill is not None:
         write_reasons(spill.directory, folded._no_duals, folded._no_expressions)
+    if archiving is not None:
+        _archive_the_sweep(*archiving, sources, folded, slices[0].sources)
     return folded
+
+
+def _archive_the_sweep(
+    out: Path,
+    spec: Spec,
+    axis: EachCoordinate | EachWindow,
+    sources: Mapping[str, Source],
+    folded: Runs,
+    one_slice: Mapping[str, Source],
+    /,
+) -> None:
+    """Pack the sweep's question and its answers into one zip at *out*.
+
+    A spilled sweep is packed from its spill, which already holds exactly the
+    layout an archive's ``answer/`` is: nothing is re-materialised, and the
+    sweep that was too large to hold is the one this serves. A held sweep is
+    laid out in a scratch directory first.
+
+    What the sources are checked against is *one_slice* — the door the sweep
+    itself built from — while what is written is all of them, the column the
+    axis cuts on included, because one copy per slice is what a sweep exists
+    not to write.
+    """
+    manifest = axis_manifest(axis)
+    whole = carries(sources, axis.dim)
+    if folded._spill is not None:
+        write_archive(out, spec, sources, checked=one_slice, whole=whole, axis=manifest, answer=folded._spill.directory)
+        return
+    with beside(out) as scratch:
+        write_archive(out, spec, sources, checked=one_slice, whole=whole, axis=manifest, answer=folded.save(scratch))
 
 
 def _check_the_carry(
@@ -1284,6 +1376,7 @@ def _check_the_carry(
 
 def _serially(
     program: Program,
+    document: Spec,
     slices: Sequence[_Slice],
     solving: Mapping[str, Any],
     plan: Mapping[str, _CarryRule],
@@ -1333,7 +1426,7 @@ def _serially(
                 else:
                     if model is not None:
                         model.close()
-                    model, named, before = build(program, sources), names, None
+                    model, named, before = build(document, sources), names, None
                 result = model.solve(**solving, keep=keep)
                 answer = _answers(result, program, _slice_cost(model.diagnostics(), before))
             primals = answer.primals
@@ -1391,6 +1484,7 @@ def _pooled(
     executor: Executor,
     workers_share_fs: bool | None,
     program: Program,
+    document: Spec,
     slices: Sequence[_Slice],
     solving: Mapping[str, Any],
     spill: _Spill | None,
@@ -1417,6 +1511,7 @@ def _pooled(
         else executor.submit(
             _run_slice,
             program,
+            document,
             _encode(current.sources, memo, workers_share_fs=shared) if crosses else dict(current.sources),
             crosses,
             call,
@@ -1452,12 +1547,8 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
     slice must not fail a whole sweep. ``Result.dual`` already writes the
     sentence saying why, so it is caught and carried rather than rewritten.
     """
-    meta = Record(
-        status=result.status,
-        termination_condition=result.termination_condition,
-        objective=result.objective if result.has_primal else None,
-        has_primal=result.has_primal,
-        spec_digest=result.spec_digest,
+    meta = Record.of(
+        result.termination_condition, result.objective, has_primal=result.has_primal, spec_digest=result.spec_digest
     )
     if not result.has_primal:
         return _Answer(meta, cost, {}, {}, {}, None, {})
@@ -1478,6 +1569,7 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
 
 def _run_slice(
     program: Program,
+    document: Spec,
     encoded: dict[str, Any],
     encode_out: bool,
     call: dict[str, Any],
@@ -1488,7 +1580,7 @@ def _run_slice(
     what it is handed, and a bound method or a lambda over the axis object
     cannot cross.
     """
-    with build(program, _decode(encoded)) as model, model.solve(**call) as result:
+    with build(document, _decode(encoded)) as model, model.solve(**call) as result:
         answer = _answers(result, program, _slice_cost(model.diagnostics(), None))
         if not encode_out:
             return answer

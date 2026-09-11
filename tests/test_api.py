@@ -276,14 +276,15 @@ def test_runtime_is_linopy_free(dispatch_yaml):
 
 @pytest.mark.parametrize(
     'form',
-    ['path', 'str', 'dict', 'spec', 'program'],
+    ['path', 'str', 'dict', 'spec'],
 )
 def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispatch_frame_inputs, tmp_path, form):
     """One first argument across the five verbs, and it is `to_program`'s own.
 
-    A caller who has already read the file — `to_spec` for the math, `check`
-    for the plan — hands that back rather than the path, and every verb takes
-    it. Asserted per verb rather than on `check` alone: each annotates
+    A caller who has already read the file hands the `to_spec` back rather
+    than the path, and every verb takes it. A lowered `Program` is the one
+    shape none of them takes, which `test_a_lowered_program_is_not_a_model_any_verb_takes`
+    holds. Asserted per verb rather than on `check` alone: each annotates
     `Buildable` and each has its own door, so one that forgot to pass the
     model through would only show up here.
     """
@@ -292,7 +293,6 @@ def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispa
         'str': str(dispatch_yaml),
         'dict': to_spec(dispatch_yaml).to_dict(),
         'spec': to_spec(dispatch_yaml),
-        'program': lps.check(dispatch_yaml),
     }[form]
     with lps.solve(dispatch_yaml, dispatch_frame_inputs) as reference:
         expected = reference.objective
@@ -471,13 +471,13 @@ def test_a_case_pair_across_two_namespaces_is_allowed():
     assert 'P' in lps.check(spec).constraints, "a constraint named like a variable is the language's to allow"
 
 
-@pytest.mark.parametrize('door', ['check', 'build', 'solve', 'save'], ids=str)
+@pytest.mark.parametrize('door', ['check', 'build', 'solve', 'archive'], ids=str)
 def test_every_door_refuses_a_case_pair_rather_than_only_the_front_one(door, tmp_path):
     """A rule only `check` enforced is one `solve` walks past.
 
-    `build` lowers without going through `check`, and an archive lowers
-    without going through either, so all three lower through one function that
-    refuses.
+    `build` lowers without going through `check`, and the write that lays an
+    archive out lowers without going through either, so all of them lower
+    through one function that refuses.
     """
     spec = _named(variables={'P': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}})
     sources = {'t': range(2), 'load': [1.0, 2.0]}
@@ -485,7 +485,7 @@ def test_every_door_refuses_a_case_pair_rather_than_only_the_front_one(door, tmp
         'check': lambda: lps.check(spec),
         'build': lambda: lps.build(spec, sources),
         'solve': lambda: lps.solve(spec, sources),
-        'save': lambda: lps.SolveArtifact(spec, sources).save(tmp_path / 'case.zip'),
+        'archive': lambda: lps.solve(spec, sources, archive=tmp_path / 'case.zip'),
     }[door]
     with pytest.raises(lps.LpspecError, match='differ only by case'):
         call()

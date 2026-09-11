@@ -34,6 +34,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import polars as pl
+from math_spec import to_spec
 
 import lpspec as lps
 
@@ -41,9 +42,9 @@ HERE = Path(__file__).parent
 SNAPSHOTS = [0, 1, 2, 3]
 GENERATORS = ['wind', 'gas']
 
-SUB = lps.check(HERE / 'sub.yaml')
-FEASIBILITY = lps.check(HERE / 'feasibility.yaml')
-MASTER = lps.check(HERE / 'master.yaml')
+SUB = to_spec(HERE / 'sub.yaml')
+FEASIBILITY = to_spec(HERE / 'feasibility.yaml')
+MASTER = to_spec(HERE / 'master.yaml')
 
 SOURCES = {
     'snapshot': pl.DataFrame({'snapshot': SNAPSHOTS}),

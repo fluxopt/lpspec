@@ -16,12 +16,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from typing import TYPE_CHECKING, NamedTuple, get_args, get_type_hints
 
 import polars as pl
 
 from lpspec.errors import LayoutError, LpspecError
+from lpspec.relational.status import SolveStatus, status_of
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -70,7 +70,7 @@ def check_format(directory: Path) -> None:
         raise LayoutError(
             f'{str(directory)!r} holds a saved answer in layout {found}, and this package reads '
             f'{ANSWER_FORMAT}. The layout moves while the package is on 0.0.1aN and nothing reads an '
-            f'older one back: solve the model again and save it. An archive Artifact.save() wrote still '
+            f'older one back: solve the model again and save it. An archive that archive= wrote still '
             f'holds the model and the data to do that with.'
         )
 
@@ -120,6 +120,44 @@ class Record(NamedTuple):
     #: one distinct value across a concatenated table means one spec.
     spec_digest: str | None
 
+    @classmethod
+    def of(cls, termination_condition: str, objective: float, *, has_primal: bool, spec_digest: str | None) -> Record:
+        """The row a solve that terminated this way writes.
+
+        The one home for how an answer becomes columns: ``status`` is derived
+        here rather than passed, and an objective is dropped to null here
+        rather than at each writer. Keyword-only past the condition because
+        ``status`` and ``termination_condition`` are both strings, so a
+        positional call is one field order away from writing a wrong file that
+        no type checker and no test would object to.
+
+        Args:
+            termination_condition: What the solver said.
+            objective: What the solve reached. Written only where there are
+                values to read — ``nan`` is a *number* to every aggregate.
+            has_primal: Whether there are values, which the condition alone
+                does not say.
+            spec_digest: :func:`digest_of` the spec answered, or ``None``.
+        """
+        return cls(
+            status_of(termination_condition),
+            termination_condition,
+            objective if has_primal else None,
+            has_primal,
+            spec_digest,
+        )
+
+    @property
+    def solve_status(self) -> SolveStatus:
+        """The status this row records — the way back from columns.
+
+        The solver's own wording is gone, being a sentence to read rather than
+        a column to group by, and ``status`` is derived again rather than read
+        off the row: a file whose two columns disagree is answered by the
+        table that owns the rollup.
+        """
+        return SolveStatus(self.termination_condition, has_primal=self.has_primal)
+
 
 #: What each Python type a record column is annotated with is written as.
 #: A column whose annotation is not here fails at import rather than at the
@@ -161,11 +199,27 @@ RECORD_SCHEMA = _column_types(Record)
 
 
 #: The two files that sit beside the frames, named here because a result and a
-#: sweep both write them and :func:`lpspec.artifact.load_artifact` reads back
+#: sweep both write them and :func:`lpspec.archive.load_archive` reads back
 #: whichever wrote: the record of how the solve terminated, and the reasons
 #: behind whatever is deliberately not there.
 RECORD_FILE = 'objective.parquet'
 REASONS_FILE = 'reasons.parquet'
+
+
+def clear_the_answer(directory: Path) -> None:
+    """Remove what a saved answer holds, leaving anything else in *directory* alone.
+
+    A second save into one directory would otherwise leave the first answer's
+    frames beside the second's: a name the new model never declared, readable
+    through a reader that reports the new model's digest. Only the layout's own
+    members go, so a directory the caller also keeps other files in survives.
+    """
+    import shutil
+
+    for kind in (*KINDS, 'activity'):
+        shutil.rmtree(directory / kind, ignore_errors=True)
+    for member in (RECORD_FILE, REASONS_FILE, FORMAT_FILE):
+        (directory / member).unlink(missing_ok=True)
 
 
 def write_reasons(directory: Path, no_duals: str | None, no_expressions: Mapping[str, str]) -> None:
@@ -216,4 +270,4 @@ def write_whole(frame: pl.DataFrame | pl.LazyFrame, path: Path) -> None:
         frame.sink_parquet(part)
     else:
         frame.write_parquet(part)
-    os.replace(part, path)
+    part.replace(path)
