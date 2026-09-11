@@ -36,6 +36,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
 | `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(to=)` wrote, back as a `Runs` |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
+| `model.sources` | what is attached now — the merge `update` leaves behind, which is what an artifact of an updated model's answer holds |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
 | `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` or `math_spec.program.Program` |
 
@@ -388,6 +389,17 @@ as one zip: `model.yaml`, `sources/<key>.parquet` for every key the file
 declares, `answer/` holding what `result.save` or `runs.save` writes, and
 `axis.json` for a sweep. The answer is optional — an artifact of the question
 alone is the model and its data.
+
+**After an `update`, the question is `model.sources`.** An update moves what
+the model answers and leaves the spec alone, so the digest cannot tell the two
+questions apart — archive the mapping `build` was given and the file re-solves
+to the answer before the update while carrying the one after it:
+
+```python
+with lps.build('spec.yaml', sources) as model:
+    answered = model.update({'cap_hat': capacity}).solve()
+    lps.SolveArtifact('spec.yaml', model.sources, answered).save('case.zip')
+```
 
 **A sweep is its own artifact, because its sources are cut:**
 

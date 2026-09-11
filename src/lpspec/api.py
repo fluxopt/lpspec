@@ -155,6 +155,19 @@ class Model:
             self._engine.close()
             raise
 
+    @property
+    def sources(self) -> Mapping[str, Source]:
+        """What is attached right now — the question this model answers.
+
+        A snapshot of the merge :meth:`update` leaves behind, not the mapping
+        :func:`build` was given, and what a
+        :class:`~lpspec.artifact.SolveArtifact` needs to hold beside an answer
+        an updated model returned: the spec is unchanged by an update, so
+        nothing else can tell the two questions apart. The values are the
+        caller's own objects, handed back rather than copied.
+        """
+        return dict(self._sources)
+
     def update(self, sources: Mapping[str, Source]) -> Model:
         """Put new numbers on the same model, in place.
 

@@ -226,6 +226,36 @@ def test_an_archive_of_the_question_alone_comes_back_with_no_answer(
     assert not (tmp_path / 'out' / 'answer').exists(), 'and no answer/ was written to extract'
 
 
+def test_an_updated_model_archives_the_data_it_actually_answered(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """An update moves the question, so the model is the only thing that knows it.
+
+    `update` puts new numbers on a built model, and what it answers from then
+    on is the merge — not the mapping the caller passed `build`. Archiving
+    that answer beside the original mapping is the mispairing the digest
+    cannot catch, the spec being unchanged: the file re-solves to the answer
+    before the update while carrying the one after it. `Model.sources` is the
+    way to ask what is attached now.
+    """
+    halved = pl.DataFrame(
+        {'snapshot': dispatch_frame_inputs['load']['snapshot'], 'value': dispatch_frame_inputs['load']['value'] * 0.5}
+    )
+    with lps.build(dispatch_yaml, dispatch_frame_inputs) as model:
+        before = model.solve().objective
+        after = model.update({'load': halved}).solve()
+        assert after.objective != pytest.approx(before, rel=1e-9), 'the update moved the answer, or this proves nothing'
+
+        archive = lps.SolveArtifact(dispatch_yaml, model.sources, after).save(tmp_path / 'updated.zip')
+
+    loaded = lps.load_artifact(archive, tmp_path / 'updated')
+    assert loaded.answer is not None, 'the archive was given an answer'
+    with lps.solve(*_question(loaded)) as resolved:
+        assert resolved.objective == pytest.approx(after.objective, rel=1e-9), (
+            'the archived question is the updated one, so it re-solves to the answer it carries'
+        )
+
+
 def test_a_scenario_sweep_is_an_artifact_and_runs_again(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
