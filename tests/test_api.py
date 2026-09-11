@@ -25,6 +25,7 @@ from math_spec import Spec, to_program, to_spec
 import lpspec as lps
 from lpspec.errors import DimensionError
 from tests.conftest import (
+    CASES,
     DISPATCH_COST,
     DISPATCH_GENERATORS,
     DISPATCH_P_MAX,
@@ -275,14 +276,15 @@ def test_runtime_is_linopy_free(dispatch_yaml):
 
 @pytest.mark.parametrize(
     'form',
-    ['path', 'str', 'dict', 'spec', 'program'],
+    ['path', 'str', 'dict', 'spec'],
 )
 def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispatch_frame_inputs, tmp_path, form):
     """One first argument across the five verbs, and it is `to_program`'s own.
 
-    A caller who has already read the file — `to_spec` for the math, `check`
-    for the plan — hands that back rather than the path, and every verb takes
-    it. Asserted per verb rather than on `check` alone: each annotates
+    A caller who has already read the file hands the `to_spec` back rather
+    than the path, and every verb takes it. A lowered `Program` is the one
+    shape none of them takes, which `test_a_lowered_program_is_not_a_model_any_verb_takes`
+    holds. Asserted per verb rather than on `check` alone: each annotates
     `Buildable` and each has its own door, so one that forgot to pass the
     model through would only show up here.
     """
@@ -291,7 +293,6 @@ def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispa
         'str': str(dispatch_yaml),
         'dict': to_spec(dispatch_yaml).to_dict(),
         'spec': to_spec(dispatch_yaml),
-        'program': lps.check(dispatch_yaml),
     }[form]
     with lps.solve(dispatch_yaml, dispatch_frame_inputs) as reference:
         expected = reference.objective
@@ -420,14 +421,14 @@ def test_write_suffix_dispatch(dispatch_yaml, dispatch_frame_inputs, tmp_path):
         lps.write(dispatch_yaml, sources, tmp_path / 'm.nc')
 
 
-def test_solution_to_parquet(dispatch_solution, dispatch_yaml, tmp_path):
+def test_a_solution_saves_every_kind_it_answered_with(dispatch_solution, dispatch_yaml, tmp_path):
     """Every kind the solve answered with, tidy, streamed straight to disk.
 
     `<kind>/<name>.parquet`, because the language lets a constraint carry a
     variable's name and a flat directory could not hold both.
     """
     assert dispatch_solution.is_ok
-    out = dispatch_solution.to_parquet(tmp_path / 'solution')
+    out = dispatch_solution.save(tmp_path / 'solution')
     assert out == tmp_path / 'solution'
     frame = pl.read_parquet(out / 'primal' / 'p.parquet')
     assert set(frame.columns) == {'snapshot', 'generator', 'value'}
@@ -435,6 +436,29 @@ def test_solution_to_parquet(dispatch_solution, dispatch_yaml, tmp_path):
     assert {p.stem for p in (out / 'dual').iterdir()} == set(lps.check(dispatch_yaml).constraints), (
         'one dual file per constraint'
     )
+
+
+def test_a_saved_solution_says_how_it_terminated(dispatch_solution, tmp_path):
+    """The record beside the frames: what the numbers themselves cannot carry.
+
+    Without it a directory holds every value the solve produced and cannot say
+    what the solve concluded, so a set of saved cases answers neither which
+    one was cheapest nor which one did not solve. Written as the row a sweep
+    writes per slice, so a directory per case concatenates.
+    """
+    out = dispatch_solution.save(tmp_path / 'solution')
+    record = pl.read_parquet(out / 'objective.parquet')
+    assert record.columns == ['status', 'termination_condition', 'objective', 'has_primal', 'spec_digest'], (
+        'the columns a sweep keys and folds, minus the key'
+    )
+    assert record.height == 1, 'one solve, one row'
+    assert record.row(0, named=True) == {
+        'status': dispatch_solution.status,
+        'termination_condition': dispatch_solution.termination_condition,
+        'objective': dispatch_solution.objective,
+        'has_primal': dispatch_solution.has_primal,
+        'spec_digest': dispatch_solution.spec_digest,
+    }, 'the row carries what the result itself reports, not a second reading of the solve'
 
 
 def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
@@ -451,16 +475,139 @@ def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
     }
     sources = {'t': range(2), 'load': [1.5, 2.5], 'scale': pl.DataFrame({'t': [0], 'value': [2.0]})}
     with lps.solve(spec, sources) as result:
-        out = result.to_parquet(tmp_path)
+        out = result.save(tmp_path)
         with pytest.raises(lps.LpspecError):
             result.expression('ratio')
         with pytest.raises(lps.LpspecError, match='integer'):
             result.to_dataset(kind='dual')
-    assert sorted(p.name for p in out.iterdir()) == ['expression', 'primal'], 'no duals to write, so no dual/'
+    assert sorted(p.name for p in out.iterdir()) == [
+        'activity',
+        'expression',
+        'format.json',
+        'objective.parquet',
+        'primal',
+        'reasons.parquet',
+    ], 'no dual/ — there are none to write, and reasons.parquet is where that is said'
     assert [p.name for p in (out / 'expression').iterdir()] == ['twice.parquet'], 'the one that evaluated'
     assert pl.read_parquet(out / 'expression' / 'twice.parquet')['value'].to_list() == [4.0, 6.0], (
         'twice the integer dispatch that meets 1.5 and 2.5'
     )
+
+
+def test_a_saved_solution_carries_the_activities(dispatch_solution, dispatch_yaml, tmp_path):
+    """The fourth reader a result has, and the one the export left behind.
+
+    `activity` is not a `kind=` any bridge takes — a sweep folds three kinds
+    and never holds these — so it needs naming separately or a saved answer
+    cannot answer what a row's left-hand side reached.
+    """
+    out = dispatch_solution.save(tmp_path / 'solution')
+    constraints = set(lps.check(dispatch_yaml).constraints)
+    assert {p.stem for p in (out / 'activity').iterdir()} == constraints, 'one activity file per constraint'
+    for name in constraints:
+        assert pl.read_parquet(out / 'activity' / f'{name}.parquet').equals(dispatch_solution.activity(name))
+
+
+def test_a_saved_solution_says_why_a_kind_is_absent(tmp_path):
+    """An absence is a fact about the answer, so it is written down.
+
+    Skipping a dual an integer variable made undefined, and an expression this
+    data cannot evaluate, leaves a directory that cannot tell "there is none,
+    and here is why" from "no such name". `dual` and `expression` say why in
+    the process that solved; the file has to say it too.
+    """
+    spec = {
+        'dimensions': {'t': {'dtype': 'int'}},
+        'parameters': {'load': {'dims': ['t']}, 'scale': {'dims': ['t']}},
+        'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
+        'constraints': {'meet': {'foreach': ['t'], 'expression': 'p >= load'}},
+        'expressions': {'twice': '2 * p', 'ratio': 'p / scale'},
+        'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
+    }
+    sources = {'t': range(2), 'load': [1.5, 2.5], 'scale': pl.DataFrame({'t': [0], 'value': [2.0]})}
+    with lps.solve(spec, sources) as result:
+        out = result.save(tmp_path)
+        with pytest.raises(lps.LpspecError) as no_dual:
+            result.dual('meet')
+        with pytest.raises(lps.LpspecError) as no_ratio:
+            result.expression('ratio')
+
+    absent = pl.read_parquet(out / 'reasons.parquet')
+    assert absent.columns == ['kind', 'name', 'reason'], 'the kind, what is missing under it, and why'
+    assert absent.sort('kind', 'name').rows() == [
+        ('dual', '', str(no_dual.value)),
+        ('expression', 'ratio', str(no_ratio.value)),
+    ], 'the whole kind for the duals, one name for the expression, each with the sentence the reader gives'
+
+
+def test_a_saved_solution_loads_back_as_the_result_it_was(dispatch_solution, dispatch_yaml, tmp_path):
+    """Every reader answers what it answered, off the directory rather than a session.
+
+    The point of writing the record and the fourth kind: a `Result` is frames
+    and a handful of scalars, so nothing about it needs the build that made
+    it, the solver that filled it, or the process either ran in.
+    """
+    loaded = lps.load_result(dispatch_solution.save(tmp_path / 'solution'))
+
+    assert (loaded.status, loaded.termination_condition) == (
+        dispatch_solution.status,
+        dispatch_solution.termination_condition,
+    ), 'the outcome as recorded, on both axes'
+    assert loaded.objective == dispatch_solution.objective
+    assert loaded.has_primal
+    program = lps.check(dispatch_yaml)
+    for name in program.variables:
+        assert loaded.primal(name).equals(dispatch_solution.primal(name))
+    for name in program.constraints:
+        assert loaded.dual(name).equals(dispatch_solution.dual(name))
+        assert loaded.activity(name).equals(dispatch_solution.activity(name))
+
+
+def test_a_loaded_result_gives_the_reason_the_solve_gave(tmp_path):
+    """An absence loads back as the sentence, not as an unknown name."""
+    spec = {
+        'dimensions': {'t': {'dtype': 'int'}},
+        'parameters': {'load': {'dims': ['t']}, 'scale': {'dims': ['t']}},
+        'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
+        'constraints': {'meet': {'foreach': ['t'], 'expression': 'p >= load'}},
+        'expressions': {'twice': '2 * p', 'ratio': 'p / scale'},
+        'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
+    }
+    sources = {'t': range(2), 'load': [1.5, 2.5], 'scale': pl.DataFrame({'t': [0], 'value': [2.0]})}
+    with lps.solve(spec, sources) as result:
+        loaded = lps.load_result(result.save(tmp_path))
+        with pytest.raises(lps.LpspecError) as no_dual:
+            result.dual('meet')
+        with pytest.raises(lps.LpspecError) as no_ratio:
+            result.expression('ratio')
+
+    assert loaded.expression('twice').equals(pl.DataFrame({'t': [0, 1], 'value': [4.0, 6.0]}))
+    with pytest.raises(lps.LpspecError, match='integer'):
+        loaded.dual('meet')
+    with pytest.raises(lps.LpspecError) as loaded_no_ratio:
+        loaded.expression('ratio')
+    assert (str(loaded_no_ratio.value), str(no_ratio.value)) == (str(no_ratio.value), str(no_ratio.value)), (
+        'the expression names the same reason it named in the process that solved'
+    )
+    assert 'integer' in str(no_dual.value), 'and the dual refuses for the reason it refused there'
+
+
+def test_a_solve_that_left_no_values_loads_back_and_still_has_none(tmp_path):
+    """A run that did not solve is an answer, and reads back as that answer."""
+    with lps.solve(*CASES['INFEASIBLE']) as solution:
+        loaded = lps.load_result(solution.save(tmp_path / 'infeasible'))
+    assert loaded.termination_condition == 'infeasible'
+    assert not loaded.has_primal, 'the record says the solve produced none, so no reader is offered any'
+    assert loaded.objective != loaded.objective, 'nan, as the solve reported it'
+    with pytest.raises(lps.NoSolutionError, match='infeasible'):
+        loaded.primal('p')
+
+
+def test_a_directory_that_is_not_a_saved_answer_is_refused(tmp_path):
+    empty = tmp_path / 'nothing'
+    empty.mkdir()
+    with pytest.raises(lps.LayoutError, match=r'objective\.parquet'):
+        lps.load_result(empty)
 
 
 def test_read_back_is_in_label_order_and_stays_there(dispatch_yaml, dispatch_frame_inputs, tmp_path):
@@ -486,9 +633,7 @@ def test_read_back_is_in_label_order_and_stays_there(dispatch_yaml, dispatch_fra
         )
         assert by_declaration.equals(by_declaration.sort('snapshot', 'ord'))
 
-        written = [
-            (result.to_parquet(tmp_path / f'solution{i}') / 'primal' / 'p.parquet').read_bytes() for i in range(3)
-        ]
+        written = [(result.save(tmp_path / f'solution{i}') / 'primal' / 'p.parquet').read_bytes() for i in range(3)]
         assert len(set(written)) == 1, 'the same solution writes the same bytes'
 
 

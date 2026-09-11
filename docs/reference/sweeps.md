@@ -1,7 +1,7 @@
 # Sweeps and rolling horizons
 
 This page is the reference for `solve_over`: the axes it takes, the `Runs` it
-returns, and the `carry`, `executor` and `to=` keywords.
+returns, and the `carry`, `executor` and `spill_to=` keywords.
 
 `solve_over` runs one [model](glossary.md#the-chain) once per slice and folds
 the answers together. A slice is one set of [sources](glossary.md#how-it-runs)
@@ -12,7 +12,7 @@ fold.
 import lpspec as lps
 
 runs = lps.solve_over('spec.yaml', sources, lps.EachCoordinate('scenario'))
-runs.objective  # (scenario, status, termination_condition, objective)
+runs.objective  # (scenario, status, termination_condition, objective, has_primal, spec_digest)
 runs.primal('p')  # (scenario, snapshot, generator, value)
 ```
 
@@ -89,7 +89,7 @@ how a model masks, so the gap is reported rather than refused.
 
 **`Runs` reads like [`Result`](api.md#reading-a-result), one dimension wider.**
 `primal`, `dual`, `expression`, `to_pandas`, `to_dataarray`, `to_dataset` and
-`to_parquet` keep their names, and every table has the slice key prepended.
+`save` keep their names, and every table has the slice key prepended.
 
 **You name the extra dimension, not the library.** `EachCoordinate('scenario')`
 keys on `scenario`, so `runs.to_dataarray('p')` is
@@ -126,16 +126,16 @@ each window started, records which coordinates each one owns, and stitches.
 ```
 
 **Keyed is the default, because stitching is lossy.** It drops the lookahead
-rows the sweep solved. For the same reason `to_dataset` and `to_parquet` have
+rows the sweep solved. For the same reason `to_dataset` and `save` have
 no `original_index`.
 
 **`original_index` sits beside `kind=` where a reader has one**, so
 `runs.to_dataarray('balance', 'dual', original_index=True)` is the stitched
 price over time.
 
-**`to_parquet` writes every kind.** `runs.to_parquet('runs/')` writes what
-`to=` would have written, so the directory is a spilled sweep. `scan` reads it,
-and the call that made the sweep, pointed at it with `to=`, reads it back
+**`save` writes every kind.** `runs.save('runs/')` writes what
+`spill_to=` would have written, so the directory is a spilled sweep. `scan` reads it,
+and the call that made the sweep, pointed at it with `spill_to=`, reads it back
 without solving.
 
 **There is no per-slice reader.** One slice is a partition of a table you
@@ -148,20 +148,22 @@ already hold: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 | **expressions are evaluated per slice** | Every declared `expressions:` name is evaluated at each slice's solution and read through `runs.expression(name)`. Under `original_index=True` only the rows each window owns survive, so summing the stitched table cannot double-count the lookahead. A quantity *reduced over* the sliced dimension is refused there, and the error names the per-slice read. |
 | **no aggregate objective** | `objective` is a table keyed by slice. Scenarios are a distribution, not a sum, and summing window objectives double-counts the overlap. |
 | **the lookahead is `t >= step`** | Overlapping windows return every row they solved, lookahead included. What each window owns is `runs.primal('soc').filter(pl.col('t') < step)`. |
-| **a slice that did not solve contributes no rows** | A `primal` table can be shorter than the sweep. `objective` is always one row per slice and records which did not solve. |
+| **a slice that did not solve contributes no rows** | A `primal` table can be shorter than the sweep. `objective` is always one row per slice and records which did not solve, holding null where a slice reached no objective. |
 | **a window keys as `<dim>_start`** | `EachWindow('snapshot', …)` drops `snapshot` and re-indexes to `into`; the key column `snapshot_start` holds where each window began. |
 | **a hand-built axis names its own key** | A plain list cannot say what its keys are labels *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name on any axis. It is refused only when it collides with a column the tables already carry: a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective`. |
 | **`runs.diagnostics` says what each slice cost** | One row per slice, `(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)`: `model.diagnostics()` one dimension wider, its counts and clocks only. `loaded` says the solver took the model from scratch. A serial sweep loads once and pushes values after, so a later `True` is a slice whose data moved a mask; under `executor=` every slice loads. The clocks are that slice's own seconds. |
 | **a slice that fails says which slice** | The error is the engine's own, with a note on it: `in slice 'bad' (3 of 3)`. |
-| **a sweep's memory grows with its answer, unless it is spilled** | The models are released as the fold goes; the tables accumulate. `to=` writes them out instead ([below](#spilling-a-sweep-to-disk)), and `to_parquet` writes a held sweep out the same way, after the fact. |
+| **a sweep's memory grows with its answer, unless it is spilled** | The models are released as the fold goes; the tables accumulate. `spill_to=` writes them out instead ([below](#spilling-a-sweep-to-disk)), and `save` writes a held sweep out the same way, after the fact. |
 
 ## Spilling a sweep to disk
 
-`to=` names a directory. Each slice's tables are written there as the fold
+`spill_to=` names a directory. Each slice's tables are written there as the fold
 goes rather than held, so the sweep's memory stays at one slice:
 
 ```python
-runs = lps.solve_over('window.yaml', sources, lps.EachWindow('snapshot', steps=24, lookahead=24, into='t'), to='runs/')
+runs = lps.solve_over(
+    'window.yaml', sources, lps.EachWindow('snapshot', steps=24, lookahead=24, into='t'), spill_to='runs/'
+)
 runs.scan('soc')  # a LazyFrame: (snapshot_start, t, value), every window, in order
 runs.scan('balance', 'dual', original_index=True).collect()  # the same readers, the same keywords
 ```
@@ -169,7 +171,7 @@ runs.scan('balance', 'dual', original_index=True).collect()  # the same readers,
 | Rule | |
 |---|---|
 | **`scan` is the reader** | `runs.scan(name, kind='primal')` returns `primal`, `dual` or `expression` as a `LazyFrame` over the files, `original_index=` included. On a sweep held in memory it is the same reader made lazy. The eager readers and the exports refuse a spilled sweep and name `scan`. |
-| **one file per slice and name** | `<kind>/<name>/<position>.parquet`, with the slice key a column of each. `objective/` and `diagnostics/` hold the record, one row per slice; `runs.objective` and `runs.diagnostics` stay in memory. |
+| **one file per slice and name** | `<kind>/<name>/<position>.parquet`, with the slice key a column of each, one type across every file a sweep writes. `objective/` and `diagnostics/` hold the record, one row per slice; `runs.objective` and `runs.diagnostics` stay in memory. |
 | **every file lands whole** | A file is written beside its final name and renamed into place. The objective file is written last and marks a slice done, so a slice interrupted part way is solved again rather than read back short. |
 | **an interrupted sweep resumes** | Run the same call at the same directory. A slice already there is read back, and under a `carry` its state is read off its file. Only the unfinished slices are built. |
 | **a directory holds one sweep** | `sweep.json` records the key name and the keys, and a different sweep pointed at the directory is refused. Changed data or a changed model is not detected, so delete the directory to solve again. |

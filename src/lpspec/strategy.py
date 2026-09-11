@@ -37,9 +37,22 @@ from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 import polars as pl
 
 from lpspec.api import build, check
-from lpspec.errors import DataError, LpspecError, LpspecWarning, did_you_mean
+from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning, did_you_mean
 from lpspec.frames import as_frame
-from lpspec.relational.parquet import KINDS, LABELS, reader_kind, write_whole
+from lpspec.lanes import declared
+from lpspec.layout import beside, check_the_target, write_archive
+from lpspec.relational.parquet import (
+    KINDS,
+    LABELS,
+    RECORD_SCHEMA,
+    Record,
+    check_format,
+    read_reasons,
+    reader_kind,
+    write_format,
+    write_reasons,
+    write_whole,
+)
 from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to_pandas
 from lpspec.sources import least_value
 
@@ -48,6 +61,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
     import xarray as xr
+    from math_spec import Spec
     from math_spec.program import Program
 
     from lpspec.api import Model
@@ -80,13 +94,11 @@ class _Slice(NamedTuple):
     owns: int | None = None
 
 
-class _SliceMeta(NamedTuple):
-    """One row of :attr:`Runs.objective`: how a slice terminated, and its objective."""
-
-    status: str
-    termination_condition: str
-    objective: float
-
+#: What a spilled sweep carries beside its frames: the manifest saying whose
+#: sweep the directory is, and the coordinates each window owns. Named here
+#: because :class:`_Spill` writes them and :func:`load_runs` reads them back.
+_MANIFEST_FILE = 'sweep.json'
+_OWNED_FILE = 'owned.parquet'
 
 #: The phases :attr:`Runs.diagnostics` clocks, in the order they run.
 _PHASES = ('attach', 'build', 'handoff', 'solve')
@@ -196,7 +208,7 @@ class _Answer:
     strings and numbers, never a result or a model.
     """
 
-    meta: _SliceMeta
+    meta: Record
     #: This slice's row of :attr:`Runs.diagnostics`, from :func:`_slice_cost`.
     cost: dict[str, Any]
     primals: dict[str, pl.DataFrame]
@@ -255,9 +267,44 @@ class _OriginalIndex:
         return stitched if isinstance(frame, pl.LazyFrame) else stitched.collect()  # pyrefly: ignore[bad-return]  — the branch matches the frame's own kind
 
 
-def _keyed(frame: pl.DataFrame, key_name: str, key: Label) -> pl.DataFrame:
-    """*frame* with the slice key prepended — the shape every reader returns."""
-    return frame.select(pl.lit(key).alias(key_name), pl.all())
+def _one_key_type(keys: Sequence[Label], key_name: str) -> pl.DataType:
+    """The type every file writes *key_name* as, settled over the whole sweep.
+
+    Refused rather than coerced where the keys disagree: an ``int`` beside a
+    ``float`` would widen every key to a float, so a sweep keyed 1 and 2 would
+    read back keyed 1.0 and 2.0 — the caller's own labels, changed to make the
+    files line up.
+
+    Raises:
+        LpspecError: The keys are of more than one type.
+    """
+    try:
+        return pl.Series(keys).dtype
+    except TypeError as mixed:
+        kinds = sorted({type(key).__name__ for key in keys})
+        raise LpspecError(
+            f'the keys of this sweep are of more than one type ({", ".join(kinds)}), so its files could not '
+            f'all write {key_name!r} as one. Every file carries the key, and a column that changes type '
+            f'between them cannot be concatenated or loaded into one table. Key the slices consistently.'
+        ) from mixed
+
+
+def _keyed(frame: pl.DataFrame, key_name: str, key: Label, dtype: pl.DataType) -> pl.DataFrame:
+    """*frame* with the slice key prepended — the shape every reader returns.
+
+    The literal takes *dtype* rather than ``pl.lit``'s own, which reads a
+    Python int as ``Int32`` where every dict-built frame here reads it as
+    ``Int64``. A sweep whose record and whose frames disagree about the type
+    of its own key still joins in polars and still casts in duckdb, but cannot
+    be concatenated or loaded into one typed table — and the files outlive the
+    process that could paper over it.
+
+    *dtype* is the whole sweep's, never this key's: keys of ``[1, 2.5]`` infer
+    per file to ``Int64`` and ``Float64``, which is the same split one file
+    later, so the type has to be settled over the keys before any of them is
+    written.
+    """
+    return frame.select(pl.lit(key, dtype=dtype).alias(key_name), pl.all())
 
 
 @dataclass(frozen=True)
@@ -270,35 +317,64 @@ class _Spill:
     only whole, and the objective file is written last: it is what marks a
     slice done, so one interrupted part way is solved again rather than read
     back short. ``sweep.json`` names the key and the keys, so a directory
-    answers for one sweep and another pointed at it is refused.
+    answers for one sweep and another pointed at it is refused; it also
+    carries what :func:`load_runs` cannot infer from the frames — whether the
+    axis was hand-built, and the dimension a window sliced, whose owned
+    coordinates go beside it in ``owned.parquet``.
     """
 
     directory: Path
     key_name: str
+    #: What every file writes the key column as — settled over the sweep's
+    #: keys by whoever opened this, never inferred per file.
+    key_dtype: pl.DataType
 
     @classmethod
-    def opened(cls, directory: str | Path, key_name: str, keys: Sequence[Label]) -> _Spill:
+    def opened(
+        cls,
+        directory: str | Path,
+        key_name: str,
+        keys: Sequence[Label],
+        key_dtype: pl.DataType,
+        original: _OriginalIndex | None = None,
+        hand_built: bool = False,
+    ) -> _Spill:
         """The directory ready to take this sweep, or refused as another's.
 
+        A directory already holding a sweep is **checked**, never re-stamped:
+        resuming into one an earlier build wrote would otherwise overwrite the
+        layout it is in and mix two under one manifest, which is the one
+        failure the stamp exists to catch. Only a directory that holds no
+        sweep yet is stamped, and it is stamped with the manifest.
+
         Raises:
+            LayoutError: The directory holds a sweep in another layout.
             LpspecError: The directory holds a sweep keyed differently, or
                 over other keys.
         """
         directory = Path(directory)
-        directory.mkdir(parents=True, exist_ok=True)
-        manifest = {'key_name': key_name, 'keys': [str(key) for key in keys]}
-        record = directory / 'sweep.json'
+        manifest: dict[str, Any] = {
+            'key_name': key_name,
+            'keys': [str(key) for key in keys],
+            'hand_built': hand_built,
+            'original': None if original is None else {'local': original.local, 'dim': original.dim},
+        }
+        record = directory / _MANIFEST_FILE
         if record.exists():
+            check_format(directory)
             found = json.loads(record.read_text())
             if found != manifest:
                 raise LpspecError(
                     f'{str(directory)!r} holds a sweep keyed by {found["key_name"]!r} over {found["keys"]}, and '
                     f'this one is keyed by {key_name!r} over {manifest["keys"]}. A directory holds one sweep: '
-                    f'point to= at an empty one, or delete this one to solve it again.'
+                    f'point spill_to= at an empty one, or delete this one to solve it again.'
                 )
         else:
+            write_format(directory)
             record.write_text(json.dumps(manifest))
-        return cls(directory, key_name)
+            if original is not None:
+                write_whole(original.owned, directory / _OWNED_FILE)
+        return cls(directory, key_name, key_dtype)
 
     def _file(self, kind: str, position: int, name: str | None = None) -> Path:
         under = self.directory / kind if name is None else self.directory / kind / name
@@ -311,16 +387,19 @@ class _Spill:
         """*answer*'s frames and record on disk, and the answer with the frames released."""
         for kind, produced in zip(KINDS, (answer.primals, answer.duals, answer.expressions), strict=True):
             for name, frame in produced.items():
-                write_whole(_keyed(frame, self.key_name, key), self._file(kind, position, name))
+                write_whole(_keyed(frame, self.key_name, key, self.key_dtype), self._file(kind, position, name))
         write_whole(pl.DataFrame([{self.key_name: key, **answer.cost}]), self._file('diagnostics', position))
-        write_whole(pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}]), self._file('objective', position))
+        write_whole(
+            pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}], schema_overrides=RECORD_SCHEMA),
+            self._file('objective', position),
+        )
         return replace(answer, primals={}, duals={}, expressions={})
 
     def read_back(self, position: int) -> _Answer:
         """A done slice's record — meta and cost — with no frames, which stay on disk."""
         row = pl.read_parquet(self._file('objective', position)).drop(self.key_name).row(0, named=True)
         cost = pl.read_parquet(self._file('diagnostics', position)).drop(self.key_name).row(0, named=True)
-        return _Answer(_SliceMeta(**row), dict(cost), {}, {}, {}, None, {})
+        return _Answer(Record(**row), dict(cost), {}, {}, {}, None, {})
 
     def primals(self, position: int, names: Iterable[str]) -> dict[str, pl.DataFrame]:
         """The named primals a done slice wrote, for a carry to read; a name it did not write is absent."""
@@ -633,8 +712,12 @@ class Runs:
     """
 
     key_name: str
-    #: ``(key, status, termination_condition, objective)``, in slice order —
-    #: how every slice terminated, whether or not it produced an answer.
+    #: ``(key, status, termination_condition, objective, has_primal, spec_digest)``,
+    #: in slice order — how every slice terminated, whether or not it produced
+    #: an answer, ``has_primal`` saying which of the two it was and ``spec_digest``
+    #: which document every slice answered. A slice that reached no objective
+    #: holds null there rather than ``nan``, so the column aggregates over the
+    #: slices that solved.
     objective: pl.DataFrame
     #: ``(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)``,
     #: in slice order — :meth:`~lpspec.api.Model.diagnostics` one dimension
@@ -659,7 +742,7 @@ class Runs:
     #: frame. Not the same fact as ``_original is None``, which
     #: :class:`EachCoordinate` is too and where the keyed frame *is* the answer.
     _hand_built: bool = field(repr=False, default=False)
-    #: Where the frames are instead, for a sweep solved with ``to=``.
+    #: Where the frames are instead, for a sweep solved with ``spill_to=``.
     _spill: _Spill | None = field(repr=False, default=None)
 
     @classmethod
@@ -670,6 +753,7 @@ class Runs:
         hand_built: bool,
         answered: Generator[tuple[Any, _Answer], None, None],
         spill: _Spill | None,
+        key_dtype: pl.DataType,
     ) -> Runs:
         """Every slice's answer absorbed, in the order they arrive.
 
@@ -688,6 +772,8 @@ class Runs:
                 names no dimension to read the keys back over.
             answered: ``(key, answer)`` per slice, in slice order.
             spill: Where the frames went, or ``None`` where they are held.
+            key_dtype: What to write the key column as, settled over the
+                sweep's keys rather than inferred from each one.
         """
         rows: list[dict[str, Any]] = []
         costs: list[dict[str, Any]] = []
@@ -709,10 +795,10 @@ class Runs:
                     (expressions, answer.expressions),
                 ):
                     for name, frame in produced.items():
-                        into[name].append(_keyed(frame, key_name, key))
+                        into[name].append(_keyed(frame, key_name, key, key_dtype))
         return cls(
             key_name=key_name,
-            objective=pl.DataFrame(rows),
+            objective=pl.DataFrame(rows, schema_overrides=RECORD_SCHEMA),
             diagnostics=pl.DataFrame(costs),
             _primals=dict(primals),
             _duals=dict(duals),
@@ -756,7 +842,7 @@ class Runs:
     def scan(self, name: str, kind: str = 'primal', *, original_index: bool = False) -> pl.LazyFrame:
         """One name's values across every slice as a :class:`polars.LazyFrame`, the slice key prepended.
 
-        The reader for a sweep solved with ``to=``, whose frames are on disk;
+        The reader for a sweep solved with ``spill_to=``, whose frames are on disk;
         on one held in memory it is :meth:`primal`, :meth:`dual` or
         :meth:`expression` made lazy, so the same line reads either.
 
@@ -903,10 +989,10 @@ class Runs:
         One kind per call: a dual and a variable of the same name would
         collide, and mean something else per row. Costs more than
         ``Result``'s does — each name arrives dense over its own dims *and*
-        over every slice. Name the few you need, or use :meth:`to_parquet`,
+        over every slice. Name the few you need, or use :meth:`save`,
         which writes every kind.
 
-        No ``original_index``: this and :meth:`to_parquet` export what the
+        No ``original_index``: this and :meth:`save` export what the
         sweep *holds*, and the original index is lossy — a bulk export is the
         wrong place to drop the lookahead rows.
 
@@ -921,31 +1007,44 @@ class Runs:
         """
         return tidy_to_dataset(names or self._names_held(kind), lambda name: self.to_dataarray(name, kind))
 
-    def to_parquet(self, directory: str | Path) -> Path:
-        """Everything the sweep holds, written as ``to=`` would have written it.
+    def save(self, directory: str | Path) -> Path:
+        """Everything the sweep holds, written as ``spill_to=`` would have written it.
 
         The same layout: ``<kind>/<name>/<position>.parquet`` for every
         primal, dual and expression, the slice key a column of each, with
         ``objective/``, ``diagnostics/`` and the manifest beside them. So the
         directory is a spilled sweep: :meth:`scan` reads it, and the call
-        that made this sweep, pointed at it with ``to=``, reads it back
+        that made this sweep, pointed at it with ``spill_to=``, reads it back
         without solving a slice.
 
         Returns:
             The directory.
 
+        A sweep whose every slice terminated without values writes each
+        slice's record and no frames, as one such solve does: an infeasible
+        study is an answer a set of saved cases needs on disk, not an export
+        that refuses.
+
         Raises:
-            LpspecError: The sweep holds no variable values at all, or is
-                spilled — its frames are in a directory already.
+            LpspecError: The sweep is spilled — its frames are in a directory
+                already.
         """
-        self._names_held('primal')
-        spill = _Spill.opened(directory, self.key_name, self.keys)
+        self._held_here()
+        spill = _Spill.opened(
+            directory,
+            self.key_name,
+            self.keys,
+            self.objective[self.key_name].dtype,
+            self._original,
+            self._hand_built,
+        )
+        write_reasons(spill.directory, self._no_duals, self._no_expressions)
         by_key = {
             kind: {name: _by_key(frames, self.key_name) for name, frames in held.items()}
             for kind, held in zip(KINDS, (self._primals, self._duals, self._expressions), strict=True)
         }
         for position, key in enumerate(self.keys):
-            meta = _SliceMeta(**self.objective.drop(self.key_name).row(position, named=True))
+            meta = Record(**self.objective.drop(self.key_name).row(position, named=True))
             cost = self.diagnostics.drop(self.key_name).row(position, named=True)
             frames = {
                 kind: {name: keyed[key] for name, keyed in names.items() if key in keyed}
@@ -1005,6 +1104,93 @@ def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], objective
     )
 
 
+def load_runs(directory: str | Path) -> Runs:
+    """Read back a sweep :meth:`Runs.save` wrote, or one ``solve_over(spill_to=)`` spilled.
+
+    The sweep comes back **spilled**: its frames stay in *directory* and
+    :meth:`Runs.scan` reads them, which is what a sweep solved with ``spill_to=``
+    already is. :attr:`Runs.objective` and :attr:`Runs.diagnostics` are read
+    whole — they are one row per slice — and ``original_index`` works, the
+    manifest carrying the dimension a window sliced.
+
+    Args:
+        directory: Where the sweep was written.
+
+    Returns:
+        The sweep, keyed as it was solved.
+
+    Raises:
+        LayoutError: A directory holding no ``sweep.json``, which is what
+            every sweep written there carries, or one whose layout has moved
+            since it was written.
+    """
+    under = Path(directory)
+    manifest = under / _MANIFEST_FILE
+    if not manifest.is_file():
+        raise LayoutError(
+            f'{str(under)!r} holds no {_MANIFEST_FILE!r}, so it is not a sweep save() or spill_to= wrote. A '
+            f'single solve writes no manifest and is read by load_result.'
+        )
+    check_format(under)
+    found = json.loads(manifest.read_text())
+    original = found['original']
+    no_duals, no_expressions = read_reasons(under)
+    key_name = found['key_name']
+    objective = pl.read_parquet(sorted((under / 'objective').glob('*.parquet')))
+    return Runs(
+        key_name=key_name,
+        objective=objective,
+        diagnostics=pl.read_parquet(sorted((under / 'diagnostics').glob('*.parquet'))),
+        _no_duals=no_duals,
+        _no_expressions=no_expressions,
+        _original=None
+        if original is None
+        else _OriginalIndex(original['local'], original['dim'], pl.read_parquet(under / _OWNED_FILE)),
+        _hand_built=found['hand_built'],
+        _spill=_Spill(under, key_name, objective[key_name].dtype),
+    )
+
+
+def axis_manifest(axis: EachCoordinate | EachWindow) -> dict[str, Any]:
+    """*axis* as the JSON an archive carries — the one home for that shape, with :func:`axis_from`."""
+    if isinstance(axis, EachCoordinate):
+        return {'each': 'coordinate', 'dim': axis.dim}
+    steps = axis.steps if isinstance(axis.steps, int) else list(axis.steps)
+    return {'each': 'window', 'dim': axis.dim, 'steps': steps, 'lookahead': axis.lookahead, 'into': axis.into}
+
+
+def axis_from(manifest: Mapping[str, Any]) -> EachCoordinate | EachWindow:
+    """The axis :func:`axis_manifest` wrote."""
+    if manifest['each'] == 'coordinate':
+        return EachCoordinate(manifest['dim'])
+    return EachWindow(manifest['dim'], steps=manifest['steps'], lookahead=manifest['lookahead'], into=manifest['into'])
+
+
+def _what_an_archive_needs(
+    archive: str | Path | None,
+    document: Spec,
+    axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
+) -> tuple[Path, Spec, EachCoordinate | EachWindow] | None:
+    """Where the archive goes, the model it holds and the axis that re-runs it — ``None`` for no archive.
+
+    One value, so that "this sweep is being archived" is a single thing to
+    test rather than three that have to agree. Asked before a slice is solved:
+    both refusals are answerable from the arguments, and an hour of solving
+    should not end in one the call already implied.
+    """
+    if archive is None:
+        return None
+    if not isinstance(axis, (EachCoordinate, EachWindow)):
+        raise LpspecError(
+            'archive= takes a sweep cut by EachCoordinate or EachWindow, which say how one set of sources '
+            'was cut and so how the archive can be re-run. A hand-built list is a set of sources per '
+            'slice, which are unrelated questions — archive one solve each.'
+        )
+    out = Path(archive)
+    check_the_target(out)
+    return out, document, axis
+
+
 def solve_over(
     spec: Buildable,
     sources: Mapping[str, Source],
@@ -1017,7 +1203,8 @@ def solve_over(
     solver_options: Mapping[str, Any] | None = None,
     solver_name: str = 'highs',
     keep: Keep = 'solver',
-    to: str | Path | None = None,
+    spill_to: str | Path | None = None,
+    archive: str | Path | None = None,
 ) -> Runs:
     """Solve *spec* once per slice of *axis* and fold the answers together.
 
@@ -1050,12 +1237,21 @@ def solve_over(
         keep: As :meth:`~lpspec.api.Model.solve` takes it, reaching every
             slice. Under an executor every slice is a first solve and keeps
             nothing, whatever was asked.
-        to: A directory to write each slice's frames to as the fold goes,
+        spill_to: A directory to write each slice's frames to as the fold goes,
             so the sweep's memory stays at one slice however many there
             are. Read back through :meth:`Runs.scan`. A directory holds
             one sweep: run the same sweep at it again and the slices already
             there are not solved again, which is how an interrupted sweep
             resumes.
+        archive: Where to write the whole thing — the model, the sources the
+            sweep was cut from, the axis that cut them, and every slice's
+            answer — so that ``lps.load_archive`` gives all four back and the
+            sweep runs again from the file alone. A ``.zip`` suffix packs it
+            into one file and anything else is a directory. Given beside
+            *spill_to*, the spill is what the archive packs, so a sweep too
+            large to hold is archived without ever being held. The archive is
+            a second copy of the answers on disk; the memory is what
+            *spill_to* bounds.
 
     Returns:
         Every slice's answers, keyed by slice.
@@ -1064,7 +1260,7 @@ def solve_over(
         LpspecError: A carry that cannot line up, has no seed, collapses a
             dimension the axis does not advance along, or is asked together with
             an executor; a key that collides with a column the frames carry;
-            an axis the program does not allow; a *to* directory holding
+            an axis the program does not allow; a *spill_to* directory holding
             another sweep. All refused before a slice is taken, and every
             one answerable from the declarations before a source is read.
         DataError: No source carries the axis, or the axis produced no
@@ -1080,7 +1276,9 @@ def solve_over(
             'carry and executor are mutually exclusive: a carried value makes slice i+1 depend on '
             "slice i's answer, so the slices cannot run concurrently. Drop the executor, or drop the carry."
         )
-    program = check(spec)
+    document = declared(spec)
+    archiving = _what_an_archive_needs(archive, document, axis)
+    program = check(document)
     plan = {p: _CarryRule.resolved(program, p, v) for p, v in (carry or {}).items()}
     key_name = _key_column(axis, key_name, program)
 
@@ -1096,13 +1294,50 @@ def solve_over(
     if not slices:
         raise DataError('the axis produced no slices')
     solving = {'solver_name': solver_name, 'solver_options': dict(solver_options or {}) or None}
-    spill = None if to is None else _Spill.opened(to, key_name, [current.key for current in slices])
+    keys = [current.key for current in slices]
+    key_dtype = _one_key_type(keys, key_name)
+    spill = None if spill_to is None else _Spill.opened(spill_to, key_name, keys, key_dtype, original, hand_built)
     answered = (
-        _serially(program, slices, solving, plan, keep, spill)
+        _serially(program, document, slices, solving, plan, keep, spill)
         if executor is None
-        else _pooled(executor, workers_share_fs, program, slices, solving, spill)
+        else _pooled(executor, workers_share_fs, program, document, slices, solving, spill)
     )
-    return Runs._folded(key_name, original, hand_built, answered, spill)
+    folded = Runs._folded(key_name, original, hand_built, answered, spill, key_dtype)
+    if spill is not None:
+        write_reasons(spill.directory, folded._no_duals, folded._no_expressions)
+    if archiving is not None:
+        _archive_the_sweep(*archiving, sources, folded, slices[0].sources)
+    return folded
+
+
+def _archive_the_sweep(
+    out: Path,
+    spec: Spec,
+    axis: EachCoordinate | EachWindow,
+    sources: Mapping[str, Source],
+    folded: Runs,
+    one_slice: Mapping[str, Source],
+    /,
+) -> None:
+    """Pack the sweep's question and its answers into one zip at *out*.
+
+    A spilled sweep is packed from its spill, which already holds exactly the
+    layout an archive's ``answer/`` is: nothing is re-materialised, and the
+    sweep that was too large to hold is the one this serves. A held sweep is
+    laid out in a scratch directory first.
+
+    What the sources are checked against is *one_slice* — the door the sweep
+    itself built from — while what is written is all of them, the column the
+    axis cuts on included, because one copy per slice is what a sweep exists
+    not to write.
+    """
+    manifest = axis_manifest(axis)
+    whole = carries(sources, axis.dim)
+    if folded._spill is not None:
+        write_archive(out, spec, sources, checked=one_slice, whole=whole, axis=manifest, answer=folded._spill.directory)
+        return
+    with beside(out) as scratch:
+        write_archive(out, spec, sources, checked=one_slice, whole=whole, axis=manifest, answer=folded.save(scratch))
 
 
 def _check_the_carry(
@@ -1141,6 +1376,7 @@ def _check_the_carry(
 
 def _serially(
     program: Program,
+    document: Spec,
     slices: Sequence[_Slice],
     solving: Mapping[str, Any],
     plan: Mapping[str, _CarryRule],
@@ -1190,7 +1426,7 @@ def _serially(
                 else:
                     if model is not None:
                         model.close()
-                    model, named, before = build(program, sources), names, None
+                    model, named, before = build(document, sources), names, None
                 result = model.solve(**solving, keep=keep)
                 answer = _answers(result, program, _slice_cost(model.diagnostics(), before))
             primals = answer.primals
@@ -1248,6 +1484,7 @@ def _pooled(
     executor: Executor,
     workers_share_fs: bool | None,
     program: Program,
+    document: Spec,
     slices: Sequence[_Slice],
     solving: Mapping[str, Any],
     spill: _Spill | None,
@@ -1274,6 +1511,7 @@ def _pooled(
         else executor.submit(
             _run_slice,
             program,
+            document,
             _encode(current.sources, memo, workers_share_fs=shared) if crosses else dict(current.sources),
             crosses,
             call,
@@ -1309,10 +1547,8 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
     slice must not fail a whole sweep. ``Result.dual`` already writes the
     sentence saying why, so it is caught and carried rather than rewritten.
     """
-    meta = _SliceMeta(
-        status=result.status,
-        termination_condition=result.termination_condition,
-        objective=result.objective if result.has_primal else float('nan'),
+    meta = Record.of(
+        result.termination_condition, result.objective, has_primal=result.has_primal, spec_digest=result.spec_digest
     )
     if not result.has_primal:
         return _Answer(meta, cost, {}, {}, {}, None, {})
@@ -1333,6 +1569,7 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
 
 def _run_slice(
     program: Program,
+    document: Spec,
     encoded: dict[str, Any],
     encode_out: bool,
     call: dict[str, Any],
@@ -1343,7 +1580,7 @@ def _run_slice(
     what it is handed, and a bound method or a lambda over the axis object
     cannot cross.
     """
-    with build(program, _decode(encoded)) as model, model.solve(**call) as result:
+    with build(document, _decode(encoded)) as model, model.solve(**call) as result:
         answer = _answers(result, program, _slice_cost(model.diagnostics(), None))
         if not encode_out:
             return answer
@@ -1386,7 +1623,7 @@ def _key_column(
             f'key_name={key_name!r} is a dimension the spec declares, so the slice key would collide '
             f'with a column the frames already carry. Name it something the spec does not use.'
         )
-    fixed = ('value', *_SliceMeta._fields)
+    fixed = ('value', *Record._fields)
     if key_name in fixed:
         raise LpspecError(
             f'key_name={key_name!r} is a column every sweep frame carries ({", ".join(fixed)}), so the slice '
@@ -1475,6 +1712,18 @@ def _decode(encoded: Mapping[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def carries(sources: Mapping[str, Source], dim: str) -> dict[str, pl.LazyFrame]:
+    """The sources that carry a column called *dim*, by name.
+
+    Derived rather than declared, and the one home for that derivation: a
+    source carrying the slice key that is *not* filtered produces a
+    duplicate-coordinate error at attach time, so a sweep and an archive have
+    to agree about which they are.
+    """
+    tables = {name: table for name, obj in sources.items() if (table := as_frame(obj)) is not None}
+    return {name: table for name, table in tables.items() if dim in table.collect_schema().names()}
+
+
 def _coordinates(sources: Mapping[str, Source], dim: str, verb: str) -> tuple[dict[str, pl.LazyFrame], list[Label]]:
     """The sources a slice has to filter, by name, and the ordered coordinates to slice.
 
@@ -1494,8 +1743,7 @@ def _coordinates(sources: Mapping[str, Source], dim: str, verb: str) -> tuple[di
             reads as zero — which is how a model masks, and so is reported
             rather than refused, the way the engine reports sparsity.
     """
-    tables = {name: table for name, obj in sources.items() if (table := as_frame(obj)) is not None}
-    carrying = {name: table for name, table in tables.items() if dim in table.collect_schema().names()}
+    carrying = carries(sources, dim)
     if not carrying:
         raise DataError(
             f"no source carries a '{dim}' column, so there is nothing to {verb} over. "

@@ -197,7 +197,7 @@ model declares one objective.
 ## The loop
 
 ```python
-sub_model, feasibility_model, master_model = (lps.check(path) for path in paths)
+sub_model, feasibility_model, master_model = (to_spec(path) for path in paths)
 
 for step in range(25):
     with lps.solve(sub_model, {**dispatch, 'cap_hat': capacity}) as sub:
@@ -224,13 +224,12 @@ Twenty lines, three `lps.solve` calls, and a growing pair of tables. **A reader
 could write this**, which is the observation that matters most for
 [#596](https://github.com/fluxopt/lpspec/issues/596).
 
-The models are loaded once above the loop, because a cut is a row in a
-parameter table rather than an edit to a file. `lps.solve` accepts what
-`lps.check` returns, a lowered program
-([glossary](../reference/glossary.md#the-chain)), anywhere it accepts a path.
-So parse, validation and lowering are paid once for the run instead of three
-times an iteration. Any driver over a fixed model does the same, and
-`solve_over` already does.
+The models are read once above the loop, because a cut is a row in a
+parameter table rather than an edit to a file. `lps.solve` accepts a `Spec`
+([glossary](../reference/glossary.md#the-chain)) anywhere it accepts a path,
+and reading one it already has costs nothing. So parsing and validation are
+paid once for the run instead of three times an iteration. Any driver over a
+fixed model does the same, and `solve_over` already does.
 
 ## Running it
 

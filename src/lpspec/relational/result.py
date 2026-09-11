@@ -18,7 +18,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
-from lpspec.relational.parquet import reader_kind, write_whole
+from lpspec.relational.parquet import (
+    RECORD_FILE,
+    RECORD_SCHEMA,
+    Record,
+    clear_the_answer,
+    reader_kind,
+    write_format,
+    write_reasons,
+    write_whole,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -60,7 +69,7 @@ def unknown_keep_message(keep: object) -> str:
 _NEEDS_THE_EXTRA = (
     '{module} ships with the [linopy] extra rather than with the engine, so this build cannot bridge out '
     'to it: pip install "lpspec[linopy]". A result needs nothing added to be read as it stands — primal() '
-    'and dual() return polars frames, and to_parquet() writes one file per declaration.'
+    'and dual() return polars frames, and save() writes one file per declaration.'
 )
 
 
@@ -392,6 +401,10 @@ class Result:
     #: Why there are no duals, when a solve that left values still has none.
     #: ``None`` whenever :attr:`_duals` holds them.
     _no_duals: str | None = None
+    #: Which spec this answered, as :func:`~lpspec.relational.parquet.digest_of`
+    #: names it. Attached by the model that solved, so a solve run off a
+    #: lowered program — which has no document — leaves it ``None``.
+    _spec_digest: str | None = None
 
     @property
     def status(self) -> str:
@@ -423,6 +436,17 @@ class Result:
         return self._objective
 
     @property
+    def spec_digest(self) -> str | None:
+        """Which spec this answered — a digest of the file, not its name.
+
+        Two answers carrying one digest answered the same document, so a table
+        of saved cases says whether it is comparing like with like. The *data*
+        may differ entirely: two scenarios of one spec share this. ``None``
+        where the solve ran off a lowered program, which has no document.
+        """
+        return self._spec_digest
+
+    @property
     def kept(self) -> Keep:
         """How much of the session this solve kept — one of :data:`KEEPS`.
 
@@ -435,12 +459,14 @@ class Result:
         """
         return self._kept
 
-    def _readable(self, frames: Mapping[str, pl.LazyFrame] | None, what: str) -> Mapping[str, pl.LazyFrame]:
-        """*frames*, or why they cannot be read — closed first, then the status.
+    def _unclosed(self, what: str) -> Mapping[str, pl.LazyFrame]:
+        """The primals, or why nothing here can be read: this result was closed.
 
-        Closedness is read off the primals whichever mapping was asked for,
-        because :meth:`close` releases both together and a solve may
-        legitimately leave the duals empty.
+        The closed check is read off the primals whichever mapping the caller
+        wants, because :meth:`close` releases them together and a solve may
+        legitimately leave the duals empty. Split from :meth:`_readable`
+        because an export writes the record of a solve that left no values,
+        and only closedness stops it.
         """
         if self._primals is None:
             raise LpspecError(
@@ -449,10 +475,16 @@ class Result:
                 f'their own data — so read what you need before close(), or drop the `with` and close '
                 f'when you are done.'
             )
+        return self._primals
+
+    def _readable(self, frames: Mapping[str, pl.LazyFrame] | None, what: str) -> Mapping[str, pl.LazyFrame]:
+        """*frames*, or why they cannot be read — closed first, then the status."""
+        self._unclosed(what)
         if not self._status.is_readable:
+            wording = f' ({self._status.solver_wording})' if self._status.solver_wording else ''
             raise NoSolutionError(
-                f'cannot read {what}: the solve terminated {self.termination_condition!r} '
-                f'({self._status.solver_wording}), so there are no values to read. Test '
+                f'cannot read {what}: the solve terminated {self.termination_condition!r}'
+                f'{wording}, so there are no values to read. Test '
                 f'`has_primal` first. This raises rather than returning, because the solver '
                 f'hands back a full-length vector of zeros either way and it is '
                 f'indistinguishable from an answer.'
@@ -585,7 +617,7 @@ class Result:
         One kind per call: a dual and a variable of the same name would
         collide, and mean something else per row. Each arrives dense over its
         own dims, all at once — on a large model name the few you need, or use
-        :meth:`to_parquet`, which writes every kind.
+        :meth:`save`, which writes every kind.
 
         Args:
             names: What to include; none means every name of *kind*.
@@ -593,9 +625,14 @@ class Result:
         """
         return tidy_to_dataset(names or self._names(kind), lambda name: self.to_dataarray(name, kind))
 
-    def to_parquet(self, directory: str | Path) -> Path:
+    def save(self, directory: str | Path) -> Path:
         """Every kind this solve answered with, one file per name, into *directory*.
 
+        ``objective.parquet`` holds the
+        :class:`~lpspec.relational.parquet.Record` — how the solve terminated
+        and what it reached, in the columns a sweep keys and folds. A solve
+        that reached no objective writes null there rather than ``nan``, so a
+        directory per case is a table an aggregate reads. Then
         ``primal/<name>.parquet`` for every variable, ``dual/<name>.parquet``
         for every constraint where the duals are defined, and
         ``expression/<name>.parquet`` for every named expression this data
@@ -605,25 +642,60 @@ class Result:
         :meth:`primal`'s order, so the same model and data write the same
         bytes.
 
+        ``activity/<name>.parquet`` goes beside them for every constraint,
+        which no ``kind=`` names — a sweep folds three kinds and never holds
+        these, so a saved result carries them under a name of their own.
+
+        ``reasons.parquet`` holds ``(kind, name, reason)`` for whatever is
+        deliberately not here, and is absent when everything is: one row per
+        expression that failed, and one with an empty *name* for the duals,
+        whose absence is never per-constraint. Written because a directory
+        that simply lacks a file cannot tell "there is none, and here is why"
+        from "no such name", which is the one thing :meth:`dual` and
+        :meth:`expression` do say.
+
+        A solve that left no values writes the record and nothing else. A run
+        that came back infeasible is an answer a set of saved cases needs on
+        disk, rather than a directory that does not exist.
+
+        **The directory holds this answer and no other.** Whatever a previous
+        save left there is removed first, so a re-run cannot leave one model's
+        frames beside another's record. Files that are not part of the layout
+        are left alone.
+
         Returns:
             The directory.
 
         Raises:
-            NoSolutionError: The solve left no values to write.
             LpspecError: This result was closed.
         """
-        primals = self._readable(self._primals, 'the solution')
+        import polars as pl
+
+        primals = self._unclosed('the solution')
         out = Path(directory)
+        clear_the_answer(out)
+        write_format(out)
+        record = Record.of(
+            self.termination_condition, self.objective, has_primal=self.has_primal, spec_digest=self._spec_digest
+        )
+        write_whole(pl.DataFrame([record._asdict()], schema_overrides=RECORD_SCHEMA), out / RECORD_FILE)
+        if not self._status.is_readable:
+            return out
         for name, frame in primals.items():
             write_whole(frame, out / 'primal' / f'{name}.parquet')
         for name, frame in (self._duals or {}).items():
             write_whole(frame, out / 'dual' / f'{name}.parquet')
+        for name, frame in (self._activities or {}).items():
+            write_whole(frame, out / 'activity' / f'{name}.parquet')
+        no_expressions: dict[str, str] = {}
         for name, reader in (self._expressions or {}).items():
             try:
                 evaluated = reader()
-            except LpspecError:
+            except LpspecError as absent:
+                no_expressions[name] = str(absent)
                 continue
             write_whole(evaluated, out / 'expression' / f'{name}.parquet')
+        write_reasons(out, self._no_duals, no_expressions)
         return out
 
     def close(self) -> None:

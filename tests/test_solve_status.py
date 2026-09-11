@@ -15,13 +15,14 @@ from __future__ import annotations
 
 import ast
 import inspect
-from typing import Any
+from typing import Any, NamedTuple
 
 import polars as pl
 import pytest
 
 import lpspec as lps
 from lpspec.errors import NoSolutionError
+from lpspec.relational.parquet import Record, _column_types
 from lpspec.relational.sinks.solvers.gurobi import _CONDITION_OF_GUROBI_STATUS, _LINOPY_DIVERGENCES
 from lpspec.relational.sinks.solvers.highs import _CONDITION_OF_HIGHS_STATUS
 from lpspec.relational.sinks.solvers.xpress import _CONDITION_OF_SOL_STATUS
@@ -159,14 +160,69 @@ def test_an_infeasible_solve_reports_both_axes_and_a_nan_objective():
         assert solution.objective != solution.objective, 'nan, not 0.0'
 
 
-def test_reading_results_without_a_solution_raises(tmp_path):
+def test_reading_results_without_a_solution_raises():
     """HiGHS returns a full-length vector of zeros whatever the status, so
     handing it back would be indistinguishable from an answer."""
     with lps.solve(*CASES['INFEASIBLE']) as solution:
         with pytest.raises(NoSolutionError, match='infeasible'):
             solution.primal('p')
-        with pytest.raises(NoSolutionError):
-            solution.to_parquet(tmp_path)
+        with pytest.raises(NoSolutionError, match='infeasible'):
+            solution.dual('meet')
+
+
+def test_a_solve_that_left_no_values_writes_the_record_and_no_frames(tmp_path):
+    """An export of a run that did not solve is the record alone.
+
+    Was: it raised, so a variant that came back infeasible left nothing on
+    disk and could not be told apart from one nobody ran. Reading a value
+    still raises — there is none — and that is the test above.
+    """
+    with lps.solve(*CASES['INFEASIBLE']) as solution:
+        out = solution.save(tmp_path / 'infeasible')
+    assert sorted(entry.name for entry in out.iterdir()) == ['format.json', 'objective.parquet'], (
+        'the record and the layout it is in; no values, so no primal/, dual/ or expression/'
+    )
+    record = pl.read_parquet(out / 'objective.parquet')
+    assert record.row(0, named=True)['termination_condition'] == 'infeasible'
+    assert record['objective'].to_list() == [None], 'no objective was reached, so the column holds none'
+
+
+def test_a_case_that_reached_no_objective_does_not_poison_the_others(tmp_path):
+    """A directory per case is a table, and in a table an absent number is null.
+
+    nan is a *number* to every aggregate that meets it: one infeasible case
+    among a hundred turns the mean of the hundred into nan, in polars and in
+    any SQL engine reading the same files. `has_primal` already says which
+    rows reached an objective, so the column has nothing to spend a sentinel
+    on.
+    """
+    for name, case in (('solved', 'LP'), ('unsolved', 'INFEASIBLE')):
+        with lps.solve(*CASES[case]) as solution:
+            solution.save(tmp_path / name)
+
+    table = pl.read_parquet(tmp_path / '*' / 'objective.parquet')
+    assert table['objective'].null_count() == 1, 'one of the two cases reached no objective'
+    assert table['objective'].is_nan().sum() == 0, 'and it is written as no value rather than as nan'
+    assert table['objective'].mean() == table.filter('has_primal')['objective'].item(), (
+        'so the mean over the cases is the mean over the ones that solved'
+    )
+
+
+def test_a_record_column_that_names_no_written_type_is_refused_at_import():
+    """The schema is derived from `Record`, so a column added to it cannot skip declaring one.
+
+    Restated by hand it could: the next nullable column would go back to the
+    type polars infers from a single row — the defect the schema exists to
+    close, reintroduced with a green suite and nothing to show it.
+    """
+
+    class Unwritable(NamedTuple):
+        when: bytes
+
+    with pytest.raises(lps.LpspecError, match='_WRITTEN_AS'):
+        _column_types(Unwritable)
+
+    assert tuple(_column_types(Record)) == Record._fields, 'and Record itself derives all of its own'
 
 
 # ---------------------------------------------------------------------------
