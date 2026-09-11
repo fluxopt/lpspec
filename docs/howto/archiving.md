@@ -21,7 +21,7 @@ case/
     sources/cost.parquet
     sources/load.parquet
     …
-    answer/objective.parquet      how it terminated, and what it reached
+    answer/objective.parquet      how it terminated, what it reached, when, and under what name
     answer/primal/p.parquet       one file per variable
     answer/dual/power_balance.parquet
 ```
@@ -98,27 +98,31 @@ study.answer.scan('p')  # keyed by scenario
 lps.solve_over(study.spec, study.sources, study.axis)
 ```
 
-A sweep's `answer/` is keyed one file per slice — `answer/objective/000000.parquet`
-and so on — which is the layout [`spill_to=`](../reference/sweeps.md) already
-writes.
+A sweep's frames are keyed one file per slice — `answer/primal/p/000000.parquet`
+and so on — which is the layout [`spill_to=`](../reference/sweeps.md) writes.
+Its record is not: `answer/objective.parquet` holds every slice's row, one
+file, as a solve's does. A spill writes that record per slice for a reason —
+the objective file's existence is how a resumed sweep knows a slice finished.
+An archive has no resume to serve. So one glob finds every run in a directory
+of them, whether a solve or a sweep wrote it.
 
 ## Compare cases solved apart
 
-Every archive's `answer/objective.parquet` is one row, in the same columns
-whoever wrote it. Concatenate them, labelling each row by the directory it came
-from:
+Every archive's `answer/objective.parquet` holds the same columns whoever
+wrote it, and two of them say which run each row came from. `run` is the
+archive's own name. `solved_at` is when the solver returned. The rows carry
+their own labels, so nothing has to read the paths:
 
 ```python
 import polars as pl
-from pathlib import Path
 
-table = pl.concat(
-    [
-        pl.scan_parquet(case / 'answer' / 'objective.parquet').select(pl.lit(case.name).alias('case'), pl.all())
-        for case in sorted(Path('runs').iterdir())
-    ]
-).collect()
+table = pl.read_parquet('runs/*/answer/objective.parquet')
+table.sort('solved_at').select('run', 'status', 'objective')
 ```
+
+A sweep's archive lands in the same table, one row per slice, with its key
+column beside `run`. Read the two together with `pl.concat(..., how='diagonal')`
+where a warehouse holds both.
 
 **Check the digests before you read the numbers.** `spec_digest` is a digest of
 the model file an answer came back from. Every answer carries one, so a single

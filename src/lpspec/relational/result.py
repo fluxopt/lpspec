@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 from dataclasses import dataclass
+from datetime import datetime  # noqa: TC003  — a Record annotation this module writes
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -405,6 +406,10 @@ class Result:
     #: names it. Attached by the model that solved, so a solve run off a
     #: lowered program — which has no document — leaves it ``None``.
     _spec_digest: str | None = None
+    #: When the solver returned, in UTC. Attached by the model that solved,
+    #: for the same reason as :attr:`_spec_digest`: a saved answer has to say
+    #: when it was reached, and only the caller of the solver knows.
+    _solved_at: datetime | None = None
 
     @property
     def status(self) -> str:
@@ -445,6 +450,15 @@ class Result:
         where the solve ran off a lowered program, which has no document.
         """
         return self._spec_digest
+
+    @property
+    def solved_at(self) -> datetime | None:
+        """When the solver returned, in UTC — ``None`` where the solve carried no clock.
+
+        What orders a table concatenated from runs solved apart, so that a
+        comparison is not left reading the timestamps of the files.
+        """
+        return self._solved_at
 
     @property
     def kept(self) -> Keep:
@@ -676,7 +690,11 @@ class Result:
         clear_the_answer(out)
         write_format(out)
         record = Record.of(
-            self.termination_condition, self.objective, has_primal=self.has_primal, spec_digest=self._spec_digest
+            self.termination_condition,
+            self.objective,
+            has_primal=self.has_primal,
+            spec_digest=self._spec_digest,
+            solved_at=self._solved_at,
         )
         write_whole(pl.DataFrame([record._asdict()], schema_overrides=RECORD_SCHEMA), out / RECORD_FILE)
         if not self._status.is_readable:

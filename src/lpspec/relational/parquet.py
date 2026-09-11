@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime
 from typing import TYPE_CHECKING, NamedTuple, get_args, get_type_hints
 
 import polars as pl
@@ -119,9 +120,29 @@ class Record(NamedTuple):
     #: Carried so that answers written apart can be *told* to be comparable:
     #: one distinct value across a concatenated table means one spec.
     spec_digest: str | None
+    #: When the solver returned, in UTC. Written so that a table concatenated
+    #: from runs solved apart can be ordered without reading the paths they
+    #: came from. ``None`` for a solve that carried no clock — a result built
+    #: by hand, or read back from a record written before this column.
+    solved_at: datetime | None = None
+    #: What the archive holding this answer was called — its path's stem, so
+    #: ``runs/nightly-2026-09-10.zip`` writes ``nightly-2026-09-10``. Stamped
+    #: when the archive is written and null until then, because the name is
+    #: the publisher's rather than the solve's. It is the column a warehouse
+    #: of runs joins on, which is why it is here and not left to whoever
+    #: parses the file paths.
+    run: str | None = None
 
     @classmethod
-    def of(cls, termination_condition: str, objective: float, *, has_primal: bool, spec_digest: str | None) -> Record:
+    def of(
+        cls,
+        termination_condition: str,
+        objective: float,
+        *,
+        has_primal: bool,
+        spec_digest: str | None,
+        solved_at: datetime | None = None,
+    ) -> Record:
         """The row a solve that terminated this way writes.
 
         The one home for how an answer becomes columns: ``status`` is derived
@@ -138,6 +159,8 @@ class Record(NamedTuple):
             has_primal: Whether there are values, which the condition alone
                 does not say.
             spec_digest: :func:`digest_of` the spec answered, or ``None``.
+            solved_at: When the solver returned, in UTC. ``None`` where the
+                solve carried no clock.
         """
         return cls(
             status_of(termination_condition),
@@ -145,6 +168,7 @@ class Record(NamedTuple):
             objective if has_primal else None,
             has_primal,
             spec_digest,
+            solved_at,
         )
 
     @property
@@ -162,15 +186,18 @@ class Record(NamedTuple):
 #: What each Python type a record column is annotated with is written as.
 #: A column whose annotation is not here fails at import rather than at the
 #: write, which is the moment its author is choosing the type.
-_WRITTEN_AS: Mapping[type, type[pl.DataType]] = {
+_WRITTEN_AS: Mapping[type, pl.DataType | type[pl.DataType]] = {
     str: pl.String,
     float: pl.Float64,
     bool: pl.Boolean,
     int: pl.Int64,
+    #: Carried with its zone rather than as a naive column claiming to be UTC,
+    #: which is the reading every consumer would have to be told.
+    datetime: pl.Datetime(time_zone='UTC'),
 }
 
 
-def _column_types(record: type[NamedTuple]) -> dict[str, type[pl.DataType]]:
+def _column_types(record: type[NamedTuple]) -> dict[str, pl.DataType | type[pl.DataType]]:
     """*record*'s columns as they are written, off its own annotations.
 
     Derived rather than restated: a column added to :class:`Record` and not
@@ -178,7 +205,7 @@ def _column_types(record: type[NamedTuple]) -> dict[str, type[pl.DataType]]:
     which is the defect this schema exists to close and one a green suite
     would not show. ``X | None`` is written as ``X`` holding null.
     """
-    written: dict[str, type[pl.DataType]] = {}
+    written: dict[str, pl.DataType | type[pl.DataType]] = {}
     for name, hint in get_type_hints(record).items():
         declared = next((arg for arg in get_args(hint) if arg is not type(None)), hint)
         if declared not in _WRITTEN_AS:
@@ -203,6 +230,39 @@ RECORD_SCHEMA = _column_types(Record)
 #: whichever wrote: the record of how the solve terminated, and the reasons
 #: behind whatever is deliberately not there.
 RECORD_FILE = 'objective.parquet'
+#: The record's per-slice form, which is what a spill writes: one file per
+#: slice, named by position, and the objective one is the marker that says the
+#: slice finished. An archive holds the consolidated :data:`RECORD_FILE`
+#: instead — see :func:`consolidated`.
+RECORD_DIR = 'objective'
+DIAGNOSTICS_FILE = 'diagnostics.parquet'
+DIAGNOSTICS_DIR = 'diagnostics'
+
+
+def consolidated(under: Path, directory: str, file: str) -> pl.DataFrame | None:
+    """The record under ``under``, whichever shape wrote it, as one frame.
+
+    What makes an archive's record one file where a spill's is one per slice.
+    The spill writes them apart because the objective file's *existence* is
+    how a resumed sweep knows a slice finished; an archive is finished by
+    definition, and one file is what a reader globbing a warehouse of them
+    needs — a directory beside a file means no single glob finds both, and the
+    one that finds half finds it silently.
+
+    Reads both shapes, so one reader serves an archive and the spill it was
+    packed from. Rows stay in slice order, the files being named by position.
+    ``None`` where there is nothing under either name, which is a sweep's
+    diagnostics beside a solve that writes none.
+    """
+    if (single := under / file).is_file():
+        frames = [pl.read_parquet(single)]
+    elif (many := under / directory).is_dir():
+        frames = [pl.read_parquet(path) for path in sorted(many.glob('*.parquet'))]
+    else:
+        return None
+    return pl.concat(frames)
+
+
 REASONS_FILE = 'reasons.parquet'
 
 

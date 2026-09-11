@@ -243,6 +243,16 @@ def builds(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+def answer_of(runs: strategy.Runs) -> pl.DataFrame:
+    """A sweep's record without the two columns that belong to a *run* rather than an answer.
+
+    `solved_at` differs between two solves of one sweep by design, and `run`
+    is stamped when an archive is published, so neither is part of what two
+    ways of running the same sweep must agree on.
+    """
+    return runs.objective.drop('solved_at', 'run')
+
+
 def test_a_scenario_sweep_solves_each_slice_and_keys_the_answers(sweep):
     """The model never mentions `scenario`; the driver filters and drops it.
 
@@ -260,6 +270,8 @@ def test_a_scenario_sweep_solves_each_slice_and_keys_the_answers(sweep):
         'objective',
         'has_primal',
         'spec_digest',
+        'solved_at',
+        'run',
     ], 'the record, keyed'
     assert set(runs.primal('p').columns) == {'scenario', 'snapshot', 'generator', 'value'}
     assert runs.primal('p').height == 3 * 4 * 2
@@ -1153,7 +1165,7 @@ def test_every_executor_gives_the_same_answers_in_the_same_order(make_executor):
         parallel = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'), executor=live)
 
     assert parallel.keys == sequential.keys
-    assert parallel.objective.equals(sequential.objective)
+    assert answer_of(parallel).equals(answer_of(sequential))
     assert parallel.primal('p').equals(sequential.primal('p'))
 
 
@@ -1215,7 +1227,7 @@ def test_the_model_and_its_plan_both_cross_a_process():
     serial = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'))
     with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool:
         pooled = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
-    assert pooled.objective.equals(serial.objective)
+    assert answer_of(pooled).equals(answer_of(serial))
     assert pooled.primal('p').equals(serial.primal('p'))
 
 
@@ -1287,7 +1299,7 @@ def test_a_path_stays_a_path_for_a_local_pool_and_travels_as_bytes_for_a_remote_
         )
         assert all(v == path.read_bytes() for v in crossed), 'the file did not travel as its own bytes'
 
-    assert remote.objective.equals(local.objective), 'the path and the bytes are the same numbers'
+    assert answer_of(remote).equals(answer_of(local)), 'the path and the bytes are the same numbers'
     assert remote.primal('p').equals(local.primal('p'))
 
     crossed.clear()
@@ -1768,7 +1780,7 @@ def test_a_sweep_takes_every_source_shape_solve_takes(spec, sources, axis, plain
     ), 'a number, a sequence and a map attach exactly as the tables they stand for'
     with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool:
         pooled = lps.solve_over(spec, as_plain, axis, executor=pool)
-    assert pooled.objective.equals(runs.objective), 'the plain shapes cross a process as themselves'
+    assert answer_of(pooled).equals(answer_of(runs)), 'the plain shapes cross a process as themselves'
 
 
 def test_a_source_short_of_a_coordinate_of_the_axis_is_reported():
@@ -1880,7 +1892,7 @@ def test_an_axis_hands_out_its_slices_so_one_can_be_built_alone():
 
     by_axis = lps.solve_over(WINDOW, sources, axis)
     by_hand = lps.solve_over(WINDOW, sources, slices, key_name='snapshot_start')
-    assert by_hand.objective.equals(by_axis.objective)
+    assert answer_of(by_hand).equals(answer_of(by_axis))
     assert by_hand.primal('soc').equals(by_axis.primal('soc'))
 
 
@@ -1936,7 +1948,7 @@ def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_
     index — so the two ways of running a sweep cannot answer differently.
     """
     runs = _spilled(tmp_path)
-    assert runs.objective.equals(priced.objective)
+    assert answer_of(runs).equals(answer_of(priced))
     assert not runs._primals and not runs._duals and not runs._expressions, 'a spilled sweep holds no frame'
     assert runs.scan('soc').collect().equals(priced.primal('soc'))
     assert runs.scan('balance', 'dual').collect().equals(priced.dual('balance'))
@@ -1991,7 +2003,7 @@ def test_a_spilled_sweep_resumes_after_the_slice_that_failed(builds, tmp_path):
     assert len(built) == 1, 'only the slice that failed is built again'
 
     fresh = lps.solve_over(DISPATCH, base, good, key_name='draw')
-    assert resumed.objective.equals(fresh.objective)
+    assert answer_of(resumed).equals(answer_of(fresh))
     assert resumed.scan('p').collect().equals(fresh.primal('p'))
 
 
@@ -2013,7 +2025,7 @@ def test_a_resumed_carry_reads_its_state_off_the_disk(priced, monkeypatch, tmp_p
     monkeypatch.setattr(strategy, '_answers', answered)
 
     resumed = _spilled(tmp_path)
-    assert resumed.objective.equals(priced.objective)
+    assert answer_of(resumed).equals(answer_of(priced))
     assert resumed.scan('soc', original_index=True).collect().equals(priced.primal('soc', original_index=True))
     loaded = priced.diagnostics['loaded'].to_list()
     loaded[2] = True

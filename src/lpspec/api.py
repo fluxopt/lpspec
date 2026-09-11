@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -246,7 +247,9 @@ class Model:
         """
         out = None if archive is None else _the_archive_target(Path(archive))
         answered = replace(
-            self._engine.solve(solver_name, solver_options=solver_options, keep=keep), _spec_digest=self._digest
+            self._engine.solve(solver_name, solver_options=solver_options, keep=keep),
+            _spec_digest=self._digest,
+            _solved_at=datetime.now(UTC),
         )
         if out is not None:
             self._archive(out, answered)
@@ -522,8 +525,9 @@ def load_result(directory: str | Path) -> Result:
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
     status = record.solve_status
     objective = float('nan') if record.objective is None else record.objective
+    carried = {'_spec_digest': record.spec_digest, '_solved_at': record.solved_at}
     if not status.is_readable:
-        return Result(status, objective, {}, {}, {}, 'nothing', _spec_digest=record.spec_digest)
+        return Result(status, objective, {}, {}, {}, 'nothing', **carried)
 
     no_duals, no_expressions = read_reasons(out)
     expressions: dict[str, Callable[[], pl.DataFrame]] = {
@@ -539,5 +543,5 @@ def load_result(directory: str | Path) -> Result:
         'nothing',
         expressions,
         no_duals,
-        record.spec_digest,
+        **carried,
     )

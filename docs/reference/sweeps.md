@@ -12,7 +12,7 @@ fold.
 import lpspec as lps
 
 runs = lps.solve_over('spec.yaml', sources, lps.EachCoordinate('scenario'))
-runs.objective  # (scenario, status, termination_condition, objective, has_primal, spec_digest)
+runs.objective  # (scenario, status, termination_condition, objective, has_primal, spec_digest, solved_at, run)
 runs.primal('p')  # (scenario, snapshot, generator, value)
 ```
 
@@ -171,7 +171,7 @@ runs.scan('balance', 'dual', original_index=True).collect()  # the same readers,
 | Rule | |
 |---|---|
 | **`scan` is the reader** | `runs.scan(name, kind='primal')` returns `primal`, `dual` or `expression` as a `LazyFrame` over the files, `original_index=` included. On a sweep held in memory it is the same reader made lazy. The eager readers and the exports refuse a spilled sweep and name `scan`. |
-| **one file per slice and name** | `<kind>/<name>/<position>.parquet`, with the slice key a column of each, one type across every file a sweep writes. `objective/` and `diagnostics/` hold the record, one row per slice; `runs.objective` and `runs.diagnostics` stay in memory. |
+| **one file per slice and name** | `<kind>/<name>/<position>.parquet`, with the slice key a column of each, one type across every file a sweep writes. `objective/` and `diagnostics/` hold the record, one row per slice; `runs.objective` and `runs.diagnostics` stay in memory. An **archive** consolidates those two into `objective.parquet` and `diagnostics.parquet`, because the per-slice shape is there to mark a slice done and an archive has no resume to serve. |
 | **every file lands whole** | A file is written beside its final name and renamed into place. The objective file is written last and marks a slice done, so a slice interrupted part way is solved again rather than read back short. |
 | **an interrupted sweep resumes** | Run the same call at the same directory. A slice already there is read back, and under a `carry` its state is read off its file. Only the unfinished slices are built. |
 | **a directory holds one sweep** | `sweep.json` records the key name and the keys, and a different sweep pointed at the directory is refused. Changed data or a changed model is not detected, so delete the directory to solve again. |
