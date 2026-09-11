@@ -12,6 +12,7 @@ import contextlib
 import datetime
 import json
 import multiprocessing
+import shutil
 import sys
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
 from unittest import mock
@@ -1489,6 +1490,24 @@ def test_a_sweep_that_solved_nothing_still_saves_its_records(tmp_path):
     )
     assert not (out / 'primal').exists(), 'and no frames are written, there being none'
     assert lps.load_runs(out).objective.height == records.height, 'the saved study reads back'
+
+
+@pytest.mark.parametrize('lost', ['objective', 'diagnostics'], ids=str)
+def test_a_sweep_directory_missing_its_record_is_refused_by_name(lost: str, tmp_path) -> None:
+    """A manifest with no record beside it is not a sweep this package wrote.
+
+    Both are written per slice as the fold goes, so a directory holding one
+    and not the other was edited or interrupted before the layout existed.
+    Read without this, the missing one surfaces as whatever the frame reader
+    makes of nothing — an empty scan, or a `Runs` whose record has no rows —
+    rather than as the directory being wrong.
+    """
+    out = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=tmp_path / 'sweep')
+    assert lps.load_runs(out._spill.directory).objective.height == 3, 'the whole one reads back first'
+    shutil.rmtree(out._spill.directory / lost)
+
+    with pytest.raises(lps.LayoutError, match=f'no {lost} beside it'):
+        lps.load_runs(out._spill.directory)
 
 
 def test_a_reader_for_a_name_the_sweep_lacks_fails_the_way_primal_does(sweep):
