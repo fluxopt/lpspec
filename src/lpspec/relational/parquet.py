@@ -125,8 +125,10 @@ class Record(NamedTuple):
     #: came from. ``None`` for a solve that carried no clock — a result built
     #: by hand, or read back from a record written before this column.
     solved_at: datetime | None = None
-    #: What the archive holding this answer was called — its path's stem, so
-    #: ``runs/nightly-2026-09-10.zip`` writes ``nightly-2026-09-10``. Stamped
+    #: What the archive holding this answer was called — its file name without
+    #: a ``.zip``, so ``runs/nightly-2026-09-10.zip`` writes
+    #: ``nightly-2026-09-10`` and a directory called ``case.v2`` keeps both
+    #: halves of its name. Stamped
     #: when the archive is written and null until then, because the name is
     #: the publisher's rather than the solve's. It is the column a warehouse
     #: of runs joins on, which is why it is here and not left to whoever
@@ -230,17 +232,15 @@ RECORD_SCHEMA = _column_types(Record)
 #: whichever wrote: the record of how the solve terminated, and the reasons
 #: behind whatever is deliberately not there.
 RECORD_FILE = 'objective.parquet'
-#: The record's per-slice form, which is what a spill writes: one file per
-#: slice, named by position, and the objective one is the marker that says the
-#: slice finished. An archive holds the consolidated :data:`RECORD_FILE`
-#: instead — see :func:`consolidated`.
-RECORD_DIR = 'objective'
 DIAGNOSTICS_FILE = 'diagnostics.parquet'
-DIAGNOSTICS_DIR = 'diagnostics'
 
 
-def consolidated(under: Path, directory: str, file: str) -> pl.DataFrame | None:
-    """The record under ``under``, whichever shape wrote it, as one frame.
+def consolidated(under: Path, file: str) -> pl.DataFrame | None:
+    """The table *file* names under *under*, whichever shape wrote it, as one frame.
+
+    A spill writes it one file per slice under a directory named for what the
+    file holds — ``objective.parquet`` beside ``objective/`` — so the name of
+    one gives the other and only the file is passed.
 
     What makes an archive's record one file where a spill's is one per slice.
     The spill writes them apart because the objective file's *existence* is
@@ -256,7 +256,7 @@ def consolidated(under: Path, directory: str, file: str) -> pl.DataFrame | None:
     """
     if (single := under / file).is_file():
         frames = [pl.read_parquet(single)]
-    elif (many := under / directory).is_dir():
+    elif (many := under / file.removesuffix('.parquet')).is_dir():
         frames = [pl.read_parquet(path) for path in sorted(many.glob('*.parquet'))]
     else:
         return None

@@ -42,11 +42,9 @@ from lpspec.frames import as_frame
 from lpspec.lanes import declared
 from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational.parquet import (
-    DIAGNOSTICS_DIR,
     DIAGNOSTICS_FILE,
     KINDS,
     LABELS,
-    RECORD_DIR,
     RECORD_FILE,
     RECORD_SCHEMA,
     Record,
@@ -1141,8 +1139,8 @@ def load_runs(directory: str | Path) -> Runs:
     original = found['original']
     no_duals, no_expressions = read_reasons(under)
     key_name = found['key_name']
-    objective = consolidated(under, RECORD_DIR, RECORD_FILE)
-    diagnostics = consolidated(under, DIAGNOSTICS_DIR, DIAGNOSTICS_FILE)
+    objective = consolidated(under, RECORD_FILE)
+    diagnostics = consolidated(under, DIAGNOSTICS_FILE)
     if objective is None or diagnostics is None:
         missing = [name for name, held in (('objective', objective), ('diagnostics', diagnostics)) if held is None]
         raise LayoutError(

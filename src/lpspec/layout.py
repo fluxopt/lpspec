@@ -27,13 +27,7 @@ import polars as pl
 
 from lpspec.errors import LayoutError
 from lpspec.lanes import lowered
-from lpspec.relational.parquet import (
-    DIAGNOSTICS_DIR,
-    DIAGNOSTICS_FILE,
-    RECORD_DIR,
-    RECORD_FILE,
-    consolidated,
-)
+from lpspec.relational.parquet import DIAGNOSTICS_FILE, RECORD_FILE, consolidated
 from lpspec.sources import supplied, tidy_sources
 
 if TYPE_CHECKING:
@@ -187,19 +181,18 @@ def _put_the_answer(members: _Members, answer: Path, *, run: str) -> None:
     that one glob over a warehouse finds every run whether a solve or a sweep
     wrote it.
 
-    *run* is written into the record here rather than by whatever solved,
-    because the name is the publisher's: it is the archive's own, and nothing
-    before this point knows it.
+    *run* is written onto both here rather than by whatever solved, because
+    the name is the publisher's: it is the archive's own, and nothing before
+    this point knows it. Onto both, so that a table concatenated from a
+    warehouse can attribute a slice's cost as readily as its answer.
     """
-    consolidating = {RECORD_DIR: RECORD_FILE, DIAGNOSTICS_DIR: DIAGNOSTICS_FILE}
-    for directory, file in consolidating.items():
-        if (table := consolidated(answer, directory, file)) is not None:
-            if 'run' in table.columns:
-                table = table.with_columns(pl.lit(run, dtype=pl.String).alias('run'))
+    consolidating = (RECORD_FILE, DIAGNOSTICS_FILE)
+    for file in consolidating:
+        if (table := consolidated(answer, file)) is not None:
             buffer = io.BytesIO()
-            table.write_parquet(buffer, compression='zstd')
+            table.with_columns(pl.lit(run, dtype=pl.String).alias('run')).write_parquet(buffer, compression='zstd')
             members.put(str(ANSWER_DIR / file), buffer.getvalue())
-    apart = {*consolidating, *consolidating.values()}
+    apart = {*consolidating, *(file.removesuffix('.parquet') for file in consolidating)}
     for path in sorted(answer.rglob('*')):
         if path.is_file() and path.relative_to(answer).parts[0] not in apart:
             members.copy(path, str(ANSWER_DIR / path.relative_to(answer).as_posix()))

@@ -121,7 +121,8 @@ table.sort('solved_at').select('run', 'status', 'objective')
 ```
 
 A sweep's archive lands in the same table, one row per slice, with its key
-column beside `run`. Read the two together with `pl.concat(..., how='diagonal')`
+column beside `run`. `answer/diagnostics.parquet` carries `run` the same way,
+so what each slice cost is attributable across a warehouse too. Read the two together with `pl.concat(..., how='diagonal')`
 where a warehouse holds both.
 
 **Check the digests before you read the numbers.** `spec_digest` is a digest of
