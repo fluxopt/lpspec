@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from typing import TYPE_CHECKING, NamedTuple, get_args, get_type_hints
 
 import polars as pl
@@ -271,4 +270,4 @@ def write_whole(frame: pl.DataFrame | pl.LazyFrame, path: Path) -> None:
         frame.sink_parquet(part)
     else:
         frame.write_parquet(part)
-    os.replace(part, path)
+    part.replace(path)

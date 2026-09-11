@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import shutil
 import tempfile
 import zipfile
@@ -153,7 +152,7 @@ def write_archive(
         raise
     if out.suffix != '.zip' and out.is_dir():
         out.rmdir()
-    os.replace(part, out)
+    part.replace(out)
     return out
 
 
