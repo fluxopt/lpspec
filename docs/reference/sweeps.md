@@ -1,7 +1,7 @@
 # Sweeps and rolling horizons
 
 This page is the reference for `solve_over`: the axes it takes, the `Runs` it
-returns, and the `carry`, `executor` and `to=` keywords.
+returns, and the `carry`, `executor` and `spill_to=` keywords.
 
 `solve_over` runs one [model](glossary.md#the-chain) once per slice and folds
 the answers together. A slice is one set of [sources](glossary.md#how-it-runs)
@@ -134,8 +134,8 @@ no `original_index`.
 price over time.
 
 **`save` writes every kind.** `runs.save('runs/')` writes what
-`to=` would have written, so the directory is a spilled sweep. `scan` reads it,
-and the call that made the sweep, pointed at it with `to=`, reads it back
+`spill_to=` would have written, so the directory is a spilled sweep. `scan` reads it,
+and the call that made the sweep, pointed at it with `spill_to=`, reads it back
 without solving.
 
 **There is no per-slice reader.** One slice is a partition of a table you
@@ -153,15 +153,17 @@ already hold: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 | **a hand-built axis names its own key** | A plain list cannot say what its keys are labels *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name on any axis. It is refused only when it collides with a column the tables already carry: a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective`. |
 | **`runs.diagnostics` says what each slice cost** | One row per slice, `(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)`: `model.diagnostics()` one dimension wider, its counts and clocks only. `loaded` says the solver took the model from scratch. A serial sweep loads once and pushes values after, so a later `True` is a slice whose data moved a mask; under `executor=` every slice loads. The clocks are that slice's own seconds. |
 | **a slice that fails says which slice** | The error is the engine's own, with a note on it: `in slice 'bad' (3 of 3)`. |
-| **a sweep's memory grows with its answer, unless it is spilled** | The models are released as the fold goes; the tables accumulate. `to=` writes them out instead ([below](#spilling-a-sweep-to-disk)), and `save` writes a held sweep out the same way, after the fact. |
+| **a sweep's memory grows with its answer, unless it is spilled** | The models are released as the fold goes; the tables accumulate. `spill_to=` writes them out instead ([below](#spilling-a-sweep-to-disk)), and `save` writes a held sweep out the same way, after the fact. |
 
 ## Spilling a sweep to disk
 
-`to=` names a directory. Each slice's tables are written there as the fold
+`spill_to=` names a directory. Each slice's tables are written there as the fold
 goes rather than held, so the sweep's memory stays at one slice:
 
 ```python
-runs = lps.solve_over('window.yaml', sources, lps.EachWindow('snapshot', steps=24, lookahead=24, into='t'), to='runs/')
+runs = lps.solve_over(
+    'window.yaml', sources, lps.EachWindow('snapshot', steps=24, lookahead=24, into='t'), spill_to='runs/'
+)
 runs.scan('soc')  # a LazyFrame: (snapshot_start, t, value), every window, in order
 runs.scan('balance', 'dual', original_index=True).collect()  # the same readers, the same keywords
 ```

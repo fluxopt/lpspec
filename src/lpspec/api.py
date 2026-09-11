@@ -32,9 +32,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import polars as pl
-from math_spec import advice, to_program, to_spec
+from math_spec import Spec, advice, to_program, to_spec
 from math_spec.program import Program
 
+from lpspec.archive import beside, write_archive
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source
 from lpspec.relational import sinks
@@ -155,19 +156,6 @@ class Model:
             self._engine.close()
             raise
 
-    @property
-    def sources(self) -> Mapping[str, Source]:
-        """What is attached right now — the question this model answers.
-
-        A snapshot of the merge :meth:`update` leaves behind, not the mapping
-        :func:`build` was given, and what a
-        :class:`~lpspec.artifact.SolveArtifact` needs to hold beside an answer
-        an updated model returned: the spec is unchanged by an update, so
-        nothing else can tell the two questions apart. The values are the
-        caller's own objects, handed back rather than copied.
-        """
-        return dict(self._sources)
-
     def update(self, sources: Mapping[str, Source]) -> Model:
         """Put new numbers on the same model, in place.
 
@@ -210,6 +198,7 @@ class Model:
         *,
         solver_options: Mapping[str, Any] | None = None,
         keep: Keep = 'solver',
+        archive: str | Path | None = None,
     ) -> Result:
         """Hand the built model to a solver and solve it.
 
@@ -236,17 +225,51 @@ class Model:
                 comparing against a cold baseline needs and what no solver
                 option can promise. A preference: a model whose structure
                 moved is loaded again whatever was asked.
+            archive: Where to write the whole thing as one zip — the model,
+                the data attached to it **now**, and this answer — so that
+                :func:`~lpspec.artifact.load_artifact` gives all three back
+                and the model solves again from the file alone. Written here
+                rather than assembled afterwards, because this is the one
+                moment all three exist together: after an :meth:`update` the
+                spec is unchanged, so nothing outside this call could tell the
+                question it answered from the one before it.
 
         Returns:
             The solution, holding this model.
 
         Raises:
             LpspecError: A solver name nothing serves, one this environment
-                cannot run, or a *keep* outside
-                :data:`~lpspec.relational.result.KEEPS`.
+                cannot run, a *keep* outside
+                :data:`~lpspec.relational.result.KEEPS`, or an *archive* asked
+                of a model built from a lowered ``Program``, which has no
+                document to write.
         """
-        answered = self._engine.solve(solver_name, solver_options=solver_options, keep=keep)
-        return replace(answered, _spec_digest=self._digest)
+        out = None if archive is None else _the_model_can_be_archived(self._spec, Path(archive))
+        answered = replace(
+            self._engine.solve(solver_name, solver_options=solver_options, keep=keep), _spec_digest=self._digest
+        )
+        if out is not None:
+            self._archive(*out, answered)
+        return answered
+
+    def _archive(self, out: Path, declared: Spec, answered: Result) -> None:
+        """Pack this model, what is attached to it now, and *answered* into one zip.
+
+        The answer is laid out in a scratch directory beside *out* first,
+        because that is the layout an archive's ``answer/`` is and because a
+        large primal is streamed to disk rather than passed through this
+        process.
+        """
+        with beside(out) as scratch:
+            write_archive(
+                out,
+                declared,
+                self._sources,
+                checked=self._sources,
+                whole={},
+                axis=None,
+                answer=answered.save(scratch),
+            )
 
     def write(self, path: str | Path) -> None:
         """Stream the built model to *path*, in the format its suffix names.
@@ -326,6 +349,23 @@ def _refuse_unknown(given: Mapping[str, Any], declared: Mapping[str, Any]) -> No
         raise DataError(unknown_source_keys_message(unknown, declared))
 
 
+def _the_model_can_be_archived(declared: Spec | None, out: Path) -> tuple[Path, Spec]:
+    """Where the archive goes and the model it holds, or the reason there is none.
+
+    Asked before the solve rather than after it: the answer is in how the
+    model was built, and a solve should not end in a refusal the call already
+    implied.
+    """
+    if declared is None:
+        raise LpspecError(
+            'archive= holds the model as written — a path, a mapping or a Spec — and this model was built '
+            'from a lowered Program, which cannot be written back out as one. Build it from what it was '
+            'lowered from: whatever was handed to lps.check() or math_spec.to_program(). The Program stays '
+            'the argument that solves.'
+        )
+    return out, declared
+
+
 def build(spec: Buildable, sources: Mapping[str, Source]) -> Model:
     """Bind *sources* to *spec* and build it — the model with your data on it.
 
@@ -353,6 +393,7 @@ def solve(
     solver_name: str = 'highs',
     *,
     solver_options: Mapping[str, Any] | None = None,
+    archive: str | Path | None = None,
 ) -> Result:
     """Build *spec* and solve it in one call.
 
@@ -372,6 +413,8 @@ def solve(
             which needs the ``[gurobi]`` extra.
         solver_options: Forwarded to the solver verbatim, in its own
             vocabulary (``{'time_limit': 60}``).
+        archive: Where to write the model, its data and this answer as one
+            zip, as :meth:`Model.solve` takes it.
 
     Returns:
         The solution, self-contained: it owns the frames it reads, so the built
@@ -384,7 +427,7 @@ def solve(
     solver(solver_name)
     model = build(spec, sources)
     try:
-        return model.solve(solver_name, solver_options=solver_options)
+        return model.solve(solver_name, solver_options=solver_options, archive=archive)
     finally:
         model.close()
 

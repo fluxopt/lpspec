@@ -540,7 +540,8 @@ is structure.
 |---|---|
 | `math_spec` (a dependency) | the whole language, read, expanded, resolved, judged and lowered there; what crosses is a `Spec` and the `Program` it lowers to — [its own reference](https://math-spec.readthedocs.io/en/latest/reference/language/) |
 | `api.py` | the runner: `check` / `build` / `solve` / `write`, and `load_result` for an answer read back off disk; linopy-free |
-| `artifact.py` | above the runner and the fold: `SolveArtifact` and `SweepArtifact`, a model with its data and its answer as one zip, and `load_artifact` to open either |
+| `archive.py` | below every verb that solves: the zip layout a model, its data and its answer are written as, because a solve is the one moment all three exist together |
+| `artifact.py` | above the runner and the fold: `load_artifact` and the two values it gives back, `SolveArtifact` and `SweepArtifact`. It reads; it never writes |
 | `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `LANES`, what each lane can build, read by `check` without the extra |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
 | `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |

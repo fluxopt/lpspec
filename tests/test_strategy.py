@@ -524,7 +524,7 @@ def test_a_hand_built_axis_refuses_to_read_over_a_dimension_it_never_named(tmp_p
     with pytest.raises(lps.LpspecError, match='does not say what its keys are coordinates of'):
         runs.primal('soc', original_index=True)
 
-    spilled = lps.solve_over(WINDOW, sources, windows, key_name='window', to=tmp_path / 'runs')
+    spilled = lps.solve_over(WINDOW, sources, windows, key_name='window', spill_to=tmp_path / 'runs')
     with pytest.raises(lps.LpspecError, match='does not say what its keys are coordinates of'):
         spilled.scan('soc', original_index=True)
 
@@ -1345,7 +1345,7 @@ def test_every_bridge_takes_a_kind_on_a_sweep(priced):
 def test_save_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(priced, builds, tmp_path):
     """`save` is the spill after the fact: the same layout, all three
     kinds and the record, so `scan` reads it and the same call pointed at it
-    with `to=` reads it back without solving a slice."""
+    with `spill_to=` reads it back without solving a slice."""
     out = priced.save(tmp_path / 'sweep')
     assert out == tmp_path / 'sweep', 'the directory comes back, not a dict nobody indexes'
     assert sorted(p.name for p in out.iterdir()) == [
@@ -1392,7 +1392,7 @@ def test_a_sweep_keys_every_file_it_writes_with_one_type(priced, tmp_path):
 
 
 def test_a_resume_checks_the_layout_it_is_extending_rather_than_restamping_it(tmp_path) -> None:
-    """`to=` at a directory an earlier build wrote is the one place the stamp has to hold.
+    """`spill_to=` at a directory an earlier build wrote is the one place the stamp has to hold.
 
     Was: opening a spill wrote the stamp before asking whether the directory
     already held a sweep, so a resume overwrote the layout it was extending
@@ -1400,11 +1400,11 @@ def test_a_resume_checks_the_layout_it_is_extending_rather_than_restamping_it(tm
     catch, defeated by the path most likely to hit it.
     """
     out = tmp_path / 'sweep'
-    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=out)
+    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=out)
     (out / 'format.json').write_text(json.dumps({'answer': 99}))
 
     with pytest.raises(lps.LayoutError, match='layout 99'):
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=out)
+        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=out)
     assert json.loads((out / 'format.json').read_text()) == {'answer': 99}, (
         'and the stamp it was refused over is left as it was found'
     )
@@ -1903,11 +1903,11 @@ PRICED_CARRY = {'soc_initial': 'soc'}
 
 
 def _spilled(directory, **kwargs) -> strategy.Runs:
-    return lps.solve_over(SPENDING, horizon_sources(12), PRICED_AXIS, carry=PRICED_CARRY, to=directory, **kwargs)
+    return lps.solve_over(SPENDING, horizon_sources(12), PRICED_AXIS, carry=PRICED_CARRY, spill_to=directory, **kwargs)
 
 
 def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_path):
-    """`to=` writes each slice's frames as the fold goes and keeps none of them.
+    """`spill_to=` writes each slice's frames as the fold goes and keeps none of them.
 
     What comes back through `scan` is the frame the in-memory reader would
     have returned — primal, dual and expression, keyed or over the original
@@ -1962,10 +1962,10 @@ def test_a_spilled_sweep_resumes_after_the_slice_that_failed(builds, tmp_path):
     good = [(k, {**base, 'load': _draw(base, k)}) for k in ('low', 'mid', 'high')]
     bad = [*good[:2], ('high', {**good[0][1], 'load': pl.DataFrame({'snapshot': [0, 1], 'value': [1.0, 2.0]})})]
     with pytest.raises(lps.DataError):
-        lps.solve_over(DISPATCH, base, bad, key_name='draw', to=tmp_path)
+        lps.solve_over(DISPATCH, base, bad, key_name='draw', spill_to=tmp_path)
 
     built = builds(strategy)
-    resumed = lps.solve_over(DISPATCH, base, good, key_name='draw', to=tmp_path)
+    resumed = lps.solve_over(DISPATCH, base, good, key_name='draw', spill_to=tmp_path)
     assert len(built) == 1, 'only the slice that failed is built again'
 
     fresh = lps.solve_over(DISPATCH, base, good, key_name='draw')
@@ -2016,7 +2016,7 @@ def test_a_directory_holding_another_sweep_is_refused(tmp_path):
     the first one's slices back as its own, so the mismatch is refused."""
     _spilled(tmp_path)
     with pytest.raises(lps.LpspecError, match='holds a sweep keyed by'):
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=tmp_path)
+        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=tmp_path)
 
 
 @pytest.mark.parametrize('make_executor', EXECUTORS)
@@ -2024,7 +2024,7 @@ def test_every_executor_spills_the_same_files(make_executor, sweep, tmp_path):
     """Under a pool the answers still land in the directory, in slice order."""
     with _entered(make_executor()) as executor:
         runs = lps.solve_over(
-            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor, to=tmp_path
+            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor, spill_to=tmp_path
         )
     assert runs.scan('p').collect().equals(sweep.primal('p'))
     assert sorted(p.name for p in (tmp_path / 'primal' / 'p').iterdir()) == [
@@ -2037,12 +2037,12 @@ def test_every_executor_spills_the_same_files(make_executor, sweep, tmp_path):
 def test_a_pooled_sweep_resumes_too(builds, tmp_path):
     """A slice the directory holds is never submitted; the pool only sees the
     ones still to solve, and the fold reads the rest back in order."""
-    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=tmp_path)
+    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=tmp_path)
     (tmp_path / 'objective' / '000001.parquet').unlink()
     built = builds(strategy)
     with ThreadPoolExecutor(2) as pool:
         resumed = lps.solve_over(
-            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool, to=tmp_path
+            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool, spill_to=tmp_path
         )
     assert len(built) == 1, 'the slice without its record is the one submitted'
     assert resumed.keys == ['high', 'low', 'mid'], 'the sweep comes back whole and in order'
