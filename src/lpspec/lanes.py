@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from math_spec import to_spec
+from math_spec import to_program, to_spec
 from math_spec.program import Program
 
 from lpspec.errors import LpspecError
@@ -105,3 +105,52 @@ LANES: Mapping[str, Capabilities] = {
         },
     ),
 }
+
+
+def _case_collision(program: Program) -> str | None:
+    """Two declarations of one namespace whose names differ only by case, as the sentence refusing them.
+
+    The namespaces are the language's own — the flat one every expression
+    refers into, and constraints beside it — read off the program rather than
+    re-derived, so this and math-spec cannot come to disagree about what being
+    declared twice means.
+    """
+    flat = (
+        *(('dimension', name) for name in program.dimensions),
+        *(('lookup', lookup.name) for _, lookup in program.lookups),
+        *(('parameter', name) for name in program.parameters),
+        *(('variable', name) for name in program.variables),
+        *(('named expression', name) for name in program.named_expressions),
+    )
+    for namespace in (flat, tuple(('constraint', name) for name in program.constraints)):
+        seen: dict[str, tuple[str, str]] = {}
+        for kind, name in namespace:
+            if (earlier := seen.get(name.casefold())) is not None:
+                return (
+                    f"{kind} '{name}' and {earlier[0]} '{earlier[1]}' differ only by case, and one answer "
+                    f'on disk cannot hold both: a declaration is written as a file named after it, and a '
+                    f'case-insensitive filesystem — a stock macOS volume, a stock Windows one — folds the '
+                    f'two into one, so the second overwrites the first and one name comes back carrying '
+                    f"the other's values. Tell them apart by a suffix rather than a capital: 'p_rated' "
+                    f"beside 'p'."
+                )
+            seen[name.casefold()] = (kind, name)
+    return None
+
+
+def lowered(spec: Buildable) -> Program:
+    """*spec* as a program, refusing what this package cannot keep apart.
+
+    Every door lowers through here rather than through ``to_program``, so what
+    :func:`check` refuses :func:`build` and an archive refuse too: a rule only
+    the front door enforced is one ``solve`` walks past.
+
+    Raises:
+        LanguageError: A construct outside the streaming language.
+        LpspecError: Two declarations of one namespace whose names differ only
+            by case.
+    """
+    program = to_program(spec)
+    if (collision := _case_collision(program)) is not None:
+        raise LpspecError(collision)
+    return program

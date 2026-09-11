@@ -23,9 +23,8 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from math_spec import to_program
-
 from lpspec.errors import LayoutError
+from lpspec.lanes import lowered
 from lpspec.sources import supplied, tidy_sources
 
 if TYPE_CHECKING:
@@ -135,7 +134,7 @@ def write_archive(
         LayoutError: A directory target that already holds something.
     """
     check_the_target(out)
-    program = to_program(spec)
+    program = lowered(spec)
     frames = supplied(program, tidy_sources(program, checked))
     staging = _staging_for(out)
     part = staging / out.name

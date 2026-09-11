@@ -109,6 +109,33 @@ and attaches nothing, so a spec repository can validate every commit without
 the data. It returns the *program*: the spec lowered to the plan a build reads
 its rows off.
 
+### Names that differ only by case
+
+**Two declarations of one namespace whose names differ only by case are
+refused**, whichever verb lowers the spec. The language takes them and the
+mathematics wants them: `p` beside `P` is power beside rated power. An answer
+on disk cannot hold both. Every declaration is written as a file named after
+it, and a case-insensitive filesystem folds the two into one. A stock macOS
+volume is one, and so is a stock Windows one. The second overwrites the first
+and keeps its name, so the surviving name reads back carrying the other's
+values.
+
+```
+variable 'P' and variable 'p' differ only by case, and one answer on disk
+cannot hold both: ... Tell them apart by a suffix rather than a capital:
+'p_rated' beside 'p'.
+```
+
+The namespaces are the language's own: one flat namespace holding dimensions,
+lookups, parameters, variables and named expressions, and constraints beside
+it. A constraint may carry a variable's name already, so a constraint `P`
+beside a variable `p` is accepted. The two are written under `dual/` and
+`primal/`, which nothing folds together.
+
+Refused at every door and not only where the archive is written, so a solve
+worth archiving is not found to be unarchivable after it has run. Both lanes lower through the
+same function, so neither accepts a file the other refuses.
+
 ### Checking against a sink
 
 Whether a spec is *sayable* does not depend on the solver. Where it can *land*

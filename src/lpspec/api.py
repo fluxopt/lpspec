@@ -32,10 +32,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import polars as pl
-from math_spec import advice, to_program
+from math_spec import advice
 
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
-from lpspec.lanes import LANES, Buildable, Label, Source, declared
+from lpspec.lanes import LANES, Buildable, Label, Source, declared, lowered
 from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
@@ -104,7 +104,7 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
             nothing to stop it, a construct the named sink takes only
             reformulated. Issued here and nowhere else.
     """
-    program = to_program(spec)
+    program = lowered(spec)
     notes = [str(note) for note in advice(program)]
     refused: str | None = None
     relaxed: list[str] = []
@@ -133,7 +133,7 @@ class Model:
 
     def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
         self._spec = declared(spec)
-        self._program = to_program(self._spec)
+        self._program = lowered(self._spec)
         #: What every answer of this model carries, so two of them can be told
         #: to have answered the same document.
         self._digest = digest_of(self._spec.to_yaml())

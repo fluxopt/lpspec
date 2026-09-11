@@ -413,6 +413,85 @@ def test_a_list_of_models_is_refused(dispatch_yaml):
         lps.check([dispatch_yaml, dispatch_yaml])
 
 
+#: A model over `t` with one variable, one constraint and one named expression,
+#: so a case pair can be introduced into any namespace in turn.
+def _named(**declared) -> dict:
+    spec = {
+        'dimensions': {'t': {'dtype': 'int'}},
+        'parameters': {'load': {'dims': ['t']}},
+        'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
+        'constraints': {'meet': {'foreach': ['t'], 'expression': 'p >= load'}},
+        'expressions': {'spend': '2 * p'},
+        'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
+    }
+    for section, added in declared.items():
+        spec[section] = {**spec[section], **added}
+    return spec
+
+
+@pytest.mark.parametrize(
+    'spec',
+    [
+        pytest.param(
+            _named(variables={'P': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}}),
+            id='two variables',
+        ),
+        pytest.param(_named(parameters={'P': {'dims': ['t']}}), id='a parameter beside a variable'),
+        pytest.param(_named(dimensions={'T': {'dtype': 'int'}}), id='two dimensions'),
+        pytest.param(_named(expressions={'SPEND': '3 * p'}), id='two named expressions'),
+        pytest.param(_named(expressions={'P': '3 * p'}), id='a named expression beside a variable'),
+        pytest.param(
+            _named(constraints={'MEET': {'foreach': ['t'], 'expression': 'p >= load'}}),
+            id='two constraints',
+        ),
+    ],
+)
+def test_two_names_in_one_namespace_differing_only_by_case_are_refused(spec):
+    """`p` beside `P` is ordinary notation and the language takes it. An answer on disk cannot.
+
+    Every declaration is written as a file named after it, so on a
+    case-insensitive filesystem the two fold into one: the second overwrites
+    the first and keeps its name, and the surviving name then reads back
+    carrying the other's values. Refused at the front door rather than at
+    `save`, so a solve worth archiving is not found to be unarchivable after
+    it has run.
+    """
+    with pytest.raises(lps.LpspecError, match='differ only by case'):
+        lps.check(spec)
+
+
+def test_a_case_pair_across_two_namespaces_is_allowed():
+    """The namespaces are the language's, and a constraint is not in the flat one.
+
+    A constraint may already carry a variable's exact name — they are written
+    under `dual/` and `primal/`, which no filesystem folds together — so the
+    rule is per namespace rather than over every name in the file.
+    """
+    spec = _named(constraints={'P': {'foreach': ['t'], 'expression': 'p >= load'}})
+    assert 'P' in lps.check(spec).constraints, "a constraint named like a variable is the language's to allow"
+
+
+@pytest.mark.parametrize('door', ['check', 'build', 'solve', 'archive'], ids=str)
+def test_every_door_refuses_a_case_pair_rather_than_only_the_front_one(door, tmp_path):
+    """A rule only `check` enforced is one `solve` walks past.
+
+    `build` lowers without going through `check`, and the write that lays an
+    archive out lowers without going through either, so all of them lower
+    through one function that refuses.
+    """
+    spec = _named(variables={'P': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}})
+    sources = {'t': range(2), 'load': [1.0, 2.0]}
+    call = {
+        'check': lambda: lps.check(spec),
+        'build': lambda: lps.build(spec, sources),
+        'solve': lambda: lps.solve(spec, sources),
+        'archive': lambda: lps.solve(spec, sources, archive=tmp_path / 'case.zip'),
+    }[door]
+    with pytest.raises(lps.LpspecError, match='differ only by case'):
+        call()
+    assert not (tmp_path / 'case.zip').exists(), 'and a refused archive leaves no file behind'
+
+
 def test_write_suffix_dispatch(dispatch_yaml, dispatch_frame_inputs, tmp_path):
     sources = dispatch_frame_inputs
     out = lps.write(dispatch_yaml, sources, tmp_path / 'm.lp')
