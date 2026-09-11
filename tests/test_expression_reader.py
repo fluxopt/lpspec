@@ -8,7 +8,8 @@ frame's dims are the ones it survives over, laziness (a build compiles no
 expression; a read compiles that one), and the unknown-name refusal. For
 `evaluate`, below: a name and the body it stands for read one value, both
 written forms are taken, and what it refuses — a name the model does not
-declare, and a model that arrived already lowered.
+declare, and an answer read back off disk, which carries no model to lower
+against.
 """
 
 from __future__ import annotations
@@ -388,13 +389,13 @@ def test_the_splice_steps_over_a_declaration_of_its_own_name():
     ), "the splice lands beside the declaration, so the expression still reads the model's own entry"
 
 
-def test_a_model_built_from_a_lowered_program_says_why_it_cannot_evaluate():
-    """`check` hands back a Program, and a Program is what a model lowered to — reading an expression needs the model as written."""
-    result = lps.solve(lps.check(SPEC), sources())
-    with pytest.raises(LpspecError, match='lowered Program'):
-        result.evaluate('sum(p, over=generator)')
-    assert result.evaluate('total_gen').equals(result.expression('total_gen')), (
-        'a declared name is readable either way — it needs no lowering, being already lowered'
+def test_an_answer_read_back_off_disk_says_why_it_cannot_evaluate(result, tmp_path):
+    """An answer carries the values and not the model, and a name the file never wrote needs the model."""
+    read_back = lps.load_result(result.save(tmp_path))
+    with pytest.raises(LpspecError, match='no model behind it'):
+        read_back.evaluate('sum(p, over=generator)')
+    assert read_back.evaluate('total_gen').equals(result.expression('total_gen')), (
+        'a declared name is readable either way — it was written, so nothing needs lowering'
     )
 
 
@@ -407,8 +408,8 @@ def test_a_closed_result_refuses_to_evaluate():
 
 def test_an_evaluated_expression_names_nothing_and_so_is_not_a_kind(result, tmp_path):
     """It is not written, spilled or enumerated: a quantity worth keeping across runs is worth declaring."""
-    written = {p.stem for p in (result.to_parquet(tmp_path) / 'expression').glob('*.parquet')}
-    assert written == set(SPEC['expressions']), 'to_parquet writes the declared names, and evaluate adds none'
+    written = {p.stem for p in (result.save(tmp_path) / 'expression').glob('*.parquet')}
+    assert written == set(SPEC['expressions']), 'save writes the declared names, and evaluate adds none'
 
 
 # ---------------------------------------------------------------------------
@@ -445,6 +446,7 @@ def test_an_added_quantity_reads_what_the_primal_implies(result, report):
 
 
 def test_an_added_quantity_sits_beside_the_models_own(report):
+    pytest.importorskip('xarray')
     assert report.expression('total_gen').height == 3, "the model's declared entries are still readable"
     assert set(report.to_dataset(kind='expression').data_vars) == set(SPEC['expressions']) | {'burn', 'shadow'}, (
         'every bridge reads the added names, the added ones being named'
@@ -453,10 +455,8 @@ def test_an_added_quantity_sits_beside_the_models_own(report):
 
 def test_an_added_quantity_is_written_like_a_declared_one(report, tmp_path):
     """Named, so it is a *kind*: unlike `evaluate`, this is spilled and written."""
-    written = {p.stem for p in (report.to_parquet(tmp_path) / 'expression').glob('*.parquet')}
-    assert written == set(SPEC['expressions']) | {'burn', 'shadow'}, (
-        'to_parquet writes the added names beside the declared'
-    )
+    written = {p.stem for p in (report.save(tmp_path) / 'expression').glob('*.parquet')}
+    assert written == set(SPEC['expressions']) | {'burn', 'shadow'}, 'save writes the added names beside the declared'
 
 
 def test_extending_leaves_the_result_it_extended_alone(result, report):
@@ -527,15 +527,15 @@ def test_a_name_already_added_is_refused_rather_than_replaced(report):
 def test_a_block_is_lowered_once_however_many_entries_it_has(result, monkeypatch):
     """The cost the docstring claims: handing in a block beats handing in its entries one at a time."""
     lowerings = []
-    real = expressions.to_program
-    monkeypatch.setattr(expressions, 'to_program', lambda spec: lowerings.append(1) or real(spec))
+    real = expressions.lowered
+    monkeypatch.setattr(expressions, 'lowered', lambda spec: lowerings.append(1) or real(spec))
     result.extend({'expressions': {f'q{i}': f'sum(p) * {i}' for i in range(8)}})
     assert len(lowerings) == 1, 'eight entries, one lowering of the model'
 
 
-def test_extending_a_model_built_from_a_lowered_program_says_why_it_cannot():
-    with pytest.raises(LpspecError, match='lowered Program'):
-        lps.solve(lps.check(SPEC), sources()).extend(REPORT)
+def test_extending_an_answer_read_back_off_disk_says_why_it_cannot(result, tmp_path):
+    with pytest.raises(LpspecError, match='no model behind it'):
+        lps.load_result(result.save(tmp_path)).extend(REPORT)
 
 
 def test_a_closed_result_refuses_to_extend():

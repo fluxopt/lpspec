@@ -53,6 +53,16 @@ class DataError(LpspecError):
     """Data bound to a valid spec is missing or the wrong shape."""
 
 
+class LayoutError(LpspecError):
+    """What is on disk is not a layout this package reads.
+
+    Its own class rather than a :class:`DataError`, which is the caller's own
+    numbers being wrong: this is a directory or an archive that ``save`` wrote
+    — or did not — so the fix is which path was named, or that the layout has
+    moved since it was written and the model wants solving again.
+    """
+
+
 class NoSolutionError(LpspecError):
     """The solve returned no values to read — infeasible, unbounded, errored.
 
@@ -138,18 +148,20 @@ def already_readable_message(clash: list[str]) -> str:
     )
 
 
-def no_written_model_message() -> str:
-    """An expression to read in a model that arrived already lowered.
+def no_model_behind_this_answer_message() -> str:
+    """An expression to read in an answer that has no model behind it.
 
-    Reading one takes the model *as written* — a ``Program`` is what that
-    lowered to, and lowering does not run backwards. Both lanes say it, so it
-    is said once.
+    Reading a quantity the file never named splices it into the model as
+    written and lowers again, against the values this solve left. An answer
+    read back off disk carries the values and not the model, so there is
+    nothing to splice into.
     """
     return (
-        'cannot evaluate an expression against a lowered Program: reading one takes the model as '
-        'written, and a Program is what that lowered to. Pass the file, the mapping or the Spec — '
-        'check() reads the same model, so keep what you gave it and give that. A name the model '
-        'declares is readable either way.'
+        'this answer has no model behind it, so a quantity the file never named cannot be read from '
+        'it: doing that splices the expression into the model as written and lowers it again, and an '
+        'answer read back off disk carries the values without the model. An archive holds both — '
+        'lps.solve(archive.spec, archive.sources) asks the question again, and what comes back reads '
+        'any expression. A name the model declares is readable either way.'
     )
 
 

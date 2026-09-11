@@ -47,11 +47,8 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(msg) from exc
 
 
-from math_spec import to_program, to_spec
-from math_spec.program import Program
-
 from lpspec import expressions
-from lpspec.errors import LpspecError, no_written_model_message
+from lpspec.lanes import declared, lowered
 from lpspec.linopy._notes import note
 from lpspec.linopy.builder import _eval, build_model
 from lpspec.linopy.loader import dimension_coords, load_parameters
@@ -91,7 +88,7 @@ def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
         DataError: A source that is missing, unreadable, or the wrong shape.
     """
     with note(f'while loading {_named(spec)}'):
-        program = to_program(spec)
+        program = lowered(spec)
 
         tidy = tidy_sources(program, sources)
         master_coords, dim_coords = dimension_coords(program, tidy)
@@ -138,11 +135,9 @@ def evaluate(
             reads a dual where the solve left none.
     """
     with note(f'while evaluating an expression against {_named(spec)}'):
-        if isinstance(spec, Program):
-            raise LpspecError(no_written_model_message())
-        written = to_spec(spec)
+        written = declared(spec)
         node = expressions.lower(written, expression)
-        program = to_program(written)
+        program = lowered(written)
         tidy = tidy_sources(program, sources)
         master_coords, dim_coords = dimension_coords(program, tidy)
         dataset = load_parameters(program, tidy, master_coords)

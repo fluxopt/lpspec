@@ -24,24 +24,28 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 
 | | |
 |---|---|
-| `lps.check(spec, sink=None)` | parse, expand, validate and lower; attach no data. With a `sink`, also say whether that sink takes it. Returns the lowered `Program`, which every verb takes back |
+| `lps.check(spec, sink=None)` | parse, expand, validate and lower; attach no data. With a `sink`, also say whether that sink takes it. Returns the lowered `Program`, for reading the plan — no verb takes one back |
 | `math_spec.to_spec(spec)` | the file as written, for editing and typesetting; the language's own verb |
 | `lps.build(spec, sources)` | attach data and build; returns a `Model` |
 | `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
 | `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
-| `lps.pack(spec, sources, out)` | the file and its data as one zip: [Archiving a model](#archiving-a-model) |
-| `lps.unpack(path, into)` | the `Spec` and the sources as parquet paths, in the shape every verb takes |
+| `archive=` on `lps.solve`, `model.solve`, `lps.solve_over` | write the model, its data and this answer as one zip: [Archiving a model](#archiving-a-model) |
+| `lps.load_archive(path, into)` | an archive back as a `SolveArchive`, or a `SweepArchive` where its sources were cut |
+| `lps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
+| `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Runs` |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
-| `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` or `math_spec.program.Program` |
+| `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` |
 
 ## Errors and warnings
 
 **Every error is one tree, rooted at `LpspecError`.** `LanguageError` (with
 `SchemaError`, `DimensionError`, `PiecewiseExpansionError`) is a fault in the
-spec. `DataError` is a fault in the data attached to it. `LaneError` is a spec
-one lane cannot build. `NoSolutionError` is a solve that left nothing to read.
+spec. `DataError` is a fault in the data attached to it. `LayoutError` is a
+directory or an archive that is not a layout this package reads. `LaneError`
+is a spec one lane cannot build. `NoSolutionError` is a solve that left
+nothing to read.
 Which one you get:
 [errors](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
 
@@ -51,19 +55,27 @@ fail CI on it.
 
 ## The spec argument
 
-**Every verb takes the spec as a path, a `str`, a `dict`, a `Spec` or a
-`Program`**: exactly what `math_spec.to_program` takes. So a framework that
-emits declarations never writes a temporary file to run them:
+**Every verb takes the spec as a path, a `str`, a `dict` or a `Spec`**: what
+`math_spec.to_program` takes, less the lowered `Program` it returns. So a
+framework that emits declarations never writes a temporary file to run them:
 
 ```python
 spec = {'dimensions': ..., 'variables': ..., 'constraints': ..., 'objective': ...}
 
 lps.solve(spec, sources)  # a dict runs like a file
-checked = lps.check(spec)  # ...or lower once and keep the plan
-lps.solve(checked, sources)  # a Program is passed through, not re-lowered
+kept = to_spec(spec)  # ...or read once and keep the document
+lps.solve(kept, sources)  # a Spec is not read again
 
 to_spec(spec).to_yaml()  # the review copy — a dict-built spec still gets a file
 ```
+
+**Keep the `Spec`, not the `Program`.** `lps.check` hands back a lowered
+`Program` for reading the plan, and no verb takes one: lowering has no
+inverse, so an answer built from one could not name the document it came from
+and nothing built from one could be archived. Keeping the `Spec` is also the
+faster half — reading a file costs about ten times what lowering it does, and
+a `Spec` handed back to a verb is not read again
+([#1579](https://github.com/fluxopt/lpspec/pull/1579)).
 
 **A framework emits data, not YAML text, and never merges files.** A generated
 spec must be able to show you a file. Hand-written math still starts as one.
@@ -96,6 +108,33 @@ forwarded to the solver verbatim.
 and attaches nothing, so a spec repository can validate every commit without
 the data. It returns the *program*: the spec lowered to the plan a build reads
 its rows off.
+
+### Names that differ only by case
+
+**Two declarations of one namespace whose names differ only by case are
+refused**, whichever verb lowers the spec. The language takes them and the
+mathematics wants them: `p` beside `P` is power beside rated power. An answer
+on disk cannot hold both. Every declaration is written as a file named after
+it, and a case-insensitive filesystem folds the two into one. A stock macOS
+volume is one, and so is a stock Windows one. The second overwrites the first
+and keeps its name, so the surviving name reads back carrying the other's
+values.
+
+```
+variable 'P' and variable 'p' differ only by case, and one answer on disk
+cannot hold both: ... Tell them apart by a suffix rather than a capital:
+'p_rated' beside 'p'.
+```
+
+The namespaces are the language's own: one flat namespace holding dimensions,
+lookups, parameters, variables and named expressions, and constraints beside
+it. A constraint may carry a variable's name already, so a constraint `P`
+beside a variable `p` is accepted. The two are written under `dual/` and
+`primal/`, which nothing folds together.
+
+Refused at every door and not only where the archive is written, so a solve
+worth archiving is not found to be unarchivable after it has run. Both lanes lower through the
+same function, so neither accepts a file the other refuses.
 
 ### Checking against a sink
 
@@ -235,6 +274,7 @@ coefficients are the transpose of `row`, which nothing exposes.
 
 ```python
 result.status, result.termination_condition, result.objective
+result.spec_digest  # a digest of the spec this answered — None off a lowered Program
 result.is_ok  # rolled-up verdict: not an error, abort or refusal
 result.has_primal  # narrower: are there values to read
 result.kept  # how much of the session this solve kept: 'nothing', 'solver' or 'progress'
@@ -251,9 +291,10 @@ result.to_dataarray('p')  # the same, labelled: .sel / resample / plot
 result.to_dataarray('power_balance', 'dual')  # a price, labelled — every bridge takes kind=
 result.to_dataset()  # every variable by default; names for a subset
 result.to_dataset(kind='dual')  # every dual; one kind per dataset
-result.to_parquet(
+result.save(
     directory
-)  # every kind, primal/ dual/ expression/, one file per name; primals streamed, never through this process
+)  # the whole answer to disk: objective.parquet, primal/ dual/ activity/ expression/, reasons.parquet
+lps.load_result(directory)  # and back, every reader answering what it answered
 ```
 
 **`primal` returns a `polars.DataFrame`**, one row per coordinate: a *frame*.
@@ -264,7 +305,7 @@ xarray, from the `[linopy]` extra.
 | Rule | |
 |---|---|
 | **`is_ok` is not `has_primal`** | `is_ok` rolls up the termination condition. `has_primal` adds the solver's verdict on whether an incumbent exists, and every reader gates on it. A MIP that hits `time_limit` before a feasible point is `ok` with nothing to read |
-| **reading with no primal raises** | `NoSolutionError`; `objective` is `nan` |
+| **reading with no primal raises** | `NoSolutionError`; `objective` is `nan`. `save` is the exception: it writes the record and no frames, an infeasible run being an answer a set of saved cases needs on disk |
 | **`expression` takes a declared name** | the value of a [named expression](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions) at the solution, aggregated to its own dimensions; never an expression string. An unknown name is a `KeyError` listing what is declared. It is compiled at the read, so unread expressions cost nothing |
 | **`evaluate` takes the expression** | written the way `expressions:` writes one — a string, or the mapping that carries `cases:`. It may use every name the solved model declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read. A declared name is such an expression and is served by the reader already holding it; anything else lowers the model again, which costs what `check` costs |
 | **an evaluated expression names nothing** | so it is not a *kind*: `to_parquet` does not write it, a sweep does not spill it, and `kind='expression'` does not reach it. Name a quantity to keep it — `extend` — and evaluate one to look at it |
@@ -275,9 +316,10 @@ xarray, from the `[linopy]` extra.
 | **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `LpspecError`. Any integer or binary variable makes duals undefined |
 | **a solver can make a model mixed-integer** | an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set reaches a solver with no SOS concept as binaries, so an otherwise continuous model solved on `highs` has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
-| **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `to_parquet` |
+| **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `save` |
 | **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default. One kind per call |
-| **`to_parquet` writes every kind** | `primal/<name>.parquet`, `dual/<name>.parquet`, `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out; `dual` and `expression` still say why |
+| **`save` writes the whole answer** | `objective.parquet` says how the solve terminated — `status`, `termination_condition`, `objective`, `has_primal`, `spec_digest` — in the columns a sweep keys per slice, so cases solved apart concatenate. A solve that reached no objective writes null there rather than `nan`, so a mean over a set of cases is the mean over the ones that solved. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `activity/<name>.parquet` and `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out, and `reasons.parquet` says why |
+| **`load_result` reads it back whole** | every reader answers what it answered, and an absence raises the sentence the solve gave. Two session facts do not survive: `kept` reads `nothing`, and a refusal carries the termination condition rather than the solver's verbatim wording. The frames are read lazily, so the directory has to outlive the result |
 
 **Nothing has to be released.** `primal` and the `to_*` readers stay valid for
 as long as the `Result` does. `close()` and the context-manager protocol hand a
@@ -375,26 +417,90 @@ from. [#382](https://github.com/fluxopt/lpspec/issues/382) tracks that case.
 ## Archiving a model
 
 ```python
-lps.pack('spec.yaml', sources, 'model.zip')
-result = lps.solve(*lps.unpack('model.zip', 'model/'))
+lps.solve('spec.yaml', sources, archive='case.zip')
 
-spec, paths = lps.unpack('model.zip', 'model/')
-frames = {name: pl.read_parquet(path) for name, path in paths.items()}  # in memory, when you want them
+case = lps.load_archive('case.zip', 'case/')
+case.answer.primal('p')  # what came back
+lps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
-**`pack` writes a model as one zip**: `model.yaml`, and
-`sources/<key>.parquet` for every key the file declares. The sources go in
-through the same door `build` reads them, so a model `build` refuses is refused
-here and nothing is written. A parquet path is copied as its own bytes; a
-table, a bare label range, a `{label: value}` map or a single number is
-written as the tidy parquet table it stands for. Parquet keeps the dtypes
-[the contract](data.md) checks. Members are stored uncompressed.
+**An archive is the model, its data and its answer**: `model.yaml`,
+`sources/<key>.parquet` for every key the file declares, `answer/` holding what
+`result.save` or `runs.save` writes, and `axis.json` for a sweep.
 
-**`unpack` extracts the archive into a directory** and returns the `Spec` and
-a `{key: Path}`, so attaching streams the files from disk and holds nothing
-here. They are checked where they attach, so an archive edited by hand gets
-the same sentence any other source would. Anything in the zip outside that
-layout is refused as not an archive `pack` wrote, and nothing is extracted.
+**The suffix decides the container**, as `lps.write`'s does. `.zip` packs those
+members into one file, to send or to store; anything else lays them out in a
+directory. The two hold the same thing, and only reading them differs:
+
+```python
+lps.solve('spec.yaml', sources, archive='case/')  # a directory
+lps.load_archive('case/')  # read where it lies — no into=
+```
+
+**A directory archive needs no `into`, and a zip requires one.** Nothing is read
+at load: the sources come back as paths and every frame is a `scan_parquet`, so
+the parquet files have to be on disk. A directory's already are. A zip's are
+not, and only you know somewhere writable — an archive often lives where it is
+only read — so there is no default, and passing none is refused by name.
+
+**Every verb that solves takes `archive=`, and nothing else writes one.**
+`lps.solve`, `model.solve` and `lps.solve_over` each hold the model, the data
+and the answer at the moment they are asked for, so the three are written
+together and cannot be paired up wrongly. There is no way to assemble them
+afterwards, because the pairing an assembled one asserts is one nothing could
+check: two solves of one model differ only in their data, and the data is not
+digested.
+
+**A sweep's archive carries its axis**, as `axis.json`, because its sources
+are cut: they hold the column the axis slices on, which the model does not
+declare. `spill_to=` and `archive=` are different destinations and compose —
+the spill is what the archive packs.
+
+The recipes are [archiving a solve](../howto/archiving.md): keeping the answer
+an update produced, archiving a sweep too large to hold, comparing cases solved
+apart, and querying an archive from a database.
+
+The sources go in through the same door that reads them, so what is refused
+there is refused here and nothing is written: `build`'s for one solve, and for
+a sweep the door `solve_over` uses, which is one slice of them. A parquet path is copied as its
+own bytes; a table, a bare label range, a `{label: value}` map or a single
+number is written as the tidy parquet table it stands for. Parquet keeps the
+dtypes [the contract](data.md) checks. Members are stored uncompressed.
+
+**`load_archive` reads the answer lazily**, so the files it reads off have to
+outlive it: the archive itself for a directory, the `into` directory for a
+zip. Its `sources` come back as the parquet paths they now are — the same type
+they went in as, `Path` being a source like any other — so attaching streams
+them from disk. Anything outside the layout is refused, and a zip is refused
+before it is unpacked.
+
+**An archive is a parquet tree.** Every frame is tidy: the model's own
+dimension columns, and a `value` column. An answer therefore joins to the
+sources it was solved from, on the coordinates both carry.
+
+```sql
+-- generation priced by the load it met, answer joined to source
+select p.scenario, p.snapshot, p.generator, p.value, load.value as load
+from 'study/answer/primal/p/*.parquet' p
+join 'study/sources/load.parquet' load using (scenario, snapshot);
+```
+
+A sweep keys every file it writes with one column of one type. The files under
+a kind are one table, and the kinds join to each other on that key. What a file
+holds is named by its path, not by a column. Read a kind with a glob, and add
+the engine's own filename column where the declaration has to travel with the
+rows.
+
+| Rule | |
+|---|---|
+| **the model is held as written** | `model.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in. A lowered `Program` is refused: it has no file to write |
+| **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving and counting from `1` the day it settles. Nothing reads an older layout back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the model and the data to do that with |
+| **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an archive is read back. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an archive whose answer names another model is refused rather than read. A solve run off a lowered `Program` has no document and carries `None`, which counts as its own value — so one null among real digests breaks the comparison, and a table where *every* digest is null counts one distinct value while having checked nothing. Ask for the digests to be present as well as to agree: `n_unique() == 1 and null_count() == 0` |
+| **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. A `SweepArchive` has it and a `SolveArchive` has no such field, so nothing downstream meets `Result \| Runs`. `load_archive` returns whichever the archive holds |
+| **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |
+| **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one solve each. Refused before the first slice is taken, as a lowered `Program` is |
+| **the model's own fitness for slicing stays `solve_over`'s** | whether a window can carry this model's coupling and reach is asked when the sweep is run, not when it is archived |
+| **a sweep's answer reads back spilled** | its frames stay in the extracted directory and `runs.scan(name)` reads them, which is what `solve_over(spill_to=)` already produces. `original_index` works: the dimension a window sliced and the coordinates each owns are in the manifest |
 
 ## Diagnostics
 

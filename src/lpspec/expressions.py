@@ -16,9 +16,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from math_spec import to_program
-
 from lpspec.errors import LanguageError, SchemaError
+from lpspec.lanes import lowered
 
 if TYPE_CHECKING:
     from math_spec import Spec
@@ -88,8 +87,8 @@ def lower_all(
     written = spec.to_dict()
     _refuse_a_name_the_model_declares(written, entries)
     merged = dict(carried) | dict(entries)
-    lowered = _splice(written, merged)
-    return {name: lowered[name] for name in entries}, merged
+    nodes = _splice(written, merged)
+    return {name: nodes[name] for name in entries}, merged
 
 
 def _splice(written: dict[str, Any], entries: Mapping[str, Any]) -> dict[str, ExpressionNode]:
@@ -97,11 +96,13 @@ def _splice(written: dict[str, Any], entries: Mapping[str, Any]) -> dict[str, Ex
 
     The lowered program is read for these nodes and dropped: its variables,
     constraints and objective are the ones the caller already solved, lowered a
-    second time only so that what is spliced is checked against them.
+    second time only so that what is spliced is checked against them. Through
+    the same door the lanes use, so an added name is held to the rules a
+    declared one is.
     """
     written.setdefault(_SECTION, {}).update(entries)
-    lowered = to_program(written).named_expressions
-    return {name: lowered[name].expression for name in entries}
+    named = lowered(written).named_expressions
+    return {name: named[name].expression for name in entries}
 
 
 def _entries(added: Mapping[str, Any]) -> Mapping[str, Any]:

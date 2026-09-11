@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import json
 import multiprocessing
 import sys
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
@@ -17,6 +18,7 @@ from unittest import mock
 
 import polars as pl
 import pytest
+from math_spec import to_spec
 
 import lpspec as lps
 from lpspec import strategy
@@ -251,7 +253,14 @@ def test_a_scenario_sweep_solves_each_slice_and_keys_the_answers(sweep):
 
     assert len(runs) == 3
     assert runs.keys == ['high', 'low', 'mid'], 'keys come back sorted, not in data order'
-    assert runs.objective.columns == ['scenario', 'status', 'termination_condition', 'objective']
+    assert runs.objective.columns == [
+        'scenario',
+        'status',
+        'termination_condition',
+        'objective',
+        'has_primal',
+        'spec_digest',
+    ], 'the record, keyed'
     assert set(runs.primal('p').columns) == {'scenario', 'snapshot', 'generator', 'value'}
     assert runs.primal('p').height == 3 * 4 * 2
 
@@ -375,10 +384,31 @@ def test_a_sweep_that_solved_nothing_blames_the_solve():
     runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
 
     assert len(runs) == 3, 'an unsolvable slice is still a row of the record'
-    assert runs.objective['objective'].is_nan().all()
+    assert runs.objective['objective'].null_count() == 3, 'no slice reached one, and none is written as nan'
     with pytest.raises(lps.LpspecError, match='holds no variable frames at all') as raised:
         runs.primal('p')
     assert 'infeasible' in str(raised.value), 'the message names what the slices actually did'
+
+
+def test_a_slice_that_reached_no_objective_does_not_poison_the_sweep():
+    """`objective` is a table, and in a table an absent number is null.
+
+    nan is a *number* to every aggregate that meets it, so one infeasible
+    slice makes the mean over the sweep nan — here, and in any SQL engine
+    reading the files a spill wrote. `has_primal` says which slices reached
+    one, which is what a sentinel would be there to say.
+    """
+    sources = scenario_sources()
+    sources['load'] = sources['load'].with_columns(
+        pl.when(pl.col('scenario') == 'high').then(pl.col('value') + 1_000).otherwise(pl.col('value'))
+    )
+    runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
+
+    assert runs.objective['objective'].null_count() == 1, 'the one slice that came back infeasible'
+    assert runs.objective['objective'].is_nan().sum() == 0, 'written as no value rather than as nan'
+    assert runs.objective['objective'].mean() == pytest.approx(
+        runs.objective.filter('has_primal')['objective'].mean()
+    ), 'so the mean over the sweep is the mean over the slices that solved'
 
 
 # ---------------------------------------------------------------------------
@@ -495,7 +525,7 @@ def test_a_hand_built_axis_refuses_to_read_over_a_dimension_it_never_named(tmp_p
     with pytest.raises(lps.LpspecError, match='does not say what its keys are coordinates of'):
         runs.primal('soc', original_index=True)
 
-    spilled = lps.solve_over(WINDOW, sources, windows, key_name='window', to=tmp_path / 'runs')
+    spilled = lps.solve_over(WINDOW, sources, windows, key_name='window', spill_to=tmp_path / 'runs')
     with pytest.raises(lps.LpspecError, match='does not say what its keys are coordinates of'):
         spilled.scan('soc', original_index=True)
 
@@ -1172,18 +1202,19 @@ def test_a_thread_pool_does_not_encode_for_a_boundary_it_never_crosses(monkeypat
     assert seen, 'a process pool did not encode its sources'
 
 
-def test_a_lowered_program_crosses_a_process():
-    """A `Program` is what a worker is handed, under every executor.
+def test_the_model_and_its_plan_both_cross_a_process():
+    """A worker is handed the document and the lowered plan, under every executor.
 
-    It used to be refused under a pool that crosses a process, because the
+    Both used to be refused by a pool that crosses a process, because the
     language sealed its groups behind a `MappingProxyType` that pickle
-    refuses; the seal pickles since math-spec alpha.78, so the worker takes
-    the lowered program and lowers nothing itself.
+    refuses; the seal pickles since math-spec alpha.78. A slice reads no file:
+    it is handed the `Spec`, and re-validating one it already has costs
+    nothing.
     """
-    program = lps.check(DISPATCH)
-    serial = lps.solve_over(program, scenario_sources(), lps.EachCoordinate('scenario'))
+    spec = to_spec(DISPATCH)
+    serial = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'))
     with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool:
-        pooled = lps.solve_over(program, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
+        pooled = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
     assert pooled.objective.equals(serial.objective)
     assert pooled.primal('p').equals(serial.primal('p'))
 
@@ -1313,20 +1344,22 @@ def test_every_bridge_takes_a_kind_on_a_sweep(priced):
         priced.to_pandas('soc', 'objective')
 
 
-def test_to_parquet_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(priced, builds, tmp_path):
-    """`to_parquet` is the spill after the fact: the same layout, all three
+def test_save_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(priced, builds, tmp_path):
+    """`save` is the spill after the fact: the same layout, all three
     kinds and the record, so `scan` reads it and the same call pointed at it
-    with `to=` reads it back without solving a slice."""
-    out = priced.to_parquet(tmp_path / 'sweep')
+    with `spill_to=` reads it back without solving a slice."""
+    out = priced.save(tmp_path / 'sweep')
     assert out == tmp_path / 'sweep', 'the directory comes back, not a dict nobody indexes'
     assert sorted(p.name for p in out.iterdir()) == [
         'diagnostics',
         'dual',
         'expression',
+        'format.json',
         'objective',
+        'owned.parquet',
         'primal',
         'sweep.json',
-    ], 'the three kinds, the record, and the manifest'
+    ], 'the three kinds, the record, the manifest, the layout it is in, and the way back'
     assert sorted(p.name for p in (out / 'expression').iterdir()) == ['spend', 'window_spend'], (
         'every declared expression the slices evaluated'
     )
@@ -1340,20 +1373,110 @@ def test_to_parquet_writes_what_a_spill_writes_and_the_directory_reads_back_as_o
     assert reopened.scan('spend', 'expression').collect().equals(priced.expression('spend'))
 
 
-@pytest.mark.parametrize('export', ['to_dataset', 'to_parquet'], ids=['to_dataset', 'to_parquet'])
-def test_a_bulk_export_of_a_sweep_that_solved_nothing_is_refused(export, tmp_path):
-    """Neither export writes an empty answer: a sweep every slice of which was
-    infeasible holds no variable frames, and both refuse with the same
-    sentence `primal` gives. `to_dataset` resolves the names before xarray is
-    reached, so a bare install gets the sentence rather than an ImportError."""
+def test_a_sweep_keys_every_file_it_writes_with_one_type(priced, tmp_path):
+    """One key, one dtype, or the files a sweep writes are not one table.
+
+    The record and the manifest infer their key column from a Python value
+    the way every other frame here does; the kept frames prepend theirs with
+    `pl.lit`, which reads an int as `Int32` where that inference gives
+    `Int64`. Nothing in the process notices — polars joins across the two and
+    duckdb casts — but a concatenation of them is refused, and so is the
+    second load into any typed table.
+    """
+    out = priced.save(tmp_path / 'sweep')
+    keyed = {
+        str(file.relative_to(out)): pl.read_parquet_schema(file)[priced.key_name]
+        for file in sorted(out.rglob('*.parquet'))
+        if priced.key_name in pl.read_parquet_schema(file)
+    }
+    assert len(set(keyed.values())) == 1, f'one type for {priced.key_name!r}, and these files disagree: {keyed}'
+    assert set(keyed.values()) == {pl.Int64}, 'the type a Python int infers to everywhere else here'
+
+
+def test_a_resume_checks_the_layout_it_is_extending_rather_than_restamping_it(tmp_path) -> None:
+    """`spill_to=` at a directory an earlier build wrote is the one place the stamp has to hold.
+
+    Was: opening a spill wrote the stamp before asking whether the directory
+    already held a sweep, so a resume overwrote the layout it was extending
+    and mixed two under one manifest — the one failure the stamp exists to
+    catch, defeated by the path most likely to hit it.
+    """
+    out = tmp_path / 'sweep'
+    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=out)
+    (out / 'format.json').write_text(json.dumps({'answer': 99}))
+
+    with pytest.raises(lps.LayoutError, match='layout 99'):
+        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=out)
+    assert json.loads((out / 'format.json').read_text()) == {'answer': 99}, (
+        'and the stamp it was refused over is left as it was found'
+    )
+
+
+def test_a_sweep_keyed_in_more_than_one_type_is_refused(tmp_path) -> None:
+    """Refused rather than widened: the caller's own labels are not ours to change."""
+    sources = scenario_sources()
+    with pytest.raises(lps.LpspecError, match='more than one type'):
+        lps.solve_over(DISPATCH, sources, [(1, sources), (2.5, sources)], key_name='draw')
+
+
+def test_a_saved_result_carries_the_row_a_sweep_keys(sweep, tmp_path):
+    """One solve's record is one slice's, so cases solved apart concatenate.
+
+    This is why the record is written beside the frames rather than kept in
+    the process that solved. Variants solved in separate sessions answer
+    "which was cheapest, and which did not solve" by reading a directory
+    each, with the case name a column the reader adds.
+    """
+    sources = scenario_sources()
+    low = {**sources, 'load': sources['load'].filter(pl.col('scenario') == 'low').drop('scenario')}
+    with lps.solve(DISPATCH, low) as alone:
+        one = pl.read_parquet(alone.save(tmp_path / 'low') / 'objective.parquet')
+
+    assert one.columns == [column for column in sweep.objective.columns if column != sweep.key_name], (
+        'the fold keys the record it writes; a lone solve writes the same columns unkeyed'
+    )
+    row = one.row(0, named=True)
+    slice_of_the_fold = sweep.objective.filter(pl.col('scenario') == 'low').drop('scenario').row(0, named=True)
+    assert (row['status'], row['termination_condition']) == (
+        slice_of_the_fold['status'],
+        slice_of_the_fold['termination_condition'],
+    ), 'the lone solve and the slice of the fold terminated the same way'
+    assert row['objective'] == pytest.approx(slice_of_the_fold['objective']), (
+        'and reached the same number, the two being the same model over the same numbers'
+    )
+
+
+def test_a_bulk_export_of_a_sweep_that_solved_nothing_is_refused():
+    """`to_dataset` writes no empty answer: a sweep every slice of which was
+    infeasible holds no variable frames, and it refuses with the sentence
+    `primal` gives. The names are resolved before xarray is reached, so a bare
+    install gets the sentence rather than an ImportError."""
     sources = scenario_sources()
     sources['load'] = sources['load'].with_columns(pl.col('value') + 1_000)
     runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
 
-    arguments = (tmp_path / 'sweep',) if export == 'to_parquet' else ()
     with pytest.raises(lps.LpspecError, match='holds no variable frames at all'):
-        getattr(runs, export)(*arguments)
-    assert not (tmp_path / 'sweep').exists(), 'a refused export leaves no directory behind'
+        runs.to_dataset()
+
+
+def test_a_sweep_that_solved_nothing_still_saves_its_records(tmp_path):
+    """`save` is not an export, and an infeasible study is an answer.
+
+    A single solve that left no values writes its record and no frames, and a
+    sweep of them does the same: a set of saved cases needs the study that
+    did not solve on disk, not a call that refuses.
+    """
+    sources = scenario_sources()
+    sources['load'] = sources['load'].with_columns(pl.col('value') + 1_000)
+    runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
+
+    out = runs.save(tmp_path / 'sweep')
+    records = pl.read_parquet(sorted((out / 'objective').glob('*.parquet')))
+    assert records['termination_condition'].unique().to_list() == ['infeasible'], (
+        'every slice terminated infeasible, and the record says so'
+    )
+    assert not (out / 'primal').exists(), 'and no frames are written, there being none'
+    assert lps.load_runs(out).objective.height == records.height, 'the saved study reads back'
 
 
 def test_a_reader_for_a_name_the_sweep_lacks_fails_the_way_primal_does(sweep):
@@ -1718,10 +1841,12 @@ def test_a_key_that_collides_with_a_fixed_column_is_refused(key_name):
 def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     """The model is parsed once per call, whichever executor runs the slices.
 
-    What a worker receives is the lowered program, so no slice reads the
-    YAML or lowers it again. Counted at the language's own front door.
+    What a worker receives is the document already read, so no slice reads
+    the YAML again. Counted at the language's own front door.
     """
     from math_spec import Spec, lowering
+
+    from lpspec import lanes
 
     parsed: list[object] = []
     original = lowering.to_spec
@@ -1732,6 +1857,7 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
         return original(model)
 
     monkeypatch.setattr(lowering, 'to_spec', spy)
+    monkeypatch.setattr(lanes, 'to_spec', spy)
     with _entered(make_executor()) as executor:
         lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor)
     assert len(parsed) == 1, f'the model was parsed {len(parsed)} times for three slices'
@@ -1799,11 +1925,11 @@ PRICED_CARRY = {'soc_initial': 'soc'}
 
 
 def _spilled(directory, **kwargs) -> strategy.Runs:
-    return lps.solve_over(SPENDING, horizon_sources(12), PRICED_AXIS, carry=PRICED_CARRY, to=directory, **kwargs)
+    return lps.solve_over(SPENDING, horizon_sources(12), PRICED_AXIS, carry=PRICED_CARRY, spill_to=directory, **kwargs)
 
 
 def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_path):
-    """`to=` writes each slice's frames as the fold goes and keeps none of them.
+    """`spill_to=` writes each slice's frames as the fold goes and keeps none of them.
 
     What comes back through `scan` is the frame the in-memory reader would
     have returned — primal, dual and expression, keyed or over the original
@@ -1825,7 +1951,7 @@ def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_
         pytest.param(lambda runs: runs.primal('soc'), id='primal'),
         pytest.param(lambda runs: runs.dual('balance'), id='dual'),
         pytest.param(lambda runs: runs.expression('spend'), id='expression'),
-        pytest.param(lambda runs: runs.to_parquet('elsewhere'), id='to_parquet'),
+        pytest.param(lambda runs: runs.save('elsewhere'), id='save'),
         pytest.param(lambda runs: runs.to_dataset(), id='to_dataset'),
     ],
 )
@@ -1858,10 +1984,10 @@ def test_a_spilled_sweep_resumes_after_the_slice_that_failed(builds, tmp_path):
     good = [(k, {**base, 'load': _draw(base, k)}) for k in ('low', 'mid', 'high')]
     bad = [*good[:2], ('high', {**good[0][1], 'load': pl.DataFrame({'snapshot': [0, 1], 'value': [1.0, 2.0]})})]
     with pytest.raises(lps.DataError):
-        lps.solve_over(DISPATCH, base, bad, key_name='draw', to=tmp_path)
+        lps.solve_over(DISPATCH, base, bad, key_name='draw', spill_to=tmp_path)
 
     built = builds(strategy)
-    resumed = lps.solve_over(DISPATCH, base, good, key_name='draw', to=tmp_path)
+    resumed = lps.solve_over(DISPATCH, base, good, key_name='draw', spill_to=tmp_path)
     assert len(built) == 1, 'only the slice that failed is built again'
 
     fresh = lps.solve_over(DISPATCH, base, good, key_name='draw')
@@ -1912,7 +2038,7 @@ def test_a_directory_holding_another_sweep_is_refused(tmp_path):
     the first one's slices back as its own, so the mismatch is refused."""
     _spilled(tmp_path)
     with pytest.raises(lps.LpspecError, match='holds a sweep keyed by'):
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=tmp_path)
+        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=tmp_path)
 
 
 @pytest.mark.parametrize('make_executor', EXECUTORS)
@@ -1920,7 +2046,7 @@ def test_every_executor_spills_the_same_files(make_executor, sweep, tmp_path):
     """Under a pool the answers still land in the directory, in slice order."""
     with _entered(make_executor()) as executor:
         runs = lps.solve_over(
-            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor, to=tmp_path
+            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor, spill_to=tmp_path
         )
     assert runs.scan('p').collect().equals(sweep.primal('p'))
     assert sorted(p.name for p in (tmp_path / 'primal' / 'p').iterdir()) == [
@@ -1933,12 +2059,12 @@ def test_every_executor_spills_the_same_files(make_executor, sweep, tmp_path):
 def test_a_pooled_sweep_resumes_too(builds, tmp_path):
     """A slice the directory holds is never submitted; the pool only sees the
     ones still to solve, and the fold reads the rest back in order."""
-    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), to=tmp_path)
+    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=tmp_path)
     (tmp_path / 'objective' / '000001.parquet').unlink()
     built = builds(strategy)
     with ThreadPoolExecutor(2) as pool:
         resumed = lps.solve_over(
-            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool, to=tmp_path
+            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool, spill_to=tmp_path
         )
     assert len(built) == 1, 'the slice without its record is the one submitted'
     assert resumed.keys == ['high', 'low', 'mid'], 'the sweep comes back whole and in order'

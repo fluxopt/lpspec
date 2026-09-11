@@ -431,7 +431,7 @@ def test_every_repository_path_a_workflow_names_exists():
 PUBLIC_API = {
     'run it': {'build', 'check', 'solve', 'write'},
     'run it many times': {'solve_over', 'EachCoordinate', 'EachWindow'},
-    'carry it': {'pack', 'unpack'},
+    'carry it': {'SolveArchive', 'SweepArchive', 'load_archive', 'load_result', 'load_runs'},
     'name what came back': {'Model', 'Result', 'Runs'},
     'catch it': {
         'LpspecError',
@@ -439,6 +439,7 @@ PUBLIC_API = {
         'LaneError',
         'DataError',
         'DimensionError',
+        'LayoutError',
         'SchemaError',
         'PiecewiseExpansionError',
         'NoSolutionError',
@@ -718,16 +719,16 @@ def test_every_plan_node_is_handled_by_the_compiler():
         assert not unhandled, f'{qualifier} nodes unknown to {module.name}: {unhandled}'
 
 
-def test_the_model_argument_is_exactly_what_the_language_takes():
-    """Every verb here opens a model the way ``to_program`` does, and no other way.
+def test_the_model_argument_is_what_the_language_takes_minus_the_lowered_form():
+    """Every verb here opens a model the way ``to_program`` does, less the one shape it refuses.
 
     ``Buildable`` is what ``check``, ``build``, ``solve``, ``write``,
-    ``solve_over``, ``Model`` and both linopy-lane verbs annotate their
-    first argument with, and each hands it straight over — so the union is
-    upstream's fact and this is the copy of it. Restated rather than imported
-    because math-spec exports no alias for it; checked here so the copy cannot
-    quietly narrow, which would refuse a shape the language accepts, or widen,
-    which would promise one it does not.
+    ``solve_over``, ``Model`` and both linopy-lane verbs annotate their first
+    argument with. It is upstream's union minus ``Program``: lowering has no
+    inverse, so an answer built from one could not name the document it came
+    from and nothing built from one could be archived. Checked here so the
+    copy cannot quietly narrow further, which would refuse a shape the
+    language accepts, or widen, which would promise one this package does not.
 
     Textual, and deliberately: upstream's annotation is a string under
     ``from __future__ import annotations`` that ``get_type_hints`` cannot
@@ -744,11 +745,11 @@ def test_the_model_argument_is_exactly_what_the_language_takes():
     def members(annotation: str) -> set[str]:
         return {part.strip().removeprefix('program.') for part in annotation.split('|')}
 
-    upstream = str(inspect.signature(to_program).parameters['spec'].annotation)
-    ours = type_alias_value(PKG / 'lanes.py', 'Buildable')
-    assert members(ours) == members(upstream), (
-        f'lpspec.lanes.Buildable is {ours!r} and math_spec.to_program takes {upstream!r} — '
-        f'every verb passes its model straight to that function, so the two are one union'
+    upstream = members(str(inspect.signature(to_program).parameters['spec'].annotation))
+    ours = members(type_alias_value(PKG / 'lanes.py', 'Buildable'))
+    assert upstream - ours == {'Program'}, (
+        f'the language takes {sorted(upstream)} and lpspec.lanes.Buildable takes {sorted(ours)} — '
+        f'the one shape this package refuses is the lowered Program, and it refuses no other'
     )
 
 
@@ -778,7 +779,8 @@ def test_the_sources_argument_is_one_type_at_every_door():
         'build': lpspec.build,
         'solve': lpspec.solve,
         'write': lpspec.write,
-        'pack': lpspec.pack,
+        'SolveArchive': lpspec.SolveArchive.__init__,
+        'SweepArchive': lpspec.SweepArchive.__init__,
         'Model': lpspec.Model.__init__,
         'Model.update': lpspec.Model.update,
         'solve_over': solve_over,
@@ -787,6 +789,30 @@ def test_the_sources_argument_is_one_type_at_every_door():
     }
     assert sources_annotations(doors) == {'Mapping[str, Source]'}, (
         f'every door takes sources as Mapping[str, Source], and these do not: {sources_annotations(doors)}'
+    )
+
+
+def test_both_lanes_lower_a_spec_through_one_function():
+    """Neither lane accepts a file the other refuses, which is what ``lowered`` is for.
+
+    This package refuses names the language allows — two in one namespace
+    differing only by case — so lowering is where that verdict is reached. A
+    module calling ``to_program`` itself would reach a different one, and the
+    lanes would disagree about what loads while both docstrings claimed they
+    could not. ``lanes.py`` is the one caller because it is what sits above
+    both.
+    """
+    import ast
+
+    calling = {
+        path.relative_to(PKG).as_posix()
+        for path in PKG.rglob('*.py')
+        for node in ast.walk(ast.parse(path.read_text()))
+        if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'to_program'
+    }
+    assert calling == {'lanes.py'}, (
+        f'to_program is called in {sorted(calling)}; every lane lowers through lanes.lowered, which is '
+        f'what refuses a spec this package cannot write down'
     )
 
 

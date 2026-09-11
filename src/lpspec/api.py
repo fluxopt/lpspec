@@ -2,8 +2,9 @@
 
 Math is defined in YAML only — there is no Python API for constructing specs,
 and the logical plan is internal. Four verbs run a model: ``check``, ``build``
-(YAML + sources → a :class:`Model`), ``solve`` and ``write``. Two carry one:
-``pack`` puts the file and its data in one archive, ``unpack`` takes them out.
+(YAML + sources → a :class:`Model`), ``solve`` and ``write``. ``load_result`` reads back an
+answer :meth:`Result.save` wrote; the question and the answer as one archive
+is :class:`lpspec.archive.SolveArchive`.
 
 This is the relational lane (docs/about/architecture.md): validated at load
 time, lowered to the plan, executed relationally. The same file builds as a
@@ -25,34 +26,34 @@ Example::
 
 from __future__ import annotations
 
-import io
-import os
 import warnings
-import zipfile
-from pathlib import Path, PurePosixPath
+from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from math_spec import advice, to_program, to_spec
-from math_spec.program import Program
+import polars as pl
+from math_spec import advice
 
 from lpspec import expressions
-from lpspec.errors import DataError, LpspecError, LpspecWarning
-from lpspec.lanes import LANES, Buildable, Label, Source
+from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
+from lpspec.lanes import LANES, Buildable, Label, Source, declared, lowered
+from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
+from lpspec.relational.parquet import RECORD_FILE, Record, check_format, digest_of, read_reasons
+from lpspec.relational.result import Result
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
-from lpspec.sources import attachable, supplied, tidy_sources, unknown_source_keys_message
+from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
-    from math_spec import Spec
-    from math_spec.program import ExpressionNode
+    from math_spec.program import ExpressionNode, Program
 
-    from lpspec.relational.result import ConstraintRow, Diagnostics, Keep, Result
+    from lpspec.relational.result import ConstraintRow, Diagnostics, Keep
 
-__all__ = ['build', 'check', 'pack', 'solve', 'unpack', 'write']
+__all__ = ['build', 'check', 'load_result', 'solve', 'write']
 
 
 def _portability(program: Program, sink: str) -> tuple[str | None, list[str]]:
@@ -81,9 +82,7 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
     is issued either way.
 
     Args:
-        spec: A YAML path, a mapping, or anything :func:`math_spec.to_program`
-            already takes — a ``Spec`` from ``math_spec.to_spec``, or a
-            ``Program`` from an earlier call to this.
+        spec: A YAML path, a mapping, or a ``Spec``.
         sink: A solver name (``highs``, ``gurobi``, ``xpress``), an output
             suffix (``.lp``, ``.mps``), or a lane (``linopy``). ``None`` asks
             only whether the spec is sayable.
@@ -106,7 +105,7 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
             nothing to stop it, a construct the named sink takes only
             reformulated. Issued here and nowhere else.
     """
-    program = to_program(spec)
+    program = lowered(spec)
     notes = [str(note) for note in advice(program)]
     refused: str | None = None
     relaxed: list[str] = []
@@ -134,8 +133,11 @@ class Model:
     """
 
     def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
-        self._written = None if isinstance(spec, Program) else to_spec(spec)
-        self._program = to_program(spec if self._written is None else self._written)
+        self._spec = declared(spec)
+        self._program = lowered(self._spec)
+        #: What every answer of this model carries, so two of them can be told
+        #: to have answered the same document.
+        self._digest = digest_of(self._spec.to_yaml())
         self._sources = dict(sources)
         self._engine = PolarsEngine()
         self._fill()
@@ -147,15 +149,13 @@ class Model:
         *as written* is what lowering reads and the engine may not see it
         (docs/about/architecture.md, hard rule 2).
         """
-        assert self._written is not None, 'a model built from a Program withholds the readers that need this'
-        return expressions.lower(self._written, written)
+        return expressions.lower(self._spec, written)
 
     def _lower_all(
         self, carried: Mapping[str, Any], added: Mapping[str, Any]
     ) -> tuple[dict[str, ExpressionNode], dict[str, Any]]:
         """A whole ``expressions:`` block as plan nodes, held here for :meth:`_lower`'s reason."""
-        assert self._written is not None, 'a model built from a Program withholds the readers that need this'
-        return expressions.lower_all(self._written, carried, added)
+        return expressions.lower_all(self._spec, carried, added)
 
     def _fill(self) -> None:
         """Build the frames from whatever is attached now.
@@ -212,6 +212,7 @@ class Model:
         *,
         solver_options: Mapping[str, Any] | None = None,
         keep: Keep = 'solver',
+        archive: str | Path | None = None,
     ) -> Result:
         """Hand the built model to a solver and solve it.
 
@@ -238,6 +239,16 @@ class Model:
                 comparing against a cold baseline needs and what no solver
                 option can promise. A preference: a model whose structure
                 moved is loaded again whatever was asked.
+            archive: Where to write the whole thing — the model, the data
+                attached to it **now**, and this answer — so that
+                :func:`~lpspec.archive.load_archive` gives all three back and
+                the model solves again from the file alone. A ``.zip`` suffix
+                packs it into one file and anything else is a directory.
+                Written here rather than assembled afterwards, because this is
+                the one moment all three exist together: after an
+                :meth:`update` the spec is unchanged, so nothing outside this
+                call could tell the question it answered from the one before
+                it.
 
         Returns:
             The solution, holding this model.
@@ -246,14 +257,42 @@ class Model:
             LpspecError: A solver name nothing serves, one this environment
                 cannot run, or a *keep* outside
                 :data:`~lpspec.relational.result.KEEPS`.
+            LayoutError: An *archive* directory that already holds something,
+                refused before the solve rather than after it.
         """
-        return self._engine.solve(
-            solver_name,
-            solver_options=solver_options,
-            keep=keep,
-            lower=None if self._written is None else self._lower,
-            lower_all=None if self._written is None else self._lower_all,
+        out = None if archive is None else _the_archive_target(Path(archive))
+        answered = replace(
+            self._engine.solve(
+                solver_name,
+                solver_options=solver_options,
+                keep=keep,
+                lower=self._lower,
+                lower_all=self._lower_all,
+            ),
+            _spec_digest=self._digest,
         )
+        if out is not None:
+            self._archive(out, answered)
+        return answered
+
+    def _archive(self, out: Path, answered: Result) -> None:
+        """Pack this model, what is attached to it now, and *answered* into one zip.
+
+        The answer is laid out in a scratch directory beside *out* first,
+        because that is the layout an archive's ``answer/`` is and because a
+        large primal is streamed to disk rather than passed through this
+        process.
+        """
+        with beside(out) as scratch:
+            write_archive(
+                out,
+                self._spec,
+                self._sources,
+                checked=self._sources,
+                whole={},
+                axis=None,
+                answer=answered.save(scratch),
+            )
 
     def write(self, path: str | Path) -> None:
         """Stream the built model to *path*, in the format its suffix names.
@@ -333,6 +372,16 @@ def _refuse_unknown(given: Mapping[str, Any], declared: Mapping[str, Any]) -> No
         raise DataError(unknown_source_keys_message(unknown, declared))
 
 
+def _the_archive_target(out: Path) -> Path:
+    """*out*, once it is somewhere an archive can be written.
+
+    Asked before the solve rather than after it, so a solve does not end in a
+    refusal the call already implied.
+    """
+    check_the_target(out)
+    return out
+
+
 def build(spec: Buildable, sources: Mapping[str, Source]) -> Model:
     """Bind *sources* to *spec* and build it — the model with your data on it.
 
@@ -360,6 +409,7 @@ def solve(
     solver_name: str = 'highs',
     *,
     solver_options: Mapping[str, Any] | None = None,
+    archive: str | Path | None = None,
 ) -> Result:
     """Build *spec* and solve it in one call.
 
@@ -379,6 +429,8 @@ def solve(
             which needs the ``[gurobi]`` extra.
         solver_options: Forwarded to the solver verbatim, in its own
             vocabulary (``{'time_limit': 60}``).
+        archive: Where to write the model, its data and this answer, as
+            :meth:`Model.solve` takes it — a ``.zip``, or a directory.
 
     Returns:
         The solution, self-contained: it owns the frames it reads, so the built
@@ -391,7 +443,7 @@ def solve(
     solver(solver_name)
     model = build(spec, sources)
     try:
-        return model.solve(solver_name, solver_options=solver_options)
+        return model.solve(solver_name, solver_options=solver_options, archive=archive)
     finally:
         model.close()
 
@@ -423,115 +475,92 @@ def write(
     return out
 
 
-# ---------------------------------------------------------------------------
-# carrying a model: the file and its data in one archive
-# ---------------------------------------------------------------------------
+def _saved_frames(under: Path) -> dict[str, pl.LazyFrame]:
+    """Every ``<name>.parquet`` under *under*, keyed by name; empty where it does not exist.
 
-#: The archive's one layout: the file, and one parquet member per source key.
-_MODEL_MEMBER = 'model.yaml'
-_SOURCES_DIR = PurePosixPath('sources')
+    Lazy, so loading a large answer reads nothing until a reader asks: the
+    kinds a solve did not answer with are simply missing directories, which is
+    how the writer says a kind is absent.
+    """
+    if not under.is_dir():
+        return {}
+    return {file.stem: pl.scan_parquet(file) for file in sorted(under.glob('*.parquet'))}
 
 
-def pack(spec: str | Path | dict[str, Any] | Spec, sources: Mapping[str, Source], out: str | Path) -> Path:
-    """Write *spec* and *sources* as one zip file, to archive or send.
+def _absent(reason: str) -> Callable[[], pl.DataFrame]:
+    """A named expression's reader, for one the solve could not evaluate.
 
-    The archive holds ``model.yaml`` and ``sources/<key>.parquet`` for every
-    key the file declares. The sources go in through the same door
-    :func:`build` reads them, so what is refused there is refused here and
-    nothing is written. A parquet path is then copied as its own bytes; a
-    table is written as parquet; a plain-Python shape — a number, a label
-    sequence, a ``{label: value}`` map — as the tidy table it stands for.
-    Members are stored uncompressed, because parquet already is. The archive
-    lands whole: written beside *out* and renamed into place, its directory
-    made if it does not exist, and nothing left under either name by a write
-    that did not finish.
+    The reader is the contract for an expression (deferred, called at the
+    read), so a value that was never produced has to fail *there* — with the
+    sentence the solve gave, which ``reasons.parquet`` carries for exactly
+    this.
+    """
+
+    def read() -> pl.DataFrame:
+        raise LpspecError(reason)
+
+    return read
+
+
+def load_result(directory: str | Path) -> Result:
+    """Read back an answer :meth:`Result.save` wrote — a solve, off disk.
+
+    Every reader answers what it answered in the session that solved: the
+    values, the duals and activities, each named expression, and the reason
+    behind anything the solve could not produce. A `Result` is frames and a
+    few scalars, so none of it needs the build that made it or the solver
+    that filled it — which is what makes an archived answer comparable with
+    one solved today.
+
+    Two things do not come back, both being facts about a session rather than
+    about an answer: :attr:`~lpspec.relational.result.Result.kept` reads
+    ``nothing``, this result holding no solver, and the solver's verbatim
+    wording behind a refusal is not recorded — the termination condition is. A
+    solve that reached no objective wrote null and reads back as ``nan``,
+    which is what :attr:`~lpspec.relational.result.Result.objective` has to
+    return, being a float.
 
     Args:
-        spec: A YAML path, a mapping, or a loaded ``Spec`` — as
-            :func:`math_spec.to_spec` takes it.
-        sources: As :func:`build` takes them.
-        out: Where to write; a ``.zip`` suffix is the convention.
+        directory: Where :meth:`~lpspec.relational.result.Result.save` wrote
+            it. One that came out of an archive is
+            :func:`~lpspec.archive.load_archive`'s to find.
 
     Returns:
-        The path written.
+        The result, reading lazily from *directory*: the files stay where they
+        are, so it has to outlive what is read off it.
 
     Raises:
-        LpspecError: A lowered ``Program``, which has no file to write.
-        LanguageError: A file the language does not accept.
-        DataError: A source that is missing, unreadable, or the wrong shape.
+        LayoutError: A directory holding no ``objective.parquet``, which is
+            what every answer written there carries, or one whose layout has
+            moved since it was written.
     """
-    if isinstance(spec, Program):
-        raise LpspecError(
-            'pack takes the model as written — a path, a mapping or a Spec — and a lowered Program has no '
-            'file to write. Pass what it was lowered from.'
+    out = Path(directory)
+    record_file = out / RECORD_FILE
+    if not record_file.is_file():
+        raise LayoutError(
+            f'{str(out)!r} holds no {RECORD_FILE!r}, so it is not an answer save() wrote. Every one '
+            f'carries that record whether or not the solve produced values.'
         )
-    declared = to_spec(spec)
-    program = to_program(declared)
-    frames = supplied(program, tidy_sources(program, sources))
-    out = Path(out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    part = out.with_name(out.name + '.part')
-    try:
-        with zipfile.ZipFile(part, 'w', compression=zipfile.ZIP_STORED) as archive:
-            archive.writestr(_MODEL_MEMBER, declared.to_yaml())
-            for name, frame in frames.items():
-                member = str(_SOURCES_DIR / f'{name}.parquet')
-                given = sources.get(name)
-                if isinstance(given, (str, Path)):
-                    archive.write(given, member)
-                else:
-                    buffer = io.BytesIO()
-                    frame.collect().write_parquet(buffer, compression='zstd')
-                    archive.writestr(member, buffer.getvalue())
-    except BaseException:
-        part.unlink(missing_ok=True)
-        raise
-    os.replace(part, out)
-    return out
+    check_format(out)
+    record = Record(**pl.read_parquet(record_file).row(0, named=True))
+    status = record.solve_status
+    objective = float('nan') if record.objective is None else record.objective
+    if not status.is_readable:
+        return Result(status, objective, {}, {}, {}, 'nothing', _spec_digest=record.spec_digest)
 
-
-def unpack(path: str | Path, into: str | Path) -> tuple[Spec, dict[str, Path]]:
-    """Extract an archive :func:`pack` wrote into *into*, and hand back what every verb takes.
-
-    ``lps.solve(*lps.unpack(path, directory))`` is the whole round trip. The
-    sources come back as the parquet paths they now are, so attaching streams
-    them from disk and nothing is held in memory here; they are checked where
-    they are attached, so an archive edited by hand is refused by the verb
-    that reads it, with the sentence any other source would get.
-
-    Args:
-        path: The zip file.
-        into: The directory to extract to, created if it does not exist.
-            ``model.yaml`` and ``sources/`` land in it as the archive holds
-            them.
-
-    Returns:
-        The model as written, and its sources keyed as the file declares them.
-
-    Raises:
-        LanguageError: A ``model.yaml`` the language does not accept.
-        DataError: A member outside the layout — no ``model.yaml``, or a file
-            that is not ``sources/<key>.parquet``. Nothing is extracted.
-        zipfile.BadZipFile: A file that is not a zip archive.
-    """
-    into = Path(into)
-    with zipfile.ZipFile(path) as archive:
-        members = [PurePosixPath(name) for name in archive.namelist() if not name.endswith('/')]
-        strays = [str(m) for m in members if m != PurePosixPath(_MODEL_MEMBER) and not _is_source_member(m)]
-        if strays or PurePosixPath(_MODEL_MEMBER) not in members:
-            raise DataError(_not_an_archive_message(path, strays))
-        archive.extractall(into)
-    spec = to_spec(into / _MODEL_MEMBER)
-    return spec, {m.stem: into / m for m in members if _is_source_member(m)}
-
-
-def _is_source_member(member: PurePosixPath) -> bool:
-    return member.parent == _SOURCES_DIR and member.suffix == '.parquet'
-
-
-def _not_an_archive_message(path: str | Path, strays: list[str]) -> str:
-    found = f'holds {strays}' if strays else "has no 'model.yaml'"
-    return (
-        f'{path} is not a model archive: it {found}. One pack() writes holds exactly '
-        f"'model.yaml' and one 'sources/<key>.parquet' per key the file declares."
+    no_duals, no_expressions = read_reasons(out)
+    expressions: dict[str, Callable[[], pl.DataFrame]] = {
+        name: (lambda frame=frame: frame.collect()) for name, frame in _saved_frames(out / 'expression').items()
+    }
+    expressions.update({name: _absent(why) for name, why in no_expressions.items()})
+    return Result(
+        status,
+        objective,
+        _saved_frames(out / 'primal'),
+        _saved_frames(out / 'dual'),
+        _saved_frames(out / 'activity'),
+        'nothing',
+        expressions,
+        _no_duals=no_duals,
+        _spec_digest=record.spec_digest,
     )
