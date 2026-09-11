@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from bench.arms import gurobipy_loop, gurobipy_matrix, linopy, lpspec, pyomo
+from bench.arms import gurobipy_loop, gurobipy_matrix, highspy_matrix, linopy, lpspec, pyomo
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -56,6 +56,7 @@ ARMS: dict[str, ModuleType] = {
     'pyomo': pyomo,
     'gurobipy-loop': gurobipy_loop,
     'gurobipy-matrix': gurobipy_matrix,
+    'highspy-matrix': highspy_matrix,
 }
 
 
