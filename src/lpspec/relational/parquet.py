@@ -71,7 +71,7 @@ def check_format(directory: Path) -> None:
         raise LayoutError(
             f'{str(directory)!r} holds a saved answer in layout {found}, and this package reads '
             f'{ANSWER_FORMAT}. The layout moves while the package is on 0.0.1aN and nothing reads an '
-            f'older one back: solve the model again and save it. An archive Artifact.save() wrote still '
+            f'older one back: solve the model again and save it. An archive that archive= wrote still '
             f'holds the model and the data to do that with.'
         )
 

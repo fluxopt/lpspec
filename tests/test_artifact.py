@@ -165,7 +165,7 @@ def test_a_zip_outside_the_layout_is_refused(members: dict[str, bytes], says: st
             zipped.writestr(name, data)
     with pytest.raises(lps.LayoutError) as excinfo:
         _question(lps.load_artifact(path, tmp_path / 'out'))
-    assert says in str(excinfo.value), 'the message names what was found, and the layout one Artifact.save() writes'
+    assert says in str(excinfo.value), 'the message names what was found, and the layout archive= writes'
     assert not (tmp_path / 'out').exists(), 'nothing is extracted from a zip that is not an archive'
 
 

@@ -155,7 +155,7 @@ def _in_the_layout(member: PurePosixPath) -> bool:
 def _not_an_archive_message(path: str | Path, strays: list[str]) -> str:
     found = f'holds {strays}' if strays else "has no 'model.yaml'"
     return (
-        f'{path} is not an artifact: it {found}. One that archive= writes holds exactly '
+        f'{path} is not an archive: it {found}. One that archive= writes holds exactly '
         f"'model.yaml', one 'sources/<key>.parquet' per key the file declares, 'answer/' holding what the "
         f"solve returned, and 'axis.json' where its sources are sliced."
     )
