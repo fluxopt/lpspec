@@ -348,6 +348,30 @@ def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispat
     )
 
 
+def test_a_table_of_answers_with_no_digest_makes_no_claim(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The limit of the digest: a null abstains, and a table of abstentions agrees with itself.
+
+    One null beside real digests counts as its own distinct value, so the
+    comparison breaks loudly. Every row null counts *one* distinct value and
+    passes a check that verified nothing — which is why comparing means asking
+    that the digests are there as well as that they agree.
+    """
+    program = lps.check(dispatch_yaml)
+    records = []
+    for name in ('one', 'two'):
+        with lps.solve(program, dispatch_frame_inputs) as solved:
+            out = solved.save(tmp_path / name)
+        records.append(pl.read_parquet(out / 'objective.parquet'))
+
+    table = pl.concat(records)
+    assert table['spec_digest'].null_count() == 2, 'a lowered program has no document, so neither answer names one'
+    assert table['spec_digest'].n_unique() == 1, (
+        'and the count alone cannot tell two unnamed documents from one, so it is not the whole check'
+    )
+
+
 def test_an_answer_in_another_layout_is_refused_by_name(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
