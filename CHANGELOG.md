@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.1-alpha.320](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.319...v0.0.1-alpha.320) (2026-09-11)
+
+
+### Features
+
+* **api:** a model, its data and its answer are one file that reads back into polars or a database ([#1579](https://github.com/fluxopt/lpspec/issues/1579)) ([8dc36f9](https://github.com/fluxopt/lpspec/commit/8dc36f94447aa77c38e3984a9e080138266a2017))
+* **api:** two names that differ only by case are refused, whichever verb reads the spec ([#1582](https://github.com/fluxopt/lpspec/issues/1582)) ([fc19d17](https://github.com/fluxopt/lpspec/commit/fc19d171d25b380c4fccb75e66078a24bcb8a7f8))
+
 ## [0.0.1-alpha.319](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.318...v0.0.1-alpha.319) (2026-09-10)
 
 
