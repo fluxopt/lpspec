@@ -9,16 +9,23 @@ column index — assembled relationally and handed to the solver in batches.
 
 The consequence worth the headline is **cost to a loaded solver** — YAML and
 data in, a populated solver out, no LP file anywhere in between. Measured
-against linopy's own best path to the same place, on the highest rung both
-libraries finish — six case-and-sink cells, 980k to 12M variables
+against linopy's own best path to the same place, through HiGHS — the solver
+`lps.solve` reaches for when you name none
 ([benchmarks](docs/about/benchmarks.md)):
 
-- **1.01x to 1.29x faster**, and a lower peak on every one of them: 0.73x to
-  0.98x of linopy's.
-- **Most of what that measures is the solver, not either library.** Loading 10M
-  variables into Gurobi costs 9.31 s through raw `gurobipy`, with no modelling
-  layer at all. lpspec adds 0.54 s to that and linopy adds 1.98 s. The two
-  libraries land 1.15x apart; what each one adds is 3.7x apart.
+- **1.01x to 1.29x faster**, on `dispatch` at 10M variables and `fleet` at 12M,
+  at 0.83x and 0.84x of linopy's peak memory.
+- **Most of what that measures is the solver, not either library.** Of lpspec's
+  1.51 s at 10M variables, 0.57 s is the build and 0.94 s is HiGHS taking the
+  model.
+
+**Through Gurobi the ranking holds and the margin narrows**, to 1.04x to 1.17x
+across four models at 0.73x to 0.98x of the peak. There is less of either
+library left in it. The same 10M-variable model costs 9.85 s to a loaded Gurobi
+and 1.51 s to a loaded HiGHS. Raw `gurobipy`, with no modelling layer at all,
+costs 9.31 s of that 9.85 s: lpspec adds 0.54 s to the floor and linopy adds
+1.98 s, so the libraries land 1.15x apart while what each adds is 3.7x apart.
+Read the sink you use; the page has a table per sink.
 
 **Every case in that ladder is dense**: no mask in it removes a row, and a dense
 coordinate product is the shape an array engine is built for. Sparsity is what
