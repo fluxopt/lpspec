@@ -26,7 +26,7 @@ import pytest
 from bench import conftest as harness
 from bench import floor, plot, profile_build, profile_phases, report, results, tidy, warm_payoff
 from bench import results as bench_results
-from bench.arms import ARMS, solved
+from bench.arms import ARMS, solved, unmeasurable
 from bench.arms.lpspec import _tables, checked_sources
 from bench.cases import CASES, Shape, _declaration_sweep, _declarations_spec
 from bench.conftest import (
@@ -771,7 +771,7 @@ def test_no_budget_measures_everything() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize('case_name', ['dispatch', 'transport', 'storage', 'fleet'])
+@pytest.mark.parametrize('case_name', ['dispatch', 'transport', 'storage', 'fleet', 'nodal'])
 @pytest.mark.parametrize('dialect', [a for a in sorted(ARMS) if a != 'lpspec'])
 def test_a_hand_written_arm_builds_the_same_model(case_name: str, dialect: str) -> None:
     """Every arm but `lpspec` is a model somebody typed twice.
@@ -783,10 +783,16 @@ def test_a_hand_written_arm_builds_the_same_model(case_name: str, dialect: str) 
     it is the more likely someone quotes it.
 
     So the smallest rung of each case is solved both ways and the objectives
-    compared. It is slow for a test — four LPs — and it is the whole reason to
-    believe any number these arms produce.
+    compared. It is slow for a test — one LP per cell — and it is the whole
+    reason to believe any number these arms produce.
+
+    `unmeasurable` decides which cells there are, rather than an import check
+    beside it: a case only one dialect has been written in is the shape
+    `nodal` arrives as, and that reason is already written down once.
     """
-    pytest.importorskip('gurobipy' if dialect.startswith('gurobipy') else dialect)
+    reason = unmeasurable(dialect, case_name, ARMS[dialect].SINKS[0])
+    if reason:
+        pytest.skip(reason)
     case = CASES[case_name]
     smallest = case.ladder[0].label
     paths = case.data(case.shape(smallest))
