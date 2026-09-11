@@ -416,37 +416,14 @@ afterwards, because the pairing an assembled one asserts is one nothing could
 check: two solves of one model differ only in their data, and the data is not
 digested.
 
-**After an `update`, `archive=` is how the answer is kept.** An update moves
-what the model answers and leaves the spec alone, so nothing outside the call
-could tell the new question from the old one:
+**A sweep's archive carries its axis**, as `axis.json`, because its sources
+are cut: they hold the column the axis slices on, which the model does not
+declare. `spill_to=` and `archive=` are different destinations and compose —
+the spill is what the archive packs.
 
-```python
-with lps.build('spec.yaml', sources) as model:
-    model.update({'cap_hat': capacity}).solve(archive='case.zip')
-```
-
-**A sweep archives its axis too, because its sources are cut:**
-
-```python
-axis = lps.EachCoordinate('scenario')
-lps.solve_over('spec.yaml', sources, axis, archive='study/')
-
-study = lps.load_archive('study/')
-study.answer.scan('p')  # keyed by scenario
-lps.solve_over(study.spec, study.sources, study.axis)  # the sweep, re-run
-```
-
-**Spilling and archiving are different jobs, and they compose.** `spill_to=`
-bounds *memory*: each slice's frames go to disk as the fold goes, so a sweep of
-five hundred slices holds one. `archive=` costs *disk*: the sources are copied
-into the zip, which is what makes it self-describing. Given both, the spill is
-what the archive packs — so a sweep too large to hold is archived without ever
-being held, which is the only way a study that needs `spill_to=` can be
-archived at all.
-
-```python
-lps.solve_over('spec.yaml', sources, axis, spill_to='work/', archive='study.zip')
-```
+The recipes are [archiving a solve](../howto/archiving.md): keeping the answer
+an update produced, archiving a sweep too large to hold, comparing cases solved
+apart, and querying an archive from a database.
 
 The sources go in through the same door that reads them, so what is refused
 there is refused here and nothing is written: `build`'s for one solve, and for
@@ -455,26 +432,18 @@ own bytes; a table, a bare label range, a `{label: value}` map or a single
 number is written as the tidy parquet table it stands for. Parquet keeps the
 dtypes [the contract](data.md) checks. Members are stored uncompressed.
 
-**`load_archive` extracts into a directory** and reads the answer lazily off
-what lands there, so that directory has to outlive the artifact. Its `sources`
-come back as the parquet paths they now are — the same type they went in as,
-`Path` being a source like any other — so attaching streams them from disk.
-Anything in the zip outside the layout is refused as not an archive `save`
-wrote, and nothing is extracted.
+**`load_archive` reads the answer lazily**, so the files it reads off have to
+outlive it: the archive itself for a directory, the `into` directory for a
+zip. Its `sources` come back as the parquet paths they now are — the same type
+they went in as, `Path` being a source like any other — so attaching streams
+them from disk. Anything outside the layout is refused, and a zip is refused
+before it is unpacked.
 
-**The extracted directory is a parquet tree.** A query engine reads it where
-it lands, under the `into` path `load_archive` was given. Every frame is
-tidy: the model's own dimension columns, and a `value` column. An answer
-therefore joins to the sources it was solved from, on the coordinates both
-carry.
+**An archive is a parquet tree.** Every frame is tidy: the model's own
+dimension columns, and a `value` column. An answer therefore joins to the
+sources it was solved from, on the coordinates both carry.
 
 ```sql
--- what each scenario cost, off a sweep archive extracted to study/
-select scenario, objective
-from 'study/answer/objective/*.parquet'
-where has_primal
-order by objective;
-
 -- generation priced by the load it met, answer joined to source
 select p.scenario, p.snapshot, p.generator, p.value, load.value as load
 from 'study/answer/primal/p/*.parquet' p
@@ -489,9 +458,9 @@ rows.
 
 | Rule | |
 |---|---|
-| **the spec is loaded on the way in** | a path or a mapping becomes a `Spec` in the constructor, so `artifact.spec` is one shape. A lowered `Program` is refused: it has no file to write |
+| **the model is held as written** | `model.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in. A lowered `Program` is refused: it has no file to write |
 | **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving and counting from `1` the day it settles. Nothing reads an older layout back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the model and the data to do that with |
-| **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an archive is read back. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an answer paired with a different spec is refused rather than archived. A solve run off a lowered `Program` has no document and carries `None`, which counts as its own value — so one null among real digests breaks the comparison, and a table where *every* digest is null counts one distinct value while having checked nothing. Ask for the digests to be present as well as to agree: `n_unique() == 1 and null_count() == 0` |
+| **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an archive is read back. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an archive whose answer names another model is refused rather than read. A solve run off a lowered `Program` has no document and carries `None`, which counts as its own value — so one null among real digests breaks the comparison, and a table where *every* digest is null counts one distinct value while having checked nothing. Ask for the digests to be present as well as to agree: `n_unique() == 1 and null_count() == 0` |
 | **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. A `SweepArchive` has it and a `SolveArchive` has no such field, so nothing downstream meets `Result \| Runs`. `load_archive` returns whichever the archive holds |
 | **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |
 | **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one solve each. Refused before the first slice is taken, as a lowered `Program` is |
