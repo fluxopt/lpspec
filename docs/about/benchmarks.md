@@ -75,10 +75,25 @@ Entity counts x N with the snapshot count held fixed, through the `highs` sink. 
 
 <!-- bench:/sweeps -->
 
+**No file in `bench/results` carries the table above.** It renders from `highs`
+rungs of `storage` and `transport`, and the committed results hold those two
+cases through the `gurobi` sink only. `bench.report` drops a fragment it cannot
+render rather than blanking the fence, so the numbers stand here from a run
+whose file is gone. Treat them as unsourced until `pixi run ladder` refills
+them.
+
 ## Not measured yet
 
 Listed so that a claim with no table under it is visible as one.
 
+- **Sparsity, which is the engine's whole premise.** Every published cell is
+  100% live: the `where` in `dispatch` removes nothing, and `transport`,
+  `storage` and `fleet` carry no mask at all. A dense coordinate product is the
+  shape an array engine is built for. The published ladder therefore compares
+  the two lanes only where the relational one has the least to win. `nodal` and
+  `sector` are the sparse cases, at 25% and 8.3% of their product. `nodal` has
+  a linopy formulation now, so `pixi run density` sweeps it at four densities;
+  no published run has taken it.
 - **Solve time.** Every number stops at the hand-off. The simplex is the
   solver's work whoever filled the model.
 - **The LP-file round trip.** The tables price writing a file, never reading
