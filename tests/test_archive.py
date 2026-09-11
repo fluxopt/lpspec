@@ -18,6 +18,7 @@ import yaml as pyyaml
 from math_spec import to_program, to_spec
 
 import lpspec as lps
+from lpspec.layout import _staging_for
 from lpspec.sources import attachable, tidy_sources
 from tests.conftest import (
     DISPATCH_COST,
@@ -523,3 +524,25 @@ def test_a_sweep_refuses_a_lowered_program_before_it_solves_a_slice(dispatch_yam
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
     with pytest.raises(lps.LpspecError, match='was lowered from'):
         lps.solve_over(lps.check(dispatch_yaml), sources, lps.EachCoordinate('scenario'), archive='never.zip')
+
+
+def test_two_writers_to_one_target_stage_in_separate_places(tmp_path: Path) -> None:
+    """The staging name is not a function of the target, because one name is shared.
+
+    Two archives written to one path at once met in it: the second to open a
+    staging area cleared the first's members out from under it, and the first
+    went on to rename a torn directory into place and report it written. The
+    tear surfaced only at load, as an archive with no ``model.yaml``.
+    """
+    out = tmp_path / 'case'
+
+    assert _staging_for(out) != _staging_for(out), 'two writers to one target stage in separate places'
+
+
+def test_a_written_archive_leaves_no_staging_beside_it(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path) -> None:
+    """What a writer stages is its own to remove, in both containers."""
+    for name in ('case', 'case.zip'):
+        _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / name)
+    assert sorted(path.name for path in tmp_path.iterdir()) == ['case', 'case.zip'], (
+        'the staging each write allocated is gone, leaving the two archives alone'
+    )

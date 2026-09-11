@@ -75,6 +75,19 @@ def check_the_target(out: Path) -> None:
         )
 
 
+def _staging_for(out: Path) -> Path:
+    """A staging directory of this writer's own, beside *out*.
+
+    Unique rather than derived from *out*: two writers archiving to one path
+    would otherwise share a staging area, and the second to open it would clear
+    the first's members, leaving a torn archive to be renamed into place and
+    reported as written. Beside *out* so landing it is a rename rather than a
+    copy across devices.
+    """
+    out.parent.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(dir=out.parent, prefix=out.name + '.'))
+
+
 def write_archive(
     out: Path,
     spec: Spec,
@@ -124,8 +137,8 @@ def write_archive(
     check_the_target(out)
     program = to_program(spec)
     frames = supplied(program, tidy_sources(program, checked))
-    out.parent.mkdir(parents=True, exist_ok=True)
-    part = out.with_name(out.name + '.part')
+    staging = _staging_for(out)
+    part = staging / out.name
     members = _Members.under(part, zipped=out.suffix == '.zip')
     try:
         members.put(MODEL_MEMBER, spec.to_yaml().encode())
@@ -149,10 +162,12 @@ def write_archive(
         members.close()
     except BaseException:
         members.discard()
+        shutil.rmtree(staging, ignore_errors=True)
         raise
     if out.suffix != '.zip' and out.is_dir():
         out.rmdir()
     part.replace(out)
+    staging.rmdir()
     return out
 
 
@@ -160,8 +175,8 @@ class _Members:
     """Somewhere to put the layout's members, whether that is a zip or a directory.
 
     One writer for both shapes, because the layout is the same either way and
-    only the container differs. Everything lands under a neighbouring ``.part``
-    name so the real one appears whole.
+    only the container differs. Everything lands inside the caller's staging
+    directory so the real one appears whole.
     """
 
     def __init__(self, part: Path, archive: zipfile.ZipFile | None) -> None:
