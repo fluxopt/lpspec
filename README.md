@@ -9,19 +9,21 @@ column index — assembled relationally and handed to the solver in batches.
 
 The consequence worth the headline is **cost to a loaded solver** — YAML and
 data in, a populated solver out, no LP file anywhere in between. Measured
-against linopy's own best path to the same place, on the top rung of
-each of five benchmark cases — 1M to 12M variables
+against linopy's own best path to the same place, on the highest rung both
+libraries finish — six case-and-sink cells, 980k to 12M variables
 ([benchmarks](docs/about/benchmarks.md)):
 
-- **2–4x faster on four of the five**, and 1.13x slower on the fifth, which is
-  in the ladder to be lost — its parameters are dense over the whole variable
-  product, the one shape that suits an array engine.
-- **Lower peak on all five**, from 0.95x to 0.32x. The margins are narrow at
-  the top because HiGHS's own copy of the model dominates once it is loaded, and
-  nothing on either side can shrink it.
+- **1.01x to 1.29x faster**, and a lower peak on every one of them: 0.73x to
+  0.98x of linopy's.
+- **Most of what that measures is the solver, not either library.** Loading 10M
+  variables into Gurobi costs 9.31 s through raw `gurobipy`, with no modelling
+  layer at all. lpspec adds 0.54 s to that and linopy adds 1.98 s. The two
+  libraries land 1.15x apart; what each one adds is 3.7x apart.
 
-Read the sink you use: through the *LP file* the picture is closer, and on one
-case we are behind on peak. That table is in the same file, next to this one.
+**Every case in that ladder is dense**: no mask in it removes a row, and a dense
+coordinate product is the shape an array engine is built for. Sparsity is what
+this engine is designed around, and nothing published measures it yet. The
+sparse cases are [on the list](docs/about/benchmarks.md#not-measured-yet).
 
 A third property is architectural rather than measured, and named here as such:
 **nothing accumulates between builds** — no process-wide state, no lifetime to
