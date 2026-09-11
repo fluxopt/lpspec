@@ -90,7 +90,7 @@ flowchart TB
         DIRECT --> SOL["result.py<br/>label join, never dense"]
     end
 
-    SOL --> ANS["<b>Result</b> — the lane runs to the answer<br/>objective · primal · dual · activity · expression<br/>polars tables you can join"]
+    SOL --> ANS["<b>Result</b> — the lane runs to the answer<br/>objective · primal · dual · activity · expression · evaluate · extend<br/>polars tables you can join"]
 
     subgraph LIN["linopy/ — the peer lane"]
         direction TB
@@ -125,12 +125,12 @@ each lane takes both.
 accept the same file, attach the same tables and refuse the same constructs.
 `relational/` drains the model through a sink and reads back a `Result`.
 `linopy/` stops at the `linopy.Model`: its whole surface is `build` and
-`expression`, and linopy solves and reads back. A second `Result` there would
+`evaluate`, and linopy solves and reads back. A second `Result` there would
 be a wrapper around linopy's own API.
 
-**Eight modules sit outside a fence, and each is legitimately both halves**:
+**Nine modules sit outside a fence, and each is legitimately both halves**:
 `sources.py`, `curves.py`, `api.py`, `strategy.py`, `lanes.py`, `frames.py`,
-`parquet.py` and `errors.py`. Size does not buy a place among them. A module
+`parquet.py`, `expressions.py` and `errors.py`. Size does not buy a place among them. A module
 only one lane reaches is that lane's, down to a 24-line contextmanager
 (`linopy/_notes.py`). See
 [What counts as language](#what-counts-as-language).
@@ -238,7 +238,7 @@ moves them out from under the list a reviewer reads.
 **A return type is not a name.** `build` returns a `Model`, `solve` a `Result`
 and `solve_over` a `Runs`, and none is exported. You reach them by calling,
 and import them from their module only to annotate. What the objects carry
-(`Result` alone has twelve readers) is [the Python API](../reference/api.md)'s
+(`Result` alone has fourteen readers) is [the Python API](../reference/api.md)'s
 to list. **A handle's methods answer "what do I do with this", never "what is
 this"**: `solve`, `write`, `close` and `update` pass. Anything that changed a
 declaration would be a language feature wearing a method, which hard rule 5
@@ -559,12 +559,13 @@ is structure.
 | `relational/engines/polars/readback.py` | a built row, a solve's tables and a named expression, spelled back out in the model's own labels |
 | `relational/engines/polars/engine.py` | the lifecycle: build, hand to a sink, read back; the counters and clocks `diagnostics()` reports |
 | `relational/result.py` | what a solve returned: status, objective, and the label joins that read values back |
+| `expressions.py` | expressions spliced into the model as written and lowered with it — what a reader values when the file never named the quantity |
 | `relational/parquet.py` | answers on disk: the `<kind>/<name>` layout a result and a sweep both write, and the writer that lands a file whole |
 | `relational/sinks/tables.py` | what every sink reads and no more: the five tables, the batching scalars, and their projection onto the solver's column index |
 | `relational/sinks/capabilities.py` | what a sink can ingest — hard rule 3's *accepts ≠ builds* axis; `lanes.py` declares each **lane** in the same vocabulary |
 | `relational/sinks/sos.py` | the one stream a sink may not ingest, written as two it can: sets → binaries and linking rows |
 | `relational/sinks/` | how a built model leaves, in two families: `solvers/` (one module per solver, chosen by name) and `writers/` (one per format, chosen by suffix) — [README](https://github.com/fluxopt/lpspec/blob/main/src/lpspec/relational/sinks/README.md) |
-| `linopy/__init__.py` | the lane's two verbs: `build` constructing a `linopy.Model`, and `expression` reading a named quantity off a solved one |
+| `linopy/__init__.py` | the lane's two verbs: `build` constructing a `linopy.Model`, and `evaluate` valuing an expression at a solved one |
 | `linopy/loader.py` | the crossing into pandas and xarray: `tidy_sources`' tables as master coords and an `xr.Dataset` |
 | `linopy/coverage.py` | the two positions an absent row has no reading for: a divisor and a constant side |
 | `linopy/absence.py` | the four positions an absent value is spelled differently in; absence is positional in this lane |

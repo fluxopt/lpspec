@@ -135,6 +135,36 @@ def null_bounds_message(name: str, rows: int) -> str:
     )
 
 
+def already_readable_message(clash: list[str]) -> str:
+    """An expression named after a quantity a result already reads.
+
+    Adding is not replacing: a second entry under one name would answer where
+    the first did, and nothing would say the first had gone.
+    """
+    return (
+        f'{clash} are already readable here, so extending under those names would replace them rather '
+        f'than add to them. Rename them, or read what is there — expression() takes any name this '
+        f'result carries, whether the model declared it or an extend added it.'
+    )
+
+
+def no_model_behind_this_answer_message() -> str:
+    """An expression to read in an answer that has no model behind it.
+
+    Reading a quantity the file never named splices it into the model as
+    written and lowers again, against the values this solve left. An answer
+    read back off disk carries the values and not the model, so there is
+    nothing to splice into.
+    """
+    return (
+        'this answer has no model behind it, so a quantity the file never named cannot be read from '
+        'it: doing that splices the expression into the model as written and lowers it again, and an '
+        'answer read back off disk carries the values without the model. An archive holds both — '
+        'lps.solve(archive.spec, archive.sources) asks the question again, and what comes back reads '
+        'any expression. A name the model declares is readable either way.'
+    )
+
+
 def position_out_of_range_message(name: str, op: str, position: int, at: int, cardinality: int) -> str:
     """A ``position(dim)`` boundary naming no coordinate of the dimension."""
     return (

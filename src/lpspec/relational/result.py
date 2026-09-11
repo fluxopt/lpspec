@@ -13,11 +13,17 @@ Named for linopy's envelope (``Result`` = status + solution + report).
 from __future__ import annotations
 
 import importlib.util
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
+from lpspec.errors import (
+    LpspecError,
+    NoSolutionError,
+    already_readable_message,
+    no_model_behind_this_answer_message,
+    unknown_name_message,
+)
 from lpspec.relational.parquet import (
     RECORD_FILE,
     RECORD_SCHEMA,
@@ -398,6 +404,31 @@ class Result:
     #: model that reads none pays for none. Released with the primals by
     #: :meth:`close`, since each holds this build's frames and values.
     _expressions: Mapping[str, Callable[[], pl.DataFrame]] | None = None
+    #: :meth:`evaluate`'s whole implementation, over the same snapshot the
+    #: readers above close on. One callable rather than the two halves it is
+    #: made of, because the half that reads the model as written is not
+    #: something this lane may hold (hard rule 2): it is composed above the
+    #: lane and arrives already joined. ``None`` where the model was built
+    #: from an already-lowered ``Program``, there being no model as written
+    #: to read an expression in. Released with the primals.
+    _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = None
+    #: :meth:`extend`'s half of the same: what earlier extends added and a
+    #: block of named expressions in, one deferred reader per new entry out,
+    #: plus what a later extend has to be given to read this one's entries.
+    #: That carried value is opaque here — it is the model as written, which
+    #: this lane may not read (hard rule 2), so it is only ever handed back.
+    #: ``None`` with :attr:`_evaluate`, for the same reason. Released with the
+    #: primals.
+    _extend: (
+        Callable[
+            [Mapping[str, Any], Mapping[str, Any]],
+            tuple[Mapping[str, Callable[[], pl.DataFrame]], Mapping[str, Any]],
+        ]
+        | None
+    ) = None
+    #: What :attr:`_extend` carried out of the last extend, to hand back to the
+    #: next. Empty on a result no extend has been through.
+    _added: Mapping[str, Any] = field(default_factory=dict)
     #: Why there are no duals, when a solve that left values still has none.
     #: ``None`` whenever :attr:`_duals` holds them.
     _no_duals: str | None = None
@@ -570,6 +601,100 @@ class Result:
             ) from None
         return reader()
 
+    def evaluate(self, expression: str | Mapping[str, Any]) -> pl.DataFrame:
+        """The value of *expression* at this solution — ``(dims…, value)``.
+
+        :meth:`expression` for a quantity the file never named. Written the way
+        ``expressions:`` writes one — the string, or the mapping that carries
+        ``cases:`` with its ``foreach:`` and ``otherwise:`` — and answering in
+        the same shape, so a report that discovers what it wants after the
+        solve does not re-solve to ask.
+
+        It may use every name the solved model declares, and only those: an
+        expression reaching a parameter the model does not have has no data
+        here, and is refused rather than read as a gap. Reaching a new
+        parameter is a build, not a read.
+
+        A declared name is an expression like any other — the language
+        substitutes it where it stands — so ``evaluate('co2')`` answers what
+        ``expression('co2')`` answers, and is served by that reader rather
+        than lowered again.
+
+        Unlike :meth:`expression` this names nothing, so it is not a *kind*:
+        it is not written by :meth:`to_parquet`, not spilled by a sweep, and
+        not reachable through ``kind='expression'``. A quantity worth keeping
+        across runs is worth declaring.
+
+        Raises:
+            NoSolutionError: The solve left no values to read.
+            LpspecError: This result was closed, the model was built from an
+                already-lowered ``Program``, or the expression reads a dual
+                and the solve left none.
+            DataError: A divisor with no value where the expression divides.
+            LanguageError: A construct outside the language, or a name the
+                model does not declare.
+        """
+        self._readable(self._primals, 'an expression')
+        readers = self._expressions or {}
+        if isinstance(expression, str) and expression in readers:
+            return readers[expression]()
+        if self._evaluate is None:
+            raise LpspecError(no_model_behind_this_answer_message())
+        return self._evaluate(expression)
+
+    def extend(self, added: Mapping[str, Any]) -> Result:
+        """This solve, with the expressions *added* declares also readable.
+
+        The same answer, asked more questions. Everything a solve decided is
+        carried over unchanged and uncopied — status, objective, and the very
+        frames :meth:`primal`, :meth:`dual` and :meth:`activity` hand back — so
+        what comes back is this solve rather than a second one, and the added
+        quantities sit beside the model's own::
+
+            report = result.extend({'expressions': {'co2': 'sum(p * rate, over=generator)'}})
+            report.expression('co2')  # the added one
+            report.expression('total_gen')  # the model's own, still there
+            report.to_dataset(kind='expression')
+            report.objective  # this solve's, unchanged
+
+        *added* is a model fragment carrying ``expressions:`` **and nothing
+        else**, each entry written as :meth:`evaluate` takes one. Reading is
+        not building: a parameter would want data attached and a variable or a
+        constraint would want rows, and neither is something a finished solve
+        can grow.
+
+        Unlike :meth:`evaluate` the quantities are named, so they are readable
+        through :meth:`expression`, carried by every bridge, and written by
+        :meth:`to_parquet` beside the declared ones. That is the whole
+        difference between the two: name a quantity to keep it, evaluate one to
+        look at it.
+
+        **Adds, never replaces.** A name this result already reads is refused
+        rather than shadowed, whether the model declared it or an earlier
+        extend added it. Nothing is mutated either: this result keeps reading
+        exactly what it read, and closing one of the two leaves the other whole.
+
+        The block is lowered once, when it is handed in, so an expression that
+        does not parse fails here rather than when someone finally reads that
+        row. Each entry compiles only when it is read.
+
+        Raises:
+            NoSolutionError: The solve left no values to read.
+            LpspecError: This result was closed, the model was built from an
+                already-lowered ``Program``, or a name it already reads.
+            LanguageError: A construct outside the language, or a name the
+                model does not declare.
+            SchemaError: A fragment carrying any section but ``expressions:``.
+        """
+        self._readable(self._primals, 'an expression')
+        if self._extend is None:
+            raise LpspecError(no_model_behind_this_answer_message())
+        readers = dict(self._expressions or {})
+        added_readers, carried = self._extend(self._added, added)
+        if clash := sorted(set(added_readers) & set(readers)):
+            raise LpspecError(already_readable_message(clash))
+        return replace(self, _expressions=readers | dict(added_readers), _added=carried)
+
     def _frame(self, name: str, kind: str) -> pl.DataFrame:
         """*name* through the reader *kind* names — the dispatch every bridge shares."""
         reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[reader_kind(kind)]
@@ -709,6 +834,7 @@ class Result:
         solving, and a sibling result keeps its own.
         """
         self._primals = self._duals = self._activities = self._expressions = None
+        self._evaluate = self._extend = None
 
     def __enter__(self) -> Result:
         return self
