@@ -1,4 +1,4 @@
-"""`transport` through gurobipy's matrix API: one `MVar`, one `addMConstr`.
+"""`transport` as a matrix: one incidence block, tiled per snapshot.
 
 Columns are one snapshot's generators followed by its lines, repeated per
 snapshot, so the balance is ``kron(I(n_snapshot), [A_generator | A_line])`` —
@@ -6,18 +6,21 @@ the same block, once per snapshot, exactly as `bench/floor.py` tiles it.
 
 **The load vector is read in file order**, which `_transport_data` writes
 snapshot-major with buses within. A permuted file would build a different model
-and still look fine, which is what `test_the_arms_agree_on_the_objective`
-exists to catch.
+and still look fine, which is what
+`test_a_hand_written_arm_builds_the_same_model` exists to catch.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+from bench.models import Lp
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from typing import Any
 
 
 def _incidence(rows: Any, columns: Any, at: Any, sign: float, shape: tuple[int, int]) -> Any:
@@ -29,8 +32,7 @@ def _incidence(rows: Any, columns: Any, at: Any, sign: float, shape: tuple[int, 
     return sparse.csr_matrix((np.full(len(columns), sign), (row, np.arange(len(columns)))), shape=shape)
 
 
-def build(env: Any, tables: Mapping[str, Any]) -> Any:
-    import gurobipy as gp
+def build(tables: Mapping[str, Any]) -> Lp:
     from scipy import sparse
 
     p_max = tables['p_max']['value'].to_numpy()
@@ -54,12 +56,11 @@ def build(env: Any, tables: Mapping[str, Any]) -> Any:
         format='csr',
     )
 
-    m = gp.Model(env=env)
-    x = m.addMVar(
-        n_snapshot * (n_generator + n_line),
-        lb=np.tile(np.concatenate([np.zeros(n_generator), neg_cap]), n_snapshot),
-        ub=np.tile(np.concatenate([p_max, cap]), n_snapshot),
+    return Lp(
+        lower=np.tile(np.concatenate([np.zeros(n_generator), neg_cap]), n_snapshot),
+        upper=np.tile(np.concatenate([p_max, cap]), n_snapshot),
         obj=np.tile(np.concatenate([cost, np.zeros(n_line)]), n_snapshot),
+        matrix=sparse.kron(sparse.eye(n_snapshot), block, format='csr'),
+        senses=np.full(len(load), '='),
+        rhs=load,
     )
-    m.addMConstr(sparse.kron(sparse.eye(n_snapshot), block, format='csr'), x, '=', load)
-    return m

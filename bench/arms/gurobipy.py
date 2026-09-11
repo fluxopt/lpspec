@@ -55,16 +55,37 @@ def prepare(dialect: str, case_name: str, size: str, paths: dict[str, str], opti
     return Prepared(dialect, case_name, dict(paths))
 
 
+def _model(env: Any, dialect: str, case_name: str, tables: Mapping[str, Any]) -> Any:
+    """The model, however this dialect spells one.
+
+    The two dialects have two contracts, and that difference is what separates
+    them. `gurobipy-loop` writes gurobipy calls directly and hands back a
+    `Model`. `gurobipy-matrix` builds a solver-neutral `Lp` — the same one
+    `highspy-matrix` builds — and the push into `addMVar` and `addMConstr`
+    happens here, so a case's matrix has one home rather than one per arm.
+    """
+    import gurobipy as gp
+
+    from bench.models import formulation
+
+    build = formulation(case_name, dialect).build
+    if dialect == 'gurobipy-loop':
+        return build(env, tables)
+    lp = build(tables)
+    model = gp.Model(env=env)
+    columns = model.addMVar(len(lp.obj), lb=lp.lower, ub=lp.upper, obj=lp.obj)
+    model.addMConstr(lp.matrix, columns, lp.senses, lp.rhs)
+    return model
+
+
 def _built(prepared: Prepared) -> tuple[Any, Any]:
     """The environment and a flushed model — every timed verb's whole body."""
     import gurobipy as gp
     import polars as pl
 
-    from bench.models import formulation
-
     tables = {name: pl.read_parquet(path) for name, path in prepared.paths.items()}
     env = gp.Env(params={'OutputFlag': 0})
-    model = formulation(prepared.case_name, prepared.dialect).build(env, tables)
+    model = _model(env, prepared.dialect, prepared.case_name, tables)
     model.update()
     return env, model
 
