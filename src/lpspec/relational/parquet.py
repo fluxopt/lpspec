@@ -200,7 +200,7 @@ RECORD_SCHEMA = _column_types(Record)
 
 
 #: The two files that sit beside the frames, named here because a result and a
-#: sweep both write them and :func:`lpspec.artifact.load_artifact` reads back
+#: sweep both write them and :func:`lpspec.archive.load_archive` reads back
 #: whichever wrote: the record of how the solve terminated, and the reasons
 #: behind whatever is deliberately not there.
 RECORD_FILE = 'objective.parquet'

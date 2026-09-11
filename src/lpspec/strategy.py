@@ -39,9 +39,9 @@ from math_spec import to_spec
 from math_spec.program import Program
 
 from lpspec.api import build, check
-from lpspec.archive import beside, write_archive
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning, did_you_mean
 from lpspec.frames import as_frame
+from lpspec.layout import beside, write_archive
 from lpspec.relational.parquet import (
     KINDS,
     LABELS,
@@ -1244,7 +1244,7 @@ def solve_over(
             resumes.
         archive: Where to write the whole thing as one zip — the model, the
             sources the sweep was cut from, the axis that cut them, and every
-            slice's answer — so that ``lps.load_artifact`` gives all four back
+            slice's answer — so that ``lps.load_archive`` gives all four back
             and the sweep runs again from the file alone. Given beside
             *spill_to*, the spill is what the archive packs, so a sweep too
             large to hold is archived without ever being held. The zip is a

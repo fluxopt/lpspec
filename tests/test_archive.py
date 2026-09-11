@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from math_spec import Spec
 
 
-def _question(artifact: lps.SolveArtifact | lps.SweepArtifact) -> tuple[Spec, Mapping[str, object]]:
+def _question(artifact: lps.SolveArchive | lps.SweepArchive) -> tuple[Spec, Mapping[str, object]]:
     """The pair every verb takes, read off an artifact."""
     return artifact.spec, artifact.sources
 
@@ -55,7 +55,7 @@ def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: s
     program = to_program(port_spec(name))
     sources = port_sources(name)
     archive = _archived(port_spec(name), sources, tmp_path / 'model.zip')
-    spec, unpacked = _question(lps.load_artifact(archive, tmp_path / 'out'))
+    spec, unpacked = _question(lps.load_archive(archive, tmp_path / 'out'))
 
     assert set(unpacked) == set(attachable(program)), (
         'the archive holds one member per attachable key — every declared parameter, dimension and lookup, '
@@ -75,7 +75,7 @@ def test_the_round_trip_solves_to_the_same_objective(
     archive = _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'dispatch.zip')
     with (
         lps.solve(dispatch_yaml, dispatch_frame_inputs) as direct,
-        lps.solve(*_question(lps.load_artifact(archive, tmp_path / 'out'))) as unpacked,
+        lps.solve(*_question(lps.load_archive(archive, tmp_path / 'out'))) as unpacked,
     ):
         assert unpacked.objective == pytest.approx(direct.objective, rel=1e-9), (
             'the archive builds the model the tables did'
@@ -92,7 +92,7 @@ def test_plain_python_shapes_are_written_as_the_tables_they_stand_for(dispatch_y
         'generator': list(DISPATCH_GENERATORS),
     }
     archive = _archived(dispatch_yaml, sources, tmp_path / 'dispatch.zip')
-    _, unpacked = _question(lps.load_artifact(archive, tmp_path / 'out'))
+    _, unpacked = _question(lps.load_archive(archive, tmp_path / 'out'))
     cost = pl.read_parquet(unpacked['cost'])
     snapshot = pl.read_parquet(unpacked['snapshot'])
 
@@ -133,7 +133,7 @@ def test_unpack_lays_the_archive_out_in_the_directory(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     archive = _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'dispatch.zip')
-    spec, sources = _question(lps.load_artifact(archive, tmp_path / 'out'))
+    spec, sources = _question(lps.load_archive(archive, tmp_path / 'out'))
 
     assert sources == {k: tmp_path / 'out' / 'sources' / f'{k}.parquet' for k in dispatch_frame_inputs}, (
         'every source comes back as the path it was extracted to, one per key'
@@ -164,17 +164,83 @@ def test_a_zip_outside_the_layout_is_refused(members: dict[str, bytes], says: st
         for name, data in members.items():
             zipped.writestr(name, data)
     with pytest.raises(lps.LayoutError) as excinfo:
-        _question(lps.load_artifact(path, tmp_path / 'out'))
+        _question(lps.load_archive(path, tmp_path / 'out'))
     assert says in str(excinfo.value), 'the message names what was found, and the layout archive= writes'
     assert not (tmp_path / 'out').exists(), 'nothing is extracted from a zip that is not an archive'
 
 
-def test_a_lowered_program_is_refused_by_name(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
+def test_a_directory_archive_holds_what_the_zip_holds_and_is_read_where_it_lies(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The suffix picks the container, and the container is all that differs.
+
+    A zip is the directory packed. The members are the same either way, so the
+    only thing that changes is whether anything has to be unpacked before a
+    scan can see the parquet files.
+    """
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip')
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
+
+    with zipfile.ZipFile(tmp_path / 'case.zip') as zipped:
+        packed = sorted(zipped.namelist())
+    spread = sorted(f.relative_to(tmp_path / 'case').as_posix() for f in (tmp_path / 'case').rglob('*') if f.is_file())
+    assert spread == packed, 'the same members, laid out instead of packed'
+
+    loose = lps.load_archive(tmp_path / 'case')
+    unpacked = lps.load_archive(tmp_path / 'case.zip', tmp_path / 'out')
+    assert loose.answer.objective == unpacked.answer.objective
+    assert loose.sources['load'].parent.parent == tmp_path / 'case', (
+        'a directory archive hands back paths into itself, so there is no second copy to keep alive'
+    )
+
+
+@pytest.mark.parametrize(
+    ('suffix', 'into', 'says'),
+    [
+        pytest.param('.zip', None, 'needs somewhere to unpack', id='a-zip-with-no-into'),
+        pytest.param('', 'anywhere', 'read where it lies', id='a-directory-with-an-into'),
+    ],
+)
+def test_into_is_asked_for_exactly_where_something_must_be_unpacked(
+    suffix: str, into: str | None, says: str, dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """`into` is not a convention to remember — each shape says which it is.
+
+    A zip has no paths a scan can reach, so it needs somewhere writable, and
+    only the caller knows one: an archive often lives where it is only read.
+    A directory already has them, so an `into` would have nothing to do.
+    """
+    out = tmp_path / f'case{suffix}'
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out)
+    with pytest.raises(lps.LayoutError, match=says):
+        lps.load_archive(out, None if into is None else tmp_path / into)
+
+
+def test_a_directory_that_already_holds_something_is_refused(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """An archive is written whole, so it never merges into what is there.
+
+    Overwriting a directory cannot be one rename the way replacing a file can,
+    so what would be left is a mix of two archives that reads as one.
+    """
+    out = tmp_path / 'case'
+    out.mkdir()
+    (out / 'mine.txt').write_text('not an archive')
+    with pytest.raises(lps.LayoutError, match='already holds something'):
+        lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out)
+    assert sorted(f.name for f in out.iterdir()) == ['mine.txt'], 'and what was there is untouched'
+
+
+def test_a_lowered_program_is_refused_before_it_is_solved(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
     """Lowering has no inverse, and the refusal names the argument to change.
 
-    The one surprise the artifact cannot design away: a Program builds and
-    solves, so nothing fails until the save. So the message says which earlier
-    call to keep the spec from, rather than only what is wrong here.
+    A Program builds and solves, so only the archive is out of reach — and
+    whether it is out of reach is answerable from how the model was built. So
+    the refusal comes before the solver runs rather than after, and the message
+    says which earlier call to keep the model from.
     """
     out = tmp_path / 'dispatch.zip'
     with lps.build(lps.check(dispatch_yaml), dispatch_frame_inputs) as model:
@@ -215,7 +281,7 @@ def test_an_archive_carries_the_answer_beside_the_question(
     two cannot drift apart or be paired up wrongly.
     """
     with lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip') as solved:
-        loaded = lps.load_artifact(tmp_path / 'case.zip', tmp_path / 'case')
+        loaded = lps.load_archive(tmp_path / 'case.zip', tmp_path / 'case')
 
         assert loaded.answer.objective == solved.objective
         for name in to_program(to_spec(dispatch_yaml)).variables:
@@ -245,7 +311,7 @@ def test_an_updated_model_archives_the_data_it_actually_answered(
         after = model.update({'load': halved}).solve(archive=tmp_path / 'updated.zip')
         assert after.objective != pytest.approx(before, rel=1e-9), 'the update moved the answer, or this proves nothing'
 
-    loaded = lps.load_artifact(tmp_path / 'updated.zip', tmp_path / 'updated')
+    loaded = lps.load_archive(tmp_path / 'updated.zip', tmp_path / 'updated')
     with lps.solve(*_question(loaded)) as resolved:
         assert resolved.objective == pytest.approx(after.objective, rel=1e-9), (
             'the archived question is the updated one, so it re-solves to the answer it carries'
@@ -263,7 +329,7 @@ def test_a_scenario_sweep_is_an_artifact_and_runs_again(
     axis = lps.EachCoordinate('scenario')
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
     runs = lps.solve_over(dispatch_yaml, sources, axis, archive=tmp_path / 'study.zip')
-    study = lps.load_artifact(tmp_path / 'study.zip', tmp_path / 'study')
+    study = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'study')
 
     assert study.axis == axis, 'the axis comes back as the value it went in as'
     assert study.answer.objective.equals(runs.objective)
@@ -289,7 +355,7 @@ def test_a_rolling_horizon_keeps_the_way_back_to_the_dimension_it_sliced(tmp_pat
     sources = horizon_sources(12)
     runs = lps.solve_over(WINDOW, sources, axis, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll.zip')
     stitched = runs.primal('soc', original_index=True)
-    loaded = lps.load_artifact(tmp_path / 'roll.zip', tmp_path / 'roll')
+    loaded = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll')
 
     assert loaded.axis == axis
     assert loaded.answer.scan('soc', original_index=True).collect().equals(stitched), (
@@ -314,8 +380,8 @@ def test_an_archive_whose_answer_names_another_model_is_refused(
             edited.writestr(name, pyyaml.safe_dump(other) if name == 'model.yaml' else held.read(name))
 
     with pytest.raises(lps.LpspecError, match='came back from a different model'):
-        lps.load_artifact(tampered, tmp_path / 'out')
-    assert lps.load_artifact(archive, tmp_path / 'fine').spec == to_spec(dispatch_yaml), (
+        lps.load_archive(tampered, tmp_path / 'out')
+    assert lps.load_archive(archive, tmp_path / 'fine').spec == to_spec(dispatch_yaml), (
         'and the archive as written reads back as the model it holds'
     )
 

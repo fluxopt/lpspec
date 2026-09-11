@@ -31,7 +31,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
 | `archive=` on `lps.solve`, `model.solve`, `lps.solve_over` | write the model, its data and this answer as one zip: [Archiving a model](#archiving-a-model) |
-| `lps.load_artifact(path, into)` | an archive back as a `SolveArtifact`, or a `SweepArtifact` where its sources were cut |
+| `lps.load_archive(path, into)` | an archive back as a `SolveArchive`, or a `SweepArchive` where its sources were cut |
 | `lps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
 | `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Runs` |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
@@ -384,14 +384,29 @@ from. [#382](https://github.com/fluxopt/lpspec/issues/382) tracks that case.
 ```python
 lps.solve('spec.yaml', sources, archive='case.zip')
 
-case = lps.load_artifact('case.zip', 'case/')
+case = lps.load_archive('case.zip', 'case/')
 case.answer.primal('p')  # what came back
 lps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
-**An archive is the model, its data and its answer as one zip**: `model.yaml`,
+**An archive is the model, its data and its answer**: `model.yaml`,
 `sources/<key>.parquet` for every key the file declares, `answer/` holding what
 `result.save` or `runs.save` writes, and `axis.json` for a sweep.
+
+**The suffix decides the container**, as `lps.write`'s does. `.zip` packs those
+members into one file, to send or to store; anything else lays them out in a
+directory. The two hold the same thing, and only reading them differs:
+
+```python
+lps.solve('spec.yaml', sources, archive='case/')  # a directory
+lps.load_archive('case/')  # read where it lies — no into=
+```
+
+**A directory archive needs no `into`, and a zip requires one.** Nothing is read
+at load: the sources come back as paths and every frame is a `scan_parquet`, so
+the parquet files have to be on disk. A directory's already are. A zip's are
+not, and only you know somewhere writable — an archive often lives where it is
+only read — so there is no default, and passing none is refused by name.
 
 **Every verb that solves takes `archive=`, and nothing else writes one.**
 `lps.solve`, `model.solve` and `lps.solve_over` each hold the model, the data
@@ -414,9 +429,9 @@ with lps.build('spec.yaml', sources) as model:
 
 ```python
 axis = lps.EachCoordinate('scenario')
-lps.solve_over('spec.yaml', sources, axis, archive='study.zip')
+lps.solve_over('spec.yaml', sources, axis, archive='study/')
 
-study = lps.load_artifact('study.zip', 'study/')
+study = lps.load_archive('study/')
 study.answer.scan('p')  # keyed by scenario
 lps.solve_over(study.spec, study.sources, study.axis)  # the sweep, re-run
 ```
@@ -440,7 +455,7 @@ own bytes; a table, a bare label range, a `{label: value}` map or a single
 number is written as the tidy parquet table it stands for. Parquet keeps the
 dtypes [the contract](data.md) checks. Members are stored uncompressed.
 
-**`load_artifact` extracts into a directory** and reads the answer lazily off
+**`load_archive` extracts into a directory** and reads the answer lazily off
 what lands there, so that directory has to outlive the artifact. Its `sources`
 come back as the parquet paths they now are — the same type they went in as,
 `Path` being a source like any other — so attaching streams them from disk.
@@ -448,7 +463,7 @@ Anything in the zip outside the layout is refused as not an archive `save`
 wrote, and nothing is extracted.
 
 **The extracted directory is a parquet tree.** A query engine reads it where
-it lands, under the `into` path `load_artifact` was given. Every frame is
+it lands, under the `into` path `load_archive` was given. Every frame is
 tidy: the model's own dimension columns, and a `value` column. An answer
 therefore joins to the sources it was solved from, on the coordinates both
 carry.
@@ -477,7 +492,7 @@ rows.
 | **the spec is loaded on the way in** | a path or a mapping becomes a `Spec` in the constructor, so `artifact.spec` is one shape. A lowered `Program` is refused: it has no file to write |
 | **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving and counting from `1` the day it settles. Nothing reads an older layout back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the model and the data to do that with |
 | **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an archive is read back. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an answer paired with a different spec is refused rather than archived. A solve run off a lowered `Program` has no document and carries `None`, which counts as its own value — so one null among real digests breaks the comparison, and a table where *every* digest is null counts one distinct value while having checked nothing. Ask for the digests to be present as well as to agree: `n_unique() == 1 and null_count() == 0` |
-| **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. A `SweepArtifact` has it and a `SolveArtifact` has no such field, so nothing downstream meets `Result \| Runs`. `load_artifact` returns whichever the archive holds |
+| **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. A `SweepArchive` has it and a `SolveArchive` has no such field, so nothing downstream meets `Result \| Runs`. `load_archive` returns whichever the archive holds |
 | **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |
 | **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one solve each. Refused before the first slice is taken, as a lowered `Program` is |
 | **the model's own fitness for slicing stays `solve_over`'s** | whether a window can carry this model's coupling and reach is asked when the sweep is run, not when it is archived |

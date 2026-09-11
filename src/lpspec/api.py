@@ -4,7 +4,7 @@ Math is defined in YAML only — there is no Python API for constructing specs,
 and the logical plan is internal. Four verbs run a model: ``check``, ``build``
 (YAML + sources → a :class:`Model`), ``solve`` and ``write``. ``load_result`` reads back an
 answer :meth:`Result.save` wrote; the question and the answer as one archive
-is :class:`lpspec.artifact.Artifact`.
+is :class:`lpspec.archive.SolveArchive`.
 
 This is the relational lane (docs/about/architecture.md): validated at load
 time, lowered to the plan, executed relationally. The same file builds as a
@@ -35,9 +35,9 @@ import polars as pl
 from math_spec import Spec, advice, to_program, to_spec
 from math_spec.program import Program
 
-from lpspec.archive import beside, write_archive
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source
+from lpspec.layout import beside, write_archive
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.relational.parquet import RECORD_FILE, Record, check_format, digest_of, read_reasons
@@ -227,7 +227,7 @@ class Model:
                 moved is loaded again whatever was asked.
             archive: Where to write the whole thing as one zip — the model,
                 the data attached to it **now**, and this answer — so that
-                :func:`~lpspec.artifact.load_artifact` gives all three back
+                :func:`~lpspec.archive.load_archive` gives all three back
                 and the model solves again from the file alone. Written here
                 rather than assembled afterwards, because this is the one
                 moment all three exist together: after an :meth:`update` the
@@ -507,7 +507,7 @@ def load_result(directory: str | Path) -> Result:
     Args:
         directory: Where :meth:`~lpspec.relational.result.Result.save` wrote
             it. One that came out of an archive is
-            :func:`~lpspec.artifact.load_artifact`'s to find.
+            :func:`~lpspec.archive.load_archive`'s to find.
 
     Returns:
         The result, reading lazily from *directory*: the files stay where they

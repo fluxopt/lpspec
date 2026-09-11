@@ -1,161 +1,153 @@
-"""The archive's file format: what a zip holding a model, its data and its answer contains.
+"""What comes back out of an archive: a model, the data it was solved with, and what came back.
 
-``model.yaml``, one ``sources/<key>.parquet`` per key the file declares,
-``answer/`` in the layout both answers already save, and ``axis.json`` where
-the sources are cut.
+An answer alone cannot say which model produced it, and a model alone has to
+be solved again to be read. An archive holds both, and :func:`load_archive`
+gives them back as one of two values — :class:`SolveArchive` for one solve,
+:class:`SweepArchive` where the sources were cut.
 
-Below :mod:`lpspec.api` and :mod:`lpspec.strategy`, because both write one:
-the verb that solves is the only place that holds the model, the data and the
-answer at once, which is why nothing assembles the three after the fact.
-:mod:`lpspec.artifact` sits above all three and reads what is written here.
+**Reading only.** Nothing here writes an archive: the verb that solves does,
+through :mod:`lpspec.layout`, because a solve is the one moment the model, the
+data and the answer exist together. Assembling the three after the fact is
+what let a mispaired case be filed as a matching one.
+
+Above ``api`` and ``strategy`` rather than beside them: an artifact carries
+either kind of answer, so it is the one place that knows about both a
+``Result`` and a ``Runs``. Neither of them knows about it.
 """
 
 from __future__ import annotations
 
-import io
 import json
-import os
-import tempfile
-import zipfile
-from contextlib import contextmanager
-from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-from math_spec import to_program
+from math_spec import to_spec
 
-from lpspec.errors import LayoutError
-from lpspec.sources import supplied, tidy_sources
+from lpspec.api import load_result
+from lpspec.errors import LpspecError
+from lpspec.layout import ANSWER_DIR, AXIS_MEMBER, MODEL_MEMBER, is_source_member, members_of, opened
+from lpspec.relational.parquet import digest_of
+from lpspec.strategy import EachCoordinate, EachWindow, Runs, axis_from, load_runs
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Mapping, Sequence
 
-    import polars as pl
     from math_spec import Spec
 
     from lpspec.lanes import Source
+    from lpspec.relational.result import Result
 
-#: The archive's one layout. ``axis.json`` is also what says which kind an
-#: archive holds, a sweep being the one whose sources are cut.
-MODEL_MEMBER = 'model.yaml'
-AXIS_MEMBER = 'axis.json'
-SOURCES_DIR = PurePosixPath('sources')
-ANSWER_DIR = PurePosixPath('answer')
+__all__ = ['SolveArchive', 'SweepArchive', 'load_archive']
 
 
-@contextmanager
-def beside(out: Path) -> Iterator[Path]:
-    """A scratch directory on the filesystem *out* will land on, gone when the block ends.
+@dataclass(frozen=True)
+class SolveArchive:
+    """A model, the data it was solved with, and what one solve of it returned.
 
-    Where a caller has to lay an answer out before it is packed. The archive's
-    own directory is made first, so the scratch and the file it feeds share a
-    filesystem and the pack is a copy rather than a move across devices.
+    What :func:`load_archive` gives back for an archive whose sources were
+    not cut. ``lps.solve(artifact.spec, artifact.sources)`` asks the question
+    again, and :attr:`answer` is what it answered the first time.
+
+    Attributes:
+        spec: The model as written.
+        sources: What was attached to it, as the parquet files the archive
+            holds — a ``Path`` being a source like any other, so attaching
+            streams them from disk.
+        answer: What came back.
     """
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=out.parent) as scratch:
-        yield Path(scratch)
+
+    spec: Spec
+    sources: Mapping[str, Source]
+    answer: Result
+
+    def __post_init__(self) -> None:
+        """Refuse an archive whose answer names a different model than its own."""
+        _check_the_pairing(self.spec, (self.answer.spec_digest,))
 
 
-def write_archive(
-    out: Path,
-    spec: Spec,
-    sources: Mapping[str, Source],
-    *,
-    checked: Mapping[str, Source],
-    whole: Mapping[str, pl.LazyFrame],
-    axis: Mapping[str, Any] | None,
-    answer: Path | None,
-) -> Path:
-    """Pack a model, its data and its answer into one zip at *out*.
+@dataclass(frozen=True)
+class SweepArchive:
+    """A model, the data a sweep was solved over, the axis that cut it, and what came back.
+
+    :class:`SolveArchive`'s sibling, and the axis is what separates them: a
+    sweep's sources carry the column it slices on, which the model does not
+    declare, so they are legible only beside it.
+
+    ``lps.solve_over(sweep.spec, sweep.sources, sweep.axis)`` runs it again.
+
+    Attributes:
+        spec: The model as written, as :class:`SolveArchive` holds it.
+        sources: What the sweep was given — **whole**, carrying every slice's
+            rows, because one copy per slice is what a sweep exists not to
+            write.
+        axis: :class:`~lpspec.strategy.EachCoordinate` or
+            :class:`~lpspec.strategy.EachWindow`, the axis that cut them.
+        answer: Every slice's answers, keyed by slice, and **spilled**: the
+            frames stay in the extracted directory and
+            :meth:`~lpspec.strategy.Runs.scan` reads them.
+    """
+
+    spec: Spec
+    sources: Mapping[str, Source]
+    axis: EachCoordinate | EachWindow
+    answer: Runs
+
+    def __post_init__(self) -> None:
+        """Refuse an archive whose slices name a different model than its own."""
+        _check_the_pairing(self.spec, self.answer.objective['spec_digest'].to_list())
+
+
+def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
+    """Refuse an archive whose answer came back from a different model than the one beside it.
+
+    A solve writes both members together, so this cannot fire on an archive
+    this package wrote — it is what stands between a hand-assembled or edited
+    zip and a reader who would take it at its word and re-solve to something
+    else. An answer solved off a lowered program digests to ``None`` and is
+    taken on trust; there is no document to compare it against.
+    """
+    mine = digest_of(spec.to_yaml())
+    if others := sorted({other for other in answered if other is not None and other != mine}):
+        raise LpspecError(
+            f'this archive holds an answer that came back from a different model: the answer carries '
+            f'{others} and the model.yaml beside it digests to {mine}. Re-solving it would give an answer '
+            f'other than the one it holds, so it is not read.'
+        )
+
+
+def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchive | SweepArchive:
+    """Read back an archive an ``archive=`` wrote.
+
+    Which comes back is read off the archive, not asked for: it carries an
+    axis or it does not.
 
     Args:
-        out: Where to write. The directory is made if it does not exist.
-        spec: The model as written, packed as ``model.yaml``.
-        sources: What was attached, keyed as the file declares. A parquet path
-            is copied as its own bytes; anything else is written as the tidy
-            table it stands for.
-        checked: The sources the declarations are checked against — all of
-            them for one solve, one slice for a sweep, whose whole sources
-            carry a column the model does not declare.
-        whole: What to write instead of the checked frame, which is how a
-            sliced source reaches the archive carrying every slice's rows.
-        axis: The axis manifest, or ``None`` where the sources are not cut.
-        answer: A directory already holding the answer's own layout — a spill,
-            or one :func:`beside` handed the caller — or ``None``.
+        path: The archive — a ``.zip``, or the directory one was written to.
+        into: Where to unpack a zip, created if it does not exist. The members
+            land in it as the archive holds them and the answer reads lazily
+            off them, so it has to outlive what is read. A directory archive
+            needs none, being read where it lies; passing one is refused.
 
     Returns:
-        *out*, which the archive lands at whole or not at all: it is written
-        under a neighbouring name and renamed into place, so a write that does
-        not finish leaves nothing under either.
+        A :class:`SweepArchive` where the archive carries an axis and a
+        :class:`SolveArchive` where it does not, holding the model as written,
+        its sources keyed as the file declares them, and the answer.
 
     Raises:
-        LanguageError: A model the language does not accept.
-        DataError: A source that is missing, unreadable or the wrong shape.
-    """
-    program = to_program(spec)
-    frames = supplied(program, tidy_sources(program, checked))
-    out.parent.mkdir(parents=True, exist_ok=True)
-    part = out.with_name(out.name + '.part')
-    try:
-        with zipfile.ZipFile(part, 'w', compression=zipfile.ZIP_STORED) as archive:
-            archive.writestr(MODEL_MEMBER, spec.to_yaml())
-            for name, frame in frames.items():
-                member = str(SOURCES_DIR / f'{name}.parquet')
-                given = sources.get(name)
-                if isinstance(given, (str, Path)):
-                    archive.write(given, member)
-                else:
-                    buffer = io.BytesIO()
-                    whole.get(name, frame).collect().write_parquet(buffer, compression='zstd')
-                    archive.writestr(member, buffer.getvalue())
-            if axis is not None:
-                archive.writestr(AXIS_MEMBER, json.dumps(axis))
-            if answer is not None:
-                for file in sorted(answer.rglob('*')):
-                    if file.is_file():
-                        archive.write(file, str(ANSWER_DIR / file.relative_to(answer).as_posix()))
-    except BaseException:
-        part.unlink(missing_ok=True)
-        raise
-    os.replace(part, out)
-    return out
-
-
-def extract(path: str | Path, into: Path) -> list[PurePosixPath]:
-    """Unpack an archive :func:`write_archive` wrote, and give back what it held.
-
-    Refuses before extracting anything, so a file that is not an archive
-    leaves *into* as it found it.
-
-    Raises:
-        LayoutError: A member outside the layout, or no ``model.yaml``.
+        LanguageError: A ``model.yaml`` the language does not accept.
+        LayoutError: A member outside the layout, a zip with no *into*, an
+            *into* given for a directory, or an answer whose layout has moved
+            since it was written. Nothing is unpacked.
+        LpspecError: An answer that names a different model than the one
+            beside it.
         zipfile.BadZipFile: A file that is not a zip archive.
     """
-    with zipfile.ZipFile(path) as archive:
-        members = [PurePosixPath(name) for name in archive.namelist() if not name.endswith('/')]
-        strays = [str(m) for m in members if not _in_the_layout(m)]
-        if strays or PurePosixPath(MODEL_MEMBER) not in members:
-            raise LayoutError(_not_an_archive_message(path, strays))
-        archive.extractall(into)
-    return members
-
-
-def is_source_member(member: PurePosixPath) -> bool:
-    """Whether *member* is one of the ``sources/`` tables."""
-    return member.parent == SOURCES_DIR and member.suffix == '.parquet'
-
-
-def _in_the_layout(member: PurePosixPath) -> bool:
-    return (
-        member in (PurePosixPath(MODEL_MEMBER), PurePosixPath(AXIS_MEMBER))
-        or is_source_member(member)
-        or ANSWER_DIR in member.parents
-    )
-
-
-def _not_an_archive_message(path: str | Path, strays: list[str]) -> str:
-    found = f'holds {strays}' if strays else "has no 'model.yaml'"
-    return (
-        f'{path} is not an archive: it {found}. One that archive= writes holds exactly '
-        f"'model.yaml', one 'sources/<key>.parquet' per key the file declares, 'answer/' holding what the "
-        f"solve returned, and 'axis.json' where its sources are sliced."
-    )
+    under = opened(path, None if into is None else Path(into))
+    spec = to_spec(under / MODEL_MEMBER)
+    sources = {m.stem: under / m for m in members_of(under) if is_source_member(m)}
+    axis_member = under / AXIS_MEMBER
+    if not axis_member.is_file():
+        return SolveArchive(spec, sources, load_result(under / ANSWER_DIR))
+    axis = axis_from(json.loads(axis_member.read_text()))
+    return SweepArchive(spec, sources, axis, load_runs(under / ANSWER_DIR))

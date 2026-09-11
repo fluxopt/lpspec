@@ -23,7 +23,7 @@ from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _installed_version
 
 from lpspec.api import Model, build, check, load_result, solve, write
-from lpspec.artifact import SolveArtifact, SweepArtifact, load_artifact
+from lpspec.archive import SolveArchive, SweepArchive, load_archive
 from lpspec.errors import (
     DataError,
     DimensionError,
@@ -55,11 +55,11 @@ __all__ = [
     'Result',
     'Runs',
     'SchemaError',
-    'SolveArtifact',
-    'SweepArtifact',
+    'SolveArchive',
+    'SweepArchive',
     'build',
     'check',
-    'load_artifact',
+    'load_archive',
     'load_result',
     'load_runs',
     'solve',
