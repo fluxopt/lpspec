@@ -164,9 +164,14 @@ def test_a_zip_outside_the_layout_is_refused(members: dict[str, bytes], says: st
 
 
 def test_a_lowered_program_is_refused_by_name(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
-    """A lowered program has no file to write, and the docstring says so; the refusal says it too."""
+    """Lowering has no inverse, and the refusal names the argument to change.
+
+    The one surprise the artifact cannot design away: a Program builds and
+    solves, so nothing fails until the save. So the message says which earlier
+    call to keep the spec from, rather than only what is wrong here.
+    """
     out = tmp_path / 'dispatch.zip'
-    with pytest.raises(lps.LpspecError, match='a lowered Program has no file to write'):
+    with pytest.raises(lps.LpspecError, match='Pass what it was lowered from'):
         lps.SolveArtifact(lps.check(dispatch_yaml), dispatch_frame_inputs).save(out)
     assert not out.exists(), 'nothing is written'
 
@@ -390,6 +395,6 @@ def _by_scenario(names: list[str]) -> pl.DataFrame:
 
 
 def test_a_lowered_program_is_refused_by_name_too(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
-    """A lowered program has no file to write, and the refusal says so."""
-    with pytest.raises(lps.LpspecError, match='a lowered Program has no file to write'):
+    """A sweep refuses it at the same door, with the same sentence."""
+    with pytest.raises(lps.LpspecError, match='Pass what it was lowered from'):
         lps.SolveArtifact(lps.check(dispatch_yaml), dispatch_frame_inputs)

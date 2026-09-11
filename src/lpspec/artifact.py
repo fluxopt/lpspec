@@ -218,8 +218,10 @@ def _load_the_spec(artifact: SolveArtifact | SweepArtifact) -> None:
     """
     if isinstance(artifact.spec, Program):
         raise LpspecError(
-            'an artifact holds the model as written — a path, a mapping or a Spec — and a lowered '
-            'Program has no file to write. Pass what it was lowered from.'
+            'an artifact holds the model as written — a path, a mapping or a Spec — and a lowered Program '
+            'cannot be written back out as one. Pass what it was lowered from: whatever was handed to '
+            'lps.check() or math_spec.to_program() is what an archive holds, and the Program stays the '
+            'argument to build() and solve().'
         )
     object.__setattr__(artifact, 'spec', to_spec(artifact.spec))
 

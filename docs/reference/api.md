@@ -71,6 +71,13 @@ lps.solve(checked, sources)  # a Program is passed through, not re-lowered
 to_spec(spec).to_yaml()  # the review copy — a dict-built spec still gets a file
 ```
 
+**A lowered `Program` cannot be archived, so keep what it was lowered from.**
+Lowering has no inverse — a `Program` is the math with the macros already
+expanded, and nothing writes one back out as a file — so
+[an artifact](#archiving-a-model) refuses one and an answer solved off one
+carries no `spec_digest`. Pass the `Program` to `build` and `solve` for the
+speed; pass the path, mapping or `Spec` it came from to `SolveArtifact`.
+
 **A framework emits data, not YAML text, and never merges files.** A generated
 spec must be able to show you a file. Hand-written math still starts as one.
 
