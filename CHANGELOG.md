@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.322](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.321...v0.0.1-alpha.322) (2026-09-12)
+
+
+### Features
+
+* **api:** an archive records how big the model was and how long it took ([#1598](https://github.com/fluxopt/lpspec/issues/1598)) ([80f6a6e](https://github.com/fluxopt/lpspec/commit/80f6a6efd11fffc50242626bd20db722a401a772))
+
 ## [0.0.1-alpha.321](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.320...v0.0.1-alpha.321) (2026-09-12)
 
 

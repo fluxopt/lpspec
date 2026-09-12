@@ -22,6 +22,7 @@ case/
     sources/load.parquet
     …
     answer/objective.parquet      how it terminated, and what it reached
+    answer/diagnostics.parquet    what the build and its solves spent
     answer/primal/p.parquet       one file per variable
     answer/dual/power_balance.parquet
 ```
@@ -51,6 +52,39 @@ lps.solve(case.spec, case.sources)  # the same question, asked again
 
 `case.spec` and `case.sources` are the pair every verb takes, so asking again
 is the call you made the first time.
+
+## Read what a solve cost
+
+`diagnostics` is one row: how big the model was, how many solves the archive
+covers, and wall-clock seconds in each phase.
+
+```python
+case = lps.load_archive('case/')
+# columns, rows, nonzeros, sink_columns, sink_rows, solves, loads, attach, build, handoff, solve, write
+case.diagnostics
+```
+
+This is the one part of an archive that re-solving cannot give back. The
+clocks are of the machine that ran them, so nothing recovers them later.
+
+**The row covers the model's whole life, and `solves` says how long that is.**
+`lps.solve` builds the model it solves, so its archive reads `solves` of 1 and
+the clocks are that answer's own. A model solved more than once before it was
+archived carries the sum:
+
+```python
+with lps.build('dispatch.yaml', sources) as model:
+    model.solve()
+    model.solve(archive='second/')  # solves: 2, and the clocks cover both
+```
+
+**A phase the build never entered writes zero**, so cases that ran different
+phases still concatenate into one table.
+
+**A sweep records the same columns per slice**, at `runs.diagnostics` rather
+than beside the answer. A fold knows where one slice's share of the clocks
+begins. A single `Result` does not: it is one solve of a model that may have
+had many, so it carries no such number.
 
 **A zip needs somewhere to unpack.** Nothing is read at load. The sources come
 back as paths, and each frame is read off disk only when you ask for it. A
@@ -152,6 +186,15 @@ Every frame is tidy: the model's own dimension columns, and a `value` column.
 So `study/answer/primal/p/*.parquet` is the variable `p` over every slice, and
 joins to the rest on those columns. A zip has to go through `load_archive`
 first, because no query engine reads inside one.
+
+The cost rows read the same way. Over a directory of archives they are the
+table that says which cases are growing, and where the time goes:
+
+```sql
+select filename, rows, nonzeros, build, solve
+from read_parquet('runs/*/answer/diagnostics.parquet', filename = true)
+order by build + solve desc;
+```
 
 ## What an archive will not take
 
