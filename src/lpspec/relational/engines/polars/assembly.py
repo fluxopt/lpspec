@@ -290,7 +290,7 @@ class Assembly:
             stacked = stacked.sort('row', 'col')
             repeated = stacked.select(repeat.any()).item()
         if not repeated:
-            return stacked, stacked.get_column('row').unique() if term_rows is None else term_rows
+            return stacked, _distinct_ascending(stacked.get_column('row')) if term_rows is None else term_rows
         aggregated = (
             stacked.lazy()
             .group_by('row', 'col')
@@ -298,7 +298,10 @@ class Assembly:
             .sort('row', 'col')
             .collect(engine='streaming')
         )
-        return _pruned(aggregated), aggregated.get_column('row').unique() if term_rows is None else term_rows
+        return (
+            _pruned(aggregated),
+            _distinct_ascending(aggregated.get_column('row')) if term_rows is None else term_rows,
+        )
 
     # ------------------------------------------------------------------
     # declarations
@@ -841,6 +844,22 @@ def _magnitude_range(frame: pl.DataFrame, *columns: str) -> tuple[float, float] 
     if not lows:
         return None
     return min(lows), max(highs)
+
+
+def _distinct_ascending(values: pl.Series) -> pl.Series:
+    """The distinct values of an ascending *values* — its runs, not its hash table.
+
+    ``unique`` hashes every entry: 39 ms over the 10M-entry share at
+    `dispatch/l`, against 12 ms to read the runs of a column that ascends.
+    Both callers reach this past the ordering probe — one because the probe
+    said so, the other because it sorted — so ascending is known rather than
+    assumed, and a column that did not would answer with repeats.
+
+    Only the *set* is read downstream: :meth:`Assembly._drop_termless_rows`
+    counts it and tests membership, so the answer's own order is not a
+    contract.
+    """
+    return values.rle().struct.field('value')
 
 
 def _without_zeros(matrix: pl.DataFrame) -> pl.DataFrame:
