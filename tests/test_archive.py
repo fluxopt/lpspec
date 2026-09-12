@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import zipfile
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -324,7 +325,8 @@ def test_an_archive_records_what_reaching_its_answer_cost(
         'handoff',
         'solve',
         'write',
-    ], 'the sizes, then the counters, then one clock per phase in the order the phases run'
+        'run',
+    ], 'the sizes, the counters, one clock per phase in the order the phases run, then the run that spent them'
     assert cost.height == 1, 'one solve writes one row'
     row = cost.row(0, named=True)
     assert (row['solves'], row['loads']) == (1, 1), (
@@ -433,6 +435,68 @@ def test_an_updated_model_archives_the_data_it_actually_answered(
         )
 
 
+@pytest.mark.parametrize('sweep', [False, True], ids=['one solve', 'a sweep'])
+def test_every_archive_holds_one_objective_file_whatever_wrote_it(
+    sweep: bool, dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """One glob over a warehouse of runs has to find every one of them.
+
+    A spill writes the record one file per slice because the objective file's
+    existence is how a resumed sweep knows a slice finished. An archive has no
+    resume to serve, and a directory beside a file means no single pattern
+    matches both — and the pattern that matches one of them returns half a
+    warehouse without saying so.
+    """
+    out = tmp_path / 'run'
+    if sweep:
+        sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high', 'mid'])}
+        lps.solve_over(dispatch_yaml, sources, lps.EachCoordinate('scenario'), archive=out)
+    else:
+        with lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out):
+            pass
+
+    answer = out / 'answer'
+    assert (answer / 'objective.parquet').is_file(), 'the record is one file, whichever verb wrote it'
+    assert not (answer / 'objective').exists(), 'and not a directory beside it'
+    assert (answer / 'diagnostics.parquet').is_file(), 'the cost row goes the same way'
+    assert not (answer / 'diagnostics').exists(), 'and not a directory beside it either'
+    assert pl.read_parquet(answer / 'objective.parquet').height == (3 if sweep else 1), 'one row per slice'
+
+
+def test_an_archive_stamps_its_own_name_and_when_the_solve_returned(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The two columns a warehouse of runs is keyed and ordered by.
+
+    Neither can come from the solve alone: the name is the archive's, chosen
+    when it is published, and a reader left to recover either from the file
+    paths is parsing a convention rather than reading data.
+    """
+    before = datetime.now(UTC)
+    with lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'nightly-2026-09-10.zip') as solved:
+        reached = solved.solved_at
+    lps.load_archive(tmp_path / 'nightly-2026-09-10.zip', tmp_path / 'out')
+    record = pl.read_parquet(tmp_path / 'out' / 'answer' / 'objective.parquet')
+
+    assert record['run'].to_list() == ['nightly-2026-09-10'], "the archive's own name, suffix dropped"
+    assert record['solved_at'].item() == reached, 'and when the solver returned, as the result reports it'
+    assert before <= record['solved_at'].item() <= datetime.now(UTC), 'which is a real clock, not a placeholder'
+
+
+def test_a_saved_answer_that_was_never_archived_names_no_run(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """`run` is the publisher's, so a bare `save` leaves it null rather than inventing one.
+
+    The column is still there: one schema whether or not an archive was
+    written, so the two concatenate.
+    """
+    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+        record = pl.read_parquet(solved.save(tmp_path / 'answer') / 'objective.parquet')
+    assert record['run'].to_list() == [None], 'nothing published it, so nothing named it'
+    assert record.schema['run'] == pl.String, 'and the column is a string either way, never an all-null one'
+
+
 def test_a_scenario_sweep_is_an_artifact_and_runs_again(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
@@ -447,7 +511,10 @@ def test_a_scenario_sweep_is_an_artifact_and_runs_again(
     study = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'study')
 
     assert study.axis == axis, 'the axis comes back as the value it went in as'
-    assert study.answer.objective.equals(runs.objective)
+    assert study.answer.objective.drop('run').equals(runs.objective.drop('run'))
+    assert study.answer.objective['run'].unique().to_list() == ['study'], (
+        'and the archive stamped its own name on every slice, which the sweep in memory had none of'
+    )
     assert pl.read_parquet(study.sources['load']).equals(sources['load']), (
         'the sliced source is archived whole, the column the axis cuts on included'
     )

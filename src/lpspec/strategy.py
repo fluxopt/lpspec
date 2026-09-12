@@ -42,11 +42,14 @@ from lpspec.frames import as_frame
 from lpspec.lanes import declared
 from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational.parquet import (
+    COST_FILE,
     KINDS,
     LABELS,
+    RECORD_FILE,
     RECORD_SCHEMA,
     Record,
     check_format,
+    consolidated,
     read_reasons,
     reader_kind,
     write_format,
@@ -1121,8 +1124,8 @@ def load_runs(directory: str | Path) -> Runs:
 
     Raises:
         LayoutError: A directory holding no ``sweep.json``, which is what
-            every sweep written there carries, or one whose layout has moved
-            since it was written.
+            every sweep written there carries, one missing a record every
+            fold writes, or one whose layout has moved since it was written.
     """
     under = Path(directory)
     manifest = under / _MANIFEST_FILE
@@ -1136,11 +1139,12 @@ def load_runs(directory: str | Path) -> Runs:
     original = found['original']
     no_duals, no_expressions = read_reasons(under)
     key_name = found['key_name']
-    objective = pl.read_parquet(sorted((under / 'objective').glob('*.parquet')))
+    objective = consolidated(under, RECORD_FILE)
+    diagnostics = consolidated(under, COST_FILE)
     return Runs(
         key_name=key_name,
         objective=objective,
-        diagnostics=pl.read_parquet(sorted((under / 'diagnostics').glob('*.parquet'))),
+        diagnostics=diagnostics,
         _no_duals=no_duals,
         _no_expressions=no_expressions,
         _original=None
@@ -1548,7 +1552,11 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
     sentence saying why, so it is caught and carried rather than rewritten.
     """
     meta = Record.of(
-        result.termination_condition, result.objective, has_primal=result.has_primal, spec_digest=result.spec_digest
+        result.termination_condition,
+        result.objective,
+        has_primal=result.has_primal,
+        spec_digest=result.spec_digest,
+        solved_at=result.solved_at,
     )
     if not result.has_primal:
         return _Answer(meta, cost, {}, {}, {}, None, {})

@@ -23,14 +23,16 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+import polars as pl
+
 from lpspec.errors import LayoutError
 from lpspec.lanes import lowered
+from lpspec.relational.parquet import COST_FILE, RECORD_FILE, consolidated
 from lpspec.sources import supplied, tidy_sources
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
-    import polars as pl
     from math_spec import Spec
 
     from lpspec.lanes import Source
@@ -155,9 +157,7 @@ def write_archive(
         if axis is not None:
             members.put(AXIS_MEMBER, json.dumps(axis).encode())
         if answer is not None:
-            for file in sorted(answer.rglob('*')):
-                if file.is_file():
-                    members.copy(file, str(ANSWER_DIR / file.relative_to(answer).as_posix()))
+            _put_the_answer(members, answer, run=out.name.removesuffix('.zip'))
         members.close()
     except BaseException:
         members.discard()
@@ -168,6 +168,34 @@ def write_archive(
     part.replace(out)
     staging.rmdir()
     return out
+
+
+def _put_the_answer(members: _Members, answer: Path, *, run: str) -> None:
+    """*answer*'s layout into *members*, its record consolidated and stamped with *run*.
+
+    The frames are copied as they lie — a spilled sweep is archived without
+    being re-materialised, which is what serves the sweep too large to hold.
+    The record and the diagnostics are not: a spill writes them one file per
+    slice because the objective file's existence is how a resume knows a slice
+    finished, and an archive has no resume to serve. One file each instead, so
+    that one glob over a warehouse finds every run whether a solve or a sweep
+    wrote it.
+
+    *run* is written onto both here rather than by whatever solved, because
+    the name is the publisher's: it is the archive's own, and nothing before
+    this point knows it. Onto both, so that a table concatenated from a
+    warehouse can attribute a slice's cost as readily as its answer.
+    """
+    consolidating = (RECORD_FILE, COST_FILE)
+    for file in consolidating:
+        stamped = consolidated(answer, file).with_columns(pl.lit(run, dtype=pl.String).alias('run'))
+        buffer = io.BytesIO()
+        stamped.write_parquet(buffer, compression='zstd')
+        members.put(str(ANSWER_DIR / file), buffer.getvalue())
+    apart = {*consolidating, *(file.removesuffix('.parquet') for file in consolidating)}
+    for path in sorted(answer.rglob('*')):
+        if path.is_file() and path.relative_to(answer).parts[0] not in apart:
+            members.copy(path, str(ANSWER_DIR / path.relative_to(answer).as_posix()))
 
 
 class _Members:
