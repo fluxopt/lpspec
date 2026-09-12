@@ -1124,8 +1124,8 @@ def load_runs(directory: str | Path) -> Runs:
 
     Raises:
         LayoutError: A directory holding no ``sweep.json``, which is what
-            every sweep written there carries, or one whose layout has moved
-            since it was written.
+            every sweep written there carries, one missing a record every
+            fold writes, or one whose layout has moved since it was written.
     """
     under = Path(directory)
     manifest = under / _MANIFEST_FILE
@@ -1141,13 +1141,6 @@ def load_runs(directory: str | Path) -> Runs:
     key_name = found['key_name']
     objective = consolidated(under, RECORD_FILE)
     diagnostics = consolidated(under, COST_FILE)
-    if objective is None or diagnostics is None:
-        missing = [name for name, held in (('objective', objective), ('diagnostics', diagnostics)) if held is None]
-        raise LayoutError(
-            f'{str(under)!r} carries a sweep manifest but no {" or ".join(missing)} beside it, so it is not '
-            f'a sweep this package wrote. Both are written per slice as the fold goes, whether or not a '
-            f'slice produced values, and an archive holds each as one file.'
-        )
     return Runs(
         key_name=key_name,
         objective=objective,

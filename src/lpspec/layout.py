@@ -188,10 +188,10 @@ def _put_the_answer(members: _Members, answer: Path, *, run: str) -> None:
     """
     consolidating = (RECORD_FILE, COST_FILE)
     for file in consolidating:
-        if (table := consolidated(answer, file)) is not None:
-            buffer = io.BytesIO()
-            table.with_columns(pl.lit(run, dtype=pl.String).alias('run')).write_parquet(buffer, compression='zstd')
-            members.put(str(ANSWER_DIR / file), buffer.getvalue())
+        stamped = consolidated(answer, file).with_columns(pl.lit(run, dtype=pl.String).alias('run'))
+        buffer = io.BytesIO()
+        stamped.write_parquet(buffer, compression='zstd')
+        members.put(str(ANSWER_DIR / file), buffer.getvalue())
     apart = {*consolidating, *(file.removesuffix('.parquet') for file in consolidating)}
     for path in sorted(answer.rglob('*')):
         if path.is_file() and path.relative_to(answer).parts[0] not in apart:

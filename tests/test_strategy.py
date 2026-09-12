@@ -1506,7 +1506,7 @@ def test_a_sweep_directory_missing_its_record_is_refused_by_name(lost: str, tmp_
     assert lps.load_runs(out._spill.directory).objective.height == 3, 'the whole one reads back first'
     shutil.rmtree(out._spill.directory / lost)
 
-    with pytest.raises(lps.LayoutError, match=f'no {lost} beside it'):
+    with pytest.raises(lps.LayoutError, match=f"no '{lost}.parquet'"):
         lps.load_runs(out._spill.directory)
 
 

@@ -128,11 +128,8 @@ class Record(NamedTuple):
     #: What the archive holding this answer was called — its file name without
     #: a ``.zip``, so ``runs/nightly-2026-09-10.zip`` writes
     #: ``nightly-2026-09-10`` and a directory called ``case.v2`` keeps both
-    #: halves of its name. Stamped
-    #: when the archive is written and null until then, because the name is
-    #: the publisher's rather than the solve's. It is the column a warehouse
-    #: of runs joins on, which is why it is here and not left to whoever
-    #: parses the file paths.
+    #: halves of its name. Stamped when the archive is written and null until
+    #: then, because the name is the publisher's rather than the solve's.
     run: str | None = None
 
     @classmethod
@@ -143,7 +140,7 @@ class Record(NamedTuple):
         *,
         has_primal: bool,
         spec_digest: str | None,
-        solved_at: datetime | None = None,
+        solved_at: datetime | None,
     ) -> Record:
         """The row a solve that terminated this way writes.
 
@@ -277,7 +274,7 @@ COST_FILE = 'diagnostics.parquet'
 REASONS_FILE = 'reasons.parquet'
 
 
-def consolidated(under: Path, file: str) -> pl.DataFrame | None:
+def consolidated(under: Path, file: str) -> pl.DataFrame:
     """The table *file* names under *under*, whichever shape wrote it, as one frame.
 
     A spill writes it one file per slice under a directory named for what the
@@ -293,16 +290,23 @@ def consolidated(under: Path, file: str) -> pl.DataFrame | None:
 
     Reads both shapes, so one reader serves an archive and the spill it was
     packed from. Rows stay in slice order, the files being named by position.
-    ``None`` where there is nothing under either name — a directory that is
-    not a sweep this package wrote, or an answer saved without the cost row
-    only the model that holds the build can record.
+
+    Raises:
+        LayoutError: Neither shape is under *under*. Every record here is
+            written as the fold goes, whether or not a slice produced values,
+            so a directory holding neither was not written by this package.
     """
+    apart = file.removesuffix('.parquet')
     if (single := under / file).is_file():
         frames = [pl.read_parquet(single)]
-    elif (many := under / file.removesuffix('.parquet')).is_dir():
+    elif (many := under / apart).is_dir():
         frames = [pl.read_parquet(path) for path in sorted(many.glob('*.parquet'))]
     else:
-        return None
+        raise LayoutError(
+            f'{str(under)!r} holds no {file!r} and no {apart!r} beside it, so it is not a sweep or a saved '
+            f'answer this package wrote. Every record here is written as the fold goes — one file, or one '
+            f'per slice — whether or not a slice produced values.'
+        )
     return pl.concat(frames)
 
 
