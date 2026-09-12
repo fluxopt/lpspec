@@ -22,12 +22,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import polars as pl
 from math_spec import to_spec
 
 from lpspec.api import load_result
-from lpspec.errors import LpspecError
+from lpspec.errors import LayoutError, LpspecError
 from lpspec.layout import ANSWER_DIR, AXIS_MEMBER, MODEL_MEMBER, is_source_member, members_of, opened
-from lpspec.relational.parquet import digest_of
+from lpspec.relational.parquet import COST_FILE, digest_of
 from lpspec.strategy import EachCoordinate, EachWindow, Runs, axis_from, load_runs
 
 if TYPE_CHECKING:
@@ -55,11 +56,21 @@ class SolveArchive:
             holds — a ``Path`` being a source like any other, so attaching
             streams them from disk.
         answer: What came back.
+        diagnostics: One :class:`~lpspec.relational.parquet.Cost` row — what
+            the build and its solves spent reaching that answer. Beside
+            :attr:`answer` rather than on it, which is the asymmetry with
+            :class:`SweepArchive`, where ``answer.diagnostics`` carries the
+            same columns one per slice: a :class:`~lpspec.strategy.Runs` is a
+            fold and knows each slice's share of a cumulative reading, where a
+            :class:`~lpspec.relational.result.Result` is one solve of a model
+            that may have had many and could only hold a number it has no way
+            to attribute.
     """
 
     spec: Spec
     sources: Mapping[str, Source]
     answer: Result
+    diagnostics: pl.DataFrame
 
     def __post_init__(self) -> None:
         """Refuse an archive whose answer names a different model than its own."""
@@ -116,6 +127,25 @@ def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
         )
 
 
+def _cost_in(answer: Path) -> pl.DataFrame:
+    """The cost row *answer* holds, read whole — it is one row.
+
+    Raises:
+        LayoutError: An answer with no cost row, which is every archive
+            written before one was recorded. The stamp beside it cannot say
+            so: the layout number is held at zero while the layout moves.
+    """
+    file = answer / COST_FILE
+    if not file.is_file():
+        raise LayoutError(
+            f'{str(answer)!r} holds no {COST_FILE!r}, so this archive was written before one recorded what '
+            f'its solve cost. What a build and its solves spent is of the machine that ran them and cannot '
+            f'be recovered by re-solving here; everything else in the archive can, and solving the model it '
+            f'holds again writes an archive that carries both.'
+        )
+    return pl.read_parquet(file)
+
+
 def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchive | SweepArchive:
     """Read back an archive an ``archive=`` wrote.
 
@@ -132,13 +162,15 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
     Returns:
         A :class:`SweepArchive` where the archive carries an axis and a
         :class:`SolveArchive` where it does not, holding the model as written,
-        its sources keyed as the file declares them, and the answer.
+        its sources keyed as the file declares them, the answer, and what
+        reaching it cost.
 
     Raises:
         LanguageError: A ``model.yaml`` the language does not accept.
         LayoutError: A member outside the layout, a zip with no *into*, an
-            *into* given for a directory, or an answer whose layout has moved
-            since it was written. Nothing is unpacked.
+            *into* given for a directory, an answer whose layout has moved
+            since it was written, or one holding no cost row. Nothing is
+            unpacked.
         LpspecError: An answer that names a different model than the one
             beside it.
         zipfile.BadZipFile: A file that is not a zip archive.
@@ -148,6 +180,6 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
     sources = {m.stem: under / m for m in members_of(under) if is_source_member(m)}
     axis_member = under / AXIS_MEMBER
     if not axis_member.is_file():
-        return SolveArchive(spec, sources, load_result(under / ANSWER_DIR))
+        return SolveArchive(spec, sources, load_result(under / ANSWER_DIR), _cost_in(under / ANSWER_DIR))
     axis = axis_from(json.loads(axis_member.read_text()))
     return SweepArchive(spec, sources, axis, load_runs(under / ANSWER_DIR))

@@ -198,11 +198,53 @@ def _column_types(record: type[NamedTuple]) -> dict[str, type[pl.DataType]]:
 RECORD_SCHEMA = _column_types(Record)
 
 
-#: The two files that sit beside the frames, named here because a result and a
-#: sweep both write them and :func:`lpspec.archive.load_archive` reads back
-#: whichever wrote: the record of how the solve terminated, and the reasons
-#: behind whatever is deliberately not there.
+class Cost(NamedTuple):
+    """What a build and its solves spent, as the row an archive records beside the answer.
+
+    :class:`Record`'s sibling — one says how the solve terminated, this says
+    what reaching that cost — and the same columns whoever writes them, so
+    rows written by runs that never met concatenate into one table.
+
+    The scalars of :class:`~lpspec.relational.result.Diagnostics` and none of
+    its frames: a coefficient range is a table per declaration, which does not
+    fold into a row beside a count.
+
+    **Cumulative over the model's life**, as every counter it is read off is.
+    :attr:`solves` is what says how many solves the clocks cover, so a row can
+    never quietly mean something other than what it holds — it reads ``1`` for
+    the archive :func:`lpspec.solve` writes, that verb building the model it
+    solves.
+    """
+
+    columns: int
+    rows: int
+    nonzeros: int
+    sink_columns: int
+    sink_rows: int
+    solves: int
+    loads: int
+    #: Wall-clock seconds in each phase a build clocks, in the order they run.
+    #: A phase that never ran writes zero rather than no column: the point of
+    #: the row is that a directory of them is a table.
+    attach: float
+    build: float
+    handoff: float
+    solve: float
+    write: float
+
+
+#: :class:`Cost`'s columns as they are written, for :data:`RECORD_SCHEMA`'s
+#: reason: a clock that happened to be zero would otherwise infer to the type
+#: its own single row suggests.
+COST_SCHEMA = _column_types(Cost)
+
+
+#: The three files that sit beside the frames, named here because a result and
+#: a sweep both write them and :func:`lpspec.archive.load_archive` reads back
+#: whichever wrote: the record of how the solve terminated, what reaching it
+#: cost, and the reasons behind whatever is deliberately not there.
 RECORD_FILE = 'objective.parquet'
+COST_FILE = 'diagnostics.parquet'
 REASONS_FILE = 'reasons.parquet'
 
 
@@ -218,7 +260,7 @@ def clear_the_answer(directory: Path) -> None:
 
     for kind in (*KINDS, 'activity'):
         shutil.rmtree(directory / kind, ignore_errors=True)
-    for member in (RECORD_FILE, REASONS_FILE, FORMAT_FILE):
+    for member in (RECORD_FILE, COST_FILE, REASONS_FILE, FORMAT_FILE):
         (directory / member).unlink(missing_ok=True)
 
 
