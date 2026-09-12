@@ -119,6 +119,51 @@ def build_and_emit(sink: str, prepared: tuple[Path, dict[str, str]]) -> Counts:
         return _counts(_tables(model), nonzeros=True)
 
 
+def _loaded(sink: str, model: Any) -> Any:
+    """A solver holding *model*, for a sink that has one."""
+    if sink == 'gurobi':
+        from lpspec.relational.sinks.solvers.gurobi import build_gurobi
+
+        return build_gurobi(_tables(model))
+    from lpspec.relational.sinks.solvers.highs import build_highs
+
+    return build_highs(_tables(model))
+
+
+def window(sink: str, prepared: tuple[Path, dict[str, str]]) -> Any:
+    """Window one, built and loaded before the clock; what every later one costs.
+
+    A rolling horizon re-attaches data of the same shape and never reloads the
+    solver: ``update`` rebuilds the tables against the new numbers and ``push``
+    replaces the bounds, costs and right-hand sides on the model the solver
+    already holds. That is the path ``solve()`` takes whenever a rebuild leaves
+    the structure digest where it was, and refusing it is a reload — which is
+    what ``build_and_emit`` measures and what the other arm has to do every
+    window.
+
+    **The same sources are re-attached, not perturbed ones.** What an update
+    costs is the shape of the data, not its values, and generating a second set
+    inside the clock would charge this arm for the harness's work. The digest
+    matches either way, so the path taken is the one a driver takes.
+
+    Nothing is released: the model and its solver are what a rolling horizon
+    holds between windows, so the peak this measurement reports should include
+    them. The pass is isolated, so the process carries them away.
+    """
+    import lpspec as lps
+
+    spec, sources = prepared
+    model = lps.build(spec, sources)
+    solver = _loaded(sink, model)
+
+    def step() -> Counts:
+        model.update(sources)
+        solver.push(_tables(model))
+        return _counts(_tables(model), nonzeros=True)
+
+    return step
+
+
 def build_only(prepared: tuple[Path, dict[str, str]]) -> Counts:
     """Just the build — no sink, nothing to release."""
     import lpspec as lps
