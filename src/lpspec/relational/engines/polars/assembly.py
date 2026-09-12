@@ -842,7 +842,7 @@ def _ordered_rows(matrix: pl.DataFrame) -> pl.Series:
     ``#ordered`` probe returned true, or the sort ran, or the aggregate ended
     on ``sort('row', 'col')``. Telling polars so turns the distinct pass from a
     hash build into a walk of the run boundaries, 3.4 ms to 1.0 ms at 1M
-    entries over 10k rows.
+    entries over 10k rows (#1589).
 
     ``set_sorted`` is an assertion, not a check: on a column that is not
     ascending it returns whichever labels the walk happens to see, which is a
@@ -859,8 +859,14 @@ def _repeats_a_label(labels: pl.Series, count: int) -> bool:
     The question is a yes/no, and hashing every entry to answer it costs more
     than the aggregate it guards on a stack that has no repeat at all. Labels
     are the solver's own indices, so they index a scratch bitmap directly:
-    9.8 ms to 3.8 ms at 1M entries, and the same answer on every case in
-    ``bench/``.
+    13.8 ms to 4.4 ms at 1M entries over 1M columns, and the same answer on
+    every case in ``bench/`` (#1589).
+
+    The count is ``count_nonzero`` rather than ``sum``: the pass is over the
+    *bitmap*, so it costs the column count whatever the objective's density,
+    and a sparse objective on a wide model is where that shows — 1.7 ms
+    against ``n_unique``'s 1.3 ms at 100k entries over 10M columns, where
+    ``sum`` took 6.5.
 
     *count* must exceed every label — it is the declaration counter the labels
     were drawn from, so a caller passing a stale one indexes out of bounds and
@@ -868,7 +874,7 @@ def _repeats_a_label(labels: pl.Series, count: int) -> bool:
     """
     seen = np.zeros(count, dtype=bool)
     seen[labels.to_numpy()] = True
-    return int(seen.sum()) != labels.len()
+    return int(np.count_nonzero(seen)) != labels.len()
 
 
 def _pruned(matrix: pl.DataFrame) -> pl.DataFrame:
