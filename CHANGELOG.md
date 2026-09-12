@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.323](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.322...v0.0.1-alpha.323) (2026-09-12)
+
+
+### Features
+
+* **api:** an archived answer says which run it came from and when, in one record file ([#1585](https://github.com/fluxopt/lpspec/issues/1585)) ([650a3ad](https://github.com/fluxopt/lpspec/commit/650a3ad41a8bd8704a9bd2772f0fcf04994390e1))
+
 ## [0.0.1-alpha.322](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.321...v0.0.1-alpha.322) (2026-09-12)
 
 
