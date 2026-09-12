@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from lpspec.errors import LayoutError
 from lpspec.lanes import lowered
+from lpspec.relational.parquet import digest_of_bytes, digest_of_file
 from lpspec.sources import supplied, tidy_sources
 
 if TYPE_CHECKING:
@@ -39,6 +40,10 @@ if TYPE_CHECKING:
 #: archive holds, a sweep being the one whose sources are cut.
 MODEL_MEMBER = 'model.yaml'
 AXIS_MEMBER = 'axis.json'
+#: ``(source, digest)`` for every member of ``sources/``, beside the directory
+#: rather than in it: anything under ``sources/`` is a source table keyed by
+#: its stem, so a table *about* them cannot live there.
+DIGESTS_MEMBER = 'sources.parquet'
 SOURCES_DIR = PurePosixPath('sources')
 ANSWER_DIR = PurePosixPath('answer')
 
@@ -141,6 +146,7 @@ def write_archive(
     members = _Members.under(part, zipped=out.suffix == '.zip')
     try:
         members.put(MODEL_MEMBER, spec.to_yaml().encode())
+        digests: dict[str, str] = {}
         for name, frame in frames.items():
             if name not in sources:
                 continue
@@ -148,10 +154,13 @@ def write_archive(
             given = sources[name]
             if isinstance(given, (str, Path)):
                 members.copy(Path(given), member)
+                digests[name] = digest_of_file(Path(given))
             else:
                 buffer = io.BytesIO()
                 whole.get(name, frame).collect().write_parquet(buffer, compression='zstd')
                 members.put(member, buffer.getvalue())
+                digests[name] = digest_of_bytes(buffer.getvalue())
+        members.put(DIGESTS_MEMBER, _digest_table(digests))
         if axis is not None:
             members.put(AXIS_MEMBER, json.dumps(axis).encode())
         if answer is not None:
@@ -168,6 +177,23 @@ def write_archive(
     part.replace(out)
     staging.rmdir()
     return out
+
+
+def _digest_table(digests: Mapping[str, str]) -> bytes:
+    """``(source, digest)`` as parquet bytes, in source order.
+
+    Sorted so one model's data digests to one table whoever assembled the
+    sources, a mapping's order being the caller's and not the model's.
+    """
+    import polars as pl
+
+    frame = pl.DataFrame(
+        {'source': sorted(digests), 'digest': [digests[name] for name in sorted(digests)]},
+        schema={'source': pl.String, 'digest': pl.String},
+    )
+    buffer = io.BytesIO()
+    frame.write_parquet(buffer)
+    return buffer.getvalue()
 
 
 class _Members:
@@ -290,7 +316,7 @@ def is_source_member(member: PurePosixPath) -> bool:
 
 def _in_the_layout(member: PurePosixPath) -> bool:
     return (
-        member in (PurePosixPath(MODEL_MEMBER), PurePosixPath(AXIS_MEMBER))
+        member in (PurePosixPath(MODEL_MEMBER), PurePosixPath(AXIS_MEMBER), PurePosixPath(DIGESTS_MEMBER))
         or is_source_member(member)
         or ANSWER_DIR in member.parents
     )
@@ -300,6 +326,6 @@ def _not_an_archive_message(path: str | Path, strays: list[str]) -> str:
     found = f'holds {strays}' if strays else "has no 'model.yaml'"
     return (
         f'{path} is not an archive: it {found}. One that archive= writes holds exactly '
-        f"'model.yaml', one 'sources/<key>.parquet' per key the file declares, 'answer/' holding what the "
-        f"solve returned, and 'axis.json' where its sources are sliced."
+        f"'model.yaml', one 'sources/<key>.parquet' per key the file declares, 'sources.parquet' digesting "
+        f"them, 'answer/' holding what the solve returned, and 'axis.json' where its sources are sliced."
     )

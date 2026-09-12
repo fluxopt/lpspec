@@ -417,10 +417,11 @@ lps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
 **An archive is the model, its data and its answer**: `model.yaml`,
-`sources/<key>.parquet` for every key the file declares, `answer/` holding what
-`result.save` or `runs.save` writes, and `axis.json` for a sweep. Beside the
-answer is `answer/diagnostics.parquet`, one row saying what the build and its
-solves spent, which the verb writes rather than `save`.
+`sources/<key>.parquet` for every key the file declares, `sources.parquet`
+digesting those members, `answer/` holding what `result.save` or `runs.save`
+writes, and `axis.json` for a sweep. Beside the answer is
+`answer/diagnostics.parquet`, one row saying what the build and its solves
+spent, which the verb writes rather than `save`.
 
 **The suffix decides the container**, as `lps.write`'s does. `.zip` packs those
 members into one file, to send or to store; anything else lays them out in a
@@ -441,9 +442,10 @@ only read — so there is no default, and passing none is refused by name.
 `lps.solve`, `model.solve` and `lps.solve_over` each hold the model, the data
 and the answer at the moment they are asked for, so the three are written
 together and cannot be paired up wrongly. There is no way to assemble them
-afterwards, because the pairing an assembled one asserts is one nothing could
-check: two solves of one model differ only in their data, and the data is not
-digested.
+afterwards: an answer records the spec it came back from and not the data it
+was solved over, so nothing in a hand-assembled archive could show that its
+answer is the one those sources produce. The digests say which data an archive
+*holds*, which is a different claim.
 
 **A sweep's archive carries its axis**, as `axis.json`, because its sources
 are cut: they hold the column the axis slices on, which the model does not
@@ -490,6 +492,7 @@ rows.
 | **the model is held as written** | `model.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in. A lowered `Program` is refused: it has no file to write |
 | **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving and counting from `1` the day it settles. Nothing reads an older layout back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the model and the data to do that with |
 | **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an archive is read back. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an archive whose answer names another model is refused rather than read. A solve run off a lowered `Program` has no document and carries `None`, which counts as its own value — so one null among real digests breaks the comparison, and a table where *every* digest is null counts one distinct value while having checked nothing. Ask for the digests to be present as well as to agree: `n_unique() == 1 and null_count() == 0` |
+| **the sources are digested, one row each** | `archive.source_digests` is `(source, digest)` for every member of `sources/`, held as `sources.parquet` beside that directory — inside it, a table about the sources would be read as one of them. It answers what `spec_digest` cannot: two archives of one document over different numbers agree on the spec digest and differ here, and the rows that differ name the input that moved. The digest is of the bytes the archive holds, so a reader can recompute it from the archive alone; two archives of the same data written by different polars versions can still differ, parquet being what is hashed rather than the table's meaning. Reading an archive does not verify them — that is a pass over every byte it holds, and it is the caller's to ask for |
 | **the cost row is written by the solve, not by `save`** | `archive.diagnostics` is one row of `model.diagnostics()`'s sizes, counters and clocks, and `answer/diagnostics.parquet` is where it sits. A `Result` is one solve and those counters are the model's whole life, so a result has no share of them to carry and `result.save` writes none; the verb that archives holds the model and can. `solves` says how many solves the clocks cover — `1` for `lps.solve`, which builds the model it solves. A phase that never ran writes zero, so cases that entered different phases are one table. A sweep's are `answer.diagnostics` instead, one row per slice, a fold knowing each slice's share |
 | **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. A `SweepArchive` has it and a `SolveArchive` has no such field, so nothing downstream meets `Result \| Runs`. `load_archive` returns whichever the archive holds |
 | **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |

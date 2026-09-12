@@ -27,7 +27,15 @@ from math_spec import to_spec
 
 from lpspec.api import load_result
 from lpspec.errors import LayoutError, LpspecError
-from lpspec.layout import ANSWER_DIR, AXIS_MEMBER, MODEL_MEMBER, is_source_member, members_of, opened
+from lpspec.layout import (
+    ANSWER_DIR,
+    AXIS_MEMBER,
+    DIGESTS_MEMBER,
+    MODEL_MEMBER,
+    is_source_member,
+    members_of,
+    opened,
+)
 from lpspec.relational.parquet import COST_FILE, digest_of
 from lpspec.strategy import EachCoordinate, EachWindow, Runs, axis_from, load_runs
 
@@ -56,6 +64,11 @@ class SolveArchive:
             holds — a ``Path`` being a source like any other, so attaching
             streams them from disk.
         answer: What came back.
+        source_digests: ``(source, digest)``, one row per member of
+            ``sources/``, in source order. What :attr:`~lpspec.relational.result.Result.spec_digest`
+            cannot say: two archives of one spec over different numbers carry
+            the same spec digest and differ here, and *which* rows differ
+            names the input that moved.
         diagnostics: One :class:`~lpspec.relational.parquet.Cost` row — what
             the build and its solves spent reaching that answer. Beside
             :attr:`answer` rather than on it, which is the asymmetry with
@@ -70,6 +83,7 @@ class SolveArchive:
     spec: Spec
     sources: Mapping[str, Source]
     answer: Result
+    source_digests: pl.DataFrame
     diagnostics: pl.DataFrame
 
     def __post_init__(self) -> None:
@@ -97,12 +111,17 @@ class SweepArchive:
         answer: Every slice's answers, keyed by slice, and **spilled**: the
             frames stay in the extracted directory and
             :meth:`~lpspec.strategy.Runs.scan` reads them.
+        source_digests: ``(source, digest)``, as :class:`SolveArchive` holds
+            it. Of the sources **whole**, which is how the archive holds them,
+            so it names the data the sweep was cut from rather than any
+            slice's share of it.
     """
 
     spec: Spec
     sources: Mapping[str, Source]
     axis: EachCoordinate | EachWindow
     answer: Runs
+    source_digests: pl.DataFrame
 
     def __post_init__(self) -> None:
         """Refuse an archive whose slices name a different model than its own."""
@@ -125,6 +144,28 @@ def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
             f'{others} and the model.yaml beside it digests to {mine}. Re-solving it would give an answer '
             f'other than the one it holds, so it is not read.'
         )
+
+
+def _digests_in(under: Path) -> pl.DataFrame:
+    """The ``(source, digest)`` table *under* holds.
+
+    Read, never re-computed: verifying it means hashing every source, which is
+    a pass over all the data an archive holds and is the caller's to ask for
+    on the occasion they want it checked rather than this package's to spend
+    on every load.
+
+    Raises:
+        LayoutError: An archive with no digest table, which is every one
+            written before there was one.
+    """
+    file = under / DIGESTS_MEMBER
+    if not file.is_file():
+        raise LayoutError(
+            f'{str(under)!r} holds no {DIGESTS_MEMBER!r}, so this archive was written before one digested '
+            f'the data beside the model. Solving the model it holds again writes an archive that carries '
+            f'both, and the sources to do that with are in this one.'
+        )
+    return pl.read_parquet(file)
 
 
 def _cost_in(answer: Path) -> pl.DataFrame:
@@ -178,8 +219,10 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
     under = opened(path, None if into is None else Path(into))
     spec = to_spec(under / MODEL_MEMBER)
     sources = {m.stem: under / m for m in members_of(under) if is_source_member(m)}
+    digests = _digests_in(under)
     axis_member = under / AXIS_MEMBER
     if not axis_member.is_file():
-        return SolveArchive(spec, sources, load_result(under / ANSWER_DIR), _cost_in(under / ANSWER_DIR))
+        answer = under / ANSWER_DIR
+        return SolveArchive(spec, sources, load_result(answer), digests, _cost_in(answer))
     axis = axis_from(json.loads(axis_member.read_text()))
-    return SweepArchive(spec, sources, axis, load_runs(under / ANSWER_DIR))
+    return SweepArchive(spec, sources, axis, load_runs(under / ANSWER_DIR), digests)
