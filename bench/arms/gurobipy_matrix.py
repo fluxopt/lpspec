@@ -12,7 +12,11 @@ if TYPE_CHECKING:
 
 DIALECT = 'gurobipy-matrix'
 SINKS = runtime.SINKS
-REQUIRES = runtime.REQUIRES
+
+#: The runtime's, plus the CSR the shared formulation builds — `gurobipy-loop`
+#: writes its model call by call and needs no `scipy`, so this cannot be the
+#: runtime's list unchanged.
+REQUIRES = (*runtime.REQUIRES, 'scipy')
 
 build_and_emit = runtime.build_and_emit
 build_only = runtime.build_only

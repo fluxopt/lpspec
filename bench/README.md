@@ -258,6 +258,13 @@ against each other. Publish a whole ladder or none of it.
 | `pyomo` | `ConcreteModel.write(...)` | appsi `Highs().set_instance(...)` | appsi `Gurobi().set_instance(...)` |
 | `gurobipy-loop` | — | — | `addVar` per entity, `addConstrs(quicksum(...))`, then `update()` |
 | `gurobipy-matrix` | — | — | `addMVar` + `addMConstr` over a scipy CSR, then `update()` |
+| `highspy-matrix` | — | one `addCols` + one `addRows` over the same CSR | — |
+
+**The two matrix arms build one matrix, not two.** Each case writes it once in
+`bench/models/<case>/matrix.py`, which hands back an `Lp` — bounds, objective,
+CSR, a sense per row, right-hand side — and the arm pushes that into its own
+solver's bulk API. A second copy per arm is the copy that drifts, and it would
+take a published floor down with it.
 
 `gurobi` is opt-in (`--sinks gurobi`): it needs the `[gurobi]` extra, where the
 other two need nothing a contributor does not already have. It is also the only

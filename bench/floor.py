@@ -3,14 +3,21 @@
     pixi run -e bench python -m bench.floor l
     pixi run -e bench python -m bench.floor xs --check
 
-The ladder's ratios have linopy as their only denominator, which ranks two
-engines without saying how much headroom either has left. This module is the
-missing denominator: ``transport`` — the case whose ratios docs/about/benchmarks.md
-discusses — built straight from the case's cached parquet into numpy arrays
-and a CSR matrix, with no lpspec and no polars expression engine anywhere in
-the path. What it costs is the irreducible price of emitting the coefficients,
-and with it the sentence becomes *"we are at Nx the floor and linopy is at
-Mx"* — a claim about engineering rather than a ranking.
+**The published floor is the ``highspy-matrix`` arm**, which answers this
+question for every case and lands in the tables. This module answers it for
+``transport`` alone, by hand, and stays for the one thing the arm cannot do:
+its CSR is tiled directly rather than through ``scipy.kron``, so the gap
+between the two is what the matrix *construction* costs on top of the load
+([`bench/models/transport/matrix.py`](models/transport/matrix.py) is the arm's
+version of the same matrix). Reach for the arm for a ratio and for this to ask
+where a floor's own time goes.
+
+Either way the floor is the missing denominator: ``transport`` built straight
+from the case's cached parquet into numpy arrays and a CSR matrix, with no
+lpspec and no polars expression engine anywhere in the path. What it costs is
+the irreducible price of emitting the coefficients, and with it the sentence
+becomes *"we are at Nx the floor and linopy is at Mx"* — a claim about
+engineering rather than a ranking.
 
 It ends where the harness's ``highs`` sink ends: a populated ``highspy.Highs``
 with ``run()`` never called. It is **not an arm** — it hardcodes one model, so

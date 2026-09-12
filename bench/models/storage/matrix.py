@@ -1,10 +1,10 @@
-"""`storage` through gurobipy's matrix API: one `MVar`, one `addMConstr`.
+"""`storage` as a matrix: the recurrence is the whole difficulty.
 
-The recurrence is the whole difficulty. Columns are one snapshot's
-``[p | charge | discharge | soc]`` repeated per snapshot, so the balance rows
-are `kron(I, ·)` as in every other matrix formulation here — but a state of
-charge reaches the *previous* snapshot, which is a second `kron` against the
-cyclic shift matrix rather than against the identity:
+Columns are one snapshot's ``[p | charge | discharge | soc]`` repeated per
+snapshot, so the balance rows are `kron(I, ·)` as in every other matrix
+formulation here — but a state of charge reaches the *previous* snapshot, which
+is a second `kron` against the cyclic shift matrix rather than against the
+identity:
 
     kron(I, own) + kron(P, previous)     where P[t, t-1 mod n] = 1
 
@@ -14,16 +14,18 @@ last, which is exactly what ``edge='wrap'`` says in the YAML.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+from bench.models import Lp
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from typing import Any
 
 
-def build(env: Any, tables: Mapping[str, Any]) -> Any:
-    import gurobipy as gp
+def build(tables: Mapping[str, Any]) -> Lp:
     from scipy import sparse
 
     p_max = tables['p_max']['value'].to_numpy()
@@ -62,11 +64,11 @@ def build(env: Any, tables: Mapping[str, Any]) -> Any:
         format='csr',
     )
 
-    m = gp.Model(env=env)
-    x = m.addMVar(
-        n_snapshot * width,
-        ub=np.tile(np.concatenate([p_max, p_store, p_store, e_max]), n_snapshot),
+    return Lp(
+        lower=np.zeros(n_snapshot * width),
+        upper=np.tile(np.concatenate([p_max, p_store, p_store, e_max]), n_snapshot),
         obj=np.tile(np.concatenate([cost, np.zeros(3 * n_store)]), n_snapshot),
+        matrix=matrix,
+        senses=np.full(matrix.shape[0], '='),
+        rhs=np.concatenate([load, np.zeros(n_snapshot * n_store)]),
     )
-    m.addMConstr(matrix, x, '=', np.concatenate([load, np.zeros(n_snapshot * n_store)]))
-    return m
