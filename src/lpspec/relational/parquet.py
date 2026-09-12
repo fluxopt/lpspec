@@ -76,6 +76,31 @@ def check_format(directory: Path) -> None:
         )
 
 
+#: How much of a sha256 a digest here keeps. Sixteen hex characters is 64
+#: bits, which no set of runs collides in by accident, and it is read by a
+#: person scanning a comparison table beside four other columns where
+#: sixty-four would push the numbers off the line.
+_DIGEST_WIDTH = 16
+
+
+def digest_of_bytes(data: bytes) -> str:
+    """A short, stable name for *data* — what the digests here are made with."""
+    return hashlib.sha256(data).hexdigest()[:_DIGEST_WIDTH]
+
+
+def digest_of_file(path: Path) -> str:
+    """The same name for a file's bytes, read a chunk at a time.
+
+    Streamed rather than loaded: a source table is the one thing an archive
+    holds that can be larger than the memory it is written from.
+    """
+    sha = hashlib.sha256()
+    with path.open('rb') as handle:
+        while chunk := handle.read(1 << 20):
+            sha.update(chunk)
+    return sha.hexdigest()[:_DIGEST_WIDTH]
+
+
 def digest_of(yaml: str) -> str:
     """A short, stable name for a spec — what two answers must share to be comparable.
 
@@ -83,11 +108,10 @@ def digest_of(yaml: str) -> str:
     writes as ``model.yaml``: two answers carrying one digest answered the
     same document, byte for byte. Not the same *model* — that is the document
     with its data, and two scenarios of one spec share this and share nothing
-    else. Sixteen hex characters, because this is read by a person scanning a
-    comparison table beside four other columns and sixty-four would push the
-    numbers off the line.
+    else. What an archive holds beside it says whether the data agreed too:
+    :func:`digest_of_file` over each member of ``sources/``.
     """
-    return hashlib.sha256(yaml.encode()).hexdigest()[:16]
+    return digest_of_bytes(yaml.encode())
 
 
 class Record(NamedTuple):

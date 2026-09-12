@@ -21,6 +21,7 @@ case/
     sources/cost.parquet
     sources/load.parquet
     …
+    sources.parquet               (source, digest) — what each of them is
     answer/objective.parquet      how it terminated, what it reached, when, and under what name
     answer/diagnostics.parquet    what the build and its solves spent
     answer/primal/p.parquet       one file per variable
@@ -81,10 +82,10 @@ with lps.build('dispatch.yaml', sources) as model:
 **A phase the build never entered writes zero**, so cases that ran different
 phases still concatenate into one table.
 
-**A sweep records the same columns per slice**, at `runs.diagnostics` rather
-than beside the answer. A fold knows where one slice's share of the clocks
-begins. A single `Result` does not: it is one solve of a model that may have
-had many, so it carries no such number.
+**A sweep records the same columns per slice**, read as `runs.diagnostics` and
+archived in one `answer/diagnostics.parquet` as a solve's is. A fold knows
+where one slice's share of the clocks begins. A single `Result` does not: it is
+one solve of a model that may have had many, so it carries no such number.
 
 **A zip needs somewhere to unpack.** Nothing is read at load. The sources come
 back as paths, and each frame is read off disk only when you ask for it. A
@@ -167,6 +168,36 @@ document:
 ```python
 assert table['spec_digest'].n_unique() == 1, 'one model, or this compares nothing'
 ```
+
+## Find which input changed between two runs
+
+`spec_digest` says the two answered the same document. It says nothing about
+the numbers, so two runs of one model over different data carry the same one.
+`sources.parquet` is what separates them: `(source, digest)`, one row per
+member of `sources/`.
+
+```python
+base = lps.load_archive('base/')
+other = lps.load_archive('halved/')
+
+moved = base.source_digests.join(other.source_digests, on='source', suffix='_other').filter(
+    pl.col('digest') != pl.col('digest_other')
+)
+moved['source'].to_list()  # ['load']
+```
+
+The answer is the name of the input, not merely that something moved. That is
+what per-source rows buy over one digest of everything.
+
+**The digest is of the bytes the archive holds**, so a reader can check it
+against the archive alone: hash `sources/load.parquet` and you get the row
+back. Two archives of the same data written by different versions of polars
+can still differ, because what is digested is the parquet, not the meaning of
+the table.
+
+**Reading an archive does not verify them.** That would be a pass over every
+byte of data the archive holds, on every load. Hash the members yourself on
+the occasion you want it checked.
 
 ## Query an archive from a database
 
