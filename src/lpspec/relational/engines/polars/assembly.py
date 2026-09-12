@@ -290,7 +290,7 @@ class Assembly:
             stacked = stacked.sort('row', 'col')
             repeated = stacked.select(repeat.any()).item()
         if not repeated:
-            return stacked, stacked.get_column('row').unique() if term_rows is None else term_rows
+            return stacked, term_rows if term_rows is not None else _ordered_rows(stacked)
         aggregated = (
             stacked.lazy()
             .group_by('row', 'col')
@@ -298,7 +298,7 @@ class Assembly:
             .sort('row', 'col')
             .collect(engine='streaming')
         )
-        return _pruned(aggregated), aggregated.get_column('row').unique() if term_rows is None else term_rows
+        return _pruned(aggregated), term_rows if term_rows is not None else _ordered_rows(aggregated)
 
     # ------------------------------------------------------------------
     # declarations
@@ -674,9 +674,9 @@ class Assembly:
         several rows on one column and their **sum** is the coefficient — the
         hand-off scatters with ``dense[at] = values``, which keeps the *last*
         write. The aggregate runs only when a column repeats, probed by
-        ``n_unique``: the stack arrives unordered, so adjacency proves nothing,
-        and asking the mul join to maintain order tripled an objective phase
-        for nothing (#581).
+        :func:`_repeats_a_label`: the stack arrives unordered, so adjacency
+        proves nothing, and asking the mul join to maintain order tripled an
+        objective phase for nothing (#581).
         """
         if o is None:
             return None
@@ -696,7 +696,7 @@ class Assembly:
         ]
         stacked = pl.concat(pieces).collect(engine='streaming')
         self._refuse_undefined_divisors(stacked, 'objective', o.expression)
-        if stacked.get_column('col').n_unique() != stacked.height:
+        if _repeats_a_label(stacked.get_column('col'), self.n_cols):
             stacked = stacked.lazy().group_by('col').agg(pl.col('coeff').sum()).collect(engine='streaming')
         objective = _without_zeros(stacked)
         self.measured.objective_range = _magnitude_range(objective.get_column('coeff'))
@@ -833,6 +833,48 @@ def _without_zeros(matrix: pl.DataFrame) -> pl.DataFrame:
     undefined divisor, refused before this runs.
     """
     return matrix.filter(pl.col('coeff') != 0)
+
+
+def _ordered_rows(matrix: pl.DataFrame) -> pl.Series:
+    """The distinct ``row`` labels of a matrix already ordered by ``row``.
+
+    Only ever called where the caller has *established* that order — the
+    ``#ordered`` probe returned true, or the sort ran, or the aggregate ended
+    on ``sort('row', 'col')``. Telling polars so turns the distinct pass from a
+    hash build into a walk of the run boundaries, 3.4 ms to 1.0 ms at 1M
+    entries over 10k rows (#1589).
+
+    ``set_sorted`` is an assertion, not a check: on a column that is not
+    ascending it returns whichever labels the walk happens to see, which is a
+    model missing rows rather than an error. A caller that moves the probe, or
+    reaches here on a path that never ran one, breaks this silently — which is
+    why every call site is inside the branch that just proved it.
+    """
+    return matrix.get_column('row').set_sorted().unique()
+
+
+def _repeats_a_label(labels: pl.Series, count: int) -> bool:
+    """Whether any of *labels* occurs twice, over a dense ``0..count-1`` space.
+
+    The question is a yes/no, and hashing every entry to answer it costs more
+    than the aggregate it guards on a stack that has no repeat at all. Labels
+    are the solver's own indices, so they index a scratch bitmap directly:
+    13.8 ms to 4.4 ms at 1M entries over 1M columns, and the same answer on
+    every case in ``bench/`` (#1589).
+
+    The count is ``count_nonzero`` rather than ``sum``: the pass is over the
+    *bitmap*, so it costs the column count whatever the objective's density,
+    and a sparse objective on a wide model is where that shows — 1.7 ms
+    against ``n_unique``'s 1.3 ms at 100k entries over 10M columns, where
+    ``sum`` took 6.5.
+
+    *count* must exceed every label — it is the declaration counter the labels
+    were drawn from, so a caller passing a stale one indexes out of bounds and
+    raises rather than reporting a wrong answer.
+    """
+    seen = np.zeros(count, dtype=bool)
+    seen[labels.to_numpy()] = True
+    return int(np.count_nonzero(seen)) != labels.len()
 
 
 def _pruned(matrix: pl.DataFrame) -> pl.DataFrame:
