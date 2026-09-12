@@ -22,7 +22,7 @@ case/
     sources/load.parquet
     …
     sources.parquet               (source, digest) — what each of them is
-    answer/objective.parquet      how it terminated, and what it reached
+    answer/objective.parquet      how it terminated, what it reached, when, and under what name
     answer/diagnostics.parquet    what the build and its solves spent
     answer/primal/p.parquet       one file per variable
     answer/dual/power_balance.parquet
@@ -61,7 +61,7 @@ covers, and wall-clock seconds in each phase.
 
 ```python
 case = lps.load_archive('case/')
-# columns, rows, nonzeros, sink_columns, sink_rows, solves, loads, attach, build, handoff, solve, write
+# columns, rows, nonzeros, sink_columns, sink_rows, solves, loads, attach, build, handoff, solve, write, run
 case.diagnostics
 ```
 
@@ -82,10 +82,10 @@ with lps.build('dispatch.yaml', sources) as model:
 **A phase the build never entered writes zero**, so cases that ran different
 phases still concatenate into one table.
 
-**A sweep records the same columns per slice**, at `runs.diagnostics` rather
-than beside the answer. A fold knows where one slice's share of the clocks
-begins. A single `Result` does not: it is one solve of a model that may have
-had many, so it carries no such number.
+**A sweep records the same columns per slice**, read as `runs.diagnostics` and
+archived in one `answer/diagnostics.parquet` as a solve's is. A fold knows
+where one slice's share of the clocks begins. A single `Result` does not: it is
+one solve of a model that may have had many, so it carries no such number.
 
 **A zip needs somewhere to unpack.** Nothing is read at load. The sources come
 back as paths, and each frame is read off disk only when you ask for it. A
@@ -133,27 +133,32 @@ study.answer.scan('p')  # keyed by scenario
 lps.solve_over(study.spec, study.sources, study.axis)
 ```
 
-A sweep's `answer/` is keyed one file per slice — `answer/objective/000000.parquet`
-and so on — which is the layout [`spill_to=`](../reference/sweeps.md) already
-writes.
+A sweep's frames are keyed one file per slice — `answer/primal/p/000000.parquet`
+and so on — which is the layout [`spill_to=`](../reference/sweeps.md) writes.
+Its record is not: `answer/objective.parquet` holds every slice's row, one
+file, as a solve's does. A spill writes that record per slice for a reason —
+the objective file's existence is how a resumed sweep knows a slice finished.
+An archive has no resume to serve. So one glob finds every run in a directory
+of them, whether a solve or a sweep wrote it.
 
 ## Compare cases solved apart
 
-Every archive's `answer/objective.parquet` is one row, in the same columns
-whoever wrote it. Concatenate them, labelling each row by the directory it came
-from:
+Every archive's `answer/objective.parquet` holds the same columns whoever
+wrote it, and two of them say which run each row came from. `run` is the
+archive's own name. `solved_at` is when the solver returned. The rows carry
+their own labels, so nothing has to read the paths:
 
 ```python
 import polars as pl
-from pathlib import Path
 
-table = pl.concat(
-    [
-        pl.scan_parquet(case / 'answer' / 'objective.parquet').select(pl.lit(case.name).alias('case'), pl.all())
-        for case in sorted(Path('runs').iterdir())
-    ]
-).collect()
+table = pl.read_parquet('runs/*/answer/objective.parquet')
+table.sort('solved_at').select('run', 'status', 'objective')
 ```
+
+A sweep's archive lands in the same table, one row per slice, with its key
+column beside `run`. `answer/diagnostics.parquet` carries `run` the same way,
+so what each slice cost is attributable across a warehouse too. Read the two
+together with `pl.concat(..., how='diagonal')` where a warehouse holds both.
 
 **Check the digests before you read the numbers.** `spec_digest` is a digest of
 the model file an answer came back from. Every answer carries one, so a single
@@ -200,7 +205,7 @@ A directory archive is a tree of parquet files, so a query engine reads it
 where it lands. DuckDB, on the study above:
 
 ```sql
-select scenario, objective from 'study/answer/objective/*.parquet'
+select scenario, objective from 'study/answer/objective.parquet'
 where has_primal order by objective;
 ```
 
@@ -218,12 +223,12 @@ So `study/answer/primal/p/*.parquet` is the variable `p` over every slice, and
 joins to the rest on those columns. A zip has to go through `load_archive`
 first, because no query engine reads inside one.
 
-The cost rows read the same way. Over a directory of archives they are the
-table that says which cases are growing, and where the time goes:
+The cost rows read the same way, and carry `run` as the record does. Over a
+directory of archives they are the table that says which cases are growing,
+and where the time goes:
 
 ```sql
-select filename, rows, nonzeros, build, solve
-from read_parquet('runs/*/answer/diagnostics.parquet', filename = true)
+select run, rows, nonzeros, build, solve from 'runs/*/answer/diagnostics.parquet'
 order by build + solve desc;
 ```
 
