@@ -17,7 +17,7 @@ import polars as pl
 from math_spec import program
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Mapping
+    from collections.abc import Iterator, Mapping
 
     import numpy as np
     import numpy.typing as npt
@@ -271,21 +271,19 @@ class Tables:
         """
         return _digest(
             f'{self.column_count} {self.row_count} {self.objective_sense}'.encode(),
-            (
-                self.cols['vtype'].to_physical().to_numpy(),
-                self.quad['col_l'].to_numpy(),
-                self.quad['col_r'].to_numpy(),
-                self.qmatrix['row'].to_numpy(),
-                self.qmatrix['col_l'].to_numpy(),
-                self.qmatrix['col_r'].to_numpy(),
-                self.qmatrix['coeff'].to_numpy(),
-                self.rows.filter(pl.col('row') >= self.linear_row_count)['rhs'].to_numpy(),
-                self.rows['sense'].to_physical().to_numpy(),
-                self.matrix['col'].to_numpy(),
-                self.matrix['coeff'].to_numpy(),
-                self.row_starts,
-                *(self.sos[column].to_numpy() for column in self.sos.columns),
-            ),
+            self.cols['vtype'].to_physical().to_numpy(),
+            self.quad['col_l'].to_numpy(),
+            self.quad['col_r'].to_numpy(),
+            self.qmatrix['row'].to_numpy(),
+            self.qmatrix['col_l'].to_numpy(),
+            self.qmatrix['col_r'].to_numpy(),
+            self.qmatrix['coeff'].to_numpy(),
+            self.rows.filter(pl.col('row') >= self.linear_row_count)['rhs'].to_numpy(),
+            self.rows['sense'].to_physical().to_numpy(),
+            self.matrix['col'].to_numpy(),
+            self.matrix['coeff'].to_numpy(),
+            self.row_starts,
+            *(self.sos[column].to_numpy() for column in self.sos.columns),
         )
 
     def sets(self) -> Iterator[tuple[int, pl.Series, pl.Series]]:
@@ -352,65 +350,36 @@ def spelled_senses(spelling: Mapping[str, str]) -> Any:
     return out
 
 
-#: Bytes per hashing job in :func:`_digest`. One job's own bookkeeping is a
-#: hundred bytes of framing and a thread hand-off, so the chunk has to be far
-#: larger than that; the matrix has to split across the cores, so it cannot be
-#: the whole vector. Eight megabytes is both, and is where the measured rate
-#: stops climbing.
-_HASH_CHUNK = 8 << 20
-
-#: Threads :func:`_digest` hashes across, where there is more than one chunk to
-#: hash. Capped rather than the core count: the gain is flat past four here
-#: (26 ms against 29 ms at eight over 131 MB) and the process has polars' own
-#: pool to share the machine with.
-_HASH_WORKERS = 4
-
-
-def _hashed(job: tuple[int, int, memoryview]) -> bytes:
-    """One chunk's digest — the unit :func:`_digest` spreads across threads."""
-    import hashlib
-
-    return hashlib.sha256(job[2]).digest()
-
-
-def _digest(header: bytes, vectors: Iterable[Any]) -> bytes:
+def _digest(header: bytes, *vectors: Any) -> bytes:
     """Sixteen bytes over *header* and every byte of *vectors*, in order.
 
-    **sha256 rather than blake2b, in chunks rather than one stream.** What is
-    hashed here is the model itself — 131 MB at ``dispatch/l`` — so the hash
-    rate is the whole cost: blake2b took 208 ms of a 1.25 s hand-off, sha256
-    takes 98 ms where the hardware has the instruction, and 26 ms of that
-    across four threads, `hashlib` dropping the GIL over a buffer this size.
+    **sha256 across four threads, where this was blake2b down one.** What goes
+    through the hash is the model — 131 MB at `dispatch/l` — so the rate is the
+    whole cost: blake2b ran at 0.63 GB/s and this runs at 4.95, `hashlib`
+    dropping the GIL over a buffer of eight megabytes. Four threads because the
+    measured gain is flat past four and polars has its own pool.
 
-    Each chunk is hashed alone and folded back in with the vector it came
-    from, its offset and its length, so the answer still depends on the order
-    of the vectors, on the order of the bytes, and on where a boundary fell. A
-    vector arrives contiguous or is made so: a digest of a strided view would
-    read the gaps.
+    Each chunk is hashed alone, and folded back in with its length in the order
+    it was cut, which is what keeps the answer dependent on the order of the
+    vectors, on the order of the bytes and on where a boundary fell. A vector
+    arrives contiguous or is made so: a digest over a strided view would read
+    the gaps.
     """
     import hashlib
+    from concurrent.futures import ThreadPoolExecutor
 
     import numpy as np
 
-    jobs: list[tuple[int, int, memoryview]] = []
-    for position, vector in enumerate(vectors):
-        data = memoryview(np.ascontiguousarray(vector)).cast('B')
-        jobs.extend(
-            (position, offset, data[offset : offset + _HASH_CHUNK])
-            for offset in range(0, max(len(data), 1), _HASH_CHUNK)
-        )
-
-    if sum(len(chunk) for _, _, chunk in jobs) > _HASH_CHUNK:
-        from concurrent.futures import ThreadPoolExecutor
-
-        with ThreadPoolExecutor(_HASH_WORKERS) as pool:
-            digests = list(pool.map(_hashed, jobs))
-    else:
-        digests = [_hashed(job) for job in jobs]
+    chunks: list[memoryview] = []
+    for vector in vectors:
+        whole = memoryview(np.ascontiguousarray(vector)).cast('B')
+        chunks.extend(whole[at : at + (8 << 20)] for at in range(0, max(len(whole), 1), 8 << 20))
+    with ThreadPoolExecutor(4) as pool:
+        digests = [hashed.digest() for hashed in pool.map(hashlib.sha256, chunks)]
 
     folded = hashlib.sha256(header)
-    for (position, offset, chunk), digest in zip(jobs, digests, strict=True):
-        folded.update(f'{position} {offset} {len(chunk)} '.encode())
+    for chunk, digest in zip(chunks, digests, strict=True):
+        folded.update(f'{len(chunk)} '.encode())
         folded.update(digest)
     return folded.digest()[:16]
 
