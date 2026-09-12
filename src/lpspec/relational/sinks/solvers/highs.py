@@ -79,17 +79,13 @@ def build_highs(
 def _built(tables: Tables, solver_options: Mapping[str, Any] | None) -> Any:
     """The populated :class:`highspy.Highs`.
 
-    One ``passModel`` takes the whole model: the scalars, the five dense
-    vectors, and the matrix as row-wise CSR. It is the only entry point that
-    loads a model rather than growing one, and HiGHS sizes its own storage
-    once from the counts instead of appending to it per batch — worth 20% of
-    the hand-off at ``dispatch/l`` and 40% at ``fleet/l``, where six million
-    rows arrive.
-
-    The arrays cross as buffers rather than as sequences, which is what makes
-    the single call cheap: ``HighsLp``'s own fields are ``std::vector``, so
-    filling one from Python converts element by element and costs three times
-    the batched loads this replaced.
+    One ``passModel`` takes the whole model — the scalars, the five dense
+    vectors, and the matrix as row-wise CSR — because it is the entry point
+    that *loads* a model where ``addCols`` and ``addRows`` grow one, and HiGHS
+    then sizes its storage once from the counts (#1591). Every array crosses
+    as a numpy buffer, which is the half that matters: ``HighsLp``'s own fields
+    are ``std::vector`` and filling one from python converts element by
+    element.
 
     The integrality vector is passed over the whole index even where no column
     is integer: HiGHS reads it either way, and an empty one is read as whatever
