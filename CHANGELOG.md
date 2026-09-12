@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.321](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.320...v0.0.1-alpha.321) (2026-09-12)
+
+
+### Documentation
+
+* **bench:** the benchmark page is re-taken from the newest run, its claims about the numbers included ([#1587](https://github.com/fluxopt/lpspec/issues/1587)) ([0210774](https://github.com/fluxopt/lpspec/commit/02107748aba0fd82b1b22c298a9bbe187e8ec91d))
+
 ## [0.0.1-alpha.320](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.319...v0.0.1-alpha.320) (2026-09-11)
 
 
