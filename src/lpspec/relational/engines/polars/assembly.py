@@ -823,7 +823,7 @@ def _magnitude_range(frame: pl.DataFrame, *columns: str) -> tuple[float, float] 
     is what lets the two bound columns share it, where concatenating them was
     a fourth allocation.
     """
-    sides = []
+    sides: list[pl.Expr] = []
     for i, column in enumerate(columns):
         value = pl.col(column)
         finite = value.is_finite()
@@ -834,7 +834,8 @@ def _magnitude_range(frame: pl.DataFrame, *columns: str) -> tuple[float, float] 
             value.filter(finite & (value < 0)).min().alias(f'#high-{i}'),
         ]
     answered = frame.select(sides).row(0)
-    lows, highs = [], []
+    lows: list[float] = []
+    highs: list[float] = []
     for i in range(len(columns)):
         positive, negative = answered[i * 4 : i * 4 + 2], answered[i * 4 + 2 : i * 4 + 4]
         for low, high in (positive, negative):
