@@ -40,10 +40,12 @@ def test_a_row_with_no_terms_is_not_built_and_is_reported(solver_name, batch_row
     guard against by keeping the row; `diagnostics().omissions` answers it without asking
     the solver to carry a comparison nothing can fail.
 
-    Ragged batches because the range loop is where a *surviving* seat would be
+    Ragged batches because a block loop is where a *surviving* seat would be
     lost — labels are compacted when a row goes, so the dense vector and the
-    chunk ranges have to agree about the narrower block. Both solvers, because
-    the seating is theirs jointly.
+    block ranges have to agree about the narrower block. That is the Gurobi and
+    Xpress sinks; HiGHS takes the whole model in one call and reads
+    ``batch_rows`` not at all, so its four cases are one case asked four times.
+    Every sink all the same, because the seating is theirs jointly.
     """
     spec = {
         'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},

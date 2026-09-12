@@ -290,7 +290,7 @@ class Assembly:
             stacked = stacked.sort('row', 'col')
             repeated = stacked.select(repeat.any()).item()
         if not repeated:
-            return stacked, stacked.get_column('row').unique() if term_rows is None else term_rows
+            return stacked, term_rows if term_rows is not None else _ordered_rows(stacked)
         aggregated = (
             stacked.lazy()
             .group_by('row', 'col')
@@ -298,7 +298,7 @@ class Assembly:
             .sort('row', 'col')
             .collect(engine='streaming')
         )
-        return _pruned(aggregated), aggregated.get_column('row').unique() if term_rows is None else term_rows
+        return _pruned(aggregated), term_rows if term_rows is not None else _ordered_rows(aggregated)
 
     # ------------------------------------------------------------------
     # declarations
@@ -335,8 +335,7 @@ class Assembly:
             bad = cols.filter(pl.col('lb').is_null() | pl.col('ub').is_null()).height
             raise DataError(null_bounds_message(name, bad))
 
-        both = pl.concat([bounded.get_column('lb').rename('bound'), bounded.get_column('ub').rename('bound')])
-        if (spread := _magnitude_range(both)) is not None:
+        if (spread := _magnitude_range(bounded, 'lb', 'ub')) is not None:
             self.measured.bounds[name] = spread
         return cols
 
@@ -501,10 +500,10 @@ class Assembly:
         if qmatrix is not None:
             term_rows = pl.concat([term_rows, qmatrix.get_column('row').unique()]).unique()
         rows, matrix, self.n_rows = self._drop_termless_rows(name, rows, matrix, term_rows, start)
-        spread = _magnitude_range(matrix.get_column('coeff'))
+        spread = _magnitude_range(matrix, 'coeff')
         if spread is not None:
             self.measured.coefficients[name] = spread
-        if (sides := _magnitude_range(rows.get_column('rhs'))) is not None:
+        if (sides := _magnitude_range(rows, 'rhs')) is not None:
             self.measured.rhs[name] = sides
         if qmatrix is not None:
             qmatrix = qmatrix.filter(pl.col('row').is_in(rows.get_column('row')))
@@ -674,9 +673,9 @@ class Assembly:
         several rows on one column and their **sum** is the coefficient — the
         hand-off scatters with ``dense[at] = values``, which keeps the *last*
         write. The aggregate runs only when a column repeats, probed by
-        ``n_unique``: the stack arrives unordered, so adjacency proves nothing,
-        and asking the mul join to maintain order tripled an objective phase
-        for nothing (#581).
+        :func:`_repeats_a_label`: the stack arrives unordered, so adjacency
+        proves nothing, and asking the mul join to maintain order tripled an
+        objective phase for nothing (#581).
         """
         if o is None:
             return None
@@ -696,10 +695,10 @@ class Assembly:
         ]
         stacked = pl.concat(pieces).collect(engine='streaming')
         self._refuse_undefined_divisors(stacked, 'objective', o.expression)
-        if stacked.get_column('col').n_unique() != stacked.height:
+        if _repeats_a_label(stacked.get_column('col'), self.n_cols):
             stacked = stacked.lazy().group_by('col').agg(pl.col('coeff').sum()).collect(engine='streaming')
         objective = _without_zeros(stacked)
-        self.measured.objective_range = _magnitude_range(objective.get_column('coeff'))
+        self.measured.objective_range = _magnitude_range(objective, 'coeff')
         return objective
 
     def _objective_quadratic(
@@ -797,26 +796,36 @@ def _ordered_pair() -> tuple[pl.Expr, pl.Expr]:
     )
 
 
-def _magnitude_range(values: pl.Series) -> tuple[float, float] | None:
-    """The smallest and largest magnitude in *values*, or ``None`` where none has one.
+def _magnitude_range(frame: pl.DataFrame, *columns: str) -> tuple[float, float] | None:
+    """The smallest and largest magnitude across *columns*, or ``None`` where none has one.
 
     Magnitudes rather than signed extremes, which is the question a solver's
     own range lines answer: a row scaled by ``-1e9`` is as badly scaled as one
-    scaled by ``1e9``.
+    scaled by ``1e9``. Zero and infinity are dropped, so the four callers share
+    one rule and the answer stays comparable with the ``Bound`` and ``RHS``
+    lines a solver prints, which exclude the same two.
 
-    Zero and infinity are dropped, so the three callers can share one rule.
-    Coefficients carry neither by the time this runs; a *bound* carries both
-    routinely — ``lower: 0`` on every non-negative variable, and an infinity
-    wherever a variable is unbounded on a side — and neither is a magnitude
-    the solver has to represent. Dropping them is also what makes the answer
-    comparable with the ``Bound`` and ``RHS`` lines a solver prints, which
-    exclude the same two.
+    **Each sign is reduced where it lies, so ``|x|`` is never built** —
+    absolute values over the whole column, then a mask, then the survivors,
+    allocated three vectors the size of the model to answer with two floats
+    (#1592). Both signs are asked because the smallest magnitude can be
+    interior to either, and a frame rather than a series is what lets a
+    declaration's columns share the pass.
     """
-    magnitudes = values.abs()
-    magnitudes = magnitudes.filter(magnitudes.is_finite() & (magnitudes != 0))
-    if not magnitudes.len():
-        return None
-    return float(magnitudes.min()), float(magnitudes.max())  # pyrefly: ignore[bad-argument-type]
+    sides: list[pl.Expr] = []
+    for i, column in enumerate(columns):
+        value = pl.col(column)
+        finite, up, down = value.is_finite(), value > 0, value < 0
+        sides += [
+            value.filter(finite & up).min().alias(f'#low+{i}'),
+            value.filter(finite & up).max().alias(f'#high+{i}'),
+            value.filter(finite & down).max().alias(f'#low-{i}'),
+            value.filter(finite & down).min().alias(f'#high-{i}'),
+        ]
+    answered = frame.select(sides).row(0, named=True)
+    lows = [abs(bound) for name, bound in answered.items() if name.startswith('#low') and bound is not None]
+    highs = [abs(bound) for name, bound in answered.items() if name.startswith('#high') and bound is not None]
+    return (min(lows), max(highs)) if lows else None
 
 
 def _without_zeros(matrix: pl.DataFrame) -> pl.DataFrame:
@@ -833,6 +842,48 @@ def _without_zeros(matrix: pl.DataFrame) -> pl.DataFrame:
     undefined divisor, refused before this runs.
     """
     return matrix.filter(pl.col('coeff') != 0)
+
+
+def _ordered_rows(matrix: pl.DataFrame) -> pl.Series:
+    """The distinct ``row`` labels of a matrix already ordered by ``row``.
+
+    Only ever called where the caller has *established* that order — the
+    ``#ordered`` probe returned true, or the sort ran, or the aggregate ended
+    on ``sort('row', 'col')``. Telling polars so turns the distinct pass from a
+    hash build into a walk of the run boundaries, 3.4 ms to 1.0 ms at 1M
+    entries over 10k rows (#1589).
+
+    ``set_sorted`` is an assertion, not a check: on a column that is not
+    ascending it returns whichever labels the walk happens to see, which is a
+    model missing rows rather than an error. A caller that moves the probe, or
+    reaches here on a path that never ran one, breaks this silently — which is
+    why every call site is inside the branch that just proved it.
+    """
+    return matrix.get_column('row').set_sorted().unique()
+
+
+def _repeats_a_label(labels: pl.Series, count: int) -> bool:
+    """Whether any of *labels* occurs twice, over a dense ``0..count-1`` space.
+
+    The question is a yes/no, and hashing every entry to answer it costs more
+    than the aggregate it guards on a stack that has no repeat at all. Labels
+    are the solver's own indices, so they index a scratch bitmap directly:
+    13.8 ms to 4.4 ms at 1M entries over 1M columns, and the same answer on
+    every case in ``bench/`` (#1589).
+
+    The count is ``count_nonzero`` rather than ``sum``: the pass is over the
+    *bitmap*, so it costs the column count whatever the objective's density,
+    and a sparse objective on a wide model is where that shows — 1.7 ms
+    against ``n_unique``'s 1.3 ms at 100k entries over 10M columns, where
+    ``sum`` took 6.5.
+
+    *count* must exceed every label — it is the declaration counter the labels
+    were drawn from, so a caller passing a stale one indexes out of bounds and
+    raises rather than reporting a wrong answer.
+    """
+    seen = np.zeros(count, dtype=bool)
+    seen[labels.to_numpy()] = True
+    return int(np.count_nonzero(seen)) != labels.len()
 
 
 def _pruned(matrix: pl.DataFrame) -> pl.DataFrame:
