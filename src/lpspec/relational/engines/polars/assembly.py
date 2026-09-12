@@ -801,47 +801,32 @@ def _magnitude_range(frame: pl.DataFrame, *columns: str) -> tuple[float, float] 
 
     Magnitudes rather than signed extremes, which is the question a solver's
     own range lines answer: a row scaled by ``-1e9`` is as badly scaled as one
-    scaled by ``1e9``.
+    scaled by ``1e9``. Zero and infinity are dropped, so the four callers share
+    one rule and the answer stays comparable with the ``Bound`` and ``RHS``
+    lines a solver prints, which exclude the same two.
 
-    Zero and infinity are dropped, so the three callers can share one rule.
-    Coefficients carry neither by the time this runs; a *bound* carries both
-    routinely — ``lower: 0`` on every non-negative variable, and an infinity
-    wherever a variable is unbounded on a side — and neither is a magnitude
-    the solver has to represent. Dropping them is also what makes the answer
-    comparable with the ``Bound`` and ``RHS`` lines a solver prints, which
-    exclude the same two.
-
-    **A magnitude is read off each side, never built.** ``|x|`` over each
-    column, filtered and then reduced twice, allocated three vectors the size
-    of the model to answer with two floats: the absolute values, the mask, and
-    the survivors. Reducing the positive and negative sides separately and
-    folding the four answers in python reads the column instead, and takes
-    every column of a declaration in one pass — a frame rather than a series
-    is what lets the two bound columns share it, where concatenating them was
-    a fourth allocation.
+    **Each sign is reduced where it lies, so ``|x|`` is never built.** Absolute
+    values over the whole column, then a mask, then the survivors, allocated
+    three vectors the size of the model to answer with two floats — 29% of the
+    build at `dispatch/l`, and 79 ms of it survives taking ``abs`` after the
+    filter instead. The smallest magnitude can be interior to either sign, so
+    both sides are asked; a frame rather than a series is what lets a
+    declaration's columns share the pass.
     """
     sides: list[pl.Expr] = []
     for i, column in enumerate(columns):
         value = pl.col(column)
-        finite = value.is_finite()
+        finite, up, down = value.is_finite(), value > 0, value < 0
         sides += [
-            value.filter(finite & (value > 0)).min().alias(f'#low+{i}'),
-            value.filter(finite & (value > 0)).max().alias(f'#high+{i}'),
-            value.filter(finite & (value < 0)).max().alias(f'#low-{i}'),
-            value.filter(finite & (value < 0)).min().alias(f'#high-{i}'),
+            value.filter(finite & up).min().alias(f'#low+{i}'),
+            value.filter(finite & up).max().alias(f'#high+{i}'),
+            value.filter(finite & down).max().alias(f'#low-{i}'),
+            value.filter(finite & down).min().alias(f'#high-{i}'),
         ]
-    answered = frame.select(sides).row(0)
-    lows: list[float] = []
-    highs: list[float] = []
-    for i in range(len(columns)):
-        positive, negative = answered[i * 4 : i * 4 + 2], answered[i * 4 + 2 : i * 4 + 4]
-        for low, high in (positive, negative):
-            if low is not None:
-                lows.append(abs(low))
-                highs.append(abs(high))
-    if not lows:
-        return None
-    return min(lows), max(highs)
+    answered = frame.select(sides).row(0, named=True)
+    lows = [abs(bound) for name, bound in answered.items() if name.startswith('#low') and bound is not None]
+    highs = [abs(bound) for name, bound in answered.items() if name.startswith('#high') and bound is not None]
+    return (min(lows), max(highs)) if lows else None
 
 
 def _without_zeros(matrix: pl.DataFrame) -> pl.DataFrame:
