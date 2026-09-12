@@ -335,8 +335,7 @@ class Assembly:
             bad = cols.filter(pl.col('lb').is_null() | pl.col('ub').is_null()).height
             raise DataError(null_bounds_message(name, bad))
 
-        both = pl.concat([bounded.get_column('lb').rename('bound'), bounded.get_column('ub').rename('bound')])
-        if (spread := _magnitude_range(both)) is not None:
+        if (spread := _magnitude_range(bounded, 'lb', 'ub')) is not None:
             self.measured.bounds[name] = spread
         return cols
 
@@ -501,10 +500,10 @@ class Assembly:
         if qmatrix is not None:
             term_rows = pl.concat([term_rows, qmatrix.get_column('row').unique()]).unique()
         rows, matrix, self.n_rows = self._drop_termless_rows(name, rows, matrix, term_rows, start)
-        spread = _magnitude_range(matrix.get_column('coeff'))
+        spread = _magnitude_range(matrix, 'coeff')
         if spread is not None:
             self.measured.coefficients[name] = spread
-        if (sides := _magnitude_range(rows.get_column('rhs'))) is not None:
+        if (sides := _magnitude_range(rows, 'rhs')) is not None:
             self.measured.rhs[name] = sides
         if qmatrix is not None:
             qmatrix = qmatrix.filter(pl.col('row').is_in(rows.get_column('row')))
@@ -699,7 +698,7 @@ class Assembly:
         if stacked.get_column('col').n_unique() != stacked.height:
             stacked = stacked.lazy().group_by('col').agg(pl.col('coeff').sum()).collect(engine='streaming')
         objective = _without_zeros(stacked)
-        self.measured.objective_range = _magnitude_range(objective.get_column('coeff'))
+        self.measured.objective_range = _magnitude_range(objective, 'coeff')
         return objective
 
     def _objective_quadratic(
@@ -797,8 +796,8 @@ def _ordered_pair() -> tuple[pl.Expr, pl.Expr]:
     )
 
 
-def _magnitude_range(values: pl.Series) -> tuple[float, float] | None:
-    """The smallest and largest magnitude in *values*, or ``None`` where none has one.
+def _magnitude_range(frame: pl.DataFrame, *columns: str) -> tuple[float, float] | None:
+    """The smallest and largest magnitude across *columns*, or ``None`` where none has one.
 
     Magnitudes rather than signed extremes, which is the question a solver's
     own range lines answer: a row scaled by ``-1e9`` is as badly scaled as one
@@ -811,12 +810,37 @@ def _magnitude_range(values: pl.Series) -> tuple[float, float] | None:
     the solver has to represent. Dropping them is also what makes the answer
     comparable with the ``Bound`` and ``RHS`` lines a solver prints, which
     exclude the same two.
+
+    **A magnitude is read off each side, never built.** ``|x|`` over each
+    column, filtered and then reduced twice, allocated three vectors the size
+    of the model to answer with two floats: the absolute values, the mask, and
+    the survivors. Reducing the positive and negative sides separately and
+    folding the four answers in python reads the column instead, and takes
+    every column of a declaration in one pass — a frame rather than a series
+    is what lets the two bound columns share it, where concatenating them was
+    a fourth allocation.
     """
-    magnitudes = values.abs()
-    magnitudes = magnitudes.filter(magnitudes.is_finite() & (magnitudes != 0))
-    if not magnitudes.len():
+    sides = []
+    for i, column in enumerate(columns):
+        value = pl.col(column)
+        finite = value.is_finite()
+        sides += [
+            value.filter(finite & (value > 0)).min().alias(f'#low+{i}'),
+            value.filter(finite & (value > 0)).max().alias(f'#high+{i}'),
+            value.filter(finite & (value < 0)).max().alias(f'#low-{i}'),
+            value.filter(finite & (value < 0)).min().alias(f'#high-{i}'),
+        ]
+    answered = frame.select(sides).row(0)
+    lows, highs = [], []
+    for i in range(len(columns)):
+        positive, negative = answered[i * 4 : i * 4 + 2], answered[i * 4 + 2 : i * 4 + 4]
+        for low, high in (positive, negative):
+            if low is not None:
+                lows.append(abs(low))
+                highs.append(abs(high))
+    if not lows:
         return None
-    return float(magnitudes.min()), float(magnitudes.max())  # pyrefly: ignore[bad-argument-type]
+    return min(lows), max(highs)
 
 
 def _without_zeros(matrix: pl.DataFrame) -> pl.DataFrame:
