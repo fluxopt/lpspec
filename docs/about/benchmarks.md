@@ -6,15 +6,19 @@ trust a cell there. That page holds the results: five libraries over four
 models, with the numbers under each chart.
 
 **Every published number is the median of a measurement's rounds, and every
-band is the first to the third quartile of the same rounds.** Nine rounds is
-the floor. The fastest round would be a best-of-n with unequal n, because the
-harness calibrates by duration. A mean would be 2.9x the median here, because
-one round in forty of a 20 ms measurement took 1.5 s.
+band is the first to the third quartile of the same rounds.** Every measurement
+gets the same nine rounds, pinned rather than calibrated by duration, so no
+cell is a best-of-nine beside a neighbour's best-of-forty. The median rather
+than the fastest round, because a cell whose nine rounds all ran slow has no
+clean round to pick. The median rather than the mean, because one slow round
+moves a mean and leaves a median where it was. No published cell on this run
+has a mean above 1.10x its median.
 
-The median flipped nine cells against lpspec, all on the `gurobi`
-[sink](../reference/glossary.md#how-it-runs). There our build alternates
-between a fast and a slow state round after round, and no other library's
-build does ([#1288](https://github.com/fluxopt/lpspec/issues/1288)).
+The median flipped two cells against lpspec on this run: `dispatch/xs` on the
+`gurobi` [sink](../reference/glossary.md#how-it-runs) and `dispatch/s` on
+`highs`, both against linopy. On `gurobi` our build alternates between a fast
+and a slow state round after round, and no other library's build does
+([#1288](https://github.com/fluxopt/lpspec/issues/1288)).
 
 ## How to reproduce it
 
@@ -41,38 +45,31 @@ and the chart's data literal into its own.
 
 ### Marginal cost per model
 
-Build only, repeated in one process. **first** is the first recorded round and **steady** the best of the rounds after it, so the pair is what a rolling horizon pays for its second window against its first. The harness warms up before it records, so neither column carries the one-time import cost: the median gap between them is +8.7 ms on lpspec and +1.5 ms on linopy and +5.7 ms on pyomo and +17.2 ms on gurobipy-loop and +29.4 ms on gurobipy-matrix.
+Build only, repeated in one process. **first** is the first recorded round and **steady** the best of the rounds after it, so the pair is what a rolling horizon pays for its second window against its first. The harness warms up before it records, so neither column carries the one-time import cost: the median gap between them is +29.6 ms on lpspec and +2.0 ms on linopy and +6.8 ms on pyomo and +11.8 ms on gurobipy-loop and +14.5 ms on gurobipy-matrix.
 
 **Read down a column, not across the row.** The build is not the same work in every library — one that defers materialising its coefficients to its writer spends almost nothing here and pays it at the seam — so these columns carry no ratios. The tables above measure to a common artifact and are where a comparison belongs.
 
 | case | vars | lpspec: first | lpspec: steady | linopy: first | linopy: steady | pyomo: first | pyomo: steady | gurobipy-loop: first | gurobipy-loop: steady | gurobipy-matrix: first | gurobipy-matrix: steady |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| dispatch | 10k | 35.2 ms | **28.1 ms** | 27.4 ms | 26.1 ms | 36.8 ms | 35.0 ms | 27.0 ms | 26.9 ms | 28.4 ms | 28.6 ms |
-| fleet | 12k | 138.0 ms | **137.6 ms** | 164.9 ms | 164.2 ms | 42.1 ms | 38.9 ms | 100.6 ms | 73.6 ms | 25.9 ms | 24.6 ms |
-| dispatch | 100k | 45.1 ms | **34.7 ms** | 55.5 ms | 26.9 ms | 290.7 ms | 282.5 ms | 230.1 ms | 213.0 ms | 112.3 ms | 86.3 ms |
-| fleet | 120k | 155.4 ms | **162.6 ms** | 167.9 ms | 166.7 ms | 783.1 ms | 771.6 ms | 861.8 ms | 868.0 ms | 186.6 ms | 158.5 ms |
-| dispatch | 1M | 141.9 ms | **136.9 ms** | 37.4 ms | 35.3 ms | 4914.9 ms | 4874.3 ms | 2678.5 ms | 2709.3 ms | 919.3 ms | 852.7 ms |
-| fleet | 1.2M | 350.9 ms | **322.4 ms** | 189.2 ms | 188.3 ms | 6118.4 ms | 6135.4 ms | 8697.9 ms | 8308.3 ms | 1697.9 ms | 1667.3 ms |
-| dispatch | 10M | 652.8 ms | **569.6 ms** | 164.5 ms | 158.6 ms | — | — | 28775.9 ms | 28746.3 ms | 9084.8 ms | 9012.6 ms |
-| fleet | 12M | 1590.7 ms | **1519.8 ms** | 470.2 ms | 468.3 ms | — | — | — | — | 17277.6 ms | 17067.0 ms |
+| dispatch | 10k | 28.4 ms | **20.9 ms** | 27.9 ms | 27.0 ms | 34.0 ms | 32.6 ms | 38.2 ms | 26.4 ms | 26.0 ms | 15.2 ms |
+| fleet | 12k | 106.8 ms | **99.2 ms** | 183.5 ms | 181.3 ms | 38.4 ms | 37.2 ms | 84.2 ms | 72.1 ms | 37.4 ms | 23.1 ms |
+| dispatch | 100k | 40.5 ms | **33.4 ms** | 29.9 ms | 28.0 ms | 282.1 ms | 277.8 ms | 206.3 ms | 209.5 ms | 94.5 ms | 79.8 ms |
+| fleet | 120k | 117.5 ms | **86.8 ms** | 189.1 ms | 186.7 ms | 727.9 ms | 718.6 ms | 834.6 ms | 820.5 ms | 154.2 ms | 152.8 ms |
+| dispatch | 1M | 124.9 ms | **91.7 ms** | 38.3 ms | 36.6 ms | 4589.6 ms | 4575.7 ms | 2587.0 ms | 2625.7 ms | 852.6 ms | 830.4 ms |
+| fleet | 1.2M | 230.0 ms | **201.5 ms** | 213.3 ms | 209.6 ms | 5792.9 ms | 5769.9 ms | 8058.4 ms | 8016.8 ms | 1606.9 ms | 1607.5 ms |
+| dispatch | 10M | 677.7 ms | **602.3 ms** | 158.0 ms | 157.1 ms | — | — | 27268.8 ms | 27273.8 ms | 8781.2 ms | 8672.3 ms |
+| fleet | 12M | 1561.1 ms | **1471.2 ms** | 495.6 ms | 490.5 ms | — | — | — | — | 16624.4 ms | 16586.2 ms |
 
 <!-- bench:/marginal -->
 
 ## The same size, reached by widening
 
+This table is drawn through the `highs` sink, and no run has published it. The
+two cases that carry width rungs are killed there before they write a file, for
+the reason [below](#not-measured-yet). [The chart page](benchmarks-scaling.html)
+carries the same ladder through `gurobi`.
+
 <!-- bench:sweeps -->
-
-### The width ladder
-
-Entity counts x N with the snapshot count held fixed, through the `highs` sink. Each rung matches one of the size ladder rungs above variable for variable — `w10` is `s`, `w1000` is `l` — so the pair reads as one model at one size in two shapes.
-
-| case | entities x | variables | wall: lpspec | wall: linopy | wall: pyomo | wall ÷ linopy | wall ÷ pyomo | peak: lpspec | peak: linopy | peak: pyomo | peak ÷ linopy | peak ÷ pyomo |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| storage | 1 | 10k | 0.04 s | 0.08 s | 0.31 s | 0.55x | 0.14x | 0.22 GB | 0.24 GB | 0.19 GB | 0.90x | 1.16x |
-| storage | 10 | 100k | 0.06 s | 0.10 s | 2.91 s | 0.62x | 0.02x | 0.25 GB | 0.25 GB | 0.32 GB | 0.96x | 0.76x |
-| transport | 1 | 9.8k | 0.04 s | 0.06 s | 0.26 s | 0.71x | 0.16x | 0.22 GB | 0.25 GB | 0.19 GB | 0.87x | 1.13x |
-| transport | 10 | 98k | 0.06 s | 0.31 s | 2.45 s | 0.19x | 0.02x | 0.25 GB | 0.84 GB | 0.35 GB | 0.30x | 0.72x |
-
 <!-- bench:/sweeps -->
 
 ## Not measured yet
@@ -85,16 +82,19 @@ Listed so that a claim with no table under it is visible as one.
   one back.
 - **Sizes past `l`.** `xl` and `2xl` exist in the harness and no run
   publishes them.
-- **The width ladder past `w10`.** `w100` and `w1000` are left out of the
-  published run rather than measured and dropped. `transport/w100` on linopy
-  peaks at 14.26 GB, and a measurement holds the model twice, which is more
-  than the box has. The budget cannot stop it either, because it projects the
-  next rung linearly off a `w10` cell that took under a gigabyte. What is lost
-  is the runner rather than the rung
-  ([#1416](https://github.com/fluxopt/lpspec/issues/1416)). The last numbers
-  taken there are in [#1285](https://github.com/fluxopt/lpspec/pull/1285), on
-  the machine that could hold them: lpspec 0.11 s and 0.59 GB against linopy
-  53.53 s and 14.26 GB at `transport/w100`.
+- **`transport` and `storage` are absent on the `highs` sink, and the width
+  ladder with them.** The published run takes `w100` and `w1000`, and the
+  `highs` job also measures the repeated build. That budget projects the next
+  rung off a `w10` cell that took under a gigabyte, so the run starts
+  `transport/w100` and `storage/w1000`, where `bench/memory-watchdog.sh` kills
+  the case to save the box. A killed case writes no file, so both models lose
+  every rung they had already measured, their rows in the marginal table above
+  included ([#1498](https://github.com/fluxopt/lpspec/issues/1498)). The
+  `gurobi` job keeps both models, because it leaves the repeated build to
+  `highs`. The last `highs` numbers past `w10` are in
+  [#1285](https://github.com/fluxopt/lpspec/pull/1285), taken on a machine that
+  could hold them. There lpspec took 0.11 s and 0.59 GB at `transport/w100`,
+  against linopy's 53.53 s and 14.26 GB.
 - **Anything about expressiveness.** Four models say nothing about a fifth.
 
 ## Method
