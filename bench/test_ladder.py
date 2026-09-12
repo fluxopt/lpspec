@@ -157,6 +157,50 @@ def test_emit(
     ceiling.record(arm, case_name, size, sink, _measured(benchmark), _peak(benchmark))
 
 
+@pytest.mark.benchmem(isolate=True)
+def test_window(
+    benchmark: Any,
+    request: pytest.FixtureRequest,
+    paths: Any,
+    ceiling: Any,
+    case_name: str,
+    size: str,
+    arm: str,
+    sink: str,
+) -> None:
+    """What the *second* window of a rolling horizon costs, and every one after.
+
+    `test_emit` prices the first window, where nothing is held and everything is
+    built. This one prices the rest, which is the shape a driver actually runs
+    in: the same model, new numbers, again. The README claims the hundredth
+    window should cost what the first did and no table has said so
+    (`docs/about/benchmarks.md`, "Not measured yet").
+
+    **The two arms are allowed different answers, which is the measurement.**
+    An arm carries between windows whatever its library gives it a verb for —
+    ours re-attaches and pushes onto the loaded solver, linopy's constructs a
+    new model, because that is what a linopy driver does. Window one runs
+    outside the clock on both, so what is timed is a later window either way.
+
+    An arm with no `window` verb is skipped naming that, rather than measured as
+    though a rebuild were its rolling-horizon path.
+    """
+    missing = unmeasurable(arm, case_name, sink) or ceiling.reached(arm, case_name, size, sink)
+    if missing:
+        pytest.skip(missing)
+
+    module = ARMS[arm]
+    if not hasattr(module, 'window'):
+        pytest.skip(f'{arm} has no rolling-horizon verb — nothing here says what its second window costs')
+    if sink == 'lp':
+        pytest.skip('a file is written whole every window — there is no loaded artifact to re-attach to')
+
+    prepared = module.prepare(case_name, size, paths(case_name, size), {})
+    counts = _rounds(benchmark, request, module.window(sink, prepared))
+    _record(benchmark, counts, case_name, size)
+    ceiling.record(arm, case_name, size, sink, _measured(benchmark), _peak(benchmark))
+
+
 def test_rebuild(benchmark: Any, paths: Any, ceiling: Any, builds: int, case_name: str, size: str, arm: str) -> None:
     """First build against every later one, in one process.
 
