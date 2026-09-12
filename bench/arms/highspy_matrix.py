@@ -17,8 +17,13 @@ with. `bench/floor.py` answers the same question for `transport` alone and by
 hand, with a faster tiled CSR of its own; this is the arm that puts the answer
 in the published tables for every case.
 
-`highspy` needs no guard in `REQUIRES`: it is a hard dependency of the package
-under test, so an environment that can run the `lpspec` arm can run this one.
+`highspy` needs no guard in `REQUIRES`, being a hard dependency of the package
+under test. **`scipy` does**, and it is the reason this arm cannot be the one
+with an empty `REQUIRES`: the matrix a case hands over is a scipy CSR, and
+until this arm existed those modules were only ever reached through
+`gurobipy-matrix` and so were gated behind `gurobipy`. An arm that declares
+nothing runs everywhere, and the `codspeed` environment — which carries neither
+— failed on the import rather than skipping the cell.
 """
 
 from __future__ import annotations
@@ -34,8 +39,9 @@ if TYPE_CHECKING:
 #: arm: an LP file would measure a writer rather than a load.
 SINKS = ('highs',)
 
-#: Nothing to check — see the module docstring.
-REQUIRES = ()
+#: What has to be importable — the CSR the formulations build. See the module
+#: docstring for why `highspy` is not listed beside it.
+REQUIRES = ('scipy',)
 
 #: Which formulation module in `bench/models/<case>/` this arm builds from.
 DIALECT = 'highspy-matrix'
