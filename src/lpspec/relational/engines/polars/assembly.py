@@ -805,20 +805,27 @@ def _magnitude_range(frame: pl.DataFrame, *columns: str) -> tuple[float, float] 
     one rule and the answer stays comparable with the ``Bound`` and ``RHS``
     lines a solver prints, which exclude the same two.
 
-    **Every column of a declaration is reduced in one pass, and ``|x|`` is
-    taken after the filter rather than before.** Absolute values over the whole
-    column, then a mask, then the survivors, allocated three vectors the size
-    of the model to answer with two floats — 29% of the build at `dispatch/l`.
-    A frame rather than a series is what lets the two bound columns share the
-    pass that concatenating them used to cost.
+    **Each sign is reduced where it lies, so ``|x|`` is never built.** Absolute
+    values over the whole column, then a mask, then the survivors, allocated
+    three vectors the size of the model to answer with two floats — 29% of the
+    build at `dispatch/l`, and 79 ms of it survives taking ``abs`` after the
+    filter instead. The smallest magnitude can be interior to either sign, so
+    both sides are asked; a frame rather than a series is what lets a
+    declaration's columns share the pass.
     """
-    magnitudes = [pl.col(column).abs().filter(pl.col(column).is_finite() & (pl.col(column) != 0)) for column in columns]
-    answered = frame.select(
-        *[magnitude.min().alias(f'#low{i}') for i, magnitude in enumerate(magnitudes)],
-        *[magnitude.max().alias(f'#high{i}') for i, magnitude in enumerate(magnitudes)],
-    ).row(0)
-    lows = [bound for bound in answered[: len(columns)] if bound is not None]
-    highs = [bound for bound in answered[len(columns) :] if bound is not None]
+    sides: list[pl.Expr] = []
+    for i, column in enumerate(columns):
+        value = pl.col(column)
+        finite, up, down = value.is_finite(), value > 0, value < 0
+        sides += [
+            value.filter(finite & up).min().alias(f'#low+{i}'),
+            value.filter(finite & up).max().alias(f'#high+{i}'),
+            value.filter(finite & down).max().alias(f'#low-{i}'),
+            value.filter(finite & down).min().alias(f'#high-{i}'),
+        ]
+    answered = frame.select(sides).row(0, named=True)
+    lows = [abs(bound) for name, bound in answered.items() if name.startswith('#low') and bound is not None]
+    highs = [abs(bound) for name, bound in answered.items() if name.startswith('#high') and bound is not None]
     return (min(lows), max(highs)) if lows else None
 
 
