@@ -180,10 +180,6 @@ class Tables:
         """
         return int(self.qmatrix['row'][0]) if self.qmatrix.height else self.row_count
 
-    def col_chunks(self, budget: int) -> Iterator[tuple[int, int]]:
-        """Column ranges of roughly ``budget`` columns each — a column costs one element."""
-        return ranges(self.column_count, budget, 1.0)
-
     def dense_columns(self, infinity: float) -> ColumnVectors:
         """The column vectors over the solver's index, ready to hand over.
 
