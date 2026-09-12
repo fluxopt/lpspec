@@ -354,10 +354,10 @@ def _digest(header: bytes, *vectors: Any) -> bytes:
     """Sixteen bytes over *header* and every byte of *vectors*, in order.
 
     **sha256 across four threads, where this was blake2b down one.** What goes
-    through the hash is the model — 131 MB at `dispatch/l` — so the rate is the
-    whole cost: blake2b ran at 0.63 GB/s and this runs at 4.95, `hashlib`
-    dropping the GIL over a buffer of eight megabytes. Four threads because the
-    measured gain is flat past four and polars has its own pool.
+    through the hash is the model itself, so the hash rate is the whole cost
+    and eight times of it was recoverable (#1593): `hashlib` drops the GIL over
+    a buffer this size, and four threads is where the measured gain flattens
+    against polars' own pool.
 
     Each chunk is hashed alone, and folded back in with its length in the order
     it was cut, which is what keeps the answer dependent on the order of the
