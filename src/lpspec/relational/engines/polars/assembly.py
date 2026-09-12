@@ -490,8 +490,13 @@ class Assembly:
 
         pieces = []
         carried_order: MaintainOrderJoin | None = 'left_right' if len(terms) == 1 else None
+        arithmetic = labelled.height >= _ARITHMETIC_ROWS and c.where is None and not restrictions
         for p, sign in terms:
-            placed = join_on(frame, p.frame, p.dims, 'inner', maintain_order=carried_order)
+            placed = (
+                self._placed_by_arithmetic(p, c.dims, start, labelled.height)
+                if arithmetic and set(p.dims) == set(c.dims)
+                else join_on(frame, p.frame, p.dims, 'inner', maintain_order=carried_order)
+            )
             pieces.append(
                 placed.select(
                     'row',
@@ -516,6 +521,42 @@ class Assembly:
         if qmatrix is not None:
             qmatrix = qmatrix.filter(pl.col('row').is_in(rows.get_column('row')))
         return rows, matrix, qmatrix
+
+    def _placed_by_arithmetic(
+        self, fragment: TermFragment, dims: tuple[str, ...], start: int, height: int
+    ) -> pl.LazyFrame:
+        """*fragment* carrying the row each of its coordinates belongs to, computed.
+
+        The join this replaces answers two questions: which row a term belongs
+        to, and whether that row exists. A label is ``start`` plus the
+        coordinate's row-major position whenever the block took the dense path
+        — no mask, no restriction — so the first is arithmetic over the dims the
+        fragment already carries, and the second is a range: a coordinate a
+        shift walked off the end has no ordinal and no row.
+
+        Worth it where the *constraint* is wide, and not otherwise: the join
+        builds its hash table on the block's rows, so a million of them cost
+        37 ms against this expression's 14 ms at `fleet/l`, while a block of
+        twenty thousand rows costs 10 ms and this loses to it (#NEXT).
+        """
+        ordinals = self.compiler.row_major(dims, self._lenient_ordinal)
+        row = pl.lit(start, dtype=pl.Int64) + ordinals
+        return fragment.frame.with_columns(row.alias('row')).filter(pl.col('row').is_between(start, start + height - 1))
+
+    def _lenient_ordinal(self, dim: str) -> pl.Expr:
+        """*dim*'s ordinal, null where the value names no label of the dimension.
+
+        :meth:`~lpspec.relational.engines.polars.compiler.PolarsCompiler.ordinal_of`
+        refuses such a value, which is right where it is asked of a declared
+        coordinate and wrong here: a recurrence's shifted key walks off the
+        edge by design, and the join it replaces answered that with no row.
+        """
+        if self.compiler.data.is_enum_encoded(dim):
+            return pl.col(dim).to_physical().cast(pl.Int64)
+        labels = self.compiler.data.dimensions[dim].select('val').collect()['val']
+        return pl.col(dim).replace_strict(
+            {value: at for at, value in enumerate(labels)}, default=None, return_dtype=pl.Int64
+        )
 
     def _refuse_undefined_constant_divisors(
         self, frame: pl.LazyFrame, consts: list[TermFragment], name: str, c: program.ConstraintDeclaration
@@ -733,6 +774,12 @@ class Assembly:
         if stacked.select(pl.struct('col_l', 'col_r').n_unique()).item() != stacked.height:
             stacked = stacked.lazy().group_by('col_l', 'col_r').agg(pl.col('coeff').sum()).collect(engine='streaming')
         return _without_zeros(stacked.sort('col_l', 'col_r'))
+
+
+#: Rows a constraint block needs before its terms are placed by arithmetic
+#: rather than by joining it. The join's cost is its hash table over the
+#: block's rows; below this the table is small enough that the join wins.
+_ARITHMETIC_ROWS = 100_000
 
 
 def short_parameters(program: program.Program, attached: AttachedSources) -> dict[str, tuple[int, int]]:
