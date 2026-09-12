@@ -40,7 +40,15 @@ from lpspec.lanes import LANES, Buildable, Label, Source, declared, lowered
 from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
-from lpspec.relational.parquet import RECORD_FILE, Record, check_format, digest_of, read_reasons
+from lpspec.relational.parquet import (
+    COST_FILE,
+    RECORD_FILE,
+    Record,
+    check_format,
+    digest_of,
+    read_reasons,
+    write_whole,
+)
 from lpspec.relational.result import Result
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
@@ -233,7 +241,10 @@ class Model:
                 the one moment all three exist together: after an
                 :meth:`update` the spec is unchanged, so nothing outside this
                 call could tell the question it answered from the one before
-                it.
+                it. What the build and its solves have spent goes in beside
+                the answer, as :class:`~lpspec.relational.parquet.Cost` — the
+                one part of an archive re-solving it cannot recover, those
+                clocks being of the machine that ran them.
 
         Returns:
             The solution, holding this model.
@@ -262,8 +273,16 @@ class Model:
         because that is the layout an archive's ``answer/`` is and because a
         large primal is streamed to disk rather than passed through this
         process.
+
+        The cost row goes in after the answer rather than through
+        :meth:`Result.save`, which cannot write it: a result is one solve and
+        the diagnostics it would come from are the model's whole life, so
+        there is no reading of them a result could carry as its own. The
+        archive can, being written by the model that holds both.
         """
         with beside(out) as scratch:
+            answer = answered.save(scratch)
+            write_whole(self._engine.diagnostics().as_row(), answer / COST_FILE)
             write_archive(
                 out,
                 self._spec,
@@ -271,7 +290,7 @@ class Model:
                 checked=self._sources,
                 whole={},
                 axis=None,
-                answer=answered.save(scratch),
+                answer=answer,
             )
 
     def write(self, path: str | Path) -> None:

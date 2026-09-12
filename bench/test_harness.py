@@ -488,17 +488,26 @@ def test_the_lock_freezes_the_branch_linopy_moves_on() -> None:
     )
 
 
-def _same_install(measured: str, locked: str) -> bool:
-    """Whether two version strings name the same build of the same library.
+def _locked_commit(package: dict[str, Any]) -> str:
+    """The commit a locked git install resolves to, empty for one from an index."""
+    return str(package.get('source', {}).get('git', '')).partition('#')[2]
+
+
+def _same_install(measured: str, locked: str, commit: str = '') -> bool:
+    """Whether the lock installs the build a published number was measured on.
 
     A git install carries its commit in the local segment and its release
     number from whatever tag it happens to follow, so one commit reads
     `0.0.1.dev1+g2e05dd5df` where it was measured and `0.0.1a293.dev4+g2e05dd5df`
-    in the lock. The commit is the half that identifies the code.
+    in the lock. The commit is the half that identifies the code, and a commit
+    that *is* a release tag has no local segment in the lock at all: `uv` reads
+    the tag and writes `0.0.1a320`. So *commit* is the locked source's, which
+    answers for a version that cannot.
     """
-    if '+' in measured:
-        return measured.partition('+')[2] == locked.partition('+')[2]
-    return measured == locked
+    if '+' not in measured:
+        return measured == locked
+    short = measured.partition('+')[2].partition('.')[0].removeprefix('g')
+    return commit.startswith(short) or locked.partition('+')[2].startswith(f'g{short}')
 
 
 def test_the_lock_installs_what_the_published_numbers_were_taken_on() -> None:
@@ -524,7 +533,7 @@ def test_the_lock_installs_what_the_published_numbers_were_taken_on() -> None:
     """
     root = Path(__file__).resolve().parents[1]
     lock = tomllib.loads((root / 'bench/reproduce.py.lock').read_text())
-    locked = {package['name']: package.get('version', '') for package in lock['package']}
+    locked = {package['name']: (package.get('version', ''), _locked_commit(package)) for package in lock['package']}
 
     published = [
         path for path in _committed('bench/results') if path.endswith('.json') and not path.endswith('.ceilings.json')
@@ -538,8 +547,10 @@ def test_the_lock_installs_what_the_published_numbers_were_taken_on() -> None:
         measured = json.loads(blob)['machine_info']['versions']
         for name, version in measured.items():
             assert name in locked, f'{path} was measured on {name}, which the lock does not install at all'
-            assert _same_install(version, locked[name]), (
-                f'{path} was measured on {name} {version} and the lock installs {locked[name]}, '
+            pinned, commit = locked[name]
+            installs = f'{pinned} at {commit[:9]}' if commit else pinned
+            assert _same_install(version, pinned, commit), (
+                f'{path} was measured on {name} {version} and the lock installs {installs}, '
                 f'so the documented reproduction does not re-take these numbers — '
                 f're-run `uv lock --script bench/reproduce.py`'
             )

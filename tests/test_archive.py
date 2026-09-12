@@ -19,7 +19,8 @@ import yaml as pyyaml
 from math_spec import to_program, to_spec
 
 import lpspec as lps
-from lpspec.layout import _staging_for
+from lpspec.layout import ANSWER_DIR, _staging_for
+from lpspec.relational.parquet import COST_FILE, Cost
 from lpspec.sources import attachable, tidy_sources
 from tests.conftest import (
     DISPATCH_COST,
@@ -299,6 +300,116 @@ def test_an_archive_carries_the_answer_beside_the_question(
         )
 
 
+def test_an_archive_records_what_reaching_its_answer_cost(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The one part of an archive that re-solving cannot recover.
+
+    Everything else it holds is reproducible by construction — that is what
+    `lps.solve(case.spec, case.sources)` is for. The clocks are of the machine
+    that ran them, so unless the solve writes them down nothing does.
+    """
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
+    cost = lps.load_archive(tmp_path / 'case').diagnostics
+
+    assert cost.columns == [
+        'columns',
+        'rows',
+        'nonzeros',
+        'sink_columns',
+        'sink_rows',
+        'solves',
+        'loads',
+        'attach',
+        'build',
+        'handoff',
+        'solve',
+        'write',
+        'run',
+    ], 'the sizes, the counters, one clock per phase in the order the phases run, then the run that spent them'
+    assert cost.height == 1, 'one solve writes one row'
+    row = cost.row(0, named=True)
+    assert (row['solves'], row['loads']) == (1, 1), (
+        'lps.solve builds the model it solves, so the row covers that one solve and its one load'
+    )
+    assert row['build'] > 0.0, 'the build ran, so its clock is not the zero that says a phase did not'
+
+
+def test_the_cost_row_says_how_many_solves_its_clocks_cover(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """Why `solves` is a column rather than something the reader assumes.
+
+    The diagnostics a model reports are its whole life, and an archive is
+    written from inside one solve of it. So a row off a model that has solved
+    before carries clocks covering every one of those solves, and the column
+    saying so is what stops it from reading as this answer's own.
+    """
+    with lps.build(dispatch_yaml, dispatch_frame_inputs) as model:
+        model.solve()
+        model.solve(archive=tmp_path / 'second')
+
+    assert lps.load_archive(tmp_path / 'second').diagnostics['solves'].item() == 2, (
+        'two solves ran before the archive was written, and the row it carries counts both'
+    )
+
+
+def test_a_case_that_wrote_a_file_and_one_that_did_not_are_still_one_table(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """Why a phase that never ran writes zero instead of no column.
+
+    The point of the row is that a directory of archives is a table. Two cases
+    that entered different phases would otherwise write different schemas, and
+    a concat over the directory would fail on whichever one differed.
+    """
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'solved')
+    with lps.build(dispatch_yaml, dispatch_frame_inputs) as model:
+        model.write(tmp_path / 'model.lp')
+        model.solve(archive=tmp_path / 'written')
+
+    rows = [lps.load_archive(tmp_path / case).diagnostics for case in ('solved', 'written')]
+    assert [row['write'].item() == 0.0 for row in rows] == [True, False], (
+        'the first case never wrote a file and the second did, or the two schemas were never in question'
+    )
+    assert pl.concat(rows).height == 2, 'and the two rows are one table'
+
+
+def test_an_archive_holding_no_cost_row_is_refused_by_name(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The layout stamp cannot say this one, so the missing member has to.
+
+    `format.json` is held at 0 while the layout moves, so an archive written
+    before the cost row reads as current and is short of a member instead.
+    """
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
+    (tmp_path / 'case' / ANSWER_DIR / COST_FILE).unlink()
+
+    with pytest.raises(lps.LayoutError, match=COST_FILE) as excinfo:
+        lps.load_archive(tmp_path / 'case')
+    assert 'solving the model it holds again' in str(excinfo.value), 'and the message names the way out'
+
+
+def test_every_phase_a_build_clocks_has_a_column_to_travel_in(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A phase added to the engine and not to `Cost` would be dropped in silence.
+
+    The row is written off `timings`, whose keys are whatever the engine
+    clocked, and a key with no column of its own simply does not travel.
+    """
+    with lps.build(dispatch_yaml, dispatch_frame_inputs) as model:
+        model.write(tmp_path / 'model.lp')
+        model.solve()
+        clocked = set(model.diagnostics().timings)
+
+    assert clocked == {'attach', 'build', 'write', 'handoff', 'solve'}, (
+        'this model entered every phase a build clocks, or the check below passes on the ones it missed'
+    )
+    assert not clocked - set(Cost._fields), f'every phase the engine clocks is a Cost column, and {clocked} is not'
+
+
 def test_an_updated_model_archives_the_data_it_actually_answered(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
@@ -347,7 +458,8 @@ def test_every_archive_holds_one_objective_file_whatever_wrote_it(
     answer = out / 'answer'
     assert (answer / 'objective.parquet').is_file(), 'the record is one file, whichever verb wrote it'
     assert not (answer / 'objective').exists(), 'and not a directory beside it'
-    assert (answer / 'diagnostics.parquet').is_file() == sweep, 'diagnostics go the same way; a solve writes none'
+    assert (answer / 'diagnostics.parquet').is_file(), 'the cost row goes the same way'
+    assert not (answer / 'diagnostics').exists(), 'and not a directory beside it either'
     assert pl.read_parquet(answer / 'objective.parquet').height == (3 if sweep else 1), 'one row per slice'
 
 
@@ -515,6 +627,25 @@ def test_saving_an_answer_twice_leaves_only_the_second(
     )
     with pytest.raises(KeyError, match='unknown variable'):
         lps.load_result(out).primal('p')
+
+
+def test_saving_an_answer_into_an_unpacked_archive_takes_its_cost_row_with_it(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A cost row belongs to the answer beside it, so a second save removes it.
+
+    Unpacking an archive gives a directory `result.save` will take, and what a
+    save leaves is one answer. A row saying what a different solve on a
+    different machine spent would otherwise sit beside it, readable through a
+    reader that reports this answer's digest.
+    """
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
+    answer = tmp_path / 'case' / ANSWER_DIR
+    assert (answer / COST_FILE).is_file(), 'the archive wrote one, or this proves nothing'
+
+    lps.solve(dispatch_yaml, dispatch_frame_inputs).save(answer)
+
+    assert not (answer / COST_FILE).exists(), 'and a saved answer carries no cost row, so none is left behind'
 
 
 def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path) -> None:
