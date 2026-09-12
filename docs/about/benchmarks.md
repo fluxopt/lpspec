@@ -60,19 +60,12 @@ Build only, repeated in one process. **first** is the first recorded round and *
 
 ## The same size, reached by widening
 
+This table is drawn through the `highs` sink, and no run has published it. The
+two cases that carry width rungs are killed there before they write a file, for
+the reason [below](#not-measured-yet). [The chart page](benchmarks-scaling.html)
+carries the same ladder through `gurobi`.
+
 <!-- bench:sweeps -->
-
-### The width ladder
-
-Entity counts x N with the snapshot count held fixed, through the `highs` sink. Each rung matches one of the size ladder rungs above variable for variable — `w10` is `s`, `w1000` is `l` — so the pair reads as one model at one size in two shapes.
-
-| case | entities x | variables | wall: lpspec | wall: linopy | wall: pyomo | wall ÷ linopy | wall ÷ pyomo | peak: lpspec | peak: linopy | peak: pyomo | peak ÷ linopy | peak ÷ pyomo |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| storage | 1 | 10k | 0.04 s | 0.08 s | 0.31 s | 0.55x | 0.14x | 0.22 GB | 0.24 GB | 0.19 GB | 0.90x | 1.16x |
-| storage | 10 | 100k | 0.06 s | 0.10 s | 2.91 s | 0.62x | 0.02x | 0.25 GB | 0.25 GB | 0.32 GB | 0.96x | 0.76x |
-| transport | 1 | 9.8k | 0.04 s | 0.06 s | 0.26 s | 0.71x | 0.16x | 0.22 GB | 0.25 GB | 0.19 GB | 0.87x | 1.13x |
-| transport | 10 | 98k | 0.06 s | 0.31 s | 2.45 s | 0.19x | 0.02x | 0.25 GB | 0.84 GB | 0.35 GB | 0.30x | 0.72x |
-
 <!-- bench:/sweeps -->
 
 ## Not measured yet
@@ -85,16 +78,19 @@ Listed so that a claim with no table under it is visible as one.
   one back.
 - **Sizes past `l`.** `xl` and `2xl` exist in the harness and no run
   publishes them.
-- **The width ladder past `w10`.** `w100` and `w1000` are left out of the
-  published run rather than measured and dropped. `transport/w100` on linopy
-  peaks at 14.26 GB, and a measurement holds the model twice, which is more
-  than the box has. The budget cannot stop it either, because it projects the
-  next rung linearly off a `w10` cell that took under a gigabyte. What is lost
-  is the runner rather than the rung
-  ([#1416](https://github.com/fluxopt/lpspec/issues/1416)). The last numbers
-  taken there are in [#1285](https://github.com/fluxopt/lpspec/pull/1285), on
-  the machine that could hold them: lpspec 0.11 s and 0.59 GB against linopy
-  53.53 s and 14.26 GB at `transport/w100`.
+- **`transport` and `storage` are absent on the `highs` sink, and the width
+  ladder with them.** The published run takes `w100` and `w1000`. The `highs`
+  job also measures the repeated build, and that budget projects the next rung
+  off a `w10` cell that took under a gigabyte, so the run starts
+  `transport/w100` and `storage/w1000`. `bench/memory-watchdog.sh` kills the
+  case there to save the box. A killed case writes no file, so both models lose
+  every rung they had already measured, their rows in the marginal table above
+  included ([#1498](https://github.com/fluxopt/lpspec/issues/1498)). The
+  `gurobi` job keeps both models, because it leaves the repeated build to
+  `highs`. The last `highs` numbers past `w10` are in
+  [#1285](https://github.com/fluxopt/lpspec/pull/1285), taken on a machine that
+  could hold them: lpspec 0.11 s and 0.59 GB against linopy 53.53 s and
+  14.26 GB at `transport/w100`.
 - **Anything about expressiveness.** Four models say nothing about a fifth.
 
 ## Method
