@@ -261,6 +261,11 @@ class Assembly:
         boundary where ``is_sorted`` does not (#576); the assembly needs a
         contiguous matrix anyway (#550).
 
+        **The rows that had terms are read off the runs, not hashed.** Both
+        returns reach that past the ordering probe — one because it said the
+        share ascends, the other because it sorted — and only the set is read
+        downstream, so `rle` answers what `unique` was asked (#1594).
+
         Zeros go before any of that, so the probes read them and the sort
         orders them no longer — pruned behind a probe too, so a share with
         nothing to drop pays no rechunk. A cancelling pair survives to the
@@ -290,7 +295,7 @@ class Assembly:
             stacked = stacked.sort('row', 'col')
             repeated = stacked.select(repeat.any()).item()
         if not repeated:
-            return stacked, _distinct_ascending(stacked.get_column('row')) if term_rows is None else term_rows
+            return stacked, stacked.get_column('row').rle().struct.field('value') if term_rows is None else term_rows
         aggregated = (
             stacked.lazy()
             .group_by('row', 'col')
@@ -300,7 +305,7 @@ class Assembly:
         )
         return (
             _pruned(aggregated),
-            _distinct_ascending(aggregated.get_column('row')) if term_rows is None else term_rows,
+            aggregated.get_column('row').rle().struct.field('value') if term_rows is None else term_rows,
         )
 
     # ------------------------------------------------------------------
@@ -829,22 +834,6 @@ def _magnitude_range(frame: pl.DataFrame, *columns: str) -> tuple[float, float] 
     lows = [abs(bound) for name, bound in answered.items() if name.startswith('#low') and bound is not None]
     highs = [abs(bound) for name, bound in answered.items() if name.startswith('#high') and bound is not None]
     return (min(lows), max(highs)) if lows else None
-
-
-def _distinct_ascending(values: pl.Series) -> pl.Series:
-    """The distinct values of an ascending *values* — its runs, not its hash table.
-
-    ``unique`` hashes every entry: 39 ms over the 10M-entry share at
-    `dispatch/l`, against 12 ms to read the runs of a column that ascends.
-    Both callers reach this past the ordering probe — one because the probe
-    said so, the other because it sorted — so ascending is known rather than
-    assumed, and a column that did not would answer with repeats.
-
-    Only the *set* is read downstream: :meth:`Assembly._drop_termless_rows`
-    counts it and tests membership, so the answer's own order is not a
-    contract.
-    """
-    return values.rle().struct.field('value')
 
 
 def _without_zeros(matrix: pl.DataFrame) -> pl.DataFrame:
