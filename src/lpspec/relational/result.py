@@ -20,10 +20,9 @@ from typing import TYPE_CHECKING, Literal
 
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
 from lpspec.relational.parquet import (
-    COST_SCHEMA,
     RECORD_FILE,
     RECORD_SCHEMA,
-    Cost,
+    Metrics,
     Record,
     clear_the_answer,
     reader_kind,
@@ -354,22 +353,18 @@ class Diagnostics:
     #: which phase a slow loop spends its time in, not why.
     timings: Mapping[str, float]
 
-    def as_row(self) -> pl.DataFrame:
-        """The sizes, counters and clocks as one row — a :class:`~lpspec.relational.parquet.Cost`.
+    def metrics(self) -> Metrics:
+        """The sizes, counters and clocks as one value — the row an archive records.
 
         What ``archive=`` records beside the answer, and what a caller feeding
         its own store reads off a model it solved. Which fields reach it and
-        what the row means cumulatively are :class:`~lpspec.relational.parquet.Cost`'s
-        to say; a phase this build never entered writes zero there.
-
-        Returns:
-            One row, in the columns every writer of one uses, so a directory
-            of them is a table an aggregate reads.
+        what it means cumulatively are
+        :class:`~lpspec.relational.parquet.Metrics`'s to say; a phase this
+        build never entered reads zero there. ``run`` is null: the name is the
+        publisher's, and nothing has published this yet.
         """
-        import polars as pl
-
         clocks = self.timings
-        cost = Cost(
+        return Metrics(
             columns=self.columns,
             rows=self.rows,
             nonzeros=self.nonzeros,
@@ -383,7 +378,6 @@ class Diagnostics:
             solve=clocks.get('solve', 0.0),
             write=clocks.get('write', 0.0),
         )
-        return pl.DataFrame([cost._asdict()], schema_overrides=COST_SCHEMA)
 
 
 def _named(frames: Mapping[str, pl.LazyFrame], name: str, kind: str) -> pl.LazyFrame:

@@ -27,7 +27,7 @@ import polars as pl
 
 from lpspec.errors import LayoutError
 from lpspec.lanes import lowered
-from lpspec.relational.parquet import COST_FILE, RECORD_FILE, consolidated, digest_of_bytes, digest_of_file
+from lpspec.relational.parquet import METRICS_FILE, RECORD_FILE, consolidated, digest_of_bytes, digest_of_file
 from lpspec.sources import supplied, tidy_sources
 
 if TYPE_CHECKING:
@@ -221,7 +221,7 @@ def _put_the_answer(members: _Members, answer: Path, *, run: str) -> None:
     this point knows it. Onto both, so that a table concatenated from a
     warehouse can attribute a slice's cost as readily as its answer.
     """
-    consolidating = (RECORD_FILE, COST_FILE)
+    consolidating = (RECORD_FILE, METRICS_FILE)
     for file in consolidating:
         stamped = consolidated(answer, file).with_columns(pl.lit(run, dtype=pl.String).alias('run'))
         buffer = io.BytesIO()

@@ -96,13 +96,15 @@ the same pair one level down, for an answer `result.save` or `runs.save` wrote.
 
 ## Read what a solve cost
 
-`diagnostics` is one row: how big the model was, how many solves the archive
-covers, and wall-clock seconds in each phase.
+`diagnostics` is a `Metrics`: how big the model was, how many solves the
+archive covers, and wall-clock seconds in each phase, as one value.
 
 ```python
 case = lps.load_archive('case/')
-# columns, rows, nonzeros, sink_columns, sink_rows, solves, loads, attach, build, handoff, solve, write, run
-case.diagnostics
+
+case.diagnostics.rows  # how big the model was
+case.diagnostics.solves  # how many solves the clocks cover
+case.diagnostics.build  # seconds spent turning declarations into frames
 ```
 
 This is the one part of an archive that re-solving cannot give back. The
@@ -132,10 +134,12 @@ with lps.build('dispatch.yaml', sources) as model:
     model.solve(archive='second/')  # solves: 2, and the clocks cover both
 ```
 
-**A sweep records the same columns per slice**, read as `runs.diagnostics` and
-archived in one `answer/diagnostics.parquet` as a solve's is. A fold knows
-where one slice's share of the clocks begins. A single `Result` does not: it is
-one solve of a model that may have had many, so it carries no such number.
+**A sweep records its own metrics per slice, in its own columns.** `runs.diagnostics`
+carries `loaded` — whether that slice's model went to the solver from scratch —
+and drops what a slice has no share of: `sink_columns`, `sink_rows`, `solves`,
+`loads` and `write`. Its clocks are that slice's own seconds, where a solve's
+cover the model's whole life. A fold knows where one slice's share begins; a
+single `Result` does not, being one solve of a model that may have had many.
 
 ## Keep the answer an update produced
 

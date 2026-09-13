@@ -24,6 +24,7 @@ from math_spec import to_spec
 import lpspec as lps
 from lpspec import strategy
 from lpspec.api import Model
+from lpspec.relational.parquet import SliceMetrics
 from tests.conftest import DISPATCH_SPEC, override
 
 # ---------------------------------------------------------------------------
@@ -1981,6 +1982,32 @@ PRICED_CARRY = {'soc_initial': 'soc'}
 
 def _spilled(directory, **kwargs) -> strategy.Runs:
     return lps.solve_over(SPENDING, horizon_sources(12), PRICED_AXIS, carry=PRICED_CARRY, spill_to=directory, **kwargs)
+
+
+def test_a_slices_metrics_are_written_in_the_columns_its_type_declares(tmp_path):
+    """A slice's row was a bare dict until `SliceMetrics`, so nothing said what
+    it holds and a drift between what the fold builds and what the spill writes
+    would have been silent.
+    """
+    runs = _spilled(tmp_path / 'sweep')
+    written = pl.read_parquet(sorted((tmp_path / 'sweep' / 'diagnostics').glob('*.parquet')))
+
+    assert written.columns == [runs.key_name, *SliceMetrics._fields], (
+        'the key the sweep is cut on, then the metrics in the order the type declares them'
+    )
+    assert runs.diagnostics.columns == written.columns, 'the held table is the spilled one, column for column'
+
+
+def test_a_slice_written_in_another_layout_is_refused_by_name(tmp_path):
+    """A resume reads a slice's record and reading back as values, so a file
+    short of a column is a sentence rather than a sweep whose own table is the
+    wrong shape."""
+    _spilled(tmp_path / 'sweep')
+    first = min((tmp_path / 'sweep' / 'diagnostics').glob('*.parquet'))
+    pl.read_parquet(first).drop('loaded').write_parquet(first)
+
+    with pytest.raises(lps.LayoutError, match=r"SliceMetrics row that is short of \['loaded'\]"):
+        _spilled(tmp_path / 'sweep')
 
 
 def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_path):
