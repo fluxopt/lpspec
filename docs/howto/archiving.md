@@ -1,6 +1,6 @@
 # Archiving a solve
 
-How to keep a solve: the model, the data it was solved with, and what came
+How to keep a solve: the spec, the data it was solved with, and what came
 back. Later you can read the answer, ask the question again, or hand both to
 someone else. Every recipe here is one argument on a verb you already call.
 
@@ -36,7 +36,7 @@ lps.solve('dispatch.yaml', sources, archive='case.zip')
 ```
 
 **Three verbs take `archive=`, and nothing else writes one**: `lps.solve`,
-`model.solve` and `lps.solve_over`. Each holds the model, the data and the
+`model.solve` and `lps.solve_over`. Each holds the spec, the data and the
 answer at the moment you ask, so the three are written together and cannot be
 paired up wrongly ([the verbs](../reference/api.md#archiving-a-model)).
 
@@ -73,8 +73,8 @@ as the paths they now are, and each frame is read off disk at the call that
 asks for it.
 
 ```python
-study = lps.scan_archive('study.zip', 'study/')
-study.answer.scan('p')  # read at the collect, one name at a time
+sweep = lps.scan_archive('sweep.zip', 'sweep/')
+sweep.answer.scan('p')  # read at the collect, one name at a time
 ```
 
 **Scan the archive you will not read most of**, as well as the one that does
@@ -152,23 +152,23 @@ with lps.build('dispatch.yaml', sources) as model:
 
 A sweep holds every slice's answers until it is done, unless you spill it.
 `spill_to=` writes each slice's frames as the fold goes, so the sweep holds
-one slice at a time. `archive=` packs the whole study. Pass both and the spill
+one slice at a time. `archive=` packs the whole sweep. Pass both and the spill
 is what the archive packs, so a sweep too large to hold is archived without
 ever being held:
 
 ```python
 axis = lps.EachCoordinate('scenario')
-lps.solve_over('dispatch.yaml', sources, axis, spill_to='work/', archive='study/')
+lps.solve_over('dispatch.yaml', sources, axis, spill_to='work/', archive='sweep/')
 ```
 
-The archive carries the axis as well, so the study runs again from the file
+The archive carries the axis as well, so the sweep runs again from the file
 alone:
 
 ```python
-study = lps.scan_archive('study/')
+sweep = lps.scan_archive('sweep/')
 
-study.answer.scan('p')  # keyed by scenario, read at the collect
-lps.solve_over(study.spec, study.sources, study.axis)
+sweep.answer.scan('p')  # keyed by scenario, read at the collect
+lps.solve_over(sweep.spec, sweep.sources, sweep.axis)
 ```
 
 `scan_archive` reads a sweep back spilled, as `spill_to=` left it.
@@ -214,10 +214,10 @@ assert table['spec_digest'].n_unique() == 1, 'one model, or this compares nothin
 ## Query an archive from a database
 
 A directory archive is a tree of parquet files, so a query engine reads it
-where it lands. DuckDB, on the study above:
+where it lands. DuckDB, on the sweep above:
 
 ```sql
-select scenario, objective from 'study/answer/objective.parquet'
+select scenario, objective from 'sweep/answer/objective.parquet'
 where has_primal order by objective;
 ```
 
@@ -231,7 +231,7 @@ where has_primal order by objective;
 ```
 
 Every frame is tidy: the model's own dimension columns, and a `value` column.
-So `study/answer/primal/p/*.parquet` is the variable `p` over every slice, and
+So `sweep/answer/primal/p/*.parquet` is the variable `p` over every slice, and
 joins to the rest on those columns. A zip has to be unpacked first, because no
 query engine reads inside one: give either reader an `into=` and query what
 lands there.

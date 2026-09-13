@@ -1,4 +1,4 @@
-"""Bind runtime data to a lowered program — the one door both lanes enter.
+"""Attach runtime data to a lowered program — the one door both lanes enter.
 
 The language says what a parameter *is* — its dims, its dtype — and never where
 its values come from. This is the other half: what the caller passed (parquet

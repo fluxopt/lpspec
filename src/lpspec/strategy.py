@@ -1036,7 +1036,7 @@ class Runs:
 
         A sweep whose every slice terminated without values writes each
         slice's record and no frames, as one such solve does: an infeasible
-        study is an answer a set of saved cases needs on disk, not an export
+        sweep is an answer a set of saved cases needs on disk, not an export
         that refuses.
 
         Raises:
@@ -1124,7 +1124,7 @@ def load_runs(directory: str | Path) -> Runs:
     The sweep comes back **held**: every slice's frames are in memory when this
     returns, so it is the value a sweep solved without ``spill_to=`` is —
     :meth:`Runs.primal`, :meth:`Runs.to_dataset` and :meth:`Runs.save` all
-    answer, and it owes *directory* nothing afterwards. A study larger than
+    answer, and it owes *directory* nothing afterwards. A sweep larger than
     memory is :func:`scan_runs` instead.
 
     :attr:`Runs.objective` and :attr:`Runs.diagnostics` are one row per slice
@@ -1152,12 +1152,12 @@ def load_runs(directory: str | Path) -> Runs:
 def scan_runs(directory: str | Path) -> Runs:
     """The sweep under *directory*, its frames left where they lie.
 
-    :func:`load_runs`'s lazy half, and the value a sweep solved with
+    :func:`load_runs`'s other half, and the value a sweep solved with
     ``spill_to=`` already is: nothing but the record is read, and
     :meth:`Runs.scan` reads a name back as a :class:`polars.LazyFrame` when one
-    is asked for. That is the reader for a study too large to hold, and it
-    costs the readers that hand back a frame: :meth:`Runs.primal` and its
-    siblings refuse, naming :meth:`Runs.scan`.
+    is asked for. That is the reader for a sweep too large to hold, and it
+    costs the frame readers: :meth:`Runs.primal` and its siblings refuse,
+    naming :meth:`Runs.scan`.
 
     *directory* has to outlive the sweep, the frames being read off it as they
     are asked for.
@@ -1216,7 +1216,7 @@ def _what_an_archive_needs(
     document: Spec,
     axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
 ) -> tuple[Path, Spec, EachCoordinate | EachWindow] | None:
-    """Where the archive goes, the model it holds and the axis that re-runs it — ``None`` for no archive.
+    """Where the archive goes, the spec it holds and the axis that re-runs it — ``None`` for no archive.
 
     One value, so that "this sweep is being archived" is a single thing to
     test rather than three that have to agree. Asked before a slice is solved:
@@ -1584,8 +1584,8 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
 
     Read here rather than held, so that what a sweep accumulates is frames and
     never results — holding a result per slice would hold that slice's label
-    frames with it. Every declared expression is evaluated here,
-    eagerly, for the same reason: the deferred reader holds the build's frames.
+    frames with it. Every declared expression is evaluated here rather than
+    deferred, for the same reason: the deferred reader holds the build's frames.
 
     **A slice that answered nothing is not a failure**, and neither is one
     whose duals are undefined: an integer variable makes them so, and one such

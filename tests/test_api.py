@@ -719,7 +719,7 @@ def test_a_loaded_answer_outlives_the_directory_and_a_scanned_one_does_not(dispa
 
 
 def test_a_scanned_answer_reads_its_frames_at_the_call_that_asks(dispatch_solution, tmp_path):
-    """Why the lazy half is worth a second verb rather than a slower one.
+    """Why scanning is worth a second verb rather than a slower load.
 
     A scan is a plan until it is collected, so what the file holds at the read
     is what comes back. The loaded answer beside it was fixed when it was
