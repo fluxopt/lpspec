@@ -148,6 +148,23 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
   `runs.scan(name)` is the reader and the frame readers refuse
   ([spilling](sweeps.md#spilling-a-sweep-to-disk)).
 
+## Row types
+
+**Record** · **Metrics** · **SliceMetrics**
+: The three saved rows, each a `NamedTuple` that names its own columns. Where
+  a column is nullable, the type also derives the schema it is written with,
+  so an all-null column keeps its own type instead of the one a single row
+  infers. **Record** is how a solve
+  terminated, one per solve. **Metrics** is what it took — the sizes, the
+  counters and the clocks — and is what `archive.diagnostics` hands back.
+  **SliceMetrics** is one slice of a sweep's share of that, in its own columns,
+  and is the row behind `runs.diagnostics`.
+
+  A **row** is a value and gets a type; a **table** stays a
+  [Table](#the-data). So `Record` and `SliceMetrics` are the rows behind
+  `runs.objective` and `runs.diagnostics` rather than what those hand back, and
+  a reader that wants one row of a table asks the frame for it.
+
 ## `bound` means one thing
 
 **bound**

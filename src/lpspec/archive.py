@@ -45,7 +45,7 @@ from lpspec.layout import (
     members_of,
     opened,
 )
-from lpspec.relational.parquet import COST_FILE, digest_of
+from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of, row_of
 from lpspec.strategy import EachCoordinate, EachWindow, Runs, axis_from, load_runs, scan_runs
 
 if TYPE_CHECKING:
@@ -82,14 +82,16 @@ class SolveArchive:
             two archives of one spec over different numbers carry the same
             spec digest and differ here, and *which* rows differ names the
             input that moved. ``run`` is the archive's own name, as it is on
-            the record and the cost row, so a table read across a directory of
-            archives attributes its rows without parsing paths.
-        diagnostics: One :class:`~lpspec.relational.parquet.Cost` row — what
-            the build and its solves spent reaching that answer. Beside
+            the record and the metrics beside it, so a table read across a
+            directory of archives attributes its rows without parsing paths.
+        diagnostics: The :class:`~lpspec.relational.parquet.Metrics` taken
+            when the solve returned — the sizes, the counters and the clocks of
+            what reaching that answer took, as one value rather than a frame of
+            one row. Beside
             :attr:`answer` rather than on it, which is the asymmetry with
             :class:`SweepArchive`, where ``answer.diagnostics`` carries the
             same columns one per slice: a :class:`~lpspec.strategy.Runs` is a
-            fold and knows each slice's share of a cumulative reading, where a
+            fold and knows each slice's share of a cumulative total, where a
             :class:`~lpspec.relational.result.Result` is one solve of a model
             that may have had many and could only hold a number it has no way
             to attribute.
@@ -99,7 +101,7 @@ class SolveArchive:
     sources: Mapping[str, Source]
     answer: Result
     source_digests: pl.DataFrame
-    diagnostics: pl.DataFrame
+    diagnostics: Metrics
 
     def __post_init__(self) -> None:
         """Refuse an archive whose answer names a different model than its own."""
@@ -185,23 +187,25 @@ def _digests_in(under: Path) -> pl.DataFrame:
     return pl.read_parquet(file)
 
 
-def _cost_in(answer: Path) -> pl.DataFrame:
-    """The cost row *answer* holds, read whole — it is one row.
+def _metrics_in(answer: Path) -> Metrics:
+    """The metrics *answer* holds, as the value its columns declare — it is one row.
 
     Raises:
-        LayoutError: An answer with no cost row, which is every archive
-            written before one was recorded. The stamp beside it cannot say
-            so: the layout number is held at zero while the layout moves.
+        LayoutError: An answer with no metrics, which is every archive written
+            before one was recorded, or one whose columns are not the ones
+            :class:`~lpspec.relational.parquet.Metrics` declares. The stamp
+            beside it cannot say either: the layout number is held at zero
+            while the layout moves.
     """
-    file = answer / COST_FILE
+    file = answer / METRICS_FILE
     if not file.is_file():
         raise LayoutError(
-            f'{str(answer)!r} holds no {COST_FILE!r}, so this archive was written before one recorded what '
-            f'its solve cost. What a build and its solves spent is of the machine that ran them and cannot '
-            f'be recovered by re-solving here; everything else in the archive can, and solving the model it '
-            f'holds again writes an archive that carries both.'
+            f'{str(answer)!r} holds no {METRICS_FILE!r}, so this archive was written before one recorded '
+            f'what its solve took. What a build and its solves spent is of the machine that ran them and '
+            f'cannot be recovered by re-solving here; everything else in the archive can, and solving the '
+            f'model it holds again writes an archive that carries both.'
         )
-    return pl.read_parquet(file)
+    return row_of(Metrics, pl.read_parquet(file).row(0, named=True), file)
 
 
 def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchive | SweepArchive:
@@ -293,7 +297,7 @@ def _archive_under(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
     if not axis_member.is_file():
         saved = under / ANSWER_DIR
         answer = (load_result if whole else scan_result)(saved)
-        return SolveArchive(spec, sources, answer, digests, _cost_in(saved))
+        return SolveArchive(spec, sources, answer, digests, _metrics_in(saved))
     axis = axis_from(json.loads(axis_member.read_text()))
     slices = (load_runs if whole else scan_runs)(under / ANSWER_DIR)
     return SweepArchive(spec, sources, axis, slices, digests)

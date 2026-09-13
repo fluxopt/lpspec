@@ -42,16 +42,18 @@ from lpspec.frames import as_frame
 from lpspec.lanes import declared
 from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational.parquet import (
-    COST_FILE,
     KINDS,
     LABELS,
+    METRICS_FILE,
     RECORD_FILE,
     RECORD_SCHEMA,
     Record,
+    SliceMetrics,
     check_format,
     consolidated,
     read_reasons,
     reader_kind,
+    row_of,
     write_format,
     write_reasons,
     write_whole,
@@ -103,26 +105,30 @@ class _Slice(NamedTuple):
 _MANIFEST_FILE = 'sweep.json'
 _OWNED_FILE = 'owned.parquet'
 
-#: The phases :attr:`Runs.diagnostics` clocks, in the order they run.
+#: The phases a slice clocks, in the order they run. Splatted into
+#: :class:`~lpspec.relational.parquet.SliceMetrics` below, so a name here that
+#: the type does not declare fails at the first slice rather than writing a
+#: column nothing reads.
 _PHASES = ('attach', 'build', 'handoff', 'solve')
 
 
-def _slice_cost(after: Diagnostics, before: Diagnostics | None) -> dict[str, Any]:
+def _slice_metrics(after: Diagnostics, before: Diagnostics | None) -> SliceMetrics:
     """One slice's row of :attr:`Runs.diagnostics`, off the model's cumulative counters.
 
     A serial fold reuses one model, whose clocks and ``loads`` keep summing
-    across slices: *before* is the reading taken as the previous slice
+    across slices: *before* is what was measured as the previous slice
     finished, and the difference is this slice's own. A model built for one
     slice alone has no *before*.
     """
     earlier = before.timings if before is not None else {}
-    return {
-        'columns': after.columns,
-        'rows': after.rows,
-        'nonzeros': after.nonzeros,
-        'loaded': after.loads > (before.loads if before is not None else 0),
-        **{phase: after.timings.get(phase, 0.0) - earlier.get(phase, 0.0) for phase in _PHASES},
-    }
+    spent = {phase: after.timings.get(phase, 0.0) - earlier.get(phase, 0.0) for phase in _PHASES}
+    return SliceMetrics(
+        columns=after.columns,
+        rows=after.rows,
+        nonzeros=after.nonzeros,
+        loaded=after.loads > (before.loads if before is not None else 0),
+        **spent,
+    )
 
 
 @dataclass(frozen=True)
@@ -212,8 +218,9 @@ class _Answer:
     """
 
     meta: Record
-    #: This slice's row of :attr:`Runs.diagnostics`, from :func:`_slice_cost`.
-    cost: dict[str, Any]
+    #: This slice's row of :attr:`Runs.diagnostics`, from
+    #: :func:`_slice_metrics`.
+    metrics: SliceMetrics
     primals: dict[str, pl.DataFrame]
     duals: dict[str, pl.DataFrame]
     #: Every declared named expression, evaluated at this slice's solution.
@@ -391,7 +398,9 @@ class _Spill:
         for kind, produced in zip(KINDS, (answer.primals, answer.duals, answer.expressions), strict=True):
             for name, frame in produced.items():
                 write_whole(_keyed(frame, self.key_name, key, self.key_dtype), self._file(kind, position, name))
-        write_whole(pl.DataFrame([{self.key_name: key, **answer.cost}]), self._file('diagnostics', position))
+        write_whole(
+            pl.DataFrame([{self.key_name: key, **answer.metrics._asdict()}]), self._file('diagnostics', position)
+        )
         write_whole(
             pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}], schema_overrides=RECORD_SCHEMA),
             self._file('objective', position),
@@ -399,10 +408,19 @@ class _Spill:
         return replace(answer, primals={}, duals={}, expressions={})
 
     def read_back(self, position: int) -> _Answer:
-        """A done slice's record — meta and cost — with no frames, which stay on disk."""
+        """A done slice's record — meta and metrics — with no frames, which stay on disk.
+
+        Raises:
+            LayoutError: A slice whose record or metrics is short of a column
+                or carries one nothing declares, which is a slice written
+                before the layout moved. Read as frames instead, it would be
+                folded into a sweep whose own table is the wrong shape.
+        """
         row = pl.read_parquet(self._file('objective', position)).drop(self.key_name).row(0, named=True)
-        cost = pl.read_parquet(self._file('diagnostics', position)).drop(self.key_name).row(0, named=True)
-        return _Answer(Record(**row), dict(cost), {}, {}, {}, None, {})
+        held = pl.read_parquet(self._file('diagnostics', position)).drop(self.key_name).row(0, named=True)
+        return _Answer(
+            row_of(Record, row, self.directory), row_of(SliceMetrics, held, self.directory), {}, {}, {}, None, {}
+        )
 
     def primals(self, position: int, names: Iterable[str]) -> dict[str, pl.DataFrame]:
         """The named primals a done slice wrote, for a carry to read; a name it did not write is absent."""
@@ -790,7 +808,7 @@ class Runs:
                 sweep's keys rather than inferred from each one.
         """
         rows: list[dict[str, Any]] = []
-        costs: list[dict[str, Any]] = []
+        taken: list[dict[str, Any]] = []
         primals: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
         duals: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
         expressions: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
@@ -802,7 +820,7 @@ class Runs:
                 for name, reason in answer.no_expressions.items():
                     no_expressions.setdefault(name, reason)
                 rows.append({key_name: key, **answer.meta._asdict()})
-                costs.append({key_name: key, **answer.cost})
+                taken.append({key_name: key, **answer.metrics._asdict()})
                 for into, produced in (
                     (primals, answer.primals),
                     (duals, answer.duals),
@@ -813,7 +831,7 @@ class Runs:
         return cls(
             key_name=key_name,
             objective=pl.DataFrame(rows, schema_overrides=RECORD_SCHEMA),
-            diagnostics=pl.DataFrame(costs),
+            diagnostics=pl.DataFrame(taken),
             _primals=dict(primals),
             _duals=dict(duals),
             _expressions=dict(expressions),
@@ -1059,12 +1077,12 @@ class Runs:
         }
         for position, key in enumerate(self.keys):
             meta = Record(**self.objective.drop(self.key_name).row(position, named=True))
-            cost = self.diagnostics.drop(self.key_name).row(position, named=True)
+            metrics = SliceMetrics(**self.diagnostics.drop(self.key_name).row(position, named=True))
             frames = {
                 kind: {name: keyed[key] for name, keyed in names.items() if key in keyed}
                 for kind, names in by_key.items()
             }
-            answer = _Answer(meta, dict(cost), frames['primal'], frames['dual'], frames['expression'], None, {})
+            answer = _Answer(meta, metrics, frames['primal'], frames['dual'], frames['expression'], None, {})
             spill.write(position, key, answer)
         return spill.directory
 
@@ -1181,7 +1199,7 @@ def scan_runs(directory: str | Path) -> Runs:
     no_duals, no_expressions = read_reasons(under)
     key_name = found['key_name']
     objective = consolidated(under, RECORD_FILE)
-    diagnostics = consolidated(under, COST_FILE)
+    diagnostics = consolidated(under, METRICS_FILE)
     return Runs(
         key_name=key_name,
         objective=objective,
@@ -1473,7 +1491,7 @@ def _serially(
                         model.close()
                     model, named, before = build(document, sources), names, None
                 result = model.solve(**solving, keep=keep)
-                answer = _answers(result, program, _slice_cost(model.diagnostics(), before))
+                answer = _answers(result, program, _slice_metrics(model.diagnostics(), before))
             primals = answer.primals
             if spill is not None:
                 answer = spill.write(position, current.key, answer)
@@ -1579,7 +1597,7 @@ def _pooled(
         yield current.key, spill.write(position, current.key, answer) if spill is not None else answer
 
 
-def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
+def _answers(result: Result, program: Program, metrics: SliceMetrics) -> _Answer:
     """One slice's answer, read out of *result*: its meta row, its cost, and its frames.
 
     Read here rather than held, so that what a sweep accumulates is frames and
@@ -1600,7 +1618,7 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
         solved_at=result.solved_at,
     )
     if not result.has_primal:
-        return _Answer(meta, cost, {}, {}, {}, None, {})
+        return _Answer(meta, metrics, {}, {}, {}, None, {})
     primals = {name: result.primal(name) for name in program.variables}
     expressions: dict[str, pl.DataFrame] = {}
     no_expressions: dict[str, str] = {}
@@ -1611,9 +1629,9 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
             no_expressions[name] = str(exc)
     try:
         duals = {name: result.dual(name) for name in program.constraints}
-        return _Answer(meta, cost, primals, duals, expressions, None, no_expressions)
+        return _Answer(meta, metrics, primals, duals, expressions, None, no_expressions)
     except LpspecError as exc:
-        return _Answer(meta, cost, primals, {}, expressions, str(exc), no_expressions)
+        return _Answer(meta, metrics, primals, {}, expressions, str(exc), no_expressions)
 
 
 def _run_slice(
@@ -1630,7 +1648,7 @@ def _run_slice(
     cannot cross.
     """
     with build(document, _decode(encoded)) as model, model.solve(**call) as result:
-        answer = _answers(result, program, _slice_cost(model.diagnostics(), None))
+        answer = _answers(result, program, _slice_metrics(model.diagnostics(), None))
         if not encode_out:
             return answer
         return replace(

@@ -41,7 +41,8 @@ from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.relational.parquet import (
-    COST_FILE,
+    METRICS_FILE,
+    METRICS_SCHEMA,
     RECORD_FILE,
     Record,
     check_format,
@@ -242,8 +243,8 @@ class Model:
                 :meth:`update` the spec is unchanged, so nothing outside this
                 call could tell the question it answered from the one before
                 it. What the build and its solves have spent goes in beside
-                the answer, as :class:`~lpspec.relational.parquet.Cost` — the
-                one part of an archive re-solving it cannot recover, those
+                the answer, as :class:`~lpspec.relational.parquet.Metrics` —
+                the one part of an archive re-solving it cannot recover, those
                 clocks being of the machine that ran them.
 
         Returns:
@@ -282,7 +283,8 @@ class Model:
         """
         with beside(out) as scratch:
             answer = answered.save(scratch)
-            write_whole(self._engine.diagnostics().as_row(), answer / COST_FILE)
+            taken = self._engine.diagnostics().metrics()
+            write_whole(pl.DataFrame([taken._asdict()], schema_overrides=METRICS_SCHEMA), answer / METRICS_FILE)
             write_archive(
                 out,
                 self._spec,
