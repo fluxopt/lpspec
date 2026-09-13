@@ -65,7 +65,7 @@ __all__ = ['build', 'expression']
 
 
 def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
-    """Bind *sources* to *spec* and build it as a ``linopy.Model``.
+    """Attach *sources* to *spec* and build it as a ``linopy.Model``.
 
     :func:`lpspec.build`'s signature: which lane builds a file is the caller's
     choice, so the call cannot differ.

@@ -1,4 +1,4 @@
-"""``archive=``: a model, its data and its answer as one file, and back.
+"""``archive=``: a spec, its data and its answer as one file, and back.
 
 The property is the one ``tidy_sources`` sees: what attaches from the archive
 is what attached from the caller's own tables, frame for frame, over every
@@ -43,9 +43,9 @@ if TYPE_CHECKING:
     from math_spec import Spec
 
 
-def _question(artifact: lps.SolveArchive | lps.SweepArchive) -> tuple[Spec, Mapping[str, object]]:
-    """The pair every verb takes, read off an artifact."""
-    return artifact.spec, artifact.sources
+def _question(archive: lps.SolveArchive | lps.SweepArchive) -> tuple[Spec, Mapping[str, object]]:
+    """The pair every verb takes, read off an archive."""
+    return archive.spec, archive.sources
 
 
 def _archived(spec, sources, out: Path) -> Path:
@@ -310,7 +310,7 @@ def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp
 def test_an_archive_carries_the_answer_beside_the_question(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    """The full artifact: what was asked, the data it was asked of, and what came back.
+    """The whole archive: what was asked, the data it was asked of, and what came back.
 
     A saved answer alone cannot say which model produced it, and an archived
     model alone has to be re-solved to be read. One file holds both, and the
@@ -573,7 +573,7 @@ def test_a_loaded_sweep_archive_answers_the_frame_readers(
         scanned.answer.primal('p')
 
 
-def test_a_scenario_sweep_is_an_artifact_and_runs_again(
+def test_a_scenario_sweep_is_an_archive_and_runs_again(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     """The axis is what makes a sweep's sources legible, so it travels with them.
@@ -772,7 +772,7 @@ def test_a_hand_built_axis_is_refused(dispatch_yaml: Path, dispatch_frame_inputs
     """A list of `(key, sources)` is a set of sources per slice.
 
     Nothing serialises it but a copy of every slice's data, and the slices are
-    unrelated questions anyway — so the refusal sends them to one artifact
+    unrelated questions anyway — so the refusal sends them to one archive
     each rather than inventing a layout for them.
     """
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}

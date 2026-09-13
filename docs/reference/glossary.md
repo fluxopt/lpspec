@@ -34,6 +34,12 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
   `dual(name)`, `expression(name)`. It owns its tables, so it outlives its
   model.
 
+**Archive**
+: A spec, the data it was solved with and what came back, written together as
+  one zip or one directory by `archive=` ([archiving](api.md#archiving-a-model)).
+  It reads back as a `SolveArchive`, or a `SweepArchive` where the sources were
+  cut. Never "artifact".
+
 ## The verbs
 
 **check** · **build** · **solve** · **write**
@@ -44,6 +50,17 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 **update**
 : `model.update(sources)` puts new numbers on a built model in place, naming
   only what changed. A change that moves a mask rebuilds and solves cold.
+
+**load** · **scan**
+: The two ways a saved answer is read back, and the one thing that separates
+  them is when the bytes move. `load_result`, `load_runs` and `load_archive`
+  read **whole**: the frames are in memory when the call returns, so what comes
+  back owes the directory nothing. `scan_result`, `scan_runs` and
+  `scan_archive` read each frame at the call that asks for it, so the files
+  have to outlive what was read off them ([loading or
+  scanning](api.md#loading-or-scanning)). Each pair takes the same arguments
+  and hands back the same type. Never "open": nothing here holds a file handle
+  to close.
 
 **Buildable**
 : The type alias for a spec argument: `str | Path | dict | Spec | Program`.
@@ -73,7 +90,9 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 **Table**
 : A polars `DataFrame` with one column per dimension, a `value` column and one
   row per coordinate: what a parameter arrives as, and what `primal` hands
-  back.
+  back. The code calls one a **frame**, after `DataFrame` and `LazyFrame`, and
+  means the same thing. The plural [Tables](#the-built-form) is a different
+  noun: the built model as a sink sees it.
 
 **Mask**
 : The `where:` on a declaration. What an excluded coordinate means is
@@ -87,6 +106,13 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
   **linopy lane** (`lpspec.linopy`, the `[linopy]` extra) builds the same spec
   as a `linopy.Model`. Both accept the same language
   ([relationship to linopy](../about/linopy.md#2-it-is-the-oracle)).
+
+**eager**
+: The linopy lane, and nothing else. It builds a whole model into arrays at
+  once where the relational lane streams rows, so the differential suite and
+  the benchmark harness call it the **eager lane**. The word never describes a
+  reader: how a saved answer is read is [load or
+  scan](#the-verbs).
 
 **Engine**
 : The relational lane's builder: it fills the model's tables from the attached
@@ -116,7 +142,15 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 
 **solve_over** (a sweep)
 : Solve one spec once per slice of an axis and fold the answers into a
-  `Runs`, releasing each slice's model as it goes.
+  `Runs`, releasing each slice's model as it goes. A sweep, never a "study".
+
+**held** · **spilled**
+: Where a sweep's frames are. A **held** sweep carries them in memory, and
+  `runs.primal(name)` and the exports — the **frame readers**, the ones that
+  hand back a table — answer off them. A **spilled** sweep left them in a
+  directory, which is what `spill_to=` writes and what `scan_runs` reads: there
+  `runs.scan(name)` is the reader, and the frame readers refuse rather than
+  collecting a sweep on your behalf ([spilling](sweeps.md#spilling-a-sweep-to-disk)).
 
 ## `bound` means one thing
 

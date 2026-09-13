@@ -528,7 +528,7 @@ def test_a_hand_built_axis_refuses_to_read_over_a_dimension_it_never_named(tmp_p
     window recomputed — summing them double-counts.
 
     `scan` is checked beside it because it reaches the same guard by its own
-    route, not through the eager readers.
+    route, not through the frame readers.
     """
     sources = horizon_sources(12)
     windows = lps.EachWindow('snapshot', steps=3, lookahead=3, into='t').slices(sources)
@@ -2010,9 +2010,9 @@ def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_
         pytest.param(lambda runs: runs.to_dataset(), id='to_dataset'),
     ],
 )
-def test_the_eager_readers_refuse_a_spilled_sweep_and_name_scan(read, tmp_path):
+def test_the_frame_readers_refuse_a_spilled_sweep_and_name_scan(read, tmp_path):
     """One meaning per name: `primal` returns a frame in memory or raises,
-    never a frame it would have to load first. The message names `scan`."""
+    never a frame it would have to read off disk first. The message names `scan`."""
     runs = _spilled(tmp_path)
     with pytest.raises(lps.LpspecError, match=r'runs\.scan'):
         read(runs)

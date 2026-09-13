@@ -198,8 +198,8 @@ protects: a new consumer is free, a new primitive is taxed.
 **Twenty-eight names, and the count is the feature.** The model is the YAML
 file, and Python is how you *run* it, so nothing on the surface constructs
 math or reaches the plan. The names, by role: the four verbs `check`, `build`,
-`solve`, `write`; the fold `solve_over` with its two axes; the two artifacts
-that carry a model, its data and its answer, `SolveArchive` and
+`solve`, `write`; the fold `solve_over` with its two axes; the two archives
+that carry a spec, its data and its answer, `SolveArchive` and
 `SweepArchive`, with `load_archive`, `load_result` and `load_runs` to read one
 back whole and `scan_archive`, `scan_result` and `scan_runs` to read it off
 the directory it lies in; the three types a verb hands back, `Model`,

@@ -1,4 +1,4 @@
-"""What comes back out of an archive: a model, the data it was solved with, and what came back.
+"""What comes back out of an archive: a spec, the data it was solved with, and what came back.
 
 An answer alone cannot say which model produced it, and a model alone has to
 be solved again to be read. An archive holds both, and :func:`load_archive`
@@ -14,11 +14,11 @@ places and nowhere else: a source is a table or the path to one, and the answer
 collects or scans.
 
 **Reading only.** Nothing here writes an archive: the verb that solves does,
-through :mod:`lpspec.layout`, because a solve is the one moment the model, the
+through :mod:`lpspec.layout`, because a solve is the one moment the spec, the
 data and the answer exist together. Assembling the three after the fact is
 what let a mispaired case be filed as a matching one.
 
-Above ``api`` and ``strategy`` rather than beside them: an artifact carries
+Above ``api`` and ``strategy`` rather than beside them: an archive carries
 either kind of answer, so it is the one place that knows about both a
 ``Result`` and a ``Runs``. Neither of them knows about it.
 """
@@ -53,15 +53,15 @@ __all__ = ['SolveArchive', 'SweepArchive', 'load_archive', 'scan_archive']
 
 @dataclass(frozen=True)
 class SolveArchive:
-    """A model, the data it was solved with, and what one solve of it returned.
+    """A spec, the data it was solved with, and what one solve of it returned.
 
     What :func:`load_archive` and :func:`scan_archive` give back for an archive
-    whose sources were not cut. ``lps.solve(artifact.spec, artifact.sources)``
+    whose sources were not cut. ``lps.solve(archive.spec, archive.sources)``
     asks the question again, and :attr:`answer` is what it answered the first
     time.
 
     Attributes:
-        spec: The model as written.
+        spec: The spec as written.
         sources: What was attached to it, keyed as the file declares it — the
             table each parquet member holds from :func:`load_archive`, and the
             path to it from :func:`scan_archive`, a ``Path`` being a source
@@ -91,7 +91,7 @@ class SolveArchive:
 
 @dataclass(frozen=True)
 class SweepArchive:
-    """A model, the data a sweep was solved over, the axis that cut it, and what came back.
+    """A spec, the data a sweep was solved over, the axis that cut it, and what came back.
 
     :class:`SolveArchive`'s sibling, and the axis is what separates them: a
     sweep's sources carry the column it slices on, which the model does not
@@ -100,7 +100,7 @@ class SweepArchive:
     ``lps.solve_over(sweep.spec, sweep.sources, sweep.axis)`` runs it again.
 
     Attributes:
-        spec: The model as written, as :class:`SolveArchive` holds it.
+        spec: The spec as written, as :class:`SolveArchive` holds it.
         sources: What the sweep was given — **uncut**, carrying every slice's
             rows, because one copy per slice is what a sweep exists not to
             write. A table or a path, as :class:`SolveArchive` holds them.
@@ -182,7 +182,7 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
 
     Returns:
         A :class:`SweepArchive` where the archive carries an axis and a
-        :class:`SolveArchive` where it does not, holding the model as written,
+        :class:`SolveArchive` where it does not, holding the spec as written,
         its sources keyed as the file declares them, the answer, and what
         reaching it cost.
 
@@ -205,8 +205,8 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
 def scan_archive(path: str | Path, into: str | Path | None = None) -> SolveArchive | SweepArchive:
     """The same archive, read as its readers are called rather than now.
 
-    :func:`load_archive`'s lazy half, and the same two types. What differs is
-    that nothing but the model, the axis and the cost row is read: the sources
+    :func:`load_archive`'s other half, and the same two types. What differs is
+    that nothing but the spec, the axis and the cost row is read: the sources
     come back as the parquet paths they now are — a ``Path`` being a source
     like any other, so attaching streams them from disk — and the answer reads
     each frame at the call that asks for it

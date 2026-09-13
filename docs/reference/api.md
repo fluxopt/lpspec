@@ -30,7 +30,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
 | `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
-| `archive=` on `lps.solve`, `model.solve`, `lps.solve_over` | write the model, its data and this answer as one zip: [Archiving a model](#archiving-a-model) |
+| `archive=` on `lps.solve`, `model.solve`, `lps.solve_over` | write the spec, its data and this answer as one zip: [Archiving a model](#archiving-a-model) |
 | `lps.load_archive(path, into=None)` | an archive back whole as a `SolveArchive`, or a `SweepArchive` where its sources were cut |
 | `lps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
 | `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Runs` |
@@ -418,7 +418,7 @@ case.answer.primal('p')  # what came back
 lps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
-**An archive is the model, its data and its answer**: `model.yaml`,
+**An archive is the spec, its data and its answer**: `model.yaml`,
 `sources/<key>.parquet` for every key the file declares, `answer/` holding what
 `result.save` or `runs.save` writes, and `axis.json` for a sweep. Beside the
 answer is `answer/diagnostics.parquet`, one row saying what the build and its
@@ -439,7 +439,7 @@ and unpacks to a scratch directory when you name none, and `scan_archive` reads
 it as you ask for it and requires an `into=` that will still be there.
 
 **Every verb that solves takes `archive=`, and nothing else writes one.**
-`lps.solve`, `model.solve` and `lps.solve_over` each hold the model, the data
+`lps.solve`, `model.solve` and `lps.solve_over` each hold the spec, the data
 and the answer at the moment they are asked for, so the three are written
 together and cannot be paired up wrongly. There is no way to assemble them
 afterwards, because the pairing an assembled one asserts is one nothing could
@@ -476,8 +476,8 @@ sources it was solved from, on the coordinates both carry.
 ```sql
 -- generation priced by the load it met, answer joined to source
 select p.scenario, p.snapshot, p.generator, p.value, load.value as load
-from 'study/answer/primal/p/*.parquet' p
-join 'study/sources/load.parquet' load using (scenario, snapshot);
+from 'sweep/answer/primal/p/*.parquet' p
+join 'sweep/sources/load.parquet' load using (scenario, snapshot);
 ```
 
 A sweep keys every file it writes with one column of one type. The files under
@@ -488,8 +488,8 @@ rows.
 
 | Rule | |
 |---|---|
-| **the model is held as written** | `model.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in. A lowered `Program` is refused: it has no file to write |
-| **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving and counting from `1` the day it settles. Nothing reads an older layout back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the model and the data to do that with |
+| **the spec is held as written** | `model.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in. A lowered `Program` is refused: it has no file to write |
+| **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving and counting from `1` the day it settles. Nothing reads an older layout back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the spec and the data to do that with |
 | **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an archive is read back. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an archive whose answer names another model is refused rather than read. A solve run off a lowered `Program` has no document and carries `None`, which counts as its own value — so one null among real digests breaks the comparison, and a table where *every* digest is null counts one distinct value while having checked nothing. Ask for the digests to be present as well as to agree: `n_unique() == 1 and null_count() == 0` |
 | **the cost row is written by the solve, not by `save`** | `archive.diagnostics` is one row of `model.diagnostics()`'s sizes, counters and clocks, and `answer/diagnostics.parquet` is where it sits. A `Result` is one solve and those counters are the model's whole life, so a result has no share of them to carry and `result.save` writes none; the verb that archives holds the model and can. `solves` says how many solves the clocks cover — `1` for `lps.solve`, which builds the model it solves. A phase that never ran writes zero, so cases that entered different phases are one table. A sweep's are `answer.diagnostics` instead, one row per slice, a fold knowing each slice's share. The archive stamps `run` onto the row as it does onto the record, so a warehouse attributes what a run cost as readily as what it answered |
 | **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. A `SweepArchive` has it and a `SolveArchive` has no such field, so nothing downstream meets `Result \| Runs`. `load_archive` returns whichever the archive holds |
@@ -525,9 +525,9 @@ the same type, and refuses the same things: a directory holding no answer, and
 an archive whose answer names another model. The one difference is the `into=`
 a zip needs, which the table above gives.
 
-**A loaded value is fixed and a scanned one is not.** Loading leaves no lazy
-edge to trip over later. A scan re-reads the file at every collect, so a frame
-rewritten underneath it comes back changed.
+**A loaded value is fixed and a scanned one is not.** A load leaves nothing to
+be read later. A scan re-reads the file at every collect, so a frame rewritten
+underneath it comes back changed.
 
 ## Diagnostics
 

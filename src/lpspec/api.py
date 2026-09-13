@@ -232,7 +232,7 @@ class Model:
                 comparing against a cold baseline needs and what no solver
                 option can promise. A preference: a model whose structure
                 moved is loaded again whatever was asked.
-            archive: Where to write the whole thing — the model, the data
+            archive: Where to write the whole thing — the spec, the data
                 attached to it **now**, and this answer — so that
                 :func:`~lpspec.archive.load_archive` gives all three back and
                 the model solves again from the file alone. A ``.zip`` suffix
@@ -382,7 +382,7 @@ def _the_archive_target(out: Path) -> Path:
 
 
 def build(spec: Buildable, sources: Mapping[str, Source]) -> Model:
-    """Bind *sources* to *spec* and build it — the model with your data on it.
+    """Attach *sources* to *spec* and build it — the model with your data on it.
 
     Args:
         spec: As :func:`check` takes it.
@@ -428,7 +428,7 @@ def solve(
             which needs the ``[gurobi]`` extra.
         solver_options: Forwarded to the solver verbatim, in its own
             vocabulary (``{'time_limit': 60}``).
-        archive: Where to write the model, its data and this answer, as
+        archive: Where to write the spec, its data and this answer, as
             :meth:`Model.solve` takes it — a ``.zip``, or a directory.
 
     Returns:
@@ -477,9 +477,9 @@ def write(
 def _whole(file: Path) -> pl.LazyFrame:
     """*file* read into memory, behind the :class:`polars.LazyFrame` a saved frame is held as.
 
-    The eager half of :data:`Reading`, and a ``LazyFrame`` all the same: what
-    a reader does with one is the same work whether the bytes are already here
-    or still on disk, so only the reading differs and nothing downstream
+    What :data:`Reading` is for a ``load_``, and a ``LazyFrame`` all the same:
+    what a reader does with one is the same work whether the bytes are already
+    here or still on disk, so only the reading differs and nothing downstream
     branches on which it got.
     """
     return pl.read_parquet(file).lazy()
@@ -557,7 +557,7 @@ def load_result(directory: str | Path) -> Result:
 def scan_result(directory: str | Path) -> Result:
     """The answer under *directory*, read as its readers are called rather than now.
 
-    :func:`load_result`'s lazy half, and the same value: every reader answers
+    :func:`load_result`'s other half, and the same value: every reader answers
     what that one's does. What differs is when the bytes move — each frame is
     a :func:`polars.scan_parquet` of the file it lies in, so an answer far
     larger than memory is readable a name at a time, and one whose names go
