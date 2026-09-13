@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.0.1-alpha.324](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.323...v0.0.1-alpha.324) (2026-09-13)
+
+
+### Features
+
+* **api:** load reads an archive whole, and scan leaves it on disk ([#1603](https://github.com/fluxopt/lpspec/issues/1603)) ([001de65](https://github.com/fluxopt/lpspec/commit/001de65eed85ef40c9d838162cf32cd87dd887cc))
+
+
+### Performance
+
+* **engine:** a build stops hashing labels it can count ([#1589](https://github.com/fluxopt/lpspec/issues/1589)) ([bc49db5](https://github.com/fluxopt/lpspec/commit/bc49db5418ead02b755d0da733ef68af1666d553))
+* **engine:** a magnitude is read off each side of a column instead of being built ([#1592](https://github.com/fluxopt/lpspec/issues/1592)) ([019e22c](https://github.com/fluxopt/lpspec/commit/019e22c3fd9ec68a60702bc14caa3c8abcceb969))
+* **engine:** a model reaches HiGHS in one call instead of a batch at a time ([#1591](https://github.com/fluxopt/lpspec/issues/1591)) ([77ccb7d](https://github.com/fluxopt/lpspec/commit/77ccb7ddf159ef78270b9a1e78667c579c66e8a9))
+
+
+### Documentation
+
+* **api:** the glossary defines load and scan, and the tree spells each name one way ([#1604](https://github.com/fluxopt/lpspec/issues/1604)) ([3d43f6d](https://github.com/fluxopt/lpspec/commit/3d43f6d9e1e1fdb1306c570f0173b837689c2e51))
+* the published speed claims match the measurements behind them ([#1586](https://github.com/fluxopt/lpspec/issues/1586)) ([cb98d58](https://github.com/fluxopt/lpspec/commit/cb98d58e2aa147c480100bfceb17ec68d410a418))
+
 ## [0.0.1-alpha.323](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.322...v0.0.1-alpha.323) (2026-09-12)
 
 
