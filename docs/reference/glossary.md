@@ -52,15 +52,13 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
   only what changed. A change that moves a mask rebuilds and solves cold.
 
 **load** · **scan**
-: The two ways a saved answer is read back, and the one thing that separates
-  them is when the bytes move. `load_result`, `load_runs` and `load_archive`
-  read **whole**: the frames are in memory when the call returns, so what comes
-  back owes the directory nothing. `scan_result`, `scan_runs` and
-  `scan_archive` read each frame at the call that asks for it, so the files
-  have to outlive what was read off them ([loading or
-  scanning](api.md#loading-or-scanning)). Each pair takes the same arguments
-  and hands back the same type. Never "open": nothing here holds a file handle
-  to close.
+: The two ways a saved answer is read back, differing in when the bytes move.
+  `load_result`, `load_runs` and `load_archive` read **whole**: the frames are
+  in memory when the call returns, and the directory is free afterwards.
+  `scan_result`, `scan_runs` and `scan_archive` read each frame at the call
+  that asks for it, and the files have to outlive what was read off them
+  ([loading or scanning](api.md#loading-or-scanning)). Each pair takes the same
+  arguments and hands back the same type. Never "open".
 
 **Buildable**
 : The type alias for a spec argument: `str | Path | dict | Spec | Program`.
@@ -90,9 +88,9 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 **Table**
 : A polars `DataFrame` with one column per dimension, a `value` column and one
   row per coordinate: what a parameter arrives as, and what `primal` hands
-  back. The code calls one a **frame**, after `DataFrame` and `LazyFrame`, and
-  means the same thing. The plural [Tables](#the-built-form) is a different
-  noun: the built model as a sink sees it.
+  back. The code calls one a **frame** and means the same thing. The plural
+  [Tables](#the-built-form) is a different noun: the built model as a sink sees
+  it.
 
 **Mask**
 : The `where:` on a declaration. What an excluded coordinate means is
@@ -108,11 +106,9 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
   ([relationship to linopy](../about/linopy.md#2-it-is-the-oracle)).
 
 **eager**
-: The linopy lane, and nothing else. It builds a whole model into arrays at
-  once where the relational lane streams rows, so the differential suite and
-  the benchmark harness call it the **eager lane**. The word never describes a
-  reader: how a saved answer is read is [load or
-  scan](#the-verbs).
+: The linopy lane, and nothing else — the **eager lane** in the differential
+  suite and the benchmark harness. Never a reader: how a saved answer is read
+  is [load or scan](#the-verbs).
 
 **Engine**
 : The relational lane's builder: it fills the model's tables from the attached
@@ -149,8 +145,8 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
   `runs.primal(name)` and the exports — the **frame readers**, the ones that
   hand back a table — answer off them. A **spilled** sweep left them in a
   directory, which is what `spill_to=` writes and what `scan_runs` reads: there
-  `runs.scan(name)` is the reader, and the frame readers refuse rather than
-  collecting a sweep on your behalf ([spilling](sweeps.md#spilling-a-sweep-to-disk)).
+  `runs.scan(name)` is the reader and the frame readers refuse
+  ([spilling](sweeps.md#spilling-a-sweep-to-disk)).
 
 ## `bound` means one thing
 
