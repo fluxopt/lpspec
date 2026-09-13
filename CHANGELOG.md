@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.325](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.324...v0.0.1-alpha.325) (2026-09-13)
+
+
+### Features
+
+* **api:** an archive says which data it was solved over and what the solve took ([#1601](https://github.com/fluxopt/lpspec/issues/1601)) ([758e71f](https://github.com/fluxopt/lpspec/commit/758e71f240c41e85114a082d2cf60204a377b104))
+
 ## [0.0.1-alpha.324](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.323...v0.0.1-alpha.324) (2026-09-13)
 
 
