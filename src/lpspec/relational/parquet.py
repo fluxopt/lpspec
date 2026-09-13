@@ -259,9 +259,8 @@ class Cost(NamedTuple):
     #: So :attr:`write` reads zero on an archive whose caller never asked for a
     #: file, which is most of them: it is :meth:`~lpspec.api.Model.write`'s
     #: clock rather than the archive's own. **What writing the archive cost is
-    #: not here and is not anywhere** — this row is a member of the archive, so
-    #: a column covering that write would have to be known before the write it
-    #: is part of had finished. A caller who wants the number times the call.
+    #: not here and is not anywhere**: a caller who wants that number times the
+    #: call.
     attach: float
     build: float
     handoff: float

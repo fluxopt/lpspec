@@ -434,11 +434,9 @@ lps.load_archive('case/')  # read where it lies — no into=
 ```
 
 **A directory archive needs no `into`, and passing one is refused by name.** It
-is read where it lies, its parquet files already being where a read needs them.
-A zip's are not, so it is unpacked first: `load_archive` reads it whole and
-unpacks to a scratch directory when you name none, and `scan_archive` reads it
-as you ask for it and so requires an `into=` that will still be there — only
-you know somewhere writable, an archive often living where it is only read.
+is read where it lies. A zip is unpacked first: `load_archive` reads it whole
+and unpacks to a scratch directory when you name none, and `scan_archive` reads
+it as you ask for it and requires an `into=` that will still be there.
 
 **Every verb that solves takes `archive=`, and nothing else writes one.**
 `lps.solve`, `model.solve` and `lps.solve_over` each hold the model, the data
@@ -498,17 +496,15 @@ rows.
 | **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |
 | **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one solve each. Refused before the first slice is taken, as a lowered `Program` is |
 | **the model's own fitness for slicing stays `solve_over`'s** | whether a window can carry this model's coupling and reach is asked when the sweep is run, not when it is archived |
-| **a sweep's answer is held or spilled, as the reader says** | `load_archive` reads every slice's frames in, so it is the value a sweep solved without spilling is and `runs.primal(name)` answers. `scan_archive` leaves them in the extracted directory for `runs.scan(name)`, which is what `solve_over(spill_to=)` already produces and what serves the study too large to hold. `original_index` works on both: the dimension a window sliced and the coordinates each owns are in the manifest |
+| **a sweep's answer is held or spilled, as the reader says** | `load_archive` reads every slice's frames in, so it is the value a sweep solved without spilling is and `runs.primal(name)` answers. `scan_archive` leaves them in the extracted directory for `runs.scan(name)`, which is what `solve_over(spill_to=)` already produces. `original_index` works on both: the dimension a window sliced and the coordinates each owns are in the manifest |
 
 ## Loading or scanning
 
 Three saved things read back, and each reads two ways. **`load_` reads it
 whole**: the frames are in memory when the call returns, so what comes back
-owes the directory nothing and timing the call times the read. **`scan_` leaves
-them where they lie** and reads each at the call that asks for it. That is what
-serves the answer larger than memory, and the answer most of whose names you
-will not read — a load reads every one. It is also what makes the files have to
-outlive the value.
+owes the directory nothing. **`scan_` leaves them where they lie** and reads
+each at the call that asks for it, so the files have to outlive the value. A
+load reads every name; a scan reads only the ones asked for.
 
 ```python
 case = lps.load_archive('case.zip')  # whole, and nowhere to unpack
@@ -550,7 +546,7 @@ any of them.
 | `rhs_range` | `(constraint, smallest, largest)`, the same for each block's right-hand sides, over the rows that survived |
 | `objective_range` | the same pair for the costs, or `None` where the spec declares no objective |
 | `solves`, `loads` | how many solves ran, and how many of them loaded the model from scratch. `loads == solves` means the model masks on a parameter that varies |
-| `timings` | cumulative wall seconds per phase: `attach`, `build`, `handoff`, `solve`, `write`. `write` is `model.write(path)`'s stream, so it is absent on a model that wrote no file — and writing an *archive* is no phase of a build, so nothing clocks it |
+| `timings` | cumulative wall seconds per phase: `attach`, `build`, `handoff`, `solve`, `write`. `write` is `model.write(path)`'s stream, absent on a model that wrote no file. An archive's own write is no phase of a build and is not clocked |
 
 **`diagnostics()` answers after `close()` too.** A sweep's diagnostics are
 `runs.diagnostics`, one row per slice ([sweeps](sweeps.md#reading-a-sweep)).

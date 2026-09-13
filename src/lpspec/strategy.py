@@ -1155,10 +1155,9 @@ def scan_runs(directory: str | Path) -> Runs:
     :func:`load_runs`'s lazy half, and the value a sweep solved with
     ``spill_to=`` already is: nothing but the record is read, and
     :meth:`Runs.scan` reads a name back as a :class:`polars.LazyFrame` when one
-    is asked for. What that buys is the study too large to hold; what it costs
-    is the readers that hand back a frame — :meth:`Runs.primal` and its
-    siblings refuse, naming :meth:`Runs.scan`, rather than collecting a study
-    on a caller's behalf.
+    is asked for. That is the reader for a study too large to hold, and it
+    costs the readers that hand back a frame: :meth:`Runs.primal` and its
+    siblings refuse, naming :meth:`Runs.scan`.
 
     *directory* has to outlive the sweep, the frames being read off it as they
     are asked for.

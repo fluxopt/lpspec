@@ -543,8 +543,8 @@ def load_result(directory: str | Path) -> Result:
 
     Returns:
         The result, read whole: the frames are in memory when this returns, so
-        it owes *directory* nothing and timing this call times the read.
-        :func:`scan_result` is the same answer left on disk.
+        it owes *directory* nothing. :func:`scan_result` is the same answer left
+        on disk.
 
     Raises:
         LayoutError: A directory holding no ``objective.parquet``, which is
@@ -563,10 +563,8 @@ def scan_result(directory: str | Path) -> Result:
     larger than memory is readable a name at a time, and one whose names go
     unread costs nothing to open.
 
-    The files stay where they are, so **they have to outlive the result**:
-    reading a name after the directory is gone is the scan's error rather than
-    this package's. A timing of this call measures the layout being read, not
-    the answer.
+    The files stay where they are, so **they have to outlive the result**: a
+    name read after the directory is gone raises where the scan is collected.
 
     Args:
         directory: As :func:`load_result` takes it.

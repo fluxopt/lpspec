@@ -6,11 +6,12 @@ gives them back as one of two values — :class:`SolveArchive` for one solve,
 :class:`SweepArchive` where the sources were cut.
 
 **Two readers, one pair of values.** :func:`load_archive` reads it whole, so
-what comes back is in memory and owes the archive nothing; :func:`scan_archive`
+what comes back is in memory and owes the archive nothing. :func:`scan_archive`
 leaves the frames where they lie and reads each at the call that asks for it,
-which is what serves an archive larger than memory, or one most of whose names
-go unread, and what makes the members have to outlive it. Which one ran shows in two places and nowhere else: a
-source is a table or the path to one, and the answer collects or scans.
+so the members have to outlive it; that is the reader for an archive larger
+than memory, or one most of whose names go unread. Which one ran shows in two
+places and nowhere else: a source is a table or the path to one, and the answer
+collects or scans.
 
 **Reading only.** Nothing here writes an archive: the verb that solves does,
 through :mod:`lpspec.layout`, because a solve is the one moment the model, the
@@ -167,10 +168,10 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
 
     **Everything is in memory when this returns** — the sources as the tables
     they hold, the answer as the frames it holds — so what comes back owes the
-    archive nothing afterwards and timing this call times the read. A zip
-    needs somewhere to unpack all the same, but only for the duration: with no
-    *into* it goes to a scratch directory that is gone by the time the value
-    is handed back. An archive larger than memory is :func:`scan_archive`.
+    archive nothing afterwards. A zip needs somewhere to unpack all the same,
+    but only for the duration: with no *into* it goes to a scratch directory
+    that is gone by the time the value is handed back. An archive larger than
+    memory is :func:`scan_archive`.
 
     Args:
         path: The archive — a ``.zip``, or the directory one was written to.
@@ -211,10 +212,8 @@ def scan_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
     each frame at the call that asks for it
     (:func:`~lpspec.api.scan_result`, :func:`~lpspec.strategy.scan_runs`).
 
-    So **the members have to outlive what was read off them**, which is what
-    makes *into* an argument rather than a scratch directory here: an archive
-    often lives where it is only read, and only the caller knows somewhere
-    writable that will still be there.
+    So **the members have to outlive what was read off them**: *into* is
+    required for a zip here, and kept.
 
     Args:
         path: As :func:`load_archive` takes it.

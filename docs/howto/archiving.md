@@ -54,7 +54,7 @@ lps.solve(case.spec, case.sources)  # the same question, asked again
 is the call you made the first time.
 
 **`load_archive` reads it whole.** The sources come back as the tables the
-members hold, and the answer's frames are in memory. So nothing has to be kept
+members hold, and the answer's frames are in memory. Nothing has to be kept
 alive afterwards, and a zip needs nowhere to unpack: it goes to a scratch
 directory that is gone by the time you get the value.
 
@@ -80,9 +80,8 @@ study.answer.scan('p')  # read at the collect, one name at a time
 **Scan the archive you will not read most of**, as well as the one that does
 not fit: a load reads every name, a scan only the ones you ask for.
 
-**What is scanned has to outlive what it reads off**, which is the other half of
-the difference. A zip therefore needs an `into=` you will keep — an archive
-often lives where it is only read, and only you know somewhere writable.
+**What is scanned has to outlive what it reads off.** A zip needs an `into=`
+you will keep.
 
 | | `load_archive` | `scan_archive` |
 |---|---|---|
@@ -111,16 +110,15 @@ clocks are of the machine that ran them, so nothing recovers them later.
 **Each clock is a phase of the build**: `attach` reads your sources onto the
 plan, `build` turns the declarations into the model frames, `handoff` hands the
 built model to a solver, `solve` is the solver's own run, and `write` is
-`model.write('model.lp')` — the built model streamed to a file. So `write`
-reads `0.0` in an archive unless you also asked for one; it is not what writing
-the archive cost.
+`model.write('model.lp')` — the built model streamed to a file. `write` reads
+`0.0` in an archive unless you also asked for a file; it is not what writing the
+archive cost.
 
 **A phase the build never entered writes zero**, so cases that ran different
 phases still concatenate into one table.
 
-**What writing the archive cost is in no column.** The row is a member of the
-archive, so the number would have to be known before the write it belongs to
-had finished. Time the call if you want it.
+**What writing the archive cost is in no column.** Time the call if you want
+it.
 
 **The row covers the model's whole life, and `solves` says how long that is.**
 `lps.solve` builds the model it solves, so its archive reads `solves` of 1 and
@@ -173,9 +171,9 @@ study.answer.scan('p')  # keyed by scenario, read at the collect
 lps.solve_over(study.spec, study.sources, study.axis)
 ```
 
-`scan_archive` for the same reason the sweep was spilled: a study that was
-never held is not one to read back whole. `load_archive` gives the held sweep
-where it fits, and `runs.primal('p')` answers on that one.
+`scan_archive` reads a sweep back spilled, as `spill_to=` left it.
+`load_archive` gives the held sweep where it fits, and `runs.primal('p')`
+answers on that one.
 
 A sweep's frames are keyed one file per slice — `answer/primal/p/000000.parquet`
 and so on — which is the layout [`spill_to=`](../reference/sweeps.md) writes.
