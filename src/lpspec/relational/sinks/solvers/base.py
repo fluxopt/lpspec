@@ -125,8 +125,9 @@ class Solver(ABC):
         #: :attr:`~lpspec.relational.sinks.tables.Tables.structure`, the
         #: digest of everything a re-solve may not change. Sixteen bytes, where
         #: holding the frames themselves would keep two models alive across a
-        #: rebuild.
-        self._structure = tables.structure
+        #: rebuild. ``None`` until :meth:`remember` is told to take it, which
+        #: only a rebuild does — see there for why the load is the wrong moment.
+        self._structure: bytes | None = None
         #: The loaded model's spans, read by :meth:`_takes` alone — of the
         #: *ingested* tables, which on a reformulating sink are wider than what
         #: was built, so a warm start is checked against the model the solver
@@ -153,13 +154,39 @@ class Solver(ABC):
     #: prints rather than for what it advises: it is a message, not a verb.
     unavailable_message: ClassVar[str]
 
+    def remember(self, tables: Tables) -> None:
+        """Take the digest of *tables* — the ones this solver loaded — while they still exist.
+
+        Called by the engine as a rebuild begins, because that is the one moment
+        the question is both answerable and worth answering: the old frames are
+        still here, the new ones do not exist yet, so the hash never has two
+        models alive at once. Taking it at the *load* instead would charge every
+        caller who solves once for a comparison only a second solve makes
+        (#1608) — the whole model goes through that hash.
+
+        Idempotent, and deliberately: the digest describes what the solver
+        holds, and a push leaves that unmoved. So a second rebuild over a
+        pushed model re-reads nothing.
+        """
+        if self._structure is None:
+            self._structure = tables.structure
+
     def keeps(self, tables: Tables, solver_options: Mapping[str, Any] | None) -> bool:
         """Whether this held solver may keep its load and take *tables* by value.
 
         Both halves of the recorded evidence live here — the digest of what was
         loaded and the options it was loaded with — so the reuse test reads
         them where they were written.
+
+        No digest is no proof, and answers no: the model is loaded again. That
+        is the safe direction and the only one available, the frames it was
+        built from being gone by then. The early return is for the *cost* rather
+        than the answer — ``None`` already compares unequal — because reading
+        ``tables.structure`` to discover that hashes the whole of the model
+        being asked about.
         """
+        if self._structure is None:
+            return False
         return self._options == dict(solver_options or {}) and self._structure == tables.structure
 
     @classmethod

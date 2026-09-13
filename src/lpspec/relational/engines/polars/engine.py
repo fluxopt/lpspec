@@ -59,6 +59,12 @@ class PolarsEngine:
         #: The solver holding this model, kept between solves — the only thing
         #: a rebuild does *not* throw away. ``None`` until one has been solved.
         self._solver: sinks.Solver | None = None
+        #: The tables :attr:`_solver` was loaded with, which on a reformulating
+        #: sink are not ``_built``'s. Held only so a rebuild can hand them to
+        #: :meth:`~lpspec.relational.sinks.solvers.base.Solver.remember` before
+        #: they go; released there and by :meth:`close`, so nothing outlives the
+        #: model it describes.
+        self._ingested: sinks.Tables | None = None
         #: How many solves this model has been through, and how many of them
         #: had to load the solver from scratch instead of pushing values onto
         #: one that already held it.
@@ -84,16 +90,34 @@ class PolarsEngine:
     # build
     # ------------------------------------------------------------------
 
+    def _settle(self) -> None:
+        """Let the held solver take its digest while the tables it loaded still exist.
+
+        Called from the two places a *second* hand-off can be reached from — a
+        rebuild and another solve — because those are exactly the moments the
+        digest starts being worth something, and the last at which the frames it
+        reads are still here. Idempotent through
+        :meth:`~lpspec.relational.sinks.solvers.base.Solver.remember`, so
+        whichever comes first pays and the other is free.
+        """
+        if self._solver is not None and self._ingested is not None:
+            self._solver.remember(self._ingested)
+
     def build(self, program: program.Program, sources: Mapping[str, pl.LazyFrame]) -> None:
         """Attach *sources*, then build every declaration into the model frames.
 
         **A second call rebuilds over the same object**, which is what
         ``update`` is. The previous build is released *before* this one starts,
-        so a driver that re-solves in a loop stays at one model's peak; what
-        the loaded solver holds survives as the digest it recorded at its load.
+        so a driver that re-solves in a loop stays at one model's peak; what the
+        loaded solver holds survives as a digest, and *this* is where it takes
+        one — the old frames are still here and the new ones are not, which is
+        the only moment a hash of the outgoing model costs no residency. A
+        caller who never rebuilds never reaches it and never pays for it.
         A build that raises leaves no model at all rather than half of one,
         and ``diagnostics()`` answers from what was measured by then.
         """
+        self._settle()
+        self._ingested = None
         self._built = None
         self._measured = Measured()
         with _clocked(self._seconds, 'attach'):
@@ -183,8 +207,10 @@ class PolarsEngine:
             if keep == 'nothing' and self._solver is not None:
                 self._solver.close()
                 self._solver = None
+            self._settle()
             held = self._solver
             self._solver = sinks.loaded(held, solver_name, tables, solver_options)
+            self._ingested = tables
             kept: Keep = keep if self._solver is held else 'nothing'
             if kept == 'solver':
                 self._solver.forget()
@@ -368,6 +394,7 @@ class PolarsEngine:
         if self._solver is not None:
             self._solver.close()
             self._solver = None
+        self._ingested = None
         self._built = None
 
     def __enter__(self) -> PolarsEngine:

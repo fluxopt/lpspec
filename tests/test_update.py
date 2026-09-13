@@ -430,6 +430,72 @@ def test_the_digest_reads_the_counts_that_frame_its_vectors(count):
     assert moved.structure != tables.structure, f'{count} is framing, not decoration: the same bytes split elsewhere'
 
 
+def _hashes(monkeypatch) -> list[int]:
+    """A counter of every digest actually taken, however many objects ask for one."""
+    from lpspec.relational.sinks import tables as tables_module
+
+    taken: list[int] = []
+    real = tables_module.Tables.structure.func
+    monkeypatch.setattr(
+        tables_module.Tables,
+        'structure',
+        property(lambda self: (taken.append(1), real(self))[1]),
+    )
+    return taken
+
+
+def test_a_solve_that_is_never_rebuilt_never_hashes_the_model(model, monkeypatch):
+    """One solve, no digest — the comparison it would feed does not exist (#1608).
+
+    The digest runs over every byte of the model to make sixteen bytes that
+    only a *second* solve reads. A caller who solves once and closes pays for a
+    question nobody asks, which at the top of the ladder is the larger part of
+    the hand-off.
+    """
+    taken = _hashes(monkeypatch)
+    model.solve()
+    assert taken == [], f'a first solve has nothing to compare against, so it hashed {len(taken)} time(s) for nothing'
+
+
+def test_a_rebuild_takes_the_evidence_and_the_fast_path_still_holds(model, monkeypatch):
+    """Deferring it costs the session nothing: one digest per solve, as before (#1608).
+
+    The accounting is the whole risk. `remember` hashes the outgoing model as a
+    rebuild begins and `keeps` hashes the incoming one, so a careless deferral
+    pays twice per solve where the load-time hash paid once. It does not,
+    because `remember` is idempotent and a push leaves the digest describing
+    what the solver still holds — so the second rebuild re-reads nothing.
+    """
+    taken = _hashes(monkeypatch)
+    model.solve()
+    model.update({'load': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [10.0, 20.0, 30.0, 40.0]})}).solve()
+    assert model.diagnostics().loads == 1, 'a pushable update still takes the fast path'
+    assert len(taken) == 2, (
+        f'two solves take two digests — the outgoing model at the rebuild and the incoming one at the '
+        f'comparison — and not {len(taken)}'
+    )
+
+    model.update({'load': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [11.0, 21.0, 31.0, 41.0]})}).solve()
+    assert model.diagnostics().loads == 1, 'and again'
+    assert len(taken) == 3, f'each further solve adds one, not two: {len(taken)} after three solves'
+
+
+def test_solving_the_same_model_twice_keeps_it_without_a_rebuild_between(model, monkeypatch):
+    """A second solve of an *unchanged* model still takes the fast path (#1608).
+
+    The deferral's sharp edge, and the suite found it: the evidence used to be
+    taken at the load, so it was there however the second hand-off was reached.
+    Taken at a rebuild instead, a caller who solves twice without updating
+    anything never passes the place that takes it — and a solver with no digest
+    can prove nothing and is loaded again. Two solves, no update, one load.
+    """
+    taken = _hashes(monkeypatch)
+    model.solve()
+    assert model.solve().kept == 'solver', 'an unchanged model is the easiest thing there is to keep'
+    assert model.diagnostics().loads == 1, 'and keeping it means not loading it twice'
+    assert len(taken) == 2, f'the outgoing model and the incoming one, as ever, not {len(taken)}'
+
+
 #: The option name each sink gives a time limit — `solver_options` is forwarded
 #: verbatim, so the vocabulary is the solver's own and there is one word per
 #: member rather than one shared word.
