@@ -134,9 +134,11 @@ no `original_index`.
 price over time.
 
 **`save` writes every kind.** `runs.save('runs/')` writes what
-`spill_to=` would have written, so the directory is a spilled sweep. `scan` reads it,
-and the call that made the sweep, pointed at it with `spill_to=`, reads it back
-without solving.
+`spill_to=` would have written, so the directory is a spilled sweep. The call
+that made the sweep, pointed at it with `spill_to=`, reads it back without
+solving; so do `lps.load_runs('runs/')`, which reads every slice's frames in
+and answers `primal`, and `lps.scan_runs('runs/')`, which leaves them there for
+`scan` ([loading or scanning](api.md#loading-or-scanning)).
 
 **There is no per-slice reader.** One slice is a partition of a table you
 already hold: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.

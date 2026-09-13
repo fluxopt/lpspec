@@ -431,7 +431,16 @@ def test_every_repository_path_a_workflow_names_exists():
 PUBLIC_API = {
     'run it': {'build', 'check', 'solve', 'write'},
     'run it many times': {'solve_over', 'EachCoordinate', 'EachWindow'},
-    'carry it': {'SolveArchive', 'SweepArchive', 'load_archive', 'load_result', 'load_runs'},
+    'carry it': {
+        'SolveArchive',
+        'SweepArchive',
+        'load_archive',
+        'load_result',
+        'load_runs',
+        'scan_archive',
+        'scan_result',
+        'scan_runs',
+    },
     'name what came back': {'Model', 'Result', 'Runs'},
     'catch it': {
         'LpspecError',
