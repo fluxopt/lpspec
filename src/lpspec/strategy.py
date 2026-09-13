@@ -105,7 +105,8 @@ class _Slice(NamedTuple):
 _MANIFEST_FILE = 'sweep.json'
 _OWNED_FILE = 'owned.parquet'
 
-#: The phases a slice clocks, in the order they run. Splatted into
+#: The phases a slice clocks, in the order they run — the engine's own keys,
+#: which the columns suffix with ``_seconds``. Splatted into
 #: :class:`~lpspec.relational.parquet.SliceMetrics` below, so a name here that
 #: the type does not declare fails at the first slice rather than writing a
 #: column nothing reads.
@@ -113,15 +114,15 @@ _PHASES = ('attach', 'build', 'handoff', 'solve')
 
 
 def _slice_metrics(after: Diagnostics, before: Diagnostics | None) -> SliceMetrics:
-    """One slice's row of :attr:`Runs.diagnostics`, off the model's cumulative counters.
+    """One slice's row of :attr:`Runs.metrics`, off the model's cumulative counters.
 
     A serial fold reuses one model, whose clocks and ``loads`` keep summing
     across slices: *before* is what was measured as the previous slice
     finished, and the difference is this slice's own. A model built for one
     slice alone has no *before*.
     """
-    earlier = before.timings if before is not None else {}
-    spent = {phase: after.timings.get(phase, 0.0) - earlier.get(phase, 0.0) for phase in _PHASES}
+    earlier = before.seconds if before is not None else {}
+    spent = {f'{phase}_seconds': after.seconds.get(phase, 0.0) - earlier.get(phase, 0.0) for phase in _PHASES}
     return SliceMetrics(
         columns=after.columns,
         rows=after.rows,
@@ -218,7 +219,7 @@ class _Answer:
     """
 
     meta: Record
-    #: This slice's row of :attr:`Runs.diagnostics`, from
+    #: This slice's row of :attr:`Runs.metrics`, from
     #: :func:`_slice_metrics`.
     metrics: SliceMetrics
     primals: dict[str, pl.DataFrame]
@@ -322,7 +323,7 @@ class _Spill:
     """A sweep's answers on disk instead of in memory, one file per slice and name.
 
     Under ``directory``: ``<kind>/<name>/<position>.parquet`` for the frames,
-    the slice key a column of each; ``objective/`` and ``diagnostics/`` for
+    the slice key a column of each; ``objective/`` and ``metrics/`` for
     the record, one row per position. Every file lands under its final name
     only whole, and the objective file is written last: it is what marks a
     slice done, so one interrupted part way is solved again rather than read
@@ -398,9 +399,7 @@ class _Spill:
         for kind, produced in zip(KINDS, (answer.primals, answer.duals, answer.expressions), strict=True):
             for name, frame in produced.items():
                 write_whole(_keyed(frame, self.key_name, key, self.key_dtype), self._file(kind, position, name))
-        write_whole(
-            pl.DataFrame([{self.key_name: key, **answer.metrics._asdict()}]), self._file('diagnostics', position)
-        )
+        write_whole(pl.DataFrame([{self.key_name: key, **answer.metrics._asdict()}]), self._file('metrics', position))
         write_whole(
             pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}], schema_overrides=RECORD_SCHEMA),
             self._file('objective', position),
@@ -417,7 +416,7 @@ class _Spill:
                 folded into a sweep whose own table is the wrong shape.
         """
         row = pl.read_parquet(self._file('objective', position)).drop(self.key_name).row(0, named=True)
-        held = pl.read_parquet(self._file('diagnostics', position)).drop(self.key_name).row(0, named=True)
+        held = pl.read_parquet(self._file('metrics', position)).drop(self.key_name).row(0, named=True)
         return _Answer(
             row_of(Record, row, self.directory), row_of(SliceMetrics, held, self.directory), {}, {}, {}, None, {}
         )
@@ -751,15 +750,15 @@ class Runs:
     #: holds null there rather than ``nan``, so the column aggregates over the
     #: slices that solved.
     objective: pl.DataFrame
-    #: ``(key, columns, rows, nonzeros, loaded, attach, build, handoff, solve)``,
-    #: in slice order — :meth:`~lpspec.api.Model.diagnostics` one dimension
+    #: One :class:`~lpspec.relational.parquet.SliceMetrics` per slice, keyed
+    #: and in slice order — :meth:`~lpspec.api.Model.diagnostics` one dimension
     #: wider, its counts and clocks only. ``loaded`` says the solver took the
     #: model from scratch: under a serial fold the first slice does and the
     #: rest are pushed values, so a later ``True`` is a slice whose data moved
     #: a mask; under an executor every slice builds alone and every one loads.
-    #: The clocks are this slice's own seconds per phase, so a slow sweep says
-    #: which slice, and which phase of it.
-    diagnostics: pl.DataFrame
+    #: The ``_seconds`` columns are this slice's own share, so a slow sweep
+    #: says which slice, and which phase of it.
+    metrics: pl.DataFrame
     #: Per slice, not concatenated. Joining them is the reader's work so a
     #: sweep pays it for the names actually read, and so the concatenated copy
     #: never exists beside the pieces it was built from.
@@ -831,7 +830,7 @@ class Runs:
         return cls(
             key_name=key_name,
             objective=pl.DataFrame(rows, schema_overrides=RECORD_SCHEMA),
-            diagnostics=pl.DataFrame(taken),
+            metrics=pl.DataFrame(taken),
             _primals=dict(primals),
             _duals=dict(duals),
             _expressions=dict(expressions),
@@ -1044,7 +1043,7 @@ class Runs:
 
         The same layout: ``<kind>/<name>/<position>.parquet`` for every
         primal, dual and expression, the slice key a column of each, with
-        ``objective/``, ``diagnostics/`` and the manifest beside them. So the
+        ``objective/``, ``metrics/`` and the manifest beside them. So the
         directory is a spilled sweep: :meth:`scan` reads it, and the call
         that made this sweep, pointed at it with ``spill_to=``, reads it back
         without solving a slice.
@@ -1077,12 +1076,12 @@ class Runs:
         }
         for position, key in enumerate(self.keys):
             meta = Record(**self.objective.drop(self.key_name).row(position, named=True))
-            metrics = SliceMetrics(**self.diagnostics.drop(self.key_name).row(position, named=True))
+            taken = SliceMetrics(**self.metrics.drop(self.key_name).row(position, named=True))
             frames = {
                 kind: {name: keyed[key] for name, keyed in names.items() if key in keyed}
                 for kind, names in by_key.items()
             }
-            answer = _Answer(meta, metrics, frames['primal'], frames['dual'], frames['expression'], None, {})
+            answer = _Answer(meta, taken, frames['primal'], frames['dual'], frames['expression'], None, {})
             spill.write(position, key, answer)
         return spill.directory
 
@@ -1145,7 +1144,7 @@ def load_runs(directory: str | Path) -> Runs:
     answer, and it owes *directory* nothing afterwards. A sweep larger than
     memory is :func:`scan_runs` instead.
 
-    :attr:`Runs.objective` and :attr:`Runs.diagnostics` are one row per slice
+    :attr:`Runs.objective` and :attr:`Runs.metrics` are one row per slice
     either way, and ``original_index`` works on both, the manifest carrying the
     dimension a window sliced.
 
@@ -1199,11 +1198,11 @@ def scan_runs(directory: str | Path) -> Runs:
     no_duals, no_expressions = read_reasons(under)
     key_name = found['key_name']
     objective = consolidated(under, RECORD_FILE)
-    diagnostics = consolidated(under, METRICS_FILE)
+    metrics = consolidated(under, METRICS_FILE)
     return Runs(
         key_name=key_name,
         objective=objective,
-        diagnostics=diagnostics,
+        metrics=metrics,
         _no_duals=no_duals,
         _no_expressions=no_expressions,
         _original=None

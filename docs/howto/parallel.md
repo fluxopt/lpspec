@@ -51,7 +51,7 @@ read here and shipped.
 ```python
 runs.objective  # (scenario, status, termination_condition, objective, has_primal, spec_digest)
 runs.primal('p')  # (scenario, snapshot, generator, value)
-runs.diagnostics  # one row per slice; every slice loaded its own solver
+runs.metrics  # one row per slice; every slice loaded its own solver
 ```
 
 A sweep with a `carry` cannot run in parallel, because each slice reads the

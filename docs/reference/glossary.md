@@ -154,15 +154,16 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 : The three saved rows, each a `NamedTuple` that names its own columns. Where
   a column is nullable, the type also derives the schema it is written with,
   so an all-null column keeps its own type instead of the one a single row
-  infers. **Record** is how a solve
-  terminated, one per solve. **Metrics** is what it took — the sizes, the
-  counters and the clocks — and is what `archive.diagnostics` hands back.
-  **SliceMetrics** is one slice of a sweep's share of that, in its own columns,
-  and is the row behind `runs.diagnostics`.
+  infers. **Record** is how a solve terminated, one per solve. **Metrics** is
+  what it took — the sizes, what the sink added to them, the counters and the
+  clocks, every clock naming its unit — and is what `archive.metrics` hands
+  back ([the attributes](api.md#diagnostics)). **SliceMetrics** is one slice of
+  a sweep's share of that, in its own columns, and is the row behind
+  `runs.metrics`.
 
   A **row** is a value and gets a type; a **table** stays a
   [Table](#the-data). So `Record` and `SliceMetrics` are the rows behind
-  `runs.objective` and `runs.diagnostics` rather than what those hand back, and
+  `runs.objective` and `runs.metrics` rather than what those hand back, and
   a reader that wants one row of a table asks the frame for it.
 
 ## `bound` means one thing

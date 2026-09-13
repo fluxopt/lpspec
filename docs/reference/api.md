@@ -422,7 +422,7 @@ lps.solve(case.spec, case.sources)  # the same question, asked again
 `sources/<key>.parquet` for every key the file declares, `sources.parquet`
 digesting those members, `answer/` holding what `result.save` or `runs.save`
 writes, and `axis.json` for a sweep. Beside the answer is
-`answer/diagnostics.parquet`, one row saying what the build and its solves
+`answer/metrics.parquet`, one row saying what the build and its solves
 spent, which the verb writes rather than `save`.
 
 **The suffix decides the container**, as `lps.write`'s does. `.zip` packs those
@@ -494,7 +494,7 @@ rows.
 | **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving and counting from `1` the day it settles. Nothing reads an older layout back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the spec and the data to do that with |
 | **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an archive is read back. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an archive whose answer names another model is refused rather than read. A solve run off a lowered `Program` has no document and carries `None`, which counts as its own value — so one null among real digests breaks the comparison, and a table where *every* digest is null counts one distinct value while having checked nothing. Ask for the digests to be present as well as to agree: `n_unique() == 1 and null_count() == 0` |
 | **the sources are digested, one row each** | `archive.source_digests` is `(run, source, digest)` for every member of `sources/`, held as `sources.parquet` beside that directory — inside it, a table about the sources would be read as one of them. It answers what `spec_digest` cannot: two archives of one document over different numbers agree on the spec digest and differ here, and the rows that differ name the input that moved. The digest is of the bytes the archive holds, so a reader can recompute it from the archive alone; two archives of the same data written by different polars versions can still differ, parquet being what is hashed rather than the table's meaning. Reading an archive does not verify them — that is a pass over every byte it holds, and it is the caller's to ask for. `run` is the archive's own name, stamped as it is on the record and the metrics beside it, so a warehouse of them reads as one table without any reader parsing paths |
-| **the metrics are written by the solve, not by `save`** | `archive.diagnostics` is a `Metrics` — `model.diagnostics()`'s sizes, counters and clocks as one value — and `answer/diagnostics.parquet` is where it sits. A `Result` is one solve and those counters are the model's whole life, so a result has no share of them to carry and `result.save` writes none; the verb that archives holds the model and can. `solves` says how many solves the clocks cover — `1` for `lps.solve`, which builds the model it solves. A phase that never ran reads zero, so cases that entered different phases write one table. A sweep's is `answer.diagnostics` instead, a `SliceMetrics` per slice in its own columns, a fold knowing each slice's share. The archive stamps `run` onto the row as it does onto the record, so a warehouse attributes what a run cost as readily as what it answered |
+| **the metrics are written by the solve, not by `save`** | `archive.metrics` is a `Metrics` — `model.diagnostics()`'s sizes, counters and clocks as one value ([the attributes](#diagnostics)) — and `answer/metrics.parquet` is where it sits. A `Result` is one solve and those counters are the model's whole life, so a result has no share of them to carry and `result.save` writes none; the verb that archives holds the model and can. `solves` says how many solves the clocks cover — `1` for `lps.solve`, which builds the model it solves. A phase that never ran reads zero, so cases that entered different phases write one table. A sweep's is `archive.answer.metrics` instead, a `SliceMetrics` per slice in its own columns, a fold knowing each slice's share. The archive stamps `run` onto the row as it does onto the record, so a warehouse attributes what a run cost as readily as what it answered |
 | **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. A `SweepArchive` has it and a `SolveArchive` has no such field, so nothing downstream meets `Result \| Runs`. `load_archive` returns whichever the archive holds |
 | **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |
 | **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one solve each. Refused before the first slice is taken, as a lowered `Program` is |
@@ -541,7 +541,7 @@ any of them.
 | Field | |
 |---|---|
 | `columns`, `rows`, `nonzeros` | the shape the build produced; `check` cannot answer this, having no data |
-| `sink_columns`, `sink_rows` | what the last solve's solver *added* to that shape: zero, or the binaries and linking rows that replaced a set it has no concept of |
+| `added_columns`, `added_rows` | what the last solve's solver *added* to that shape: zero, or the binaries and linking rows that replaced a set it has no concept of |
 | `omissions` | rows a constraint declared but did not build ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/#a-row-with-no-variable-terms-is-not-built)) |
 | `sparse_parameters` | `(parameter, coordinates, rows, missing)`, one row per parameter whose source is short of the coordinates its dimensions reach. Sparsity is how a model masks, so this reports rather than judges: a table that lost a row and a `where:` that removed one build the same model, and nothing else says which |
 | `coefficient_range` | `(constraint, smallest, largest)`, the coefficient **magnitudes** each block put in the matrix. `largest / smallest` over the table is the conditioning to compare against the solver's own |
@@ -549,16 +549,34 @@ any of them.
 | `rhs_range` | `(constraint, smallest, largest)`, the same for each block's right-hand sides, over the rows that survived |
 | `objective_range` | the same pair for the costs, or `None` where the spec declares no objective |
 | `solves`, `loads` | how many solves ran, and how many of them loaded the model from scratch. `loads == solves` means the model masks on a parameter that varies |
-| `timings` | cumulative wall seconds per phase: `attach`, `build`, `handoff`, `solve`, `write`. `write` is `model.write(path)`'s stream, absent on a model that wrote no file. An archive's own write is no phase of a build and is not clocked |
+| `seconds` | cumulative wall-clock seconds per phase, keyed by phase name: `attach`, `build`, `handoff`, `solve`, `write`. `write` is `model.write(path)`'s stream, absent on a model that wrote no file. An archive's own write is no phase of a build and is not clocked |
 
 **`diagnostics()` answers after `close()` too.** A sweep's diagnostics are
-`runs.diagnostics`, one row per slice ([sweeps](sweeps.md#reading-a-sweep)).
+`runs.metrics`, one row per slice ([sweeps](sweeps.md#reading-a-sweep)).
 
-**`metrics()` is the scalars as one row**, a `Metrics`: the sizes, `solves`,
-`loads`, and a clock per phase. The frames are not in it — a range is a table
-per declaration, which does not fold into a row beside a count. This is what
-`archive=` records, and what a caller feeding its own store reads off a model
-it solved. `run` is null until an archive stamps its own name on it.
+**`metrics()` is the scalars as one row**, a `Metrics`. The frames are not in
+it — a range is a table per declaration, which does not fold into a row beside
+a count. This is what `archive=` records and what `archive.metrics` hands back,
+and what a caller feeding its own store reads off a model it solved. It is
+thirteen attributes and they are every column of `answer/metrics.parquet`:
+
+| Attribute | |
+|---|---|
+| `columns`, `rows`, `nonzeros` | the shape the build produced |
+| `added_columns`, `added_rows` | what the last solve's sink added on top of that shape, and zero where it added nothing. The difference, not the sink's totals |
+| `solves` | how many solves this row covers. `1` for the archive `lps.solve` writes, that verb building the model it solves |
+| `loads` | how many of those handed the solver the model from scratch |
+| `attach_seconds` | the caller's sources onto the plan |
+| `build_seconds` | the declarations into the model frames |
+| `handoff_seconds` | the built model into a solver |
+| `solve_seconds` | the solver's own run |
+| `write_seconds` | `model.write(path)`'s stream to an LP or MPS file. Zero on an archive whose caller asked for no file, which is most of them |
+| `run` | the archive's own name, null until one is written |
+
+**Every clock names its unit**, and every one is cumulative over the `solves`
+the row covers. A phase that never ran writes zero rather than no column, so
+rows written by runs that never met concatenate into one table. What writing
+the archive cost is in no column: time the call.
 
 ## Choosing a solver
 

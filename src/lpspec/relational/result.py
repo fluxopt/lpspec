@@ -265,8 +265,8 @@ class Diagnostics:
     #: for — so a solve that is larger than the model reads it here rather
     #: than nowhere. Zero until something has been solved: a *writer* is
     #: handed the model as built, and reports nothing.
-    sink_columns: int
-    sink_rows: int
+    added_columns: int
+    added_rows: int
 
     #: ``(constraint, rows_not_built)`` — every declared row that did not reach
     #: the solver (the absence rules), by either route: one emptied of all its
@@ -351,7 +351,7 @@ class Diagnostics:
     #: sum — an update's attach and build land on top of the first's, the way
     #: ``solves`` keeps counting. Clocks rather than a profile: enough to say
     #: which phase a slow loop spends its time in, not why.
-    timings: Mapping[str, float]
+    seconds: Mapping[str, float]
 
     def metrics(self) -> Metrics:
         """The sizes, counters and clocks as one value — the row an archive records.
@@ -363,20 +363,20 @@ class Diagnostics:
         build never entered reads zero there. ``run`` is null: the name is the
         publisher's, and nothing has published this yet.
         """
-        clocks = self.timings
+        clocks = self.seconds
         return Metrics(
             columns=self.columns,
             rows=self.rows,
             nonzeros=self.nonzeros,
-            sink_columns=self.sink_columns,
-            sink_rows=self.sink_rows,
+            added_columns=self.added_columns,
+            added_rows=self.added_rows,
             solves=self.solves,
             loads=self.loads,
-            attach=clocks.get('attach', 0.0),
-            build=clocks.get('build', 0.0),
-            handoff=clocks.get('handoff', 0.0),
-            solve=clocks.get('solve', 0.0),
-            write=clocks.get('write', 0.0),
+            attach_seconds=clocks.get('attach', 0.0),
+            build_seconds=clocks.get('build', 0.0),
+            handoff_seconds=clocks.get('handoff', 0.0),
+            solve_seconds=clocks.get('solve', 0.0),
+            write_seconds=clocks.get('write', 0.0),
         )
 
 

@@ -1,4 +1,4 @@
-"""What the build reports about itself: omissions, timings, magnitudes, sparsity.
+"""What the build reports about itself: omissions, clocks, magnitudes, sparsity.
 
 A diagnostic is a claim about a model the solver never sees. A row that lost
 every term is not built, and saying so is the difference between a smaller
@@ -112,12 +112,12 @@ def test_a_row_a_propagated_absence_deleted_is_reported_too():
 def test_diagnostics_say_where_the_time_went(tmp_path):
     """A run that is slower than it should be can say which phase the time went to.
 
-    `timings` is advisory wall time, so nothing here asserts a magnitude —
+    `seconds` is advisory wall time, so nothing here asserts a magnitude —
     only that each phase that ran left a clock, that none ran backwards, and
     that they accumulate across calls the way `solves` counts.
     """
     with lps.build(SOLVER_VECTOR_SPEC, SOLVER_VECTOR_LOAD) as model:
-        built = model.diagnostics().timings
+        built = model.diagnostics().seconds
         assert set(built) == {'attach', 'build'}, (
             'a model only built has spent time attaching sources and building frames, nowhere else'
         )
@@ -125,7 +125,7 @@ def test_diagnostics_say_where_the_time_went(tmp_path):
 
         model.solve()
         model.write(tmp_path / 'model.lp')
-        ran = model.diagnostics().timings
+        ran = model.diagnostics().seconds
         assert set(ran) == {'attach', 'build', 'handoff', 'solve', 'write'}, (
             'a solve adds the hand-off and the solver run, a write adds the file stream'
         )
@@ -133,7 +133,7 @@ def test_diagnostics_say_where_the_time_went(tmp_path):
 
         snapshot = dict(ran)
         model.solve()
-        assert model.diagnostics().timings['solve'] >= ran['solve'], (
+        assert model.diagnostics().seconds['solve'] >= ran['solve'], (
             'the clocks accumulate across solves, the way `solves` counts'
         )
         assert ran == snapshot, 'a diagnostics snapshot is its own dict, not a view of the running clocks'

@@ -210,7 +210,7 @@ def _put_the_answer(members: _Members, answer: Path, *, run: str) -> None:
 
     The frames are copied as they lie — a spilled sweep is archived without
     being re-materialised, which is what serves the sweep too large to hold.
-    The record and the diagnostics are not: a spill writes them one file per
+    The record and the metrics are not: a spill writes them one file per
     slice because the objective file's existence is how a resume knows a slice
     finished, and an archive has no resume to serve. One file each instead, so
     that one glob over a warehouse finds every run whether a solve or a sweep

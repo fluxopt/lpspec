@@ -436,22 +436,22 @@ def test_an_archive_records_what_reaching_its_answer_cost(
     that ran them, so unless the solve writes them down nothing does.
     """
     lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
-    taken = lps.load_archive(tmp_path / 'case').diagnostics
+    taken = lps.load_archive(tmp_path / 'case').metrics
 
     assert isinstance(taken, Metrics), 'the row comes back as the value its columns declare, not a frame of one'
     assert Metrics._fields == (
         'columns',
         'rows',
         'nonzeros',
-        'sink_columns',
-        'sink_rows',
+        'added_columns',
+        'added_rows',
         'solves',
         'loads',
-        'attach',
-        'build',
-        'handoff',
-        'solve',
-        'write',
+        'attach_seconds',
+        'build_seconds',
+        'handoff_seconds',
+        'solve_seconds',
+        'write_seconds',
         'run',
     ), 'the sizes, the counters, one clock per phase in the order the phases run, then the run that took them'
     written = pl.read_parquet(tmp_path / 'case' / ANSWER_DIR / METRICS_FILE)
@@ -460,7 +460,7 @@ def test_an_archive_records_what_reaching_its_answer_cost(
     assert (taken.solves, taken.loads) == (1, 1), (
         'lps.solve builds the model it solves, so the row covers that one solve and its one load'
     )
-    assert taken.build > 0.0, 'the build ran, so its clock is not the zero that says a phase did not'
+    assert taken.build_seconds > 0.0, 'the build ran, so its clock is not the zero that says a phase did not'
 
 
 def test_the_cost_row_says_how_many_solves_its_clocks_cover(
@@ -477,7 +477,7 @@ def test_the_cost_row_says_how_many_solves_its_clocks_cover(
         model.solve()
         model.solve(archive=tmp_path / 'second')
 
-    assert lps.load_archive(tmp_path / 'second').diagnostics.solves == 2, (
+    assert lps.load_archive(tmp_path / 'second').metrics.solves == 2, (
         'two solves ran before the archive was written, and the row it carries counts both'
     )
 
@@ -497,8 +497,8 @@ def test_a_case_that_wrote_a_file_and_one_that_did_not_are_still_one_table(
         model.solve(archive=tmp_path / 'written')
 
     cases = ('solved', 'written')
-    rows = [lps.load_archive(tmp_path / case).diagnostics for case in cases]
-    assert [row.write == 0.0 for row in rows] == [True, False], (
+    rows = [lps.load_archive(tmp_path / case).metrics for case in cases]
+    assert [row.write_seconds == 0.0 for row in rows] == [True, False], (
         'the first case never wrote a file and the second did, or the two schemas were never in question'
     )
     files = pl.concat(pl.read_parquet(tmp_path / case / ANSWER_DIR / METRICS_FILE) for case in cases)
@@ -533,9 +533,9 @@ def test_an_archive_whose_metrics_are_short_of_a_column_is_refused_by_name(
     """
     lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
     metrics = tmp_path / 'case' / ANSWER_DIR / METRICS_FILE
-    pl.read_parquet(metrics).drop('write').write_parquet(metrics)
+    pl.read_parquet(metrics).drop('write_seconds').write_parquet(metrics)
 
-    with pytest.raises(lps.LayoutError, match=r"Metrics row that is short of \['write'\]") as excinfo:
+    with pytest.raises(lps.LayoutError, match=r"Metrics row that is short of \['write_seconds'\]") as excinfo:
         lps.load_archive(tmp_path / 'case')
     assert 'solve the model again' in str(excinfo.value), 'and the message names the way out'
 
@@ -545,19 +545,19 @@ def test_every_phase_a_build_clocks_has_a_column_to_travel_in(
 ) -> None:
     """A phase added to the engine and not to `Metrics` would be dropped in silence.
 
-    The row is written off `timings`, whose keys are whatever the engine
+    The row is written off `seconds`, whose keys are whatever the engine
     clocked, and a key with no column of its own simply does not travel.
     """
     with lps.build(dispatch_yaml, dispatch_frame_inputs) as model:
         model.write(tmp_path / 'model.lp')
         model.solve()
-        clocked = set(model.diagnostics().timings)
+        clocked = set(model.diagnostics().seconds)
 
     assert clocked == {'attach', 'build', 'write', 'handoff', 'solve'}, (
         'this model entered every phase a build clocks, or the check below passes on the ones it missed'
     )
-    assert not clocked - set(Metrics._fields), (
-        f'every phase the engine clocks is a Metrics column, and {clocked} is not'
+    assert not {f'{phase}_seconds' for phase in clocked} - set(Metrics._fields), (
+        f'every phase the engine clocks has a Metrics column, and {clocked} does not'
     )
 
 
@@ -609,8 +609,8 @@ def test_every_archive_holds_one_objective_file_whatever_wrote_it(
     answer = out / 'answer'
     assert (answer / 'objective.parquet').is_file(), 'the record is one file, whichever verb wrote it'
     assert not (answer / 'objective').exists(), 'and not a directory beside it'
-    assert (answer / 'diagnostics.parquet').is_file(), 'the cost row goes the same way'
-    assert not (answer / 'diagnostics').exists(), 'and not a directory beside it either'
+    assert (answer / METRICS_FILE).is_file(), 'the metrics go the same way'
+    assert not (answer / 'metrics').exists(), 'and not a directory beside it either'
     assert pl.read_parquet(answer / 'objective.parquet').height == (3 if sweep else 1), 'one row per slice'
 
 
@@ -843,7 +843,7 @@ def test_saving_an_answer_into_an_unpacked_archive_takes_its_cost_row_with_it(
 
     lps.solve(dispatch_yaml, dispatch_frame_inputs).save(answer)
 
-    assert not (answer / METRICS_FILE).exists(), 'and a saved answer carries no reading, so none is left behind'
+    assert not (answer / METRICS_FILE).exists(), 'and a saved answer carries no metrics, so none is left behind'
 
 
 def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path) -> None:

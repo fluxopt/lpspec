@@ -84,12 +84,12 @@ class SolveArchive:
             input that moved. ``run`` is the archive's own name, as it is on
             the record and the metrics beside it, so a table read across a
             directory of archives attributes its rows without parsing paths.
-        diagnostics: The :class:`~lpspec.relational.parquet.Metrics` taken
+        metrics: The :class:`~lpspec.relational.parquet.Metrics` taken
             when the solve returned — the sizes, the counters and the clocks of
             what reaching that answer took, as one value rather than a frame of
             one row. Beside
             :attr:`answer` rather than on it, which is the asymmetry with
-            :class:`SweepArchive`, where ``answer.diagnostics`` carries the
+            :class:`SweepArchive`, where ``answer.metrics`` carries the
             same columns one per slice: a :class:`~lpspec.strategy.Runs` is a
             fold and knows each slice's share of a cumulative total, where a
             :class:`~lpspec.relational.result.Result` is one solve of a model
@@ -101,7 +101,7 @@ class SolveArchive:
     sources: Mapping[str, Source]
     answer: Result
     source_digests: pl.DataFrame
-    diagnostics: Metrics
+    metrics: Metrics
 
     def __post_init__(self) -> None:
         """Refuse an archive whose answer names a different model than its own."""

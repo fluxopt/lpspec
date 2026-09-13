@@ -267,11 +267,18 @@ class Metrics(NamedTuple):
     solves.
     """
 
+    #: The shape the build produced, in the solver's own vocabulary.
     columns: int
     rows: int
     nonzeros: int
-    sink_columns: int
-    sink_rows: int
+    #: What the last solve's **sink added** to that shape, and zero where it
+    #: added nothing: the binaries and linking rows that stand in for a set the
+    #: solver has no concept of. Not the sink's totals — the difference.
+    added_columns: int
+    added_rows: int
+    #: How many solves the row covers, and how many of those loaded the solver
+    #: from scratch. Read together with the clocks, which are cumulative over
+    #: exactly these solves.
     solves: int
     loads: int
     #: Wall-clock seconds in each phase a build clocks, in the order they run:
@@ -281,16 +288,16 @@ class Metrics(NamedTuple):
     #: zero rather than no column: the point of the row is that a directory of
     #: them is a table.
     #:
-    #: So :attr:`write` reads zero on an archive whose caller never asked for a
-    #: file, which is most of them: it is :meth:`~lpspec.api.Model.write`'s
-    #: clock rather than the archive's own. **What writing the archive cost is
+    #: So :attr:`write_seconds` reads zero on an archive whose caller never
+    #: asked for a file, which is most of them: it is
+    #: :meth:`~lpspec.api.Model.write`'s clock rather than the archive's own. **What writing the archive cost is
     #: not here and is not anywhere**: a caller who wants that number times the
     #: call.
-    attach: float
-    build: float
-    handoff: float
-    solve: float
-    write: float
+    attach_seconds: float
+    build_seconds: float
+    handoff_seconds: float
+    solve_seconds: float
+    write_seconds: float
     #: What the archive holding this row was called, as :attr:`Record.run` is
     #: stamped onto the record beside it: the archive's file name without a
     #: ``.zip``. Null until one is written, the name being the publisher's
@@ -318,6 +325,7 @@ class SliceMetrics(NamedTuple):
     every slice concatenates the way a directory of archives does.
     """
 
+    #: The shape this slice built, as :class:`Metrics` reports a whole model's.
     columns: int
     rows: int
     nonzeros: int
@@ -329,10 +337,10 @@ class SliceMetrics(NamedTuple):
     #: This slice's own seconds per phase, so a slow sweep says which slice and
     #: which phase of it. A whole model's ``write`` has no per-slice meaning —
     #: a sweep writes no file per slice — and there is no column for it.
-    attach: float
-    build: float
-    handoff: float
-    solve: float
+    attach_seconds: float
+    build_seconds: float
+    handoff_seconds: float
+    solve_seconds: float
 
 
 def row_of[R](row_type: Callable[..., R], columns: Mapping[str, Any], found: Path) -> R:
@@ -367,7 +375,7 @@ def row_of[R](row_type: Callable[..., R], columns: Mapping[str, Any], found: Pat
 #: whichever wrote: the record of how the solve terminated, what reaching it
 #: cost, and the reasons behind whatever is deliberately not there.
 RECORD_FILE = 'objective.parquet'
-METRICS_FILE = 'diagnostics.parquet'
+METRICS_FILE = 'metrics.parquet'
 REASONS_FILE = 'reasons.parquet'
 
 

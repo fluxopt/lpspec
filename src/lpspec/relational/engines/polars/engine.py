@@ -67,11 +67,11 @@ class PolarsEngine:
         #: What the last solve's sink had to add to take the model — nothing,
         #: unless it had no concept of a set the model declares. A fact about a
         #: *solve*, so a rebuild does not clear it.
-        self._sink_columns = 0
-        self._sink_rows = 0
+        self._added_columns = 0
+        self._added_rows = 0
         #: Wall seconds each phase has spent, cumulatively. Time spent is a
         #: fact about what ran, so a rebuild adds to it rather than clearing it.
-        self._timings: dict[str, float] = {}
+        self._seconds: dict[str, float] = {}
 
     @property
     def _model(self) -> BuiltModel:
@@ -96,11 +96,11 @@ class PolarsEngine:
         """
         self._built = None
         self._measured = Measured()
-        with _clocked(self._timings, 'attach'):
+        with _clocked(self._seconds, 'attach'):
             attached = attach(program, sources)
         self._measured.sparse = short_parameters(program, attached)
         assembly = Assembly(program, attached, self._measured)
-        with _clocked(self._timings, 'build'):
+        with _clocked(self._seconds, 'build'):
             self._built = assembly.run()
 
     # ------------------------------------------------------------------
@@ -132,7 +132,7 @@ class PolarsEngine:
         tables = self._model.tables()
         if (refused := sinks.refusal(self._model.program, suffix)) is not None:
             raise LpspecError(refused)
-        with _clocked(self._timings, 'write'):
+        with _clocked(self._seconds, 'write'):
             chosen.write(tables, path)
 
     def solve(
@@ -176,10 +176,10 @@ class PolarsEngine:
         if keep not in KEEPS:
             raise LpspecError(unknown_keep_message(keep))
         built = self._model.tables()
-        with _clocked(self._timings, 'handoff'):
+        with _clocked(self._seconds, 'handoff'):
             tables = sinks.ingestible(solver_name, built, self._model.program)
-            self._sink_columns = tables.column_count - built.column_count
-            self._sink_rows = tables.row_count - built.row_count
+            self._added_columns = tables.column_count - built.column_count
+            self._added_rows = tables.row_count - built.row_count
             if keep == 'nothing' and self._solver is not None:
                 self._solver.close()
                 self._solver = None
@@ -191,7 +191,7 @@ class PolarsEngine:
         self._solves += 1
         if self._solver is not held:
             self._loads += 1
-        with _clocked(self._timings, 'solve'):
+        with _clocked(self._seconds, 'solve'):
             answer = self._solver.run(tables)
         assert answer.primal is not None or not answer.status.is_readable, (
             'a readable status must come with a primal vector'
@@ -231,8 +231,8 @@ class PolarsEngine:
             columns=self._measured.columns,
             rows=self._measured.rows,
             nonzeros=self._measured.nonzeros,
-            sink_columns=self._sink_columns,
-            sink_rows=self._sink_rows,
+            added_columns=self._added_columns,
+            added_rows=self._added_rows,
             omissions=pl.DataFrame(
                 {'constraint': list(self._measured.omitted), 'rows_not_built': list(self._measured.omitted.values())},
                 schema={'constraint': pl.String, 'rows_not_built': pl.UInt32},
@@ -278,7 +278,7 @@ class PolarsEngine:
             objective_range=self._measured.objective_range,
             solves=self._solves,
             loads=self._loads,
-            timings=dict(self._timings),
+            seconds=dict(self._seconds),
         )
 
     def _read_back(
@@ -431,8 +431,8 @@ def _no_duals_message(
 
 
 @contextmanager
-def _clocked(timings: dict[str, float], phase: str) -> Iterator[None]:
-    """Add the block's wall time onto ``timings[phase]`` — the diagnostics clocks.
+def _clocked(seconds: dict[str, float], phase: str) -> Iterator[None]:
+    """Add the block's wall time onto ``seconds[phase]`` — the diagnostics clocks.
 
     Cumulative, so a phase that runs again adds to its total the way the
     counters count. Recorded on failure too: a build that died mid-phase spent
@@ -442,4 +442,4 @@ def _clocked(timings: dict[str, float], phase: str) -> Iterator[None]:
     try:
         yield
     finally:
-        timings[phase] = timings.get(phase, 0.0) + perf_counter() - started
+        seconds[phase] = seconds.get(phase, 0.0) + perf_counter() - started

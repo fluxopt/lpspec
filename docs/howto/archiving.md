@@ -23,7 +23,7 @@ case/
     …
     sources.parquet               (run, source, digest) — what each of them is
     answer/objective.parquet      how it terminated, what it reached, when, and under what name
-    answer/diagnostics.parquet    what the build and its solves spent
+    answer/metrics.parquet        what the build and its solves took
     answer/primal/p.parquet       one file per variable
     answer/dual/power_balance.parquet
 ```
@@ -96,26 +96,29 @@ the same pair one level down, for an answer `result.save` or `runs.save` wrote.
 
 ## Read what a solve cost
 
-`diagnostics` is a `Metrics`: how big the model was, how many solves the
-archive covers, and wall-clock seconds in each phase, as one value.
+`metrics` is a `Metrics`: how big the model was, what the last solve's sink
+added to that, how many solves the archive covers, and wall-clock seconds in
+each phase — thirteen attributes as one value
+([the whole list](../reference/api.md#diagnostics)). Every clock says its unit
+in its name.
 
 ```python
 case = lps.load_archive('case/')
 
-case.diagnostics.rows  # how big the model was
-case.diagnostics.solves  # how many solves the clocks cover
-case.diagnostics.build  # seconds spent turning declarations into frames
+case.metrics.rows  # how big the model was
+case.metrics.solves  # how many solves the clocks cover
+case.metrics.build_seconds  # turning declarations into frames
 ```
 
 This is the one part of an archive that re-solving cannot give back. The
 clocks are of the machine that ran them, so nothing recovers them later.
 
-**Each clock is a phase of the build**: `attach` reads your sources onto the
-plan, `build` turns the declarations into the model frames, `handoff` hands the
-built model to a solver, `solve` is the solver's own run, and `write` is
-`model.write('model.lp')` — the built model streamed to a file. `write` reads
-`0.0` in an archive unless you also asked for a file; it is not what writing the
-archive cost.
+**Each clock is a phase of the build**: `attach_seconds` reads your sources
+onto the plan, `build_seconds` turns the declarations into the model frames,
+`handoff_seconds` hands the built model to a solver, `solve_seconds` is the
+solver's own run, and `write_seconds` is `model.write('model.lp')` — the built
+model streamed to a file. `write_seconds` reads `0.0` in an archive unless you
+also asked for a file; it is not what writing the archive cost.
 
 **A phase the build never entered writes zero**, so cases that ran different
 phases still concatenate into one table.
@@ -134,11 +137,11 @@ with lps.build('dispatch.yaml', sources) as model:
     model.solve(archive='second/')  # solves: 2, and the clocks cover both
 ```
 
-**A sweep records its own metrics per slice, in its own columns.** `runs.diagnostics`
+**A sweep records its own metrics per slice, in its own columns.** `runs.metrics`
 carries `loaded` — whether that slice's model went to the solver from scratch —
-and drops what a slice has no share of: `sink_columns`, `sink_rows`, `solves`,
-`loads` and `write`. Its clocks are that slice's own seconds, where a solve's
-cover the model's whole life. A fold knows where one slice's share begins; a
+and drops what a slice has no share of: `added_columns`, `added_rows`, `solves`,
+`loads` and `write_seconds`. Its clocks are that slice's own seconds, where a
+solve's cover the model's whole life. A fold knows where one slice's share begins; a
 single `Result` does not, being one solve of a model that may have had many.
 
 ## Keep the answer an update produced
@@ -203,7 +206,7 @@ table.sort('solved_at').select('run', 'status', 'objective')
 ```
 
 A sweep's archive lands in the same table, one row per slice, with its key
-column beside `run`. `answer/diagnostics.parquet` carries `run` the same way,
+column beside `run`. `answer/metrics.parquet` carries `run` the same way,
 so what each slice cost is attributable across a warehouse too. Read the two
 together with `pl.concat(..., how='diagonal')` where a warehouse holds both.
 
@@ -287,8 +290,8 @@ directory of archives they are the table that says which cases are growing,
 and where the time goes:
 
 ```sql
-select run, rows, nonzeros, build, solve from 'runs/*/answer/diagnostics.parquet'
-order by build + solve desc;
+select run, rows, nonzeros, build_seconds, solve_seconds from 'runs/*/answer/metrics.parquet'
+order by build_seconds + solve_seconds desc;
 ```
 
 ## What an archive will not take
