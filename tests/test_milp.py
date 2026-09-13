@@ -75,31 +75,39 @@ def test_commitment_milp_agrees_and_stays_integral(commitment_inputs):
         assert 'binary' in run.lp.read_text(), 'the LP file carries integrality, not just bounds'
 
 
-@pytest.mark.parametrize('batch_rows', [7, 13, 100_000], ids=['tiny-chunks', 'odd-chunks', 'one-chunk'])
-def test_the_highs_solver_ingests_columns_in_order_whatever_the_chunking(commitment_run, batch_rows):
-    """Columns reach HiGHS in label order however the range loop splits them.
+def test_the_highs_solver_takes_integrality_over_the_whole_column_index(commitment_run):
+    """Every column's variable type crosses, in label order, in the one load.
 
-    ``addCols`` appends, so column *k* must be the *k*-th row handed over. The
-    sink used to get that from one ``ORDER BY c.col`` over the whole table — a
-    global sort, which is the operator that does not stay inside
-    ``memory_limit``. It now walks bounded ``col_chunks`` instead, which is
-    only equivalent if every chunk is ordered *and* the chunks themselves are
-    consecutive and gapless.
-
-    A binary model is the sharp case: integrality is applied by column index,
-    so a chunking bug relabels which variables are integral and the objective
-    moves. Prime batch sizes make the last chunk short and stop a bug that
-    only shows on ragged splits from hiding behind a round number.
+    Integrality is applied by column index, so a vector that is short, shifted
+    or in another order relabels which variables are integral and the
+    objective moves. A binary model is the sharp case, and it is the one this
+    asks: the sink hands HiGHS a boolean widened to ``int32`` over the whole
+    index, where it once walked bounded column chunks and applied
+    ``changeColsIntegrality`` per chunk.
     """
     tables = commitment_run.engine._model.tables()
-    with Highs(tables, batch_rows, None) as sink:
-        chunked = sink.run(tables)
-    assert chunked.status.is_ok
-    assert chunked.objective == pytest.approx(commitment_run.oracle, rel=1e-9)
+    with Highs(tables, None, None) as sink:
+        loaded = sink.run(tables)
+    assert loaded.status.is_ok
+    assert loaded.objective == pytest.approx(commitment_run.oracle, rel=1e-9)
 
     held = commitment_run.engine._model.variables['u']
-    u = held.share(chunked.primal).to_numpy()
+    u = held.share(loaded.primal).to_numpy()
     assert set(np.round(u)) <= {0.0, 1.0}, 'integrality landed on the wrong columns'
+
+
+def test_highs_numbers_a_continuous_column_zero_and_an_integer_one():
+    """The two numbers the hand-off's boolean integrality vector *is*.
+
+    ``_built`` widens ``cols.integral`` — one boolean per column — straight to
+    the ``int32`` vector HiGHS reads as variable types, which is only the same
+    vector while these two enum members keep these two values. A HiGHS release
+    that renumbers them would silently declare every continuous column
+    something else, so it fails here instead.
+    """
+    highspy = pytest.importorskip('highspy')
+    assert int(highspy.HighsVarType.kContinuous) == 0, 'a continuous column is what a False widens to'
+    assert int(highspy.HighsVarType.kInteger) == 1, 'an integer column is what a True widens to'
 
 
 def test_cols_vtype_is_an_enum_over_every_declared_domain(commitment_run):
