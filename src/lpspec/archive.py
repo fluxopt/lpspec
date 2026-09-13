@@ -164,7 +164,7 @@ def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
 
 
 def _digests_in(under: Path) -> pl.DataFrame:
-    """The ``(source, digest)`` table *under* holds.
+    """The ``(run, source, digest)`` table *under* holds.
 
     Read, never re-computed: verifying it means hashing every source, which is
     a pass over all the data an archive holds and is the caller's to ask for
@@ -227,14 +227,15 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
     Returns:
         A :class:`SweepArchive` where the archive carries an axis and a
         :class:`SolveArchive` where it does not, holding the spec as written,
-        its sources keyed as the file declares them, the answer, and what
-        reaching it cost.
+        its sources keyed as the file declares them, a digest of each, the
+        answer, and what reaching it cost.
 
     Raises:
         LanguageError: A ``model.yaml`` the language does not accept.
-        LayoutError: A member outside the layout, an *into* given for a
-            directory, an answer whose layout has moved since it was written,
-            or one holding no cost row. Nothing is unpacked.
+        LayoutError: A member outside the layout or an *into* given for a
+            directory, neither of which unpacks anything, and — once it is —
+            an archive holding no digest table, or an answer whose layout has
+            moved since it was written or that holds no cost row.
         LpspecError: An answer that names a different model than the one
             beside it.
         zipfile.BadZipFile: A file that is not a zip archive.
@@ -251,10 +252,9 @@ def scan_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
 
     :func:`load_archive`'s other half, and the same two types. What differs is
     that nothing but the spec, the axis, the digest table and the cost row is
-    read: the sources
-    come back as the parquet paths they now are — a ``Path`` being a source
-    like any other, so attaching streams them from disk — and the answer reads
-    each frame at the call that asks for it
+    read: the sources come back as the parquet paths they now are — a ``Path``
+    being a source like any other, so attaching streams them from disk — and
+    the answer reads each frame at the call that asks for it
     (:func:`~lpspec.api.scan_result`, :func:`~lpspec.strategy.scan_runs`).
 
     So **the members have to outlive what was read off them**: *into* is

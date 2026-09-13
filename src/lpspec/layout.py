@@ -41,9 +41,9 @@ if TYPE_CHECKING:
 #: archive holds, a sweep being the one whose sources are cut.
 MODEL_MEMBER = 'model.yaml'
 AXIS_MEMBER = 'axis.json'
-#: ``(source, digest)`` for every member of ``sources/``, beside the directory
-#: rather than in it: anything under ``sources/`` is a source table keyed by
-#: its stem, so a table *about* them cannot live there.
+#: ``(run, source, digest)`` for every member of ``sources/``, beside the
+#: directory rather than in it: anything under ``sources/`` is a source table
+#: keyed by its stem, so a table *about* them cannot live there.
 DIGESTS_MEMBER = 'sources.parquet'
 SOURCES_DIR = PurePosixPath('sources')
 ANSWER_DIR = PurePosixPath('answer')
@@ -160,8 +160,9 @@ def write_archive(
             else:
                 buffer = io.BytesIO()
                 whole.get(name, frame).collect().write_parquet(buffer, compression='zstd')
-                members.put(member, buffer.getvalue())
-                digests[name] = digest_of_bytes(buffer.getvalue())
+                encoded = buffer.getvalue()
+                members.put(member, encoded)
+                digests[name] = digest_of_bytes(encoded)
         members.put(DIGESTS_MEMBER, _digest_table(digests, run=run))
         if axis is not None:
             members.put(AXIS_MEMBER, json.dumps(axis).encode())
