@@ -25,8 +25,9 @@ from lpspec.errors import LayoutError, LpspecError
 from lpspec.relational.status import SolveStatus, status_of
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
     from pathlib import Path
+    from typing import Any
 
 #: The three kinds of frame a solve answers with, named after the reader each
 #: comes back through, and what each is a frame of.
@@ -76,6 +77,31 @@ def check_format(directory: Path) -> None:
         )
 
 
+#: How much of a sha256 a digest here keeps. Sixteen hex characters is 64
+#: bits, which no set of runs collides in by accident, and it is read by a
+#: person scanning a comparison table beside four other columns where
+#: sixty-four would push the numbers off the line.
+_DIGEST_WIDTH = 16
+
+
+def digest_of_bytes(data: bytes) -> str:
+    """A short, stable name for *data* — what the digests here are made with."""
+    return hashlib.sha256(data).hexdigest()[:_DIGEST_WIDTH]
+
+
+def digest_of_file(path: Path) -> str:
+    """The same name for a file's bytes, read a chunk at a time.
+
+    Streamed rather than loaded: a source table is the one thing an archive
+    holds that can be larger than the memory it is written from.
+    """
+    sha = hashlib.sha256()
+    with path.open('rb') as handle:
+        while chunk := handle.read(1 << 20):
+            sha.update(chunk)
+    return sha.hexdigest()[:_DIGEST_WIDTH]
+
+
 def digest_of(yaml: str) -> str:
     """A short, stable name for a spec — what two answers must share to be comparable.
 
@@ -83,11 +109,10 @@ def digest_of(yaml: str) -> str:
     writes as ``model.yaml``: two answers carrying one digest answered the
     same document, byte for byte. Not the same *model* — that is the document
     with its data, and two scenarios of one spec share this and share nothing
-    else. Sixteen hex characters, because this is read by a person scanning a
-    comparison table beside four other columns and sixty-four would push the
-    numbers off the line.
+    else. What an archive holds beside it says whether the data agreed too:
+    :func:`digest_of_file` over each member of ``sources/``.
     """
-    return hashlib.sha256(yaml.encode()).hexdigest()[:16]
+    return digest_of_bytes(yaml.encode())
 
 
 class Record(NamedTuple):
@@ -224,11 +249,11 @@ def _column_types(record: type[NamedTuple]) -> dict[str, pl.DataType | type[pl.D
 RECORD_SCHEMA = _column_types(Record)
 
 
-class Cost(NamedTuple):
-    """What a build and its solves spent, as the row an archive records beside the answer.
+class Metrics(NamedTuple):
+    """What a build and its solves took, as the row an archive records beside the answer.
 
-    :class:`Record`'s sibling — one says how the solve terminated, this says
-    what reaching that cost — and the same columns whoever writes them, so
+    :class:`Record`'s sibling — one says how the solve terminated, this is the
+    measure of what it took — and the same columns whoever writes them, so
     rows written by runs that never met concatenate into one table.
 
     The scalars of :class:`~lpspec.relational.result.Diagnostics` and none of
@@ -242,11 +267,18 @@ class Cost(NamedTuple):
     solves.
     """
 
+    #: The shape the build produced, in the solver's own vocabulary.
     columns: int
     rows: int
     nonzeros: int
-    sink_columns: int
-    sink_rows: int
+    #: What the last solve's **sink added** to that shape, and zero where it
+    #: added nothing: the binaries and linking rows that stand in for a set the
+    #: solver has no concept of. Not the sink's totals — the difference.
+    added_columns: int
+    added_rows: int
+    #: How many solves the row covers, and how many of those loaded the solver
+    #: from scratch. Read together with the clocks, which are cumulative over
+    #: exactly these solves.
     solves: int
     loads: int
     #: Wall-clock seconds in each phase a build clocks, in the order they run:
@@ -256,22 +288,86 @@ class Cost(NamedTuple):
     #: zero rather than no column: the point of the row is that a directory of
     #: them is a table.
     #:
-    #: So :attr:`write` reads zero on an archive whose caller never asked for a
-    #: file, which is most of them: it is :meth:`~lpspec.api.Model.write`'s
-    #: clock rather than the archive's own. **What writing the archive cost is
+    #: So :attr:`write_seconds` reads zero on an archive whose caller never
+    #: asked for a file, which is most of them: it is
+    #: :meth:`~lpspec.api.Model.write`'s clock rather than the archive's own. **What writing the archive cost is
     #: not here and is not anywhere**: a caller who wants that number times the
     #: call.
-    attach: float
-    build: float
-    handoff: float
-    solve: float
-    write: float
+    attach_seconds: float
+    build_seconds: float
+    handoff_seconds: float
+    solve_seconds: float
+    write_seconds: float
+    #: What the archive holding this row was called, as :attr:`Record.run` is
+    #: stamped onto the record beside it: the archive's file name without a
+    #: ``.zip``. Null until one is written, the name being the publisher's
+    #: rather than the solve's.
+    run: str | None = None
 
 
-#: :class:`Cost`'s columns as they are written, for :data:`RECORD_SCHEMA`'s
+#: :class:`Metrics`'s columns as they are written, for :data:`RECORD_SCHEMA`'s
 #: reason: a clock that happened to be zero would otherwise infer to the type
 #: its own single row suggests.
-COST_SCHEMA = _column_types(Cost)
+METRICS_SCHEMA = _column_types(Metrics)
+
+
+class SliceMetrics(NamedTuple):
+    """What one slice of a sweep took — :class:`Metrics` one dimension in.
+
+    Not the same columns, and the fold is what separates them. A slice's clocks
+    are its own share rather than a cumulative total, which is the difference
+    :attr:`Metrics.solves` exists to declare; ``loaded`` says whether the solver
+    took this slice from scratch, where a whole model counts its loads; and what
+    a sink added, how many solves ran and what a file write took are facts about
+    a model's life that one slice of a sweep has no share of.
+
+    Written per slice by the spill and read back as one table, so a sweep's
+    every slice concatenates the way a directory of archives does.
+    """
+
+    #: The shape this slice built, as :class:`Metrics` reports a whole model's.
+    columns: int
+    rows: int
+    nonzeros: int
+    #: Whether the solver took this slice's model from scratch instead of
+    #: having values pushed onto one it already held. Under a serial fold the
+    #: first slice does and the rest do not, so a later ``True`` is a slice
+    #: whose data moved a mask; under an executor every slice loads.
+    loaded: bool
+    #: This slice's own seconds per phase, so a slow sweep says which slice and
+    #: which phase of it. A whole model's ``write`` has no per-slice meaning —
+    #: a sweep writes no file per slice — and there is no column for it.
+    attach_seconds: float
+    build_seconds: float
+    handoff_seconds: float
+    solve_seconds: float
+
+
+def row_of[R](row_type: Callable[..., R], columns: Mapping[str, Any], found: Path) -> R:
+    """One row read off disk as the type that declares its columns.
+
+    The one place a saved row becomes a value, so a file short of a column or
+    carrying one nothing declares is a sentence naming it rather than a frame
+    of the wrong shape folded into whatever reads it next. That is the recovery
+    :data:`ANSWER_FORMAT` cannot name while the number is held at zero.
+
+    Args:
+        row_type: :class:`Record`, :class:`Metrics` or :class:`SliceMetrics`.
+        columns: The row as read, ``name: value``.
+        found: What to name in the message — the file or directory it came from.
+
+    Raises:
+        LayoutError: The columns are not the ones *row_type* declares.
+    """
+    declared = set(row_type._fields)  # pyrefly: ignore[missing-attribute] — every caller passes a NamedTuple
+    if (missing := sorted(declared - set(columns))) or (stray := sorted(set(columns) - declared)):
+        short = f'is short of {missing}' if missing else f'holds {stray}'
+        raise LayoutError(
+            f'{str(found)!r} holds a saved {row_type.__name__} row that {short}, so it was written in a '
+            f'layout this package does not read. The layout moves while the package is on 0.0.1aN and '
+            f'nothing reads an older one back: solve the model again and save it.'
+        )
+    return row_type(**columns)
 
 
 #: The three files that sit beside the frames, named here because a result and
@@ -279,7 +375,7 @@ COST_SCHEMA = _column_types(Cost)
 #: whichever wrote: the record of how the solve terminated, what reaching it
 #: cost, and the reasons behind whatever is deliberately not there.
 RECORD_FILE = 'objective.parquet'
-COST_FILE = 'diagnostics.parquet'
+METRICS_FILE = 'metrics.parquet'
 REASONS_FILE = 'reasons.parquet'
 
 
@@ -331,7 +427,7 @@ def clear_the_answer(directory: Path) -> None:
 
     for kind in (*KINDS, 'activity'):
         shutil.rmtree(directory / kind, ignore_errors=True)
-    for member in (RECORD_FILE, COST_FILE, REASONS_FILE, FORMAT_FILE):
+    for member in (RECORD_FILE, METRICS_FILE, REASONS_FILE, FORMAT_FILE):
         (directory / member).unlink(missing_ok=True)
 
 

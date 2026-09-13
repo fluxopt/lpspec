@@ -20,10 +20,9 @@ from typing import TYPE_CHECKING, Literal
 
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
 from lpspec.relational.parquet import (
-    COST_SCHEMA,
     RECORD_FILE,
     RECORD_SCHEMA,
-    Cost,
+    Metrics,
     Record,
     clear_the_answer,
     reader_kind,
@@ -266,8 +265,8 @@ class Diagnostics:
     #: for — so a solve that is larger than the model reads it here rather
     #: than nowhere. Zero until something has been solved: a *writer* is
     #: handed the model as built, and reports nothing.
-    sink_columns: int
-    sink_rows: int
+    added_columns: int
+    added_rows: int
 
     #: ``(constraint, rows_not_built)`` — every declared row that did not reach
     #: the solver (the absence rules), by either route: one emptied of all its
@@ -352,38 +351,33 @@ class Diagnostics:
     #: sum — an update's attach and build land on top of the first's, the way
     #: ``solves`` keeps counting. Clocks rather than a profile: enough to say
     #: which phase a slow loop spends its time in, not why.
-    timings: Mapping[str, float]
+    seconds: Mapping[str, float]
 
-    def as_row(self) -> pl.DataFrame:
-        """The sizes, counters and clocks as one row — a :class:`~lpspec.relational.parquet.Cost`.
+    def metrics(self) -> Metrics:
+        """The sizes, counters and clocks as one value — the row an archive records.
 
         What ``archive=`` records beside the answer, and what a caller feeding
         its own store reads off a model it solved. Which fields reach it and
-        what the row means cumulatively are :class:`~lpspec.relational.parquet.Cost`'s
-        to say; a phase this build never entered writes zero there.
-
-        Returns:
-            One row, in the columns every writer of one uses, so a directory
-            of them is a table an aggregate reads.
+        what it means cumulatively are
+        :class:`~lpspec.relational.parquet.Metrics`'s to say; a phase this
+        build never entered reads zero there. ``run`` is null: the name is the
+        publisher's, and nothing has published this yet.
         """
-        import polars as pl
-
-        clocks = self.timings
-        cost = Cost(
+        clocks = self.seconds
+        return Metrics(
             columns=self.columns,
             rows=self.rows,
             nonzeros=self.nonzeros,
-            sink_columns=self.sink_columns,
-            sink_rows=self.sink_rows,
+            added_columns=self.added_columns,
+            added_rows=self.added_rows,
             solves=self.solves,
             loads=self.loads,
-            attach=clocks.get('attach', 0.0),
-            build=clocks.get('build', 0.0),
-            handoff=clocks.get('handoff', 0.0),
-            solve=clocks.get('solve', 0.0),
-            write=clocks.get('write', 0.0),
+            attach_seconds=clocks.get('attach', 0.0),
+            build_seconds=clocks.get('build', 0.0),
+            handoff_seconds=clocks.get('handoff', 0.0),
+            solve_seconds=clocks.get('solve', 0.0),
+            write_seconds=clocks.get('write', 0.0),
         )
-        return pl.DataFrame([cost._asdict()], schema_overrides=COST_SCHEMA)
 
 
 def _named(frames: Mapping[str, pl.LazyFrame], name: str, kind: str) -> pl.LazyFrame:

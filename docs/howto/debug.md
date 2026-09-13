@@ -87,7 +87,7 @@ for keep in ('solver', 'progress'):
     model = lps.build('dispatch.yaml', sources)
     for numbers in walk:
         assert model.update(numbers).solve(keep=keep).kept in {keep, 'nothing'}
-    print(keep, model.diagnostics().timings['solve'])
+    print(keep, model.diagnostics().seconds['solve'])
 ```
 
 Take the faster one. `'nothing'` on every iteration means each update moved a

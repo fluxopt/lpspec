@@ -316,14 +316,14 @@ def test_diagnostics_separate_the_built_model_from_what_the_sink_added():
     solve larger than the model would otherwise be invisible.
     """
     with lps.build(spec(1), DATA) as model:
-        assert (model.diagnostics().sink_columns, model.diagnostics().sink_rows) == (0, 0), (
+        assert (model.diagnostics().added_columns, model.diagnostics().added_rows) == (0, 0), (
             'nothing has been handed to a sink yet'
         )
         model.solve()
         report = model.diagnostics()
         assert (report.columns, report.rows) == (len(SITES) * len(SIZES), 0), 'the model declares no rows of its own'
-        assert report.sink_columns == len(SITES) * len(SIZES), 'a binary per member'
-        assert report.sink_rows == len(SITES) * len(SIZES) + len(SITES), 'a linking row each, and one row per set'
+        assert report.added_columns == len(SITES) * len(SIZES), 'a binary per member'
+        assert report.added_rows == len(SITES) * len(SIZES) + len(SITES), 'a linking row each, and one row per set'
 
 
 def test_a_sink_that_takes_the_set_reports_adding_nothing():
@@ -331,7 +331,7 @@ def test_a_sink_that_takes_the_set_reports_adding_nothing():
     pytest.importorskip('gurobipy', reason='the native SOS path needs the [gurobi] extra')
     with lps.build(spec(1), DATA) as model:
         model.solve('gurobi')
-        assert (model.diagnostics().sink_columns, model.diagnostics().sink_rows) == (0, 0)
+        assert (model.diagnostics().added_columns, model.diagnostics().added_rows) == (0, 0)
 
 
 def test_a_model_with_no_set_is_handed_over_as_built(tmp_path):
@@ -339,7 +339,7 @@ def test_a_model_with_no_set_is_handed_over_as_built(tmp_path):
     with lps.build(BASE, DATA) as model:
         model.solve()
         model.write(tmp_path / 'plain.lp')
-        assert (model.diagnostics().sink_columns, model.diagnostics().sink_rows) == (0, 0)
+        assert (model.diagnostics().added_columns, model.diagnostics().added_rows) == (0, 0)
 
 
 def test_a_sos2_set_of_one_member_restricts_nothing():

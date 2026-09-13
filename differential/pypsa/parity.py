@@ -564,8 +564,8 @@ def solver_size(n, built_model) -> dict[str, dict[str, int]]:
     return {
         'pypsa': {'rows': theirs.getNumRow(), 'columns': theirs.getNumCol(), 'nonzeros': theirs.getNumNz()},
         'lpspec': {
-            'rows': ours.rows + ours.sink_rows,
-            'columns': ours.columns + ours.sink_columns,
+            'rows': ours.rows + ours.added_rows,
+            'columns': ours.columns + ours.added_columns,
             'nonzeros': ours.nonzeros,
         },
     }

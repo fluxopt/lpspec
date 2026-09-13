@@ -20,8 +20,8 @@ import yaml as pyyaml
 from math_spec import to_program, to_spec
 
 import lpspec as lps
-from lpspec.layout import ANSWER_DIR, _staging_for
-from lpspec.relational.parquet import COST_FILE, Cost
+from lpspec.layout import ANSWER_DIR, DIGESTS_MEMBER, _staging_for
+from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of_file
 from lpspec.sources import attachable, tidy_sources
 from tests.conftest import (
     DISPATCH_COST,
@@ -111,8 +111,13 @@ def test_the_archive_is_the_file_and_stored_parquet(dispatch_yaml: Path, dispatc
     with zipfile.ZipFile(archive) as zipped:
         members = {info.filename: info.compress_type for info in zipped.infolist()}
         beside_the_answer = {name for name in members if not name.startswith('answer/')}
-        assert beside_the_answer == {'model.yaml', *(f'sources/{k}.parquet' for k in dispatch_frame_inputs)}, (
-            'the layout is model.yaml plus one parquet member per source key, and the answer under its own'
+        assert beside_the_answer == {
+            'model.yaml',
+            'sources.parquet',
+            *(f'sources/{k}.parquet' for k in dispatch_frame_inputs),
+        }, (
+            'the layout is model.yaml, one parquet member per source key, the table digesting them, and the '
+            'answer under its own'
         )
         assert any(name.startswith('answer/') for name in members), 'every archive carries the answer that made it'
         assert set(members.values()) == {zipfile.ZIP_STORED}, 'members are stored — parquet is already compressed'
@@ -329,6 +334,98 @@ def test_an_archive_carries_the_answer_beside_the_question(
         )
 
 
+def test_two_archives_of_one_spec_over_different_numbers_are_told_apart(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """What `spec_digest` cannot say, and the reason the data is digested too.
+
+    A spec digest is of the document. Two runs of one model over different
+    numbers carry the same one, so on that column alone they read as the same
+    question asked twice.
+    """
+    halved = pl.DataFrame(
+        {'snapshot': dispatch_frame_inputs['load']['snapshot'], 'value': dispatch_frame_inputs['load']['value'] * 0.5}
+    )
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'base').close()
+    lps.solve(dispatch_yaml, {**dispatch_frame_inputs, 'load': halved}, archive=tmp_path / 'halved').close()
+    base, other = lps.load_archive(tmp_path / 'base'), lps.load_archive(tmp_path / 'halved')
+
+    assert base.answer.spec_digest == other.answer.spec_digest, 'one document, so the spec digest cannot separate them'
+    moved = (
+        base.source_digests.join(other.source_digests, on='source', suffix='_other')
+        .filter(pl.col('digest') != pl.col('digest_other'))['source']
+        .to_list()
+    )
+    assert moved == ['load'], 'and the digests name the one input that moved, not merely that something did'
+
+
+def test_the_digest_table_names_every_source_the_archive_holds(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A digest per member of `sources/`, so nothing is silently unattested.
+
+    A table short of one key would leave that input outside the claim while
+    reading as a complete one.
+    """
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case').close()
+    case = lps.load_archive(tmp_path / 'case')
+
+    assert case.source_digests.columns == ['run', 'source', 'digest'], (
+        "the archive it came from, the key, and what that key's bytes digest to"
+    )
+    assert case.source_digests['source'].to_list() == sorted(case.sources), (
+        'one row per archived source, in source order rather than the order the caller happened to pass them'
+    )
+    assert case.source_digests['run'].unique().to_list() == ['case'], (
+        "every row carries the archive's own name, so a table read across a directory of them needs no paths"
+    )
+    held = tmp_path / 'case' / 'sources'
+    recomputed = {file.stem: digest_of_file(file) for file in held.glob('*.parquet')}
+    assert dict(case.source_digests.select('source', 'digest').iter_rows()) == recomputed, (
+        'and each digest is of the bytes the archive holds, so a reader can check it against the archive alone'
+    )
+
+
+def test_a_sweep_archive_digests_the_sources_it_was_cut_from(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A sweep archives its sources whole, so the digests are of the whole.
+
+    One digest per slice would name data the archive does not hold: the point
+    of archiving a sweep's sources whole is that one copy carries every
+    slice's rows.
+    """
+    sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
+    lps.solve_over(dispatch_yaml, sources, lps.EachCoordinate('scenario'), archive=tmp_path / 'study')
+    study = lps.load_archive(tmp_path / 'study')
+
+    assert isinstance(study, lps.SweepArchive), 'the archive carries an axis, or this is testing the other type'
+    assert study.source_digests['source'].to_list() == sorted(study.sources), 'one row per source, as for one solve'
+    assert study.source_digests['run'].unique().to_list() == ['study'], (
+        'stamped with the archive name as a solve archive is, the sweep key belonging to the slices and not the data'
+    )
+    held = tmp_path / 'study' / 'sources'
+    assert dict(study.source_digests.select('source', 'digest').iter_rows()) == {
+        file.stem: digest_of_file(file) for file in held.glob('*.parquet')
+    }, 'each of the whole sources the sweep was cut from'
+
+
+def test_an_archive_holding_no_digest_table_is_refused_by_name(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """An archive written before the digests reads as short of a member.
+
+    Nothing else would catch it: the answer's layout stamp says nothing about
+    the archive around it, and the sources are all still there.
+    """
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case').close()
+    (tmp_path / 'case' / DIGESTS_MEMBER).unlink()
+
+    with pytest.raises(lps.LayoutError, match=DIGESTS_MEMBER) as excinfo:
+        lps.load_archive(tmp_path / 'case')
+    assert 'Solving the model it holds again' in str(excinfo.value), 'and the message names the way out'
+
+
 def test_an_archive_records_what_reaching_its_answer_cost(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
@@ -339,29 +436,31 @@ def test_an_archive_records_what_reaching_its_answer_cost(
     that ran them, so unless the solve writes them down nothing does.
     """
     lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
-    cost = lps.load_archive(tmp_path / 'case').diagnostics
+    taken = lps.load_archive(tmp_path / 'case').metrics
 
-    assert cost.columns == [
+    assert isinstance(taken, Metrics), 'the row comes back as the value its columns declare, not a frame of one'
+    assert Metrics._fields == (
         'columns',
         'rows',
         'nonzeros',
-        'sink_columns',
-        'sink_rows',
+        'added_columns',
+        'added_rows',
         'solves',
         'loads',
-        'attach',
-        'build',
-        'handoff',
-        'solve',
-        'write',
+        'attach_seconds',
+        'build_seconds',
+        'handoff_seconds',
+        'solve_seconds',
+        'write_seconds',
         'run',
-    ], 'the sizes, the counters, one clock per phase in the order the phases run, then the run that spent them'
-    assert cost.height == 1, 'one solve writes one row'
-    row = cost.row(0, named=True)
-    assert (row['solves'], row['loads']) == (1, 1), (
+    ), 'the sizes, the counters, one clock per phase in the order the phases run, then the run that took them'
+    written = pl.read_parquet(tmp_path / 'case' / ANSWER_DIR / METRICS_FILE)
+    assert written.columns == list(Metrics._fields), "and the file carries the type's columns, in its order"
+    assert written.height == 1, 'one solve writes one row'
+    assert (taken.solves, taken.loads) == (1, 1), (
         'lps.solve builds the model it solves, so the row covers that one solve and its one load'
     )
-    assert row['build'] > 0.0, 'the build ran, so its clock is not the zero that says a phase did not'
+    assert taken.build_seconds > 0.0, 'the build ran, so its clock is not the zero that says a phase did not'
 
 
 def test_the_cost_row_says_how_many_solves_its_clocks_cover(
@@ -378,7 +477,7 @@ def test_the_cost_row_says_how_many_solves_its_clocks_cover(
         model.solve()
         model.solve(archive=tmp_path / 'second')
 
-    assert lps.load_archive(tmp_path / 'second').diagnostics['solves'].item() == 2, (
+    assert lps.load_archive(tmp_path / 'second').metrics.solves == 2, (
         'two solves ran before the archive was written, and the row it carries counts both'
     )
 
@@ -397,11 +496,13 @@ def test_a_case_that_wrote_a_file_and_one_that_did_not_are_still_one_table(
         model.write(tmp_path / 'model.lp')
         model.solve(archive=tmp_path / 'written')
 
-    rows = [lps.load_archive(tmp_path / case).diagnostics for case in ('solved', 'written')]
-    assert [row['write'].item() == 0.0 for row in rows] == [True, False], (
+    cases = ('solved', 'written')
+    rows = [lps.load_archive(tmp_path / case).metrics for case in cases]
+    assert [row.write_seconds == 0.0 for row in rows] == [True, False], (
         'the first case never wrote a file and the second did, or the two schemas were never in question'
     )
-    assert pl.concat(rows).height == 2, 'and the two rows are one table'
+    files = pl.concat(pl.read_parquet(tmp_path / case / ANSWER_DIR / METRICS_FILE) for case in cases)
+    assert files.height == 2, 'and the two files a warehouse globs are one table'
 
 
 def test_an_archive_holding_no_cost_row_is_refused_by_name(
@@ -413,30 +514,51 @@ def test_an_archive_holding_no_cost_row_is_refused_by_name(
     before the cost row reads as current and is short of a member instead.
     """
     lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
-    (tmp_path / 'case' / ANSWER_DIR / COST_FILE).unlink()
+    (tmp_path / 'case' / ANSWER_DIR / METRICS_FILE).unlink()
 
-    with pytest.raises(lps.LayoutError, match=COST_FILE) as excinfo:
+    with pytest.raises(lps.LayoutError, match=METRICS_FILE) as excinfo:
         lps.load_archive(tmp_path / 'case')
     assert 'solving the model it holds again' in str(excinfo.value), 'and the message names the way out'
+
+
+def test_an_archive_whose_metrics_are_short_of_a_column_is_refused_by_name(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A missing member is one refusal; a member short of a column is the other.
+
+    `format.json` is held at 0 while the layout moves, so neither is caught by
+    the stamp. Read as a frame, a short row would come back as a `Metrics`
+    missing a field — a `TypeError` naming an argument, from inside a reader
+    the caller did not call.
+    """
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
+    metrics = tmp_path / 'case' / ANSWER_DIR / METRICS_FILE
+    pl.read_parquet(metrics).drop('write_seconds').write_parquet(metrics)
+
+    with pytest.raises(lps.LayoutError, match=r"Metrics row that is short of \['write_seconds'\]") as excinfo:
+        lps.load_archive(tmp_path / 'case')
+    assert 'solve the model again' in str(excinfo.value), 'and the message names the way out'
 
 
 def test_every_phase_a_build_clocks_has_a_column_to_travel_in(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    """A phase added to the engine and not to `Cost` would be dropped in silence.
+    """A phase added to the engine and not to `Metrics` would be dropped in silence.
 
-    The row is written off `timings`, whose keys are whatever the engine
+    The row is written off `seconds`, whose keys are whatever the engine
     clocked, and a key with no column of its own simply does not travel.
     """
     with lps.build(dispatch_yaml, dispatch_frame_inputs) as model:
         model.write(tmp_path / 'model.lp')
         model.solve()
-        clocked = set(model.diagnostics().timings)
+        clocked = set(model.diagnostics().seconds)
 
     assert clocked == {'attach', 'build', 'write', 'handoff', 'solve'}, (
         'this model entered every phase a build clocks, or the check below passes on the ones it missed'
     )
-    assert not clocked - set(Cost._fields), f'every phase the engine clocks is a Cost column, and {clocked} is not'
+    assert not {f'{phase}_seconds' for phase in clocked} - set(Metrics._fields), (
+        f'every phase the engine clocks has a Metrics column, and {clocked} does not'
+    )
 
 
 def test_an_updated_model_archives_the_data_it_actually_answered(
@@ -487,8 +609,8 @@ def test_every_archive_holds_one_objective_file_whatever_wrote_it(
     answer = out / 'answer'
     assert (answer / 'objective.parquet').is_file(), 'the record is one file, whichever verb wrote it'
     assert not (answer / 'objective').exists(), 'and not a directory beside it'
-    assert (answer / 'diagnostics.parquet').is_file(), 'the cost row goes the same way'
-    assert not (answer / 'diagnostics').exists(), 'and not a directory beside it either'
+    assert (answer / METRICS_FILE).is_file(), 'the metrics go the same way'
+    assert not (answer / 'metrics').exists(), 'and not a directory beside it either'
     assert pl.read_parquet(answer / 'objective.parquet').height == (3 if sweep else 1), 'one row per slice'
 
 
@@ -717,11 +839,11 @@ def test_saving_an_answer_into_an_unpacked_archive_takes_its_cost_row_with_it(
     """
     lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
     answer = tmp_path / 'case' / ANSWER_DIR
-    assert (answer / COST_FILE).is_file(), 'the archive wrote one, or this proves nothing'
+    assert (answer / METRICS_FILE).is_file(), 'the archive wrote one, or this proves nothing'
 
     lps.solve(dispatch_yaml, dispatch_frame_inputs).save(answer)
 
-    assert not (answer / COST_FILE).exists(), 'and a saved answer carries no cost row, so none is left behind'
+    assert not (answer / METRICS_FILE).exists(), 'and a saved answer carries no metrics, so none is left behind'
 
 
 def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path) -> None:

@@ -27,7 +27,7 @@ import polars as pl
 
 from lpspec.errors import LayoutError
 from lpspec.lanes import lowered
-from lpspec.relational.parquet import COST_FILE, RECORD_FILE, consolidated
+from lpspec.relational.parquet import METRICS_FILE, RECORD_FILE, consolidated, digest_of_bytes, digest_of_file
 from lpspec.sources import supplied, tidy_sources
 
 if TYPE_CHECKING:
@@ -41,6 +41,10 @@ if TYPE_CHECKING:
 #: archive holds, a sweep being the one whose sources are cut.
 MODEL_MEMBER = 'model.yaml'
 AXIS_MEMBER = 'axis.json'
+#: ``(run, source, digest)`` for every member of ``sources/``, beside the
+#: directory rather than in it: anything under ``sources/`` is a source table
+#: keyed by its stem, so a table *about* them cannot live there.
+DIGESTS_MEMBER = 'sources.parquet'
 SOURCES_DIR = PurePosixPath('sources')
 ANSWER_DIR = PurePosixPath('answer')
 
@@ -142,7 +146,9 @@ def write_archive(
     part = staging / out.name
     members = _Members.under(part, zipped=out.suffix == '.zip')
     try:
+        run = out.name.removesuffix('.zip')
         members.put(MODEL_MEMBER, spec.to_yaml().encode())
+        digests: dict[str, str] = {}
         for name, frame in frames.items():
             if name not in sources:
                 continue
@@ -150,14 +156,18 @@ def write_archive(
             given = sources[name]
             if isinstance(given, (str, Path)):
                 members.copy(Path(given), member)
+                digests[name] = digest_of_file(Path(given))
             else:
                 buffer = io.BytesIO()
                 whole.get(name, frame).collect().write_parquet(buffer, compression='zstd')
-                members.put(member, buffer.getvalue())
+                encoded = buffer.getvalue()
+                members.put(member, encoded)
+                digests[name] = digest_of_bytes(encoded)
+        members.put(DIGESTS_MEMBER, _digest_table(digests, run=run))
         if axis is not None:
             members.put(AXIS_MEMBER, json.dumps(axis).encode())
         if answer is not None:
-            _put_the_answer(members, answer, run=out.name.removesuffix('.zip'))
+            _put_the_answer(members, answer, run=run)
         members.close()
     except BaseException:
         members.discard()
@@ -170,12 +180,37 @@ def write_archive(
     return out
 
 
+def _digest_table(digests: Mapping[str, str], *, run: str) -> bytes:
+    """``(run, source, digest)`` as parquet bytes, in source order.
+
+    Sorted so one model's data digests to one table whoever assembled the
+    sources, a mapping's order being the caller's and not the model's.
+
+    Stamped with *run* for the reason :func:`_put_the_answer` stamps the record
+    and the cost row: a table read across a directory of archives has to say
+    which one each row came from, and the alternative is every reader parsing
+    the paths. The run leads rather than trails, as the column every row of one
+    archive shares.
+    """
+    frame = pl.DataFrame(
+        {
+            'run': [run] * len(digests),
+            'source': sorted(digests),
+            'digest': [digests[name] for name in sorted(digests)],
+        },
+        schema={'run': pl.String, 'source': pl.String, 'digest': pl.String},
+    )
+    buffer = io.BytesIO()
+    frame.write_parquet(buffer)
+    return buffer.getvalue()
+
+
 def _put_the_answer(members: _Members, answer: Path, *, run: str) -> None:
     """*answer*'s layout into *members*, its record consolidated and stamped with *run*.
 
     The frames are copied as they lie — a spilled sweep is archived without
     being re-materialised, which is what serves the sweep too large to hold.
-    The record and the diagnostics are not: a spill writes them one file per
+    The record and the metrics are not: a spill writes them one file per
     slice because the objective file's existence is how a resume knows a slice
     finished, and an archive has no resume to serve. One file each instead, so
     that one glob over a warehouse finds every run whether a solve or a sweep
@@ -186,7 +221,7 @@ def _put_the_answer(members: _Members, answer: Path, *, run: str) -> None:
     this point knows it. Onto both, so that a table concatenated from a
     warehouse can attribute a slice's cost as readily as its answer.
     """
-    consolidating = (RECORD_FILE, COST_FILE)
+    consolidating = (RECORD_FILE, METRICS_FILE)
     for file in consolidating:
         stamped = consolidated(answer, file).with_columns(pl.lit(run, dtype=pl.String).alias('run'))
         buffer = io.BytesIO()
@@ -318,7 +353,7 @@ def is_source_member(member: PurePosixPath) -> bool:
 
 def _in_the_layout(member: PurePosixPath) -> bool:
     return (
-        member in (PurePosixPath(MODEL_MEMBER), PurePosixPath(AXIS_MEMBER))
+        member in (PurePosixPath(MODEL_MEMBER), PurePosixPath(AXIS_MEMBER), PurePosixPath(DIGESTS_MEMBER))
         or is_source_member(member)
         or ANSWER_DIR in member.parents
     )
@@ -328,6 +363,6 @@ def _not_an_archive_message(path: str | Path, strays: list[str]) -> str:
     found = f'holds {strays}' if strays else "has no 'model.yaml'"
     return (
         f'{path} is not an archive: it {found}. One that archive= writes holds exactly '
-        f"'model.yaml', one 'sources/<key>.parquet' per key the file declares, 'answer/' holding what the "
-        f"solve returned, and 'axis.json' where its sources are sliced."
+        f"'model.yaml', one 'sources/<key>.parquet' per key the file declares, 'sources.parquet' digesting "
+        f"them, 'answer/' holding what the solve returned, and 'axis.json' where its sources are sliced."
     )
