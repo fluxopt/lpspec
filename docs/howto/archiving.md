@@ -67,6 +67,20 @@ case.diagnostics
 This is the one part of an archive that re-solving cannot give back. The
 clocks are of the machine that ran them, so nothing recovers them later.
 
+**Each clock is a phase of the build**: `attach` reads your sources onto the
+plan, `build` turns the declarations into the model frames, `handoff` hands the
+built model to a solver, `solve` is the solver's own run, and `write` is
+`model.write('model.lp')` — the built model streamed to a file. So `write`
+reads `0.0` in an archive unless you also asked for one; it is not what writing
+the archive cost.
+
+**A phase the build never entered writes zero**, so cases that ran different
+phases still concatenate into one table.
+
+**What writing the archive cost is in no column.** The row is a member of the
+archive, so the number would have to be known before the write it belongs to
+had finished. Time the call if you want it.
+
 **The row covers the model's whole life, and `solves` says how long that is.**
 `lps.solve` builds the model it solves, so its archive reads `solves` of 1 and
 the clocks are that answer's own. A model solved more than once before it was
@@ -77,9 +91,6 @@ with lps.build('dispatch.yaml', sources) as model:
     model.solve()
     model.solve(archive='second/')  # solves: 2, and the clocks cover both
 ```
-
-**A phase the build never entered writes zero**, so cases that ran different
-phases still concatenate into one table.
 
 **A sweep records the same columns per slice**, at `runs.diagnostics` rather
 than beside the answer. A fold knows where one slice's share of the clocks

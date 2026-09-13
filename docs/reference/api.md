@@ -514,7 +514,7 @@ any of them.
 | `rhs_range` | `(constraint, smallest, largest)`, the same for each block's right-hand sides, over the rows that survived |
 | `objective_range` | the same pair for the costs, or `None` where the spec declares no objective |
 | `solves`, `loads` | how many solves ran, and how many of them loaded the model from scratch. `loads == solves` means the model masks on a parameter that varies |
-| `timings` | cumulative wall seconds per phase: `attach`, `build`, `handoff`, `solve`, `write` |
+| `timings` | cumulative wall seconds per phase: `attach`, `build`, `handoff`, `solve`, `write`. `write` is `model.write(path)`'s stream, so it is absent on a model that wrote no file — and writing an *archive* is no phase of a build, so nothing clocks it |
 
 **`diagnostics()` answers after `close()` too.** A sweep's diagnostics are
 `runs.diagnostics`, one row per slice ([sweeps](sweeps.md#reading-a-sweep)).
