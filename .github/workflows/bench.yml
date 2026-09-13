@@ -1,8 +1,9 @@
 name: Bench
 
-# Cost, in the same terms as ci.yml: a second billed job at ~4 billed minutes —
-# two suite passes plus the install. That is the floor for a *comparison*: a
-# benchmark against no baseline is a number without a claim.
+# Cost, in the same terms as ci.yml: a second billed job at ~35-45 billed
+# minutes — two suite passes plus the install, one pass measuring ~20 on a free
+# runner. That is the floor for a *comparison*: a benchmark against no baseline
+# is a number without a claim, and two passes is what having a baseline costs.
 #
 # **Asked for, never guessed.** Label a PR `trigger:bench` and it runs. This is
 # `workflow_dispatch` in spirit, with the one thing dispatch cannot give: a pull
@@ -28,9 +29,12 @@ on:
     types: [labeled]
 
 env:
-  # The regression slice of the ladder: the rungs small enough to run twice in
-  # a job. There is one arm and no gate to skip; both flags were dropped with
-  # the eager arm.
+  # The regression slice of the ladder. There is one arm and no gate to skip;
+  # both flags were dropped with the eager arm.
+  #
+  # It is the *budget* that is sized to the slice and not the other way round —
+  # see `timeout-minutes` below, and shrink this only to buy minutes, knowing
+  # what coverage each case and rung is worth.
   SELECT: >-
     --sizes s m
     --cases dispatch nodal transport profiled
@@ -48,7 +52,12 @@ jobs:
   bench:
     if: github.event.label.name == 'trigger:bench'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Sized for *two* passes of SELECT on a free runner, which 20 could not
+    # hold: run 34720933380 was killed at the deadline still inside the
+    # baseline pass, 19m53s in, so `report` found no autosave and the gate
+    # never evaluated. A budget under the work does not report a regression —
+    # it reports nothing, and a job that dies looks much like one that passed.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
