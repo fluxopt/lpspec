@@ -50,7 +50,7 @@ class LaneError(LpspecError):
 
 
 class DataError(LpspecError):
-    """Data bound to a valid spec is missing or the wrong shape."""
+    """Data attached to a valid spec is missing or the wrong shape."""
 
 
 class LayoutError(LpspecError):

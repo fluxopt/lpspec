@@ -134,9 +134,11 @@ no `original_index`.
 price over time.
 
 **`save` writes every kind.** `runs.save('runs/')` writes what
-`spill_to=` would have written, so the directory is a spilled sweep. `scan` reads it,
-and the call that made the sweep, pointed at it with `spill_to=`, reads it back
-without solving.
+`spill_to=` would have written, so the directory is a spilled sweep. The call
+that made the sweep, pointed at it with `spill_to=`, reads it back without
+solving; so do `lps.load_runs('runs/')`, which reads every slice's frames in
+and answers `primal`, and `lps.scan_runs('runs/')`, which leaves them there for
+`scan` ([loading or scanning](api.md#loading-or-scanning)).
 
 **There is no per-slice reader.** One slice is a partition of a table you
 already hold: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
@@ -170,7 +172,7 @@ runs.scan('balance', 'dual', original_index=True).collect()  # the same readers,
 
 | Rule | |
 |---|---|
-| **`scan` is the reader** | `runs.scan(name, kind='primal')` returns `primal`, `dual` or `expression` as a `LazyFrame` over the files, `original_index=` included. On a sweep held in memory it is the same reader made lazy. The eager readers and the exports refuse a spilled sweep and name `scan`. |
+| **`scan` is the reader** | `runs.scan(name, kind='primal')` returns `primal`, `dual` or `expression` as a `LazyFrame` over the files, `original_index=` included. On a held sweep it is the same reader made lazy. The frame readers and the exports refuse a spilled sweep and name `scan`. |
 | **one file per slice and name** | `<kind>/<name>/<position>.parquet`, with the slice key a column of each, one type across every file a sweep writes. `objective/` and `diagnostics/` hold the record, one row per slice; `runs.objective` and `runs.diagnostics` stay in memory. An **archive** consolidates those two into `objective.parquet` and `diagnostics.parquet`, because the per-slice shape is there to mark a slice done and an archive has no resume to serve. |
 | **every file lands whole** | A file is written beside its final name and renamed into place. The objective file is written last and marks a slice done, so a slice interrupted part way is solved again rather than read back short. |
 | **an interrupted sweep resumes** | Run the same call at the same directory. A slice already there is read back, and under a `carry` its state is read off its file. Only the unfinished slices are built. |

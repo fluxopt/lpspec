@@ -1,4 +1,4 @@
-"""``archive=``: a model, its data and its answer as one file, and back.
+"""``archive=``: a spec, its data and its answer as one file, and back.
 
 The property is the one ``tidy_sources`` sees: what attaches from the archive
 is what attached from the caller's own tables, frame for frame, over every
@@ -9,6 +9,7 @@ dtype already lives, so a shape the archive cannot carry fails here by name.
 from __future__ import annotations
 
 import json
+import shutil
 import zipfile
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -36,15 +37,15 @@ from tests.conftest import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
     from pathlib import Path
 
     from math_spec import Spec
 
 
-def _question(artifact: lps.SolveArchive | lps.SweepArchive) -> tuple[Spec, Mapping[str, object]]:
-    """The pair every verb takes, read off an artifact."""
-    return artifact.spec, artifact.sources
+def _question(archive: lps.SolveArchive | lps.SweepArchive) -> tuple[Spec, Mapping[str, object]]:
+    """The pair every verb takes, read off an archive."""
+    return archive.spec, archive.sources
 
 
 def _archived(spec, sources, out: Path) -> Path:
@@ -95,7 +96,7 @@ def test_plain_python_shapes_are_written_as_the_tables_they_stand_for(dispatch_y
         'generator': list(DISPATCH_GENERATORS),
     }
     archive = _archived(dispatch_yaml, sources, tmp_path / 'dispatch.zip')
-    _, unpacked = _question(lps.load_archive(archive, tmp_path / 'out'))
+    _, unpacked = _question(lps.scan_archive(archive, tmp_path / 'out'))
     cost = pl.read_parquet(unpacked['cost'])
     snapshot = pl.read_parquet(unpacked['snapshot'])
 
@@ -141,7 +142,7 @@ def test_unpack_lays_the_archive_out_in_the_directory(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     archive = _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'dispatch.zip')
-    spec, sources = _question(lps.load_archive(archive, tmp_path / 'out'))
+    spec, sources = _question(lps.scan_archive(archive, tmp_path / 'out'))
 
     assert sources == {k: tmp_path / 'out' / 'sources' / f'{k}.parquet' for k in dispatch_frame_inputs}, (
         'every source comes back as the path it was extracted to, one per key'
@@ -197,31 +198,59 @@ def test_a_directory_archive_holds_what_the_zip_holds_and_is_read_where_it_lies(
     loose = lps.load_archive(tmp_path / 'case')
     unpacked = lps.load_archive(tmp_path / 'case.zip', tmp_path / 'out')
     assert loose.answer.objective == unpacked.answer.objective
-    assert loose.sources['load'].parent.parent == tmp_path / 'case', (
-        'a directory archive hands back paths into itself, so there is no second copy to keep alive'
+    assert lps.scan_archive(tmp_path / 'case').sources['load'].parent.parent == tmp_path / 'case', (
+        'a directory archive is scanned where it lies, so there is no second copy to keep alive'
     )
 
 
 @pytest.mark.parametrize(
-    ('suffix', 'into', 'says'),
+    ('read', 'suffix', 'into', 'says'),
     [
-        pytest.param('.zip', None, 'needs somewhere to unpack', id='a-zip-with-no-into'),
-        pytest.param('', 'anywhere', 'read where it lies', id='a-directory-with-an-into'),
+        pytest.param(lps.scan_archive, '.zip', None, 'needs somewhere to unpack', id='scan-a-zip-with-no-into'),
+        pytest.param(lps.scan_archive, '', 'anywhere', 'read where it lies', id='scan-a-directory-with-an-into'),
+        pytest.param(lps.load_archive, '', 'anywhere', 'read where it lies', id='load-a-directory-with-an-into'),
     ],
 )
-def test_into_is_asked_for_exactly_where_something_must_be_unpacked(
-    suffix: str, into: str | None, says: str, dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+def test_into_is_asked_for_exactly_where_something_must_be_unpacked_and_kept(
+    read: Callable[..., lps.SolveArchive | lps.SweepArchive],
+    suffix: str,
+    into: str | None,
+    says: str,
+    dispatch_yaml: Path,
+    dispatch_frame_inputs,
+    tmp_path: Path,
 ) -> None:
-    """`into` is not a convention to remember — each shape says which it is.
+    """`into` is not a convention to remember — the shape and the reader say which it is.
 
-    A zip has no paths a scan can reach, so it needs somewhere writable, and
-    only the caller knows one: an archive often lives where it is only read.
-    A directory already has them, so an `into` would have nothing to do.
+    A scanned zip has no paths a read can reach once it is over, so it needs
+    somewhere writable that will still be there, and only the caller knows
+    one: an archive often lives where it is only read. A directory already has
+    them, so an `into` would have nothing to do — whichever reader is asking.
     """
     out = tmp_path / f'case{suffix}'
     lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out)
     with pytest.raises(lps.LayoutError, match=says):
-        lps.load_archive(out, None if into is None else tmp_path / into)
+        read(out, None if into is None else tmp_path / into)
+
+
+def test_loading_a_zip_needs_nowhere_to_unpack_and_leaves_nothing_behind(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """What `load_archive` reads whole it does not read again, so the members are scratch.
+
+    The one thing `into` ever bought a loading caller was somewhere the frames
+    could still be read from afterwards, and there is no afterwards here: the
+    answer and the sources are in memory by the time the call returns.
+    """
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip')
+    beside_it = sorted(path.name for path in tmp_path.iterdir())
+
+    case = lps.load_archive(tmp_path / 'case.zip')
+
+    assert case.answer.primal('p').height > 0, 'the answer came back with no directory named to read it off'
+    assert sorted(path.name for path in tmp_path.iterdir()) == beside_it, (
+        'and the unpacked members are gone, the zip beside them the only thing left'
+    )
 
 
 def test_a_directory_that_already_holds_something_is_refused(
@@ -286,7 +315,7 @@ def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp
 def test_an_archive_carries_the_answer_beside_the_question(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    """The full artifact: what was asked, the data it was asked of, and what came back.
+    """The whole archive: what was asked, the data it was asked of, and what came back.
 
     A saved answer alone cannot say which model produced it, and an archived
     model alone has to be re-solved to be read. One file holds both, and the
@@ -594,7 +623,54 @@ def test_a_saved_answer_that_was_never_archived_names_no_run(
     assert record.schema['run'] == pl.String, 'and the column is a string either way, never an all-null one'
 
 
-def test_a_scenario_sweep_is_an_artifact_and_runs_again(
+def test_a_loaded_archive_owes_the_members_nothing_and_a_scanned_one_owes_them_everything(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The one difference between the two verbs, in both places it shows.
+
+    A source is a table or the path to one, and the answer is in memory or on
+    disk — the same fact twice, because there is no archive whose sources are
+    held and whose answer is not. What `load_archive` buys is that the
+    extracted members are scratch; what `scan_archive` buys is the archive
+    that does not fit in memory, at the price of keeping them.
+    """
+    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip')
+    loaded = lps.load_archive(tmp_path / 'case.zip', tmp_path / 'out')
+    scanned = lps.scan_archive(tmp_path / 'case.zip', tmp_path / 'out')
+    expected = loaded.answer.primal('p')
+
+    assert isinstance(loaded.sources['load'], pl.DataFrame), 'a loaded source is the table the member holds'
+    assert scanned.sources['load'] == tmp_path / 'out' / 'sources' / 'load.parquet', 'a scanned one is the path to it'
+    shutil.rmtree(tmp_path / 'out')
+
+    assert loaded.answer.primal('p').equals(expected), 'the loaded answer was read before the members went'
+    with pytest.raises(FileNotFoundError):
+        scanned.answer.primal('p')
+
+
+def test_a_loaded_sweep_archive_answers_the_frame_readers(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A `Runs` out of an archive is held or spilled for the reason one out of a fold is.
+
+    `scan_archive` gives the spilled sweep the extracted directory is, which
+    is what serves the study too large to hold. `load_archive` gives the held
+    one, so `primal` answers rather than naming `scan` — the difference a
+    caller meets first.
+    """
+    axis = lps.EachCoordinate('scenario')
+    sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
+    lps.solve_over(dispatch_yaml, sources, axis, archive=tmp_path / 'study.zip')
+
+    loaded = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'study')
+    scanned = lps.scan_archive(tmp_path / 'study.zip', tmp_path / 'study')
+
+    assert loaded.answer.primal('p').equals(scanned.answer.scan('p').collect()), 'the same study, read two ways'
+    with pytest.raises(lps.LpspecError, match=r'runs\.scan'):
+        scanned.answer.primal('p')
+
+
+def test_a_scenario_sweep_is_an_archive_and_runs_again(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     """The axis is what makes a sweep's sources legible, so it travels with them.
@@ -612,7 +688,7 @@ def test_a_scenario_sweep_is_an_artifact_and_runs_again(
     assert study.answer.objective['run'].unique().to_list() == ['study'], (
         'and the archive stamped its own name on every slice, which the sweep in memory had none of'
     )
-    assert pl.read_parquet(study.sources['load']).equals(sources['load']), (
+    assert study.sources['load'].equals(sources['load']), (
         'the sliced source is archived whole, the column the axis cuts on included'
     )
     again = lps.solve_over(study.spec, study.sources, study.axis)
@@ -793,7 +869,7 @@ def test_a_hand_built_axis_is_refused(dispatch_yaml: Path, dispatch_frame_inputs
     """A list of `(key, sources)` is a set of sources per slice.
 
     Nothing serialises it but a copy of every slice's data, and the slices are
-    unrelated questions anyway — so the refusal sends them to one artifact
+    unrelated questions anyway — so the refusal sends them to one archive
     each rather than inventing a layout for them.
     """
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}

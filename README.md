@@ -9,19 +9,28 @@ column index — assembled relationally and handed to the solver in batches.
 
 The consequence worth the headline is **cost to a loaded solver** — YAML and
 data in, a populated solver out, no LP file anywhere in between. Measured
-against linopy's own best path to the same place, on the top rung of
-each of five benchmark cases — 1M to 12M variables
+against linopy's own best path to the same place, through HiGHS — the solver
+`lps.solve` reaches for when you name none
 ([benchmarks](docs/about/benchmarks.md)):
 
-- **2–4x faster on four of the five**, and 1.13x slower on the fifth, which is
-  in the ladder to be lost — its parameters are dense over the whole variable
-  product, the one shape that suits an array engine.
-- **Lower peak on all five**, from 0.95x to 0.32x. The margins are narrow at
-  the top because HiGHS's own copy of the model dominates once it is loaded, and
-  nothing on either side can shrink it.
+- **1.01x to 1.29x faster**, on `dispatch` at 10M variables and `fleet` at 12M,
+  at 0.83x and 0.84x of linopy's peak memory.
+- **Most of what that measures is the solver, not either library.** Of lpspec's
+  1.51 s at 10M variables, 0.57 s is the build and 0.94 s is HiGHS taking the
+  model.
 
-Read the sink you use: through the *LP file* the picture is closer, and on one
-case we are behind on peak. That table is in the same file, next to this one.
+**Through Gurobi the ranking holds and the margin narrows**, to 1.04x to 1.17x
+across four models at 0.73x to 0.98x of the peak. There is less of either
+library left in it. The same 10M-variable model costs 9.85 s to a loaded Gurobi
+and 1.51 s to a loaded HiGHS. Raw `gurobipy`, with no modelling layer at all,
+costs 9.31 s of that 9.85 s: lpspec adds 0.54 s to the floor and linopy adds
+1.98 s, so the libraries land 1.15x apart while what each adds is 3.7x apart.
+Read the sink you use; the page has a table per sink.
+
+**Every case in that ladder is dense**: no mask in it removes a row, and a dense
+coordinate product is the shape an array engine is built for. Sparsity is what
+this engine is designed around, and nothing published measures it yet. The
+sparse cases are [on the list](docs/about/benchmarks.md#not-measured-yet).
 
 A third property is architectural rather than measured, and named here as such:
 **nothing accumulates between builds** — no process-wide state, no lifetime to

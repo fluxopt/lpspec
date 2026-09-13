@@ -418,6 +418,17 @@ class _Spill:
         under = self.directory / kind / name
         return pl.scan_parquet(sorted(under.glob('*.parquet'))) if under.is_dir() else None
 
+    def whole(self, kind: str, name: str) -> list[pl.DataFrame]:
+        """The same frames read into memory, one per slice that wrote one, in slice order.
+
+        Apart rather than concatenated, because that is how a sweep holds what
+        it did not spill: one frame per slice, each already carrying the key
+        column this wrote it with, so a held sweep read back off disk is the
+        same value as the one that never went to disk.
+        """
+        under = self.directory / kind / name
+        return [pl.read_parquet(file) for file in sorted(under.glob('*.parquet'))]
+
 
 def _listed(entries: Mapping[str, str]) -> str:
     return '\n'.join(f'  {label}: {reason}' for label, reason in entries.items())
@@ -1025,7 +1036,7 @@ class Runs:
 
         A sweep whose every slice terminated without values writes each
         slice's record and no frames, as one such solve does: an infeasible
-        study is an answer a set of saved cases needs on disk, not an export
+        sweep is an answer a set of saved cases needs on disk, not an export
         that refuses.
 
         Raises:
@@ -1110,11 +1121,15 @@ def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], objective
 def load_runs(directory: str | Path) -> Runs:
     """Read back a sweep :meth:`Runs.save` wrote, or one ``solve_over(spill_to=)`` spilled.
 
-    The sweep comes back **spilled**: its frames stay in *directory* and
-    :meth:`Runs.scan` reads them, which is what a sweep solved with ``spill_to=``
-    already is. :attr:`Runs.objective` and :attr:`Runs.diagnostics` are read
-    whole — they are one row per slice — and ``original_index`` works, the
-    manifest carrying the dimension a window sliced.
+    The sweep comes back **held**: every slice's frames are in memory when this
+    returns, so it is the value a sweep solved without ``spill_to=`` is —
+    :meth:`Runs.primal`, :meth:`Runs.to_dataset` and :meth:`Runs.save` all
+    answer, and it owes *directory* nothing afterwards. A sweep larger than
+    memory is :func:`scan_runs` instead.
+
+    :attr:`Runs.objective` and :attr:`Runs.diagnostics` are one row per slice
+    either way, and ``original_index`` works on both, the manifest carrying the
+    dimension a window sliced.
 
     Args:
         directory: Where the sweep was written.
@@ -1126,6 +1141,32 @@ def load_runs(directory: str | Path) -> Runs:
         LayoutError: A directory holding no ``sweep.json``, which is what
             every sweep written there carries, one missing a record every
             fold writes, or one whose layout has moved since it was written.
+    """
+    scanned = scan_runs(directory)
+    spill = scanned._spill
+    assert spill is not None, 'scan_runs returns a spilled sweep, which is what there is to hold here'
+    held = {kind: {name: spill.whole(kind, name) for name in spill.held(kind)} for kind in KINDS}
+    return replace(scanned, _primals=held['primal'], _duals=held['dual'], _expressions=held['expression'], _spill=None)
+
+
+def scan_runs(directory: str | Path) -> Runs:
+    """The sweep under *directory*, its frames left where they lie.
+
+    :func:`load_runs`'s other half, and the value a sweep solved with
+    ``spill_to=`` already is: nothing but the record is read, and
+    :meth:`Runs.scan` reads a name back as a :class:`polars.LazyFrame` when one
+    is asked for. That is the reader for a sweep too large to hold, and it
+    costs the frame readers: :meth:`Runs.primal` and its siblings refuse,
+    naming :meth:`Runs.scan`.
+
+    *directory* has to outlive the sweep, the frames being read off it as they
+    are asked for.
+
+    Args:
+        directory: As :func:`load_runs` takes it.
+
+    Raises:
+        LayoutError: As :func:`load_runs` raises it.
     """
     under = Path(directory)
     manifest = under / _MANIFEST_FILE
@@ -1175,7 +1216,7 @@ def _what_an_archive_needs(
     document: Spec,
     axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
 ) -> tuple[Path, Spec, EachCoordinate | EachWindow] | None:
-    """Where the archive goes, the model it holds and the axis that re-runs it — ``None`` for no archive.
+    """Where the archive goes, the spec it holds and the axis that re-runs it — ``None`` for no archive.
 
     One value, so that "this sweep is being archived" is a single thing to
     test rather than three that have to agree. Asked before a slice is solved:
@@ -1543,8 +1584,8 @@ def _answers(result: Result, program: Program, cost: dict[str, Any]) -> _Answer:
 
     Read here rather than held, so that what a sweep accumulates is frames and
     never results — holding a result per slice would hold that slice's label
-    frames with it. Every declared expression is evaluated here,
-    eagerly, for the same reason: the deferred reader holds the build's frames.
+    frames with it. Every declared expression is evaluated here rather than
+    deferred, for the same reason: the deferred reader holds the build's frames.
 
     **A slice that answered nothing is not a failure**, and neither is one
     whose duals are undefined: an integer variable makes them so, and one such

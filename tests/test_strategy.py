@@ -528,7 +528,7 @@ def test_a_hand_built_axis_refuses_to_read_over_a_dimension_it_never_named(tmp_p
     window recomputed — summing them double-counts.
 
     `scan` is checked beside it because it reaches the same guard by its own
-    route, not through the eager readers.
+    route, not through the frame readers.
     """
     sources = horizon_sources(12)
     windows = lps.EachWindow('snapshot', steps=3, lookahead=3, into='t').slices(sources)
@@ -1510,6 +1510,30 @@ def test_a_sweep_directory_missing_its_record_is_refused_by_name(lost: str, tmp_
         lps.load_runs(out._spill.directory)
 
 
+def test_a_loaded_sweep_is_held_and_a_scanned_one_is_spilled(tmp_path):
+    """The two verbs give the same study and differ in where its frames are.
+
+    A spilled sweep is what `spill_to=` leaves and what `scan_runs` hands
+    back: the frames stay on disk, `scan` reads them, and the readers that
+    return a frame refuse rather than collecting a study on a caller's
+    behalf. `load_runs` reads them in, so what comes back is the value a
+    sweep solved without spilling is — every reader answers, and the
+    directory is free afterwards.
+    """
+    spilled = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=tmp_path / 'sweep')
+    expected = spilled.scan('p').collect()
+    loaded = lps.load_runs(tmp_path / 'sweep')
+    scanned = lps.scan_runs(tmp_path / 'sweep')
+
+    assert scanned.scan('p').collect().equals(expected), 'both read the study the spill wrote'
+    with pytest.raises(lps.LpspecError, match=r'runs\.scan'):
+        scanned.primal('p')
+    shutil.rmtree(tmp_path / 'sweep')
+
+    assert loaded.primal('p').equals(expected), 'the held sweep answers the frame readers, off no directory at all'
+    assert loaded.keys == scanned.keys, 'and is keyed as the sweep was solved either way'
+
+
 def test_a_reader_for_a_name_the_sweep_lacks_fails_the_way_primal_does(sweep):
     """One explanation, reached through every reader."""
     for read in (sweep.to_pandas, sweep.to_dataarray):
@@ -1986,9 +2010,9 @@ def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_
         pytest.param(lambda runs: runs.to_dataset(), id='to_dataset'),
     ],
 )
-def test_the_eager_readers_refuse_a_spilled_sweep_and_name_scan(read, tmp_path):
+def test_the_frame_readers_refuse_a_spilled_sweep_and_name_scan(read, tmp_path):
     """One meaning per name: `primal` returns a frame in memory or raises,
-    never a frame it would have to load first. The message names `scan`."""
+    never a frame it would have to read off disk first. The message names `scan`."""
     runs = _spilled(tmp_path)
     with pytest.raises(lps.LpspecError, match=r'runs\.scan'):
         read(runs)

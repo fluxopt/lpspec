@@ -1,4 +1,4 @@
-"""The archive's layout: what holds a model, its data and its answer, as a zip or a directory.
+"""The archive's layout: what holds a spec, its data and its answer, as a zip or a directory.
 
 ``model.yaml``, one ``sources/<key>.parquet`` per key the file declares,
 ``answer/`` in the layout both answers already save, and ``axis.json`` where
@@ -7,7 +7,7 @@ packed, which is why one of them is read where it lies and the other has to be
 unpacked first.
 
 Below :mod:`lpspec.api` and :mod:`lpspec.strategy`, because both write one:
-the verb that solves is the only place that holds the model, the data and the
+the verb that solves is the only place that holds the spec, the data and the
 answer at once, which is why nothing assembles the three after the fact.
 :mod:`lpspec.archive` sits above all three and reads what is written here.
 """
@@ -103,7 +103,7 @@ def write_archive(
     axis: Mapping[str, Any] | None,
     answer: Path | None,
 ) -> Path:
-    """Write a model, its data and its answer to *out* — one zip, or a directory.
+    """Write a spec, its data and its answer to *out* — one zip, or a directory.
 
     **The suffix decides**, as :func:`~lpspec.api.write`'s does: ``.zip`` packs
     the layout into one file, and anything else lays the same members out in a
@@ -113,7 +113,7 @@ def write_archive(
     Args:
         out: Where to write, ``.zip`` or a directory. Its parent is made if it
             does not exist.
-        spec: The model as written, held as ``model.yaml``.
+        spec: The spec as written, held as ``model.yaml``.
         sources: What was attached, keyed as the file declares, and the whole
             of what the archive holds. A parquet path is copied as its own
             bytes; anything else is written as the tidy table it stands for.

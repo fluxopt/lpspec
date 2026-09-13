@@ -273,9 +273,18 @@ class Cost(NamedTuple):
     sink_rows: int
     solves: int
     loads: int
-    #: Wall-clock seconds in each phase a build clocks, in the order they run.
-    #: A phase that never ran writes zero rather than no column: the point of
-    #: the row is that a directory of them is a table.
+    #: Wall-clock seconds in each phase a build clocks, in the order they run:
+    #: the caller's sources onto the plan, the declarations into the model
+    #: frames, the built model into a solver, the solver's own run, and the
+    #: built model streamed to an LP or MPS file. A phase that never ran writes
+    #: zero rather than no column: the point of the row is that a directory of
+    #: them is a table.
+    #:
+    #: So :attr:`write` reads zero on an archive whose caller never asked for a
+    #: file, which is most of them: it is :meth:`~lpspec.api.Model.write`'s
+    #: clock rather than the archive's own. **What writing the archive cost is
+    #: not here and is not anywhere**: a caller who wants that number times the
+    #: call.
     attach: float
     build: float
     handoff: float
