@@ -64,11 +64,13 @@ class SolveArchive:
             holds — a ``Path`` being a source like any other, so attaching
             streams them from disk.
         answer: What came back.
-        source_digests: ``(source, digest)``, one row per member of
+        source_digests: ``(run, source, digest)``, one row per member of
             ``sources/``, in source order. What :attr:`~lpspec.relational.result.Result.spec_digest`
             cannot say: two archives of one spec over different numbers carry
             the same spec digest and differ here, and *which* rows differ
-            names the input that moved.
+            names the input that moved. ``run`` is the archive's own name, as
+            it is on the record and the cost row, so a table read across a
+            directory of archives attributes its rows without parsing paths.
         diagnostics: One :class:`~lpspec.relational.parquet.Cost` row — what
             the build and its solves spent reaching that answer. Beside
             :attr:`answer` rather than on it, which is the asymmetry with

@@ -341,13 +341,18 @@ def test_the_digest_table_names_every_source_the_archive_holds(
     lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case').close()
     case = lps.load_archive(tmp_path / 'case')
 
-    assert case.source_digests.columns == ['source', 'digest'], 'the table is the key and what its bytes digest to'
+    assert case.source_digests.columns == ['run', 'source', 'digest'], (
+        "the archive it came from, the key, and what that key's bytes digest to"
+    )
     assert case.source_digests['source'].to_list() == sorted(case.sources), (
         'one row per archived source, in source order rather than the order the caller happened to pass them'
     )
+    assert case.source_digests['run'].unique().to_list() == ['case'], (
+        "every row carries the archive's own name, so a table read across a directory of them needs no paths"
+    )
     held = tmp_path / 'case' / 'sources'
     recomputed = {file.stem: digest_of_file(file) for file in held.glob('*.parquet')}
-    assert dict(case.source_digests.iter_rows()) == recomputed, (
+    assert dict(case.source_digests.select('source', 'digest').iter_rows()) == recomputed, (
         'and each digest is of the bytes the archive holds, so a reader can check it against the archive alone'
     )
 
@@ -367,8 +372,11 @@ def test_a_sweep_archive_digests_the_sources_it_was_cut_from(
 
     assert isinstance(study, lps.SweepArchive), 'the archive carries an axis, or this is testing the other type'
     assert study.source_digests['source'].to_list() == sorted(study.sources), 'one row per source, as for one solve'
+    assert study.source_digests['run'].unique().to_list() == ['study'], (
+        'stamped with the archive name as a solve archive is, the sweep key belonging to the slices and not the data'
+    )
     held = tmp_path / 'study' / 'sources'
-    assert dict(study.source_digests.iter_rows()) == {
+    assert dict(study.source_digests.select('source', 'digest').iter_rows()) == {
         file.stem: digest_of_file(file) for file in held.glob('*.parquet')
     }, 'each of the whole sources the sweep was cut from'
 

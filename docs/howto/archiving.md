@@ -21,7 +21,7 @@ case/
     sources/cost.parquet
     sources/load.parquet
     …
-    sources.parquet               (source, digest) — what each of them is
+    sources.parquet               (run, source, digest) — what each of them is
     answer/objective.parquet      how it terminated, what it reached, when, and under what name
     answer/diagnostics.parquet    what the build and its solves spent
     answer/primal/p.parquet       one file per variable
@@ -173,8 +173,8 @@ assert table['spec_digest'].n_unique() == 1, 'one model, or this compares nothin
 
 `spec_digest` says the two answered the same document. It says nothing about
 the numbers, so two runs of one model over different data carry the same one.
-`sources.parquet` is what separates them: `(source, digest)`, one row per
-member of `sources/`.
+`sources.parquet` is what separates them: `(run, source, digest)`, one row
+per member of `sources/`.
 
 ```python
 base = lps.load_archive('base/')
@@ -188,6 +188,17 @@ moved['source'].to_list()  # ['load']
 
 The answer is the name of the input, not merely that something moved. That is
 what per-source rows buy over one digest of everything.
+
+**`run` is on every row**, as it is on the record and the cost row, so a
+directory of archives is one table and finding what moved between consecutive
+runs is a window over it:
+
+```python
+inputs = pl.read_parquet('runs/*/sources.parquet')
+inputs.sort('run').with_columns(before=pl.col('digest').shift().over('source')).filter(
+    pl.col('before').is_not_null() & (pl.col('before') != pl.col('digest'))
+)
+```
 
 **The digest is of the bytes the archive holds**, so a reader can check it
 against the archive alone: hash `sources/load.parquet` and you get the row

@@ -146,6 +146,7 @@ def write_archive(
     part = staging / out.name
     members = _Members.under(part, zipped=out.suffix == '.zip')
     try:
+        run = out.name.removesuffix('.zip')
         members.put(MODEL_MEMBER, spec.to_yaml().encode())
         digests: dict[str, str] = {}
         for name, frame in frames.items():
@@ -161,11 +162,11 @@ def write_archive(
                 whole.get(name, frame).collect().write_parquet(buffer, compression='zstd')
                 members.put(member, buffer.getvalue())
                 digests[name] = digest_of_bytes(buffer.getvalue())
-        members.put(DIGESTS_MEMBER, _digest_table(digests))
+        members.put(DIGESTS_MEMBER, _digest_table(digests, run=run))
         if axis is not None:
             members.put(AXIS_MEMBER, json.dumps(axis).encode())
         if answer is not None:
-            _put_the_answer(members, answer, run=out.name.removesuffix('.zip'))
+            _put_the_answer(members, answer, run=run)
         members.close()
     except BaseException:
         members.discard()
@@ -178,15 +179,25 @@ def write_archive(
     return out
 
 
-def _digest_table(digests: Mapping[str, str]) -> bytes:
-    """``(source, digest)`` as parquet bytes, in source order.
+def _digest_table(digests: Mapping[str, str], *, run: str) -> bytes:
+    """``(run, source, digest)`` as parquet bytes, in source order.
 
     Sorted so one model's data digests to one table whoever assembled the
     sources, a mapping's order being the caller's and not the model's.
+
+    Stamped with *run* for the reason :func:`_put_the_answer` stamps the record
+    and the cost row: a table read across a directory of archives has to say
+    which one each row came from, and the alternative is every reader parsing
+    the paths. The run leads rather than trails, as the column every row of one
+    archive shares.
     """
     frame = pl.DataFrame(
-        {'source': sorted(digests), 'digest': [digests[name] for name in sorted(digests)]},
-        schema={'source': pl.String, 'digest': pl.String},
+        {
+            'run': [run] * len(digests),
+            'source': sorted(digests),
+            'digest': [digests[name] for name in sorted(digests)],
+        },
+        schema={'run': pl.String, 'source': pl.String, 'digest': pl.String},
     )
     buffer = io.BytesIO()
     frame.write_parquet(buffer)
