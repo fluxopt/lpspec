@@ -53,6 +53,47 @@ lps.solve(case.spec, case.sources)  # the same question, asked again
 `case.spec` and `case.sources` are the pair every verb takes, so asking again
 is the call you made the first time.
 
+**`load_archive` reads it whole.** The sources come back as the tables the
+members hold, and the answer's frames are in memory. So nothing has to be kept
+alive afterwards, and a zip needs nowhere to unpack: it goes to a scratch
+directory that is gone by the time you get the value.
+
+```python
+case = lps.load_archive('case.zip')
+```
+
+Pass `into=` anyway when you want the extracted tree as well, to query with an
+engine that reads parquet. A directory archive is read where it lies, so it
+takes no `into=` and passing one is refused.
+
+## Read one too big to hold
+
+`scan_archive` is the same two values with nothing read. The sources come back
+as the paths they now are, and each frame is read off disk at the call that
+asks for it.
+
+```python
+study = lps.scan_archive('study.zip', 'study/')
+study.answer.scan('p')  # read at the collect, one name at a time
+```
+
+**Scan the archive you will not read most of**, as well as the one that does
+not fit: a load reads every name, a scan only the ones you ask for.
+
+**What is scanned has to outlive what it reads off**, which is the other half of
+the difference. A zip therefore needs an `into=` you will keep — an archive
+often lives where it is only read, and only you know somewhere writable.
+
+| | `load_archive` | `scan_archive` |
+|---|---|---|
+| a source | the table the member holds | the path to it |
+| the answer | frames in memory | read at the call that asks |
+| a sweep's answer | held: `runs.primal('p')` | spilled: `runs.scan('p')` |
+| a zip's `into=` | optional, and scratch without one | required, and kept |
+
+`lps.load_result` / `lps.scan_result` and `lps.load_runs` / `lps.scan_runs` are
+the same pair one level down, for an answer `result.save` or `runs.save` wrote.
+
 ## Read what a solve cost
 
 `diagnostics` is one row: how big the model was, how many solves the archive
@@ -97,17 +138,6 @@ than beside the answer. A fold knows where one slice's share of the clocks
 begins. A single `Result` does not: it is one solve of a model that may have
 had many, so it carries no such number.
 
-**A zip needs somewhere to unpack.** Nothing is read at load. The sources come
-back as paths, and each frame is read off disk only when you ask for it. A
-directory's files are already where a read needs them; a zip's are not.
-
-```python
-case = lps.load_archive('case.zip', 'case/')
-```
-
-Name a directory you can write to and will keep, because the answer reads off
-it as you use it. A directory archive needs none, and passing one is refused.
-
 ## Keep the answer an update produced
 
 `update` puts new numbers on a built model, and what the model answers from
@@ -137,11 +167,15 @@ The archive carries the axis as well, so the study runs again from the file
 alone:
 
 ```python
-study = lps.load_archive('study/')
+study = lps.scan_archive('study/')
 
-study.answer.scan('p')  # keyed by scenario
+study.answer.scan('p')  # keyed by scenario, read at the collect
 lps.solve_over(study.spec, study.sources, study.axis)
 ```
+
+`scan_archive` for the same reason the sweep was spilled: a study that was
+never held is not one to read back whole. `load_archive` gives the held sweep
+where it fits, and `runs.primal('p')` answers on that one.
 
 A sweep's frames are keyed one file per slice — `answer/primal/p/000000.parquet`
 and so on — which is the layout [`spill_to=`](../reference/sweeps.md) writes.
@@ -200,8 +234,9 @@ where has_primal order by objective;
 
 Every frame is tidy: the model's own dimension columns, and a `value` column.
 So `study/answer/primal/p/*.parquet` is the variable `p` over every slice, and
-joins to the rest on those columns. A zip has to go through `load_archive`
-first, because no query engine reads inside one.
+joins to the rest on those columns. A zip has to be unpacked first, because no
+query engine reads inside one: give either reader an `into=` and query what
+lands there.
 
 The cost rows read the same way, and carry `run` as the record does. Over a
 directory of archives they are the table that says which cases are growing,

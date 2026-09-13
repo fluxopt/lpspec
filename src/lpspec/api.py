@@ -3,8 +3,8 @@
 Math is defined in YAML only — there is no Python API for constructing specs,
 and the logical plan is internal. Four verbs run a model: ``check``, ``build``
 (YAML + sources → a :class:`Model`), ``solve`` and ``write``. ``load_result`` reads back an
-answer :meth:`Result.save` wrote; the question and the answer as one archive
-is :class:`lpspec.archive.SolveArchive`.
+answer :meth:`Result.save` wrote and ``scan_result`` leaves it on disk; the
+question and the answer as one archive is :class:`lpspec.archive.SolveArchive`.
 
 This is the relational lane (docs/about/architecture.md): validated at load
 time, lowered to the plan, executed relationally. The same file builds as a
@@ -61,7 +61,7 @@ if TYPE_CHECKING:
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep
 
-__all__ = ['build', 'check', 'load_result', 'solve', 'write']
+__all__ = ['build', 'check', 'load_result', 'scan_result', 'solve', 'write']
 
 
 def _portability(program: Program, sink: str) -> tuple[str | None, list[str]]:
@@ -474,16 +474,33 @@ def write(
     return out
 
 
-def _saved_frames(under: Path) -> dict[str, pl.LazyFrame]:
+def _whole(file: Path) -> pl.LazyFrame:
+    """*file* read into memory, behind the :class:`polars.LazyFrame` a saved frame is held as.
+
+    The eager half of :data:`Reading`, and a ``LazyFrame`` all the same: what
+    a reader does with one is the same work whether the bytes are already here
+    or still on disk, so only the reading differs and nothing downstream
+    branches on which it got.
+    """
+    return pl.read_parquet(file).lazy()
+
+
+#: How a saved frame is read — the one difference between ``load_`` and
+#: ``scan_``. :func:`_whole` reads it now, so what comes back owes the
+#: directory nothing; :func:`polars.scan_parquet` reads it at the first
+#: collect, so the directory has to outlive what was read off it.
+type Reading = Callable[[Path], pl.LazyFrame]
+
+
+def _saved_frames(under: Path, read: Reading) -> dict[str, pl.LazyFrame]:
     """Every ``<name>.parquet`` under *under*, keyed by name; empty where it does not exist.
 
-    Lazy, so loading a large answer reads nothing until a reader asks: the
-    kinds a solve did not answer with are simply missing directories, which is
-    how the writer says a kind is absent.
+    The kinds a solve did not answer with are simply missing directories,
+    which is how the writer says a kind is absent.
     """
     if not under.is_dir():
         return {}
-    return {file.stem: pl.scan_parquet(file) for file in sorted(under.glob('*.parquet'))}
+    return {file.stem: read(file) for file in sorted(under.glob('*.parquet'))}
 
 
 def _absent(reason: str) -> Callable[[], pl.DataFrame]:
@@ -525,15 +542,48 @@ def load_result(directory: str | Path) -> Result:
             :func:`~lpspec.archive.load_archive`'s to find.
 
     Returns:
-        The result, reading lazily from *directory*: the files stay where they
-        are, so it has to outlive what is read off it.
+        The result, read whole: the frames are in memory when this returns, so
+        it owes *directory* nothing and timing this call times the read.
+        :func:`scan_result` is the same answer left on disk.
 
     Raises:
         LayoutError: A directory holding no ``objective.parquet``, which is
             what every answer written there carries, or one whose layout has
             moved since it was written.
     """
-    out = Path(directory)
+    return _answer_under(Path(directory), _whole)
+
+
+def scan_result(directory: str | Path) -> Result:
+    """The answer under *directory*, read as its readers are called rather than now.
+
+    :func:`load_result`'s lazy half, and the same value: every reader answers
+    what that one's does. What differs is when the bytes move — each frame is
+    a :func:`polars.scan_parquet` of the file it lies in, so an answer far
+    larger than memory is readable a name at a time, and one whose names go
+    unread costs nothing to open.
+
+    The files stay where they are, so **they have to outlive the result**:
+    reading a name after the directory is gone is the scan's error rather than
+    this package's. A timing of this call measures the layout being read, not
+    the answer.
+
+    Args:
+        directory: As :func:`load_result` takes it.
+
+    Raises:
+        LayoutError: As :func:`load_result` raises it.
+    """
+    return _answer_under(Path(directory), pl.scan_parquet)
+
+
+def _answer_under(out: Path, read: Reading) -> Result:
+    """The saved answer under *out*, its frames read *read*'s way.
+
+    The one body behind :func:`load_result` and :func:`scan_result`: what a
+    saved answer is does not depend on when its bytes move, so only the
+    reading is passed.
+    """
     record_file = out / RECORD_FILE
     if not record_file.is_file():
         raise LayoutError(
@@ -550,15 +600,15 @@ def load_result(directory: str | Path) -> Result:
 
     no_duals, no_expressions = read_reasons(out)
     expressions: dict[str, Callable[[], pl.DataFrame]] = {
-        name: (lambda frame=frame: frame.collect()) for name, frame in _saved_frames(out / 'expression').items()
+        name: (lambda frame=frame: frame.collect()) for name, frame in _saved_frames(out / 'expression', read).items()
     }
     expressions.update({name: _absent(why) for name, why in no_expressions.items()})
     return Result(
         status,
         objective,
-        _saved_frames(out / 'primal'),
-        _saved_frames(out / 'dual'),
-        _saved_frames(out / 'activity'),
+        _saved_frames(out / 'primal', read),
+        _saved_frames(out / 'dual', read),
+        _saved_frames(out / 'activity', read),
         'nothing',
         expressions,
         no_duals,

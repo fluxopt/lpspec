@@ -11,6 +11,7 @@ dataframe library beyond the engine's own. The tests that exercise the bridges
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -695,6 +696,43 @@ def test_a_directory_that_is_not_a_saved_answer_is_refused(tmp_path):
     empty.mkdir()
     with pytest.raises(lps.LayoutError, match=r'objective\.parquet'):
         lps.load_result(empty)
+
+
+def test_a_loaded_answer_outlives_the_directory_and_a_scanned_one_does_not(dispatch_solution, tmp_path):
+    """The one difference between the two verbs, in the one place a caller meets it.
+
+    Both read the same answer and both answer the same values. `load_result`
+    has them by the time it returns, so the directory is free afterwards;
+    `scan_result` reads each frame at the call that asks for it, which is what
+    serves an answer larger than memory and what the files have to outlive.
+    """
+    saved = dispatch_solution.save(tmp_path / 'solution')
+    loaded = lps.load_result(saved)
+    scanned = lps.scan_result(saved)
+    expected = dispatch_solution.primal('p')
+    assert scanned.primal('p').equals(expected), 'both read the same answer while the directory is there'
+    shutil.rmtree(saved)
+
+    assert loaded.primal('p').equals(expected), 'the loaded answer was in memory before the files went'
+    with pytest.raises(FileNotFoundError):
+        scanned.primal('p')
+
+
+def test_a_scanned_answer_reads_its_frames_at_the_call_that_asks(dispatch_solution, tmp_path):
+    """Why the lazy half is worth a second verb rather than a slower one.
+
+    A scan is a plan until it is collected, so what the file holds at the read
+    is what comes back. The loaded answer beside it was fixed when it was
+    loaded, which is the same fact from the other side.
+    """
+    saved = dispatch_solution.save(tmp_path / 'solution')
+    loaded = lps.load_result(saved)
+    scanned = lps.scan_result(saved)
+    was = dispatch_solution.primal('p')
+    was.with_columns(pl.col('value') * 2).write_parquet(saved / 'primal' / 'p.parquet')
+
+    assert scanned.primal('p')['value'].to_list() == (was['value'] * 2).to_list(), 'the scan reads the file it finds'
+    assert loaded.primal('p').equals(was), 'and the loaded answer is the one the load read'
 
 
 def test_read_back_is_in_label_order_and_stays_there(dispatch_yaml, dispatch_frame_inputs, tmp_path):

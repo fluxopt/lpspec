@@ -31,9 +31,10 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
 | `archive=` on `lps.solve`, `model.solve`, `lps.solve_over` | write the model, its data and this answer as one zip: [Archiving a model](#archiving-a-model) |
-| `lps.load_archive(path, into)` | an archive back as a `SolveArchive`, or a `SweepArchive` where its sources were cut |
+| `lps.load_archive(path, into=None)` | an archive back whole as a `SolveArchive`, or a `SweepArchive` where its sources were cut |
 | `lps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
 | `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Runs` |
+| `lps.scan_archive` / `scan_result` / `scan_runs` | the same three left on disk and read as they are asked for: [loading or scanning](#loading-or-scanning) |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
 | `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` |
@@ -292,7 +293,8 @@ result.to_dataset(kind='dual')  # every dual; one kind per dataset
 result.save(
     directory
 )  # the whole answer to disk: objective.parquet, primal/ dual/ activity/ expression/, reasons.parquet
-lps.load_result(directory)  # and back, every reader answering what it answered
+lps.load_result(directory)  # and back whole, every reader answering what it answered
+lps.scan_result(directory)  # the same, read off the directory as you ask for it
 ```
 
 **`primal` returns a `polars.DataFrame`**, one row per coordinate: a *frame*.
@@ -311,7 +313,7 @@ xarray, from the `[linopy]` extra.
 | **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `save` |
 | **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default. One kind per call |
 | **`save` writes the whole answer** | `objective.parquet` says how the solve terminated — `status`, `termination_condition`, `objective`, `has_primal`, `spec_digest`, `solved_at`, `run` — in the columns a sweep keys per slice, so cases solved apart concatenate. `solved_at` is when the solver returned, in UTC; `run` is the archive's own name and is null until one is written, the name being the publisher's rather than the solve's. A solve that reached no objective writes null there rather than `nan`, so a mean over a set of cases is the mean over the ones that solved. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `activity/<name>.parquet` and `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out, and `reasons.parquet` says why |
-| **`load_result` reads it back whole** | every reader answers what it answered, and an absence raises the sentence the solve gave. Two session facts do not survive: `kept` reads `nothing`, and a refusal carries the termination condition rather than the solver's verbatim wording. The frames are read lazily, so the directory has to outlive the result |
+| **`load_result` reads it back whole** | every reader answers what it answered, and an absence raises the sentence the solve gave. Two session facts do not survive: `kept` reads `nothing`, and a refusal carries the termination condition rather than the solver's verbatim wording. The frames are in memory when it returns, so the directory is free afterwards; `scan_result` is the same answer read as it is asked for, and that one the directory has to outlive ([loading or scanning](#loading-or-scanning)) |
 
 **Nothing has to be released.** `primal` and the `to_*` readers stay valid for
 as long as the `Result` does. `close()` and the context-manager protocol hand a
@@ -431,11 +433,12 @@ lps.solve('spec.yaml', sources, archive='case/')  # a directory
 lps.load_archive('case/')  # read where it lies — no into=
 ```
 
-**A directory archive needs no `into`, and a zip requires one.** Nothing is read
-at load: the sources come back as paths and every frame is a `scan_parquet`, so
-the parquet files have to be on disk. A directory's already are. A zip's are
-not, and only you know somewhere writable — an archive often lives where it is
-only read — so there is no default, and passing none is refused by name.
+**A directory archive needs no `into`, and passing one is refused by name.** It
+is read where it lies, its parquet files already being where a read needs them.
+A zip's are not, so it is unpacked first: `load_archive` reads it whole and
+unpacks to a scratch directory when you name none, and `scan_archive` reads it
+as you ask for it and so requires an `into=` that will still be there — only
+you know somewhere writable, an archive often living where it is only read.
 
 **Every verb that solves takes `archive=`, and nothing else writes one.**
 `lps.solve`, `model.solve` and `lps.solve_over` each hold the model, the data
@@ -461,12 +464,12 @@ own bytes; a table, a bare label range, a `{label: value}` map or a single
 number is written as the tidy parquet table it stands for. Parquet keeps the
 dtypes [the contract](data.md) checks. Members are stored uncompressed.
 
-**`load_archive` reads the answer lazily**, so the files it reads off have to
-outlive it: the archive itself for a directory, the `into` directory for a
-zip. Its `sources` come back as the parquet paths they now are — the same type
-they went in as, `Path` being a source like any other — so attaching streams
-them from disk. Anything outside the layout is refused, and a zip is refused
-before it is unpacked.
+**`load_archive` reads it whole and `scan_archive` reads it as it is asked
+for**, which shows in the two places an archive holds data: a `sources` entry
+is the table the member holds or the path to it — `Path` being a source like
+any other, so attaching streams it from disk — and the answer's frames are in
+memory or still on disk. Anything outside the layout is refused, and a zip is
+refused before it is unpacked.
 
 **An archive is a parquet tree.** Every frame is tidy: the model's own
 dimension columns, and a `value` column. An answer therefore joins to the
@@ -495,7 +498,40 @@ rows.
 | **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |
 | **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one solve each. Refused before the first slice is taken, as a lowered `Program` is |
 | **the model's own fitness for slicing stays `solve_over`'s** | whether a window can carry this model's coupling and reach is asked when the sweep is run, not when it is archived |
-| **a sweep's answer reads back spilled** | its frames stay in the extracted directory and `runs.scan(name)` reads them, which is what `solve_over(spill_to=)` already produces. `original_index` works: the dimension a window sliced and the coordinates each owns are in the manifest |
+| **a sweep's answer is held or spilled, as the reader says** | `load_archive` reads every slice's frames in, so it is the value a sweep solved without spilling is and `runs.primal(name)` answers. `scan_archive` leaves them in the extracted directory for `runs.scan(name)`, which is what `solve_over(spill_to=)` already produces and what serves the study too large to hold. `original_index` works on both: the dimension a window sliced and the coordinates each owns are in the manifest |
+
+## Loading or scanning
+
+Three saved things read back, and each reads two ways. **`load_` reads it
+whole**: the frames are in memory when the call returns, so what comes back
+owes the directory nothing and timing the call times the read. **`scan_` leaves
+them where they lie** and reads each at the call that asks for it. That is what
+serves the answer larger than memory, and the answer most of whose names you
+will not read — a load reads every one. It is also what makes the files have to
+outlive the value.
+
+```python
+case = lps.load_archive('case.zip')  # whole, and nowhere to unpack
+case = lps.scan_archive('case.zip', 'case/')  # read as asked for, off 'case/'
+```
+
+| | `load_` | `scan_` |
+|---|---|---|
+| a `Result`'s frames | in memory | a `scan_parquet` per name |
+| a `Runs` | held, so `primal` answers | spilled, so `scan` does and `primal` refuses |
+| an archive's `sources` | the table each member holds | the path to it |
+| an archive's `into=` | optional; a scratch directory without one | required for a zip, and kept |
+| the directory afterwards | free | has to stay |
+
+**The pairs are `load_archive` / `scan_archive`, `load_result` / `scan_result`
+and `load_runs` / `scan_runs`.** Each pair takes the same arguments, hands back
+the same type, and refuses the same things: a directory holding no answer, and
+an archive whose answer names another model. The one difference is the `into=`
+a zip needs, which the table above gives.
+
+**A loaded value is fixed and a scanned one is not.** Loading leaves no lazy
+edge to trip over later. A scan re-reads the file at every collect, so a frame
+rewritten underneath it comes back changed.
 
 ## Diagnostics
 

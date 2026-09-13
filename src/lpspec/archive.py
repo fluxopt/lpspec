@@ -5,6 +5,13 @@ be solved again to be read. An archive holds both, and :func:`load_archive`
 gives them back as one of two values — :class:`SolveArchive` for one solve,
 :class:`SweepArchive` where the sources were cut.
 
+**Two readers, one pair of values.** :func:`load_archive` reads it whole, so
+what comes back is in memory and owes the archive nothing; :func:`scan_archive`
+leaves the frames where they lie and reads each at the call that asks for it,
+which is what serves an archive larger than memory, or one most of whose names
+go unread, and what makes the members have to outlive it. Which one ran shows in two places and nowhere else: a
+source is a table or the path to one, and the answer collects or scans.
+
 **Reading only.** Nothing here writes an archive: the verb that solves does,
 through :mod:`lpspec.layout`, because a solve is the one moment the model, the
 data and the answer exist together. Assembling the three after the fact is
@@ -18,6 +25,7 @@ either kind of answer, so it is the one place that knows about both a
 from __future__ import annotations
 
 import json
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -25,11 +33,11 @@ from typing import TYPE_CHECKING
 import polars as pl
 from math_spec import to_spec
 
-from lpspec.api import load_result
+from lpspec.api import load_result, scan_result
 from lpspec.errors import LayoutError, LpspecError
 from lpspec.layout import ANSWER_DIR, AXIS_MEMBER, MODEL_MEMBER, is_source_member, members_of, opened
 from lpspec.relational.parquet import COST_FILE, digest_of
-from lpspec.strategy import EachCoordinate, EachWindow, Runs, axis_from, load_runs
+from lpspec.strategy import EachCoordinate, EachWindow, Runs, axis_from, load_runs, scan_runs
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -39,23 +47,26 @@ if TYPE_CHECKING:
     from lpspec.lanes import Source
     from lpspec.relational.result import Result
 
-__all__ = ['SolveArchive', 'SweepArchive', 'load_archive']
+__all__ = ['SolveArchive', 'SweepArchive', 'load_archive', 'scan_archive']
 
 
 @dataclass(frozen=True)
 class SolveArchive:
     """A model, the data it was solved with, and what one solve of it returned.
 
-    What :func:`load_archive` gives back for an archive whose sources were
-    not cut. ``lps.solve(artifact.spec, artifact.sources)`` asks the question
-    again, and :attr:`answer` is what it answered the first time.
+    What :func:`load_archive` and :func:`scan_archive` give back for an archive
+    whose sources were not cut. ``lps.solve(artifact.spec, artifact.sources)``
+    asks the question again, and :attr:`answer` is what it answered the first
+    time.
 
     Attributes:
         spec: The model as written.
-        sources: What was attached to it, as the parquet files the archive
-            holds — a ``Path`` being a source like any other, so attaching
-            streams them from disk.
-        answer: What came back.
+        sources: What was attached to it, keyed as the file declares it — the
+            table each parquet member holds from :func:`load_archive`, and the
+            path to it from :func:`scan_archive`, a ``Path`` being a source
+            like any other, so attaching streams it from disk instead.
+        answer: What came back — read whole or read as its readers are called,
+            as the two verbs differ.
         diagnostics: One :class:`~lpspec.relational.parquet.Cost` row — what
             the build and its solves spent reaching that answer. Beside
             :attr:`answer` rather than on it, which is the asymmetry with
@@ -89,14 +100,16 @@ class SweepArchive:
 
     Attributes:
         spec: The model as written, as :class:`SolveArchive` holds it.
-        sources: What the sweep was given — **whole**, carrying every slice's
+        sources: What the sweep was given — **uncut**, carrying every slice's
             rows, because one copy per slice is what a sweep exists not to
-            write.
+            write. A table or a path, as :class:`SolveArchive` holds them.
         axis: :class:`~lpspec.strategy.EachCoordinate` or
             :class:`~lpspec.strategy.EachWindow`, the axis that cut them.
-        answer: Every slice's answers, keyed by slice, and **spilled**: the
-            frames stay in the extracted directory and
-            :meth:`~lpspec.strategy.Runs.scan` reads them.
+        answer: Every slice's answers, keyed by slice — **held** from
+            :func:`load_archive`, so :meth:`~lpspec.strategy.Runs.primal` and
+            its siblings answer, and **spilled** from :func:`scan_archive`,
+            the frames staying in the extracted directory for
+            :meth:`~lpspec.strategy.Runs.scan` to read.
     """
 
     spec: Spec
@@ -147,16 +160,23 @@ def _cost_in(answer: Path) -> pl.DataFrame:
 
 
 def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchive | SweepArchive:
-    """Read back an archive an ``archive=`` wrote.
+    """Read back an archive an ``archive=`` wrote, whole.
 
     Which comes back is read off the archive, not asked for: it carries an
     axis or it does not.
 
+    **Everything is in memory when this returns** — the sources as the tables
+    they hold, the answer as the frames it holds — so what comes back owes the
+    archive nothing afterwards and timing this call times the read. A zip
+    needs somewhere to unpack all the same, but only for the duration: with no
+    *into* it goes to a scratch directory that is gone by the time the value
+    is handed back. An archive larger than memory is :func:`scan_archive`.
+
     Args:
         path: The archive — a ``.zip``, or the directory one was written to.
-        into: Where to unpack a zip, created if it does not exist. The members
-            land in it as the archive holds them and the answer reads lazily
-            off them, so it has to outlive what is read. A directory archive
+        into: Where to unpack a zip, created if it does not exist, for a
+            caller who wants the extracted tree as well as the value — to
+            query with an engine that reads parquet, say. A directory archive
             needs none, being read where it lies; passing one is refused.
 
     Returns:
@@ -167,19 +187,66 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
 
     Raises:
         LanguageError: A ``model.yaml`` the language does not accept.
-        LayoutError: A member outside the layout, a zip with no *into*, an
-            *into* given for a directory, an answer whose layout has moved
-            since it was written, or one holding no cost row. Nothing is
-            unpacked.
+        LayoutError: A member outside the layout, an *into* given for a
+            directory, an answer whose layout has moved since it was written,
+            or one holding no cost row. Nothing is unpacked.
         LpspecError: An answer that names a different model than the one
             beside it.
         zipfile.BadZipFile: A file that is not a zip archive.
     """
-    under = opened(path, None if into is None else Path(into))
+    held = Path(path)
+    if into is not None or held.is_dir():
+        return _archive_under(opened(held, None if into is None else Path(into)), whole=True)
+    with tempfile.TemporaryDirectory() as scratch:
+        return _archive_under(opened(held, Path(scratch)), whole=True)
+
+
+def scan_archive(path: str | Path, into: str | Path | None = None) -> SolveArchive | SweepArchive:
+    """The same archive, read as its readers are called rather than now.
+
+    :func:`load_archive`'s lazy half, and the same two types. What differs is
+    that nothing but the model, the axis and the cost row is read: the sources
+    come back as the parquet paths they now are — a ``Path`` being a source
+    like any other, so attaching streams them from disk — and the answer reads
+    each frame at the call that asks for it
+    (:func:`~lpspec.api.scan_result`, :func:`~lpspec.strategy.scan_runs`).
+
+    So **the members have to outlive what was read off them**, which is what
+    makes *into* an argument rather than a scratch directory here: an archive
+    often lives where it is only read, and only the caller knows somewhere
+    writable that will still be there.
+
+    Args:
+        path: As :func:`load_archive` takes it.
+        into: Where to unpack a zip, created if it does not exist and **kept**.
+            Required for a zip, there being nothing to read off once a scratch
+            directory is gone; refused for a directory archive, as above.
+
+    Raises:
+        LayoutError: As :func:`load_archive` raises it, and a zip with no
+            *into*.
+        LpspecError: As :func:`load_archive` raises it.
+        zipfile.BadZipFile: A file that is not a zip archive.
+    """
+    return _archive_under(opened(path, None if into is None else Path(into)), whole=False)
+
+
+def _archive_under(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
+    """The archive whose members are in *under*, read whole or left on disk.
+
+    The one body behind :func:`load_archive` and :func:`scan_archive`: what an
+    archive holds does not depend on when its bytes move, so only the reading
+    differs. Both halves of that reading — a source, and the answer — turn on
+    the one flag, there being no archive whose sources are held and whose
+    answer is not.
+    """
     spec = to_spec(under / MODEL_MEMBER)
-    sources = {m.stem: under / m for m in members_of(under) if is_source_member(m)}
+    sources: dict[str, Source] = {
+        m.stem: pl.read_parquet(under / m) if whole else under / m for m in members_of(under) if is_source_member(m)
+    }
     axis_member = under / AXIS_MEMBER
     if not axis_member.is_file():
-        return SolveArchive(spec, sources, load_result(under / ANSWER_DIR), _cost_in(under / ANSWER_DIR))
+        answer = (load_result if whole else scan_result)(under / ANSWER_DIR)
+        return SolveArchive(spec, sources, answer, _cost_in(under / ANSWER_DIR))
     axis = axis_from(json.loads(axis_member.read_text()))
-    return SweepArchive(spec, sources, axis, load_runs(under / ANSWER_DIR))
+    return SweepArchive(spec, sources, axis, (load_runs if whole else scan_runs)(under / ANSWER_DIR))
