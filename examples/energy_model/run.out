@@ -1,0 +1,18 @@
+A two-bus grid: three generators, one line, three snapshots of rising demand.
+validated: 2 buses, 3 generators, 1 line, 3 load rows given
+
+solved: objective 1500.00, generation 270.0 meets load 270.0
+
+generation by unit
+  cheap    150.0
+  peak       0.0
+  wind     120.0
+line flow towards its 'to' bus
+  s0 L1     10.0
+  s1 L1     50.0
+  s2 L1     90.0
+
+Three mistakes lpspec would not catch, refused here before it builds:
+  range     'generators' has cost < 0 (e.g. cost=-5.0) — it must be >= 0
+  sign      'lines' has neg_cap > 0 (e.g. neg_cap=30.0) — a reverse limit is a lower bound on flow, so it must be <= 0; passing it positive forces flow rather than bounding it
+  islanded  bus(es) ['C'] carry load but no generator can reach them over the lines. lpspec builds no balance row for a bus nothing reaches, so this load is silently left unserved and the solve looks fine.
