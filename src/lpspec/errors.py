@@ -35,17 +35,16 @@ if TYPE_CHECKING:
 class LpspecWarning(UserWarning):
     """Advice from ``check``: the spec loads and solves, and reads wrong.
 
-    A warning rather than an error because the reading may be deliberate — a
-    spec part-written declares what its expressions have not reached yet.
+    Raised for a spec that is still part-written, where an expression has not
+    yet reached what it declares.
     """
 
 
 class LaneError(LpspecError):
     """A lane cannot **build** a spec it accepts — the other one can.
 
-    Not a :class:`LanguageError`: the file is sayable, lowers, and reaches an
-    answer by the other route, so the fix is which lane runs it rather than
-    what the file says.
+    The spec is valid and reaches an answer by the other route. The fix is
+    which lane runs it, not what the file says.
     """
 
 
@@ -56,19 +55,17 @@ class DataError(LpspecError):
 class LayoutError(LpspecError):
     """What is on disk is not a layout this package reads.
 
-    Its own class rather than a :class:`DataError`, which is the caller's own
-    numbers being wrong: this is a directory or an archive that ``save`` wrote
-    — or did not — so the fix is which path was named, or that the layout has
-    moved since it was written and the model wants solving again.
+    The target is a directory or archive that ``save`` wrote, or did not. The
+    fix is which path was named, or re-solving a model whose layout has moved
+    since it was written.
     """
 
 
 class NoSolutionError(LpspecError):
     """The solve returned no values to read — infeasible, unbounded, errored.
 
-    Its own class because the caller's response differs: a scenario sweep
-    catches this and records the outcome, where a :class:`LanguageError` means
-    the file needs editing.
+    A scenario sweep catches this and records the outcome; a
+    :class:`LanguageError` instead means the file needs editing.
     """
 
 
@@ -87,12 +84,7 @@ __all__ = [
 
 
 def uncovered_constant_message(names: str, missing: int, subject: str) -> str:
-    """Why a constant side may not be sparse.
-
-    ``x <= cap`` with ``cap`` missing becomes ``x <= 0``: the most binding row
-    expressible, built and solved and reported optimal. Which of the three
-    exits is right depends on what was meant, so none is guessed.
-    """
+    """The message for a constant side covering fewer coordinates than its rows."""
     return (
         f"{subject}: parameter '{names}' covers {missing} fewer coordinates than the rows "
         f'built here. A missing row is read as 0, and on the constant side that zero is a '
@@ -104,12 +96,7 @@ def uncovered_constant_message(names: str, missing: int, subject: str) -> str:
 
 
 def sparse_divisor_message(name: str, missing: int) -> str:
-    """Why a divisor may not be sparse.
-
-    Divisor position is the one place the absence rules' zero fill has no
-    identity to fall back on: 0 divides by zero, 1 silently rescales, and
-    dropping the term rewrites what the row asserts.
-    """
+    """The message for a divisor parameter that is sparse over its index."""
     return (
         f"parameter '{name}' is used as a divisor but covers {missing} fewer "
         f'coordinates than it is indexed over. A missing row means a zero '
@@ -120,12 +107,7 @@ def sparse_divisor_message(name: str, missing: int) -> str:
 
 
 def null_bounds_message(name: str, rows: int) -> str:
-    """A bound with no value.
-
-    The absence rules' zero is a coefficient, never a bound. Both exits are
-    named because they build different models — supplying the value bounds the
-    variable, masking removes it from every row and from the solution.
-    """
+    """The message for a bound parameter missing values at some coordinates."""
     return (
         f"variable '{name}': {rows} rows have NULL bounds — a bound parameter is missing "
         f'values for some coordinates. The two ways out build different models, so the '
@@ -157,14 +139,9 @@ def short_groups_message(name: str, by: str, op: str, position: int, short: Sequ
 def unknown_name_message(kind: str, name: str, known: Iterable[str]) -> str:
     r"""``unknown <kind> '<name>'``, plus the near miss or the declared set.
 
-    Single-line on purpose: these are raised as ``KeyError``, whose ``str`` is
-    the *repr* of its argument, so a newline reaches the reader as a literal
-    ``\n``. Untruncated, because a caller reading a solution back by name has
-    no other way to discover what the model built.
-
-    A prefix hit lists the whole family rather than a near miss — ``piecewise:``
-    expands one block into several constraints, and naming one sibling implies
-    the others do not exist.
+    A name that is the prefix of one or more declarations lists the whole
+    family instead of a near miss. The message stays single-line: it is raised
+    as ``KeyError``, whose ``str`` reprs a newline as a literal ``\n``.
     """
     candidates = sorted(known)
 

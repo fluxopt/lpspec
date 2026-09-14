@@ -79,16 +79,12 @@ def build_highs(
 def _built(tables: Tables, solver_options: Mapping[str, Any] | None) -> Any:
     """The populated :class:`highspy.Highs`.
 
-    One ``passModel`` takes the whole model — the scalars, the five dense
-    vectors, and the matrix as row-wise CSR — because it is the entry point
-    that *loads* a model where ``addCols`` and ``addRows`` grow one, and HiGHS
-    then sizes its storage once from the counts (#1591). Every array crosses
-    as a numpy buffer, which is the half that matters: ``HighsLp``'s own fields
-    are ``std::vector`` and filling one from python converts element by
-    element.
+    One ``passModel`` loads the whole model at once — the scalars, the five
+    dense vectors, and the matrix as row-wise CSR. Every array crosses as a
+    numpy buffer.
 
-    The integrality vector is passed over the whole index even where no column
-    is integer: HiGHS reads it either way, and an empty one is read as whatever
+    The integrality vector spans the whole index even where no column is
+    integer. HiGHS reads it either way, and an empty one is read as whatever
     the memory held (1.15.1).
     """
     import highspy
@@ -137,14 +133,19 @@ def _built(tables: Tables, solver_options: Mapping[str, Any] | None) -> Any:
             empty_i,
             empty_i,
             empty_f,
-            # kContinuous is 0 and kInteger 1, so a boolean already is the vector
-            # HiGHS wants; tests/test_milp.py holds HiGHS to those two numbers.
-            cols.integral.astype(np.int32),
+            _integrality(cols),
         ),
         'the model',
     )
     _pass_hessian(h, tables)
     return h
+
+
+def _integrality(cols: Any) -> Any:
+    """The per-column integrality vector HiGHS reads: 0 continuous, 1 integer."""
+    import numpy as np
+
+    return cols.integral.astype(np.int32)
 
 
 def _pass_hessian(h: Any, tables: Tables) -> None:
