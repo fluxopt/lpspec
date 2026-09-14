@@ -433,7 +433,12 @@ def test_the_digest_reads_the_counts_that_frame_its_vectors(count):
 
 
 def _hashes(monkeypatch) -> list[int]:
-    """A counter of every digest actually taken, however many objects ask for one."""
+    """A counter of every ask for a digest, from however many objects ask.
+
+    A plain property in place of the `cached_property`, so an object asked twice
+    counts twice — which production does not pay, the cache being what makes
+    `_digest` cheap to repeat. Each count below is one object asked once.
+    """
     from lpspec.relational.sinks import tables as tables_module
 
     taken: list[int] = []
