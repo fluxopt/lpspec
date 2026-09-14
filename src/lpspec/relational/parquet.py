@@ -36,16 +36,10 @@ LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expre
 
 
 #: What the layout under a directory looks like. **Zero while the layout is
-#: still moving**, and it starts counting at one the day that stops: a number
-#: spent on every move — a column added, a column's type changed, a kind that
-#: writes a new directory — says only that something changed, and the
-#: ``0.0.1aN`` stream says that already. So an answer another zero-era build
-#: wrote reads as current, and what the stamp catches is one written before
-#: there was a stamp. **Compared, never branched on.** The project holds no
-#: compatibility promise, so there is no version this reads an old layout
-#: back through; the number exists to turn a missing column into a sentence
-#: naming the recovery. The day something writes ``if version == 0`` it has
-#: become the deprecation path this project refuses.
+#: still moving**, and it starts counting at one the day that stops. So an
+#: answer another zero-era build wrote reads as current, and what the stamp
+#: catches is one written before there was a stamp. **Compared, never
+#: branched on.**
 ANSWER_FORMAT = 0
 FORMAT_FILE = 'format.json'
 
@@ -78,9 +72,7 @@ def check_format(directory: Path) -> None:
 
 
 #: How much of a sha256 a digest here keeps. Sixteen hex characters is 64
-#: bits, which no set of runs collides in by accident, and it is read by a
-#: person scanning a comparison table beside four other columns where
-#: sixty-four would push the numbers off the line.
+#: bits.
 _DIGEST_WIDTH = 16
 
 
@@ -90,11 +82,7 @@ def digest_of_bytes(data: bytes) -> str:
 
 
 def digest_of_file(path: Path) -> str:
-    """The same name for a file's bytes, read a chunk at a time.
-
-    Streamed rather than loaded: a source table is the one thing an archive
-    holds that can be larger than the memory it is written from.
-    """
+    """The same name for a file's bytes, read a chunk at a time."""
     sha = hashlib.sha256()
     with path.open('rb') as handle:
         while chunk := handle.read(1 << 20):
@@ -119,20 +107,17 @@ class Record(NamedTuple):
     """How a solve terminated, what it reached, and which spec it answered.
 
     One row per solve, and the same columns whoever wrote them: a result
-    writes one, a sweep one per slice keyed by its own key. That is what lets
-    cases solved apart concatenate into the table a sweep folds, and it is the
-    only part of an answer the frames themselves cannot carry — a run that
-    left no values writes this and nothing else.
+    writes one, a sweep one per slice keyed by its own key. The only part of
+    an answer the frames themselves cannot carry — a run that left no values
+    writes this and nothing else.
     """
 
     status: str
     termination_condition: str
     #: What the solve reached, or ``None`` where it reached nothing. Null
-    #: rather than ``nan`` because this is a table column: nan is a *number*
-    #: to every aggregate that meets it, so one infeasible case among a
-    #: hundred would make the mean of the hundred nan, here and in any engine
-    #: reading the same files. :attr:`Result.objective` is a float and reads
-    #: it back as ``nan``, having no null to return.
+    #: rather than ``nan``: nan is a *number* to every aggregate that meets it.
+    #: :attr:`Result.objective` is a float and reads it back as ``nan``, having
+    #: no null to return.
     objective: float | None
     #: Whether the solve produced values, which the condition alone does not
     #: say: a run stopped at a limit before any incumbent is ``ok`` with
@@ -140,21 +125,17 @@ class Record(NamedTuple):
     has_primal: bool
     #: :func:`digest_of` the spec this answered, or ``None`` where the solve
     #: was run off a lowered program and there was no document to digest. Null
-    #: on disk, never an empty string, so a comparison table counts the
-    #: answers that named a document rather than one more distinct value.
-    #: Carried so that answers written apart can be *told* to be comparable:
-    #: one distinct value across a concatenated table means one spec.
+    #: on disk, never an empty string.
     spec_digest: str | None
-    #: When the solver returned, in UTC. Written so that a table concatenated
-    #: from runs solved apart can be ordered without reading the paths they
-    #: came from. ``None`` for a solve that carried no clock — a result built
-    #: by hand, or read back from a record written before this column.
+    #: When the solver returned, in UTC. ``None`` for a solve that carried no
+    #: clock — a result built by hand, or read back from a record written
+    #: before this column.
     solved_at: datetime | None = None
     #: What the archive holding this answer was called — its file name without
     #: a ``.zip``, so ``runs/nightly-2026-09-10.zip`` writes
     #: ``nightly-2026-09-10`` and a directory called ``case.v2`` keeps both
     #: halves of its name. Stamped when the archive is written and null until
-    #: then, because the name is the publisher's rather than the solve's.
+    #: then.
     run: str | None = None
 
     @classmethod
@@ -169,12 +150,8 @@ class Record(NamedTuple):
     ) -> Record:
         """The row a solve that terminated this way writes.
 
-        The one home for how an answer becomes columns: ``status`` is derived
-        here rather than passed, and an objective is dropped to null here
-        rather than at each writer. Keyword-only past the condition because
-        ``status`` and ``termination_condition`` are both strings, so a
-        positional call is one field order away from writing a wrong file that
-        no type checker and no test would object to.
+        ``status`` is derived here rather than passed, and an objective is
+        dropped to null here rather than at each writer.
 
         Args:
             termination_condition: What the solver said.
@@ -199,24 +176,21 @@ class Record(NamedTuple):
     def solve_status(self) -> SolveStatus:
         """The status this row records — the way back from columns.
 
-        The solver's own wording is gone, being a sentence to read rather than
-        a column to group by, and ``status`` is derived again rather than read
-        off the row: a file whose two columns disagree is answered by the
-        table that owns the rollup.
+        The solver's own wording is gone, and ``status`` is derived again
+        rather than read off the row.
         """
         return SolveStatus(self.termination_condition, has_primal=self.has_primal)
 
 
 #: What each Python type a record column is annotated with is written as.
 #: A column whose annotation is not here fails at import rather than at the
-#: write, which is the moment its author is choosing the type.
+#: write.
 _WRITTEN_AS: Mapping[type, pl.DataType | type[pl.DataType]] = {
     str: pl.String,
     float: pl.Float64,
     bool: pl.Boolean,
     int: pl.Int64,
-    #: Carried with its zone rather than as a naive column claiming to be UTC,
-    #: which is the reading every consumer would have to be told.
+    #: Carried with its zone, not as a naive column claiming to be UTC.
     datetime: pl.Datetime(time_zone='UTC'),
 }
 
@@ -224,10 +198,7 @@ _WRITTEN_AS: Mapping[type, pl.DataType | type[pl.DataType]] = {
 def _column_types(record: type[NamedTuple]) -> dict[str, pl.DataType | type[pl.DataType]]:
     """*record*'s columns as they are written, off its own annotations.
 
-    Derived rather than restated: a column added to :class:`Record` and not
-    here would silently go back to the type polars infers from a single row,
-    which is the defect this schema exists to close and one a green suite
-    would not show. ``X | None`` is written as ``X`` holding null.
+    ``X | None`` is written as ``X`` holding null.
     """
     written: dict[str, pl.DataType | type[pl.DataType]] = {}
     for name, hint in get_type_hints(record).items():
@@ -261,8 +232,7 @@ class Metrics(NamedTuple):
     fold into a row beside a count.
 
     **Cumulative over the model's life**, as every counter it is read off is.
-    :attr:`solves` is what says how many solves the clocks cover, so a row can
-    never quietly mean something other than what it holds — it reads ``1`` for
+    :attr:`solves` says how many solves the clocks cover; it reads ``1`` for
     the archive :func:`lpspec.solve` writes, that verb building the model it
     solves.
     """
@@ -285,8 +255,7 @@ class Metrics(NamedTuple):
     #: the caller's sources onto the plan, the declarations into the model
     #: frames, the built model into a solver, the solver's own run, and the
     #: built model streamed to an LP or MPS file. A phase that never ran writes
-    #: zero rather than no column: the point of the row is that a directory of
-    #: them is a table.
+    #: zero rather than no column.
     #:
     #: So :attr:`write_seconds` reads zero on an archive whose caller never
     #: asked for a file, which is most of them: it is
@@ -300,14 +269,11 @@ class Metrics(NamedTuple):
     write_seconds: float
     #: What the archive holding this row was called, as :attr:`Record.run` is
     #: stamped onto the record beside it: the archive's file name without a
-    #: ``.zip``. Null until one is written, the name being the publisher's
-    #: rather than the solve's.
+    #: ``.zip``. Null until one is written.
     run: str | None = None
 
 
-#: :class:`Metrics`'s columns as they are written, for :data:`RECORD_SCHEMA`'s
-#: reason: a clock that happened to be zero would otherwise infer to the type
-#: its own single row suggests.
+#: :class:`Metrics`'s columns as they are written, as :data:`RECORD_SCHEMA`.
 METRICS_SCHEMA = _column_types(Metrics)
 
 
@@ -315,11 +281,11 @@ class SliceMetrics(NamedTuple):
     """What one slice of a sweep took — :class:`Metrics` one dimension in.
 
     Not the same columns, and the fold is what separates them. A slice's clocks
-    are its own share rather than a cumulative total, which is the difference
-    :attr:`Metrics.solves` exists to declare; ``loaded`` says whether the solver
-    took this slice from scratch, where a whole model counts its loads; and what
-    a sink added, how many solves ran and what a file write took are facts about
-    a model's life that one slice of a sweep has no share of.
+    are its own share rather than a cumulative total; ``loaded`` says whether
+    the solver took this slice from scratch, where a whole model counts its
+    loads; and what a sink added, how many solves ran and what a file write
+    took are facts about a model's life that one slice of a sweep has no share
+    of.
 
     Written per slice by the spill and read back as one table, so a sweep's
     every slice concatenates the way a directory of archives does.
@@ -346,10 +312,9 @@ class SliceMetrics(NamedTuple):
 def row_of[R](row_type: Callable[..., R], columns: Mapping[str, Any], found: Path) -> R:
     """One row read off disk as the type that declares its columns.
 
-    The one place a saved row becomes a value, so a file short of a column or
-    carrying one nothing declares is a sentence naming it rather than a frame
-    of the wrong shape folded into whatever reads it next. That is the recovery
-    :data:`ANSWER_FORMAT` cannot name while the number is held at zero.
+    A file short of a column or carrying one nothing declares is a sentence
+    naming it rather than a frame of the wrong shape folded into whatever reads
+    it next.
 
     Args:
         row_type: :class:`Record`, :class:`Metrics` or :class:`SliceMetrics`.
@@ -370,10 +335,10 @@ def row_of[R](row_type: Callable[..., R], columns: Mapping[str, Any], found: Pat
     return row_type(**columns)
 
 
-#: The three files that sit beside the frames, named here because a result and
-#: a sweep both write them and :func:`lpspec.archive.load_archive` reads back
-#: whichever wrote: the record of how the solve terminated, what reaching it
-#: cost, and the reasons behind whatever is deliberately not there.
+#: The three files that sit beside the frames — a result and a sweep both
+#: write them, and :func:`lpspec.archive.load_archive` reads back whichever
+#: wrote: the record of how the solve terminated, what reaching it cost, and
+#: the reasons behind whatever is deliberately not there.
 RECORD_FILE = 'objective.parquet'
 METRICS_FILE = 'metrics.parquet'
 REASONS_FILE = 'reasons.parquet'
@@ -385,13 +350,6 @@ def consolidated(under: Path, file: str) -> pl.DataFrame:
     A spill writes it one file per slice under a directory named for what the
     file holds — ``objective.parquet`` beside ``objective/`` — so the name of
     one gives the other and only the file is passed.
-
-    What makes an archive's record one file where a spill's is one per slice.
-    The spill writes them apart because the objective file's *existence* is
-    how a resumed sweep knows a slice finished; an archive is finished by
-    definition, and one file is what a reader globbing a warehouse of them
-    needs — a directory beside a file means no single glob finds both, and the
-    one that finds half finds it silently.
 
     Reads both shapes, so one reader serves an archive and the spill it was
     packed from. Rows stay in slice order, the files being named by position.
@@ -418,10 +376,8 @@ def consolidated(under: Path, file: str) -> pl.DataFrame:
 def clear_the_answer(directory: Path) -> None:
     """Remove what a saved answer holds, leaving anything else in *directory* alone.
 
-    A second save into one directory would otherwise leave the first answer's
-    frames beside the second's: a name the new model never declared, readable
-    through a reader that reports the new model's digest. Only the layout's own
-    members go, so a directory the caller also keeps other files in survives.
+    Only the layout's own members go, so a directory the caller also keeps other
+    files in survives.
     """
     import shutil
 

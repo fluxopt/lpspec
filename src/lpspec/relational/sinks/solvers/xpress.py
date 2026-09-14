@@ -5,15 +5,14 @@ same ``dense_columns``, ``dense_rows`` and ``row_blocks``, so no two sinks can
 disagree about the model they load. What differs:
 
 - **The matrix is row-major and stays that way.** ``addRows`` takes the CSR
-  triple a block already is, so this sink is the HiGHS one's shape rather than
-  the Gurobi one's — no ``scipy`` wrapper, and the extra carries nothing but
-  ``xpress`` itself.
+  triple a block already is — no ``scipy`` wrapper, and the extra carries
+  nothing but ``xpress`` itself.
 - **The objective's constant is a column.** Xpress spells it as the objective
   coefficient of column ``-1``, *negated*, where the other two have an
   attribute for it.
 - **Forgetting is a control, not a call.** ``problem.reset()`` clears the whole
-  problem here — it is not Gurobi's — so what discards the last solve's work is
-  ``keepbasis``; see :meth:`Xpress.forget`.
+  problem here, so what discards the last solve's work is ``keepbasis``; see
+  :meth:`Xpress.forget`.
 
 ``xpress`` is imported inside the functions, so importing this module stays
 free for a caller who never solves with it.
@@ -38,9 +37,8 @@ if TYPE_CHECKING:
 
 #: Xpress solution status -> termination condition. Copied from linopy's own
 #: ``Xpress.CONDITION_MAP``, which is the whole of theirs;
-#: ``tests/test_solve_status.py`` asserts the copy, so linopy moving fails here
-#: rather than silently. Keyed by the enum's *value*, the enum being an
-#: optional import and this module level.
+#: ``tests/test_solve_status.py`` asserts the copy. Keyed by the enum's
+#: *value*, the enum being an optional import and this module level.
 _CONDITION_OF_SOL_STATUS = {
     0: 'unknown',
     1: 'optimal',
@@ -69,14 +67,11 @@ def build_xpress(
 ) -> Xpress:
     """Load the model into an :class:`xpress.problem` and stop there.
 
-    :func:`~lpspec.relational.sinks.solvers.highs.build_highs`'s seam, drawn
-    for its reason: the search is the same work whoever filled the model.
+    :func:`~lpspec.relational.sinks.solvers.highs.build_highs`'s seam.
 
     Returns:
         The :class:`Xpress` holding the problem, at ``.handle``. The problem
-        owns its licence and releases it when it is collected, so the holder
-        needs no finalizer — there is one object, and dropping it is the
-        release.
+        owns its licence and releases it when it is collected.
     """
     return Xpress(tables, batch_rows, solver_options)
 
@@ -86,8 +81,7 @@ class Xpress(Solver):
 
     :class:`~lpspec.relational.sinks.solvers.highs.Highs`'s twin in how the
     model is handed over and :class:`~lpspec.relational.sinks.solvers.gurobi.Gurobi`'s
-    in what it costs to hold. Three things are the Optimizer's shape rather
-    than a choice:
+    in what it costs to hold. Three things are the Optimizer's shape:
 
     - **A push writes by index**, whole vectors through ``chgBounds`` /
       ``chgObj`` / ``chgRHS``. There is no handle to keep: the problem *is*
@@ -100,20 +94,17 @@ class Xpress(Solver):
       as on Gurobi, so the refusal is the answer.
     """
 
-    #: The loaded problem. One object, unlike Gurobi's four: ``close`` drops it
-    #: and the licence goes with it.
+    #: The loaded problem. One object: ``close`` drops it and the licence goes
+    #: with it.
     _p: Any
 
     #: One package, and it carries its own solver library.
     requires = ('xpress',)
     unavailable_message = 'The xpress sink requires the [xpress] extra: pip install "lpspec[xpress]"'
 
-    #: Xpress branches on a set itself, which is the whole reason to declare
-    #: one: no binaries, no big-M, and no bound a member has to have. The
-    #: Optimizer takes a Hessian; **this sink does not hand it one**, and a
-    #: descriptor says what the sink ingests rather than what the library
-    #: could, so the quadratic entries are absent until something here writes
-    #: them.
+    #: Xpress branches on a set itself: no binaries, no big-M, and no bound a
+    #: member has to have. The Optimizer takes a Hessian; **this sink does not
+    #: hand it one**.
     capabilities = Capabilities(supports={'integrality': 'native', 'sos': 'native'})
 
     def _load(self, tables: Tables, batch_rows: int | None) -> None:
@@ -127,8 +118,7 @@ class Xpress(Solver):
         """Whole vectors by index, in three calls.
 
         Both bounds go in one ``chgBounds``: it takes a column per entry and a
-        letter saying which bound, so the pair is one call over a doubled index
-        rather than two over the model.
+        letter saying which bound.
         """
         import numpy as np
 
@@ -146,12 +136,10 @@ class Xpress(Solver):
     def warm_start(self) -> WarmStart | None:
         """The basis the last solve left, or its incumbent where that is not valid.
 
-        **Asked of the problem, not caught from it.** Gurobi refuses ``VBasis``
-        where no basis exists and the refusal routes the answer; Xpress hands
-        back the trivial all-slack basis instead — before any solve, and after
-        a mixed-integer one — so a member reading it that way would carry a
-        start that means nothing and call it warm. The two questions are asked
-        directly: has anything been solved, and is what is loaded a MIP.
+        **Asked of the problem, not caught from it.** Xpress hands back the
+        trivial all-slack basis before any solve, and after a mixed-integer
+        one, so the two questions are asked directly: has anything been solved,
+        and is what is loaded a MIP.
 
         Xpress hands the basis back as ``(rows, columns)``, the opposite order
         to :class:`WarmStart`'s fields.
@@ -176,9 +164,8 @@ class Xpress(Solver):
     def _warm(self, ws: WarmStart) -> None:
         """``loadBasis`` for a basis, ``addMipSol`` for an incumbent.
 
-        ``keepbasis`` goes back on with the basis: :meth:`forget` is what turns
-        it off, and a caller asking for a warm start after one has asked for
-        the opposite of what that control says.
+        ``keepbasis`` goes back on with the basis; :meth:`forget` is what turns
+        it off.
         """
         if (basis := ws.basis()) is not None:
             column_statuses, row_statuses = basis
@@ -211,20 +198,16 @@ class Xpress(Solver):
     def forget(self) -> None:
         """``keepbasis = 0``: the next solve ignores the basis this one left.
 
-        Not ``problem.reset()``, which on Xpress clears the whole problem —
-        the model would go with the solution. The control is durable, so it
-        tracks the caller's ``keep=`` across re-solves; :meth:`_warm` turns it
-        back on.
+        ``problem.reset()`` on Xpress clears the whole problem, the model with
+        it. The control is durable, so it tracks the caller's ``keep=`` across
+        re-solves; :meth:`_warm` turns it back on.
         """
         self._p.controls.keepbasis = 0
 
     def close(self) -> None:
         """Release the problem, and the licence it holds.
 
-        ``reset`` rather than dropping the reference: it is documented to clear
-        everything the problem holds, where a dropped reference leaves the
-        release to the collector — and a solver kept between solves holds a
-        licence no frame in this process accounts for.
+        ``reset`` is documented to clear everything the problem holds.
         """
         if self._p is not None:
             self._p.reset()
@@ -241,11 +224,9 @@ def _built(
     Columns arrive with no entries — ``start`` is all zeros — because the
     matrix goes in row-wise afterwards, which is the form
     :meth:`~lpspec.relational.sinks.tables.Tables.row_blocks` already
-    hands over. Loading it column-wise instead would mean sorting the model.
+    hands over.
 
-    ``chgColType`` is called only when some column is integral, for the reason
-    the Gurobi sink skips ``vtype`` on an LP: an array of one repeated letter
-    over every column is a cost an LP should not pay.
+    ``chgColType`` is called only when some column is integral.
 
     ``outputlog`` leads the controls so a caller can put the log back.
     """

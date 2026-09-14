@@ -1,9 +1,7 @@
 """The ``highs`` solver: the whole model straight into HiGHS, in one call.
 
 The default, and the only one whose dependency ships with the package. Every
-vector crosses as a numpy buffer, with no float→text→parse round trip — which
-is why this exists beside
-:mod:`~lpspec.relational.sinks.writers.lp_file`.
+vector crosses as a numpy buffer, with no float→text→parse round trip.
 
 **Nothing textual crosses into numpy**: a row's ``'<='`` becomes a
 :data:`~lpspec.relational.sinks.tables.SENSE_CODES` byte before it is read
@@ -34,8 +32,7 @@ if TYPE_CHECKING:
 
 #: HiGHS model status -> termination condition. Copied from linopy's own
 #: ``Highs.CONDITION_MAP``; ``tests/test_solve_status.py`` asserts it still
-#: matches, so a HiGHS release that adds a status shows up as a failure here
-#: rather than as a silent ``unknown``.
+#: matches.
 _CONDITION_OF_HIGHS_STATUS = {
     'kNotset': 'unknown',
     'kLoadError': 'internal_solver_error',
@@ -65,10 +62,8 @@ def build_highs(
 ) -> Highs:
     """Load the model into a :class:`highspy.Highs` and stop there.
 
-    The hand-off without the simplex, which is the same work whoever filled the
-    model — so a measurement including it says nothing about the lane that
-    filled it. `bench/` ends here, as linopy's ``Model.to_highspy()`` does on
-    that side.
+    The hand-off without the simplex. `bench/` ends here, as linopy's
+    ``Model.to_highspy()`` does on that side.
 
     Returns:
         The :class:`Highs` holding the model, at ``.handle``.
@@ -195,29 +190,23 @@ def _pass_hessian(h: Any, tables: Tables) -> None:
 class Highs(Solver):
     """HiGHS, holding one model — :class:`Solver`'s member for the default sink.
 
-    What makes an iterative driver cheap. The second solve of an updated model
-    changes bounds, costs and right-hand sides on the model HiGHS already
-    holds and starts from the basis the last solve ended on, where loading
-    again would hand over the matrix a second time and start cold — unless
-    the caller carries the basis across with :meth:`warm_start` and
+    The second solve of an updated model changes bounds, costs and right-hand
+    sides on the model HiGHS already holds and starts from the basis the last
+    solve ended on, unless the caller carries the basis across with
+    :meth:`warm_start` and
     :meth:`~lpspec.relational.sinks.solvers.base.Solver.warm`.
-
-    Pushing the whole vectors costs a pass over the columns and the rows,
-    against the matrix pass that loading would cost.
     """
 
-    #: The loaded model. Declared rather than inferred, ``close`` dropping it.
+    #: The loaded model. ``close`` drops it.
     _handle: Any
 
     requires = ('highspy',)
     unavailable_message = 'highspy ships with lpspec, so a build without it is broken rather than missing an extra'
 
     #: No SOS concept at all, so a set arrives already written as binaries and
-    #: linking rows. A *convex* Hessian goes in through ``passHessian``; the
-    #: exclusions beside it are why this is a descriptor rather than a set of
-    #: features, and the pair is probed in ``test_sink_capability_probes.py``.
-    #: A set is that same refusal one step removed: the rewrite that gets one
-    #: in here *is* binaries, so it cannot stand beside a Hessian either.
+    #: linking rows. A *convex* Hessian goes in through ``passHessian``, and
+    #: the pair is probed in ``test_sink_capability_probes.py``. A set cannot
+    #: stand beside a Hessian: the rewrite that gets one in here *is* binaries.
     capabilities = Capabilities(
         supports={
             'integrality': 'native',
@@ -240,7 +229,7 @@ class Highs(Solver):
         return self._handle
 
     def push(self, tables: Tables) -> None:
-        """The index vectors are built here rather than held — an ``arange`` is cheaper to make than to keep."""
+        """The index vectors are built here rather than held."""
         import highspy
         import numpy as np
 
@@ -283,8 +272,7 @@ class Highs(Solver):
         """``setBasis`` for a basis, ``setSolution`` for an incumbent.
 
         Both report a refusal by return value, like every hand-off here, so
-        both go through :func:`_took` — an unchecked call would start cold and
-        call it warm.
+        both go through :func:`_took`.
         """
         import highspy
 
@@ -307,14 +295,9 @@ class Highs(Solver):
         """Solve, and read the one error HiGHS reports as a refusal to start.
 
         A ``kError`` from ``run()`` leaves the model status unset — there is no
-        solve to read back — so a quadratic model that gets one is refused with
-        the sentence the curvature earns rather than as an unreadable status.
-        The pair a Hessian is otherwise refused for, integrality beside it, is
-        declared on the descriptor and never reaches a load.
-
-        The way out is spelled as the loader takes it (``method: convex``): a
-        message sending its reader to a key ``piecewise:`` rejects would be
-        worse than none.
+        solve to read back — so a quadratic model that gets one is refused
+        explicitly. The pair a Hessian is otherwise refused for, integrality
+        beside it, is declared on the descriptor and never reaches a load.
         """
         import highspy
 
@@ -345,10 +328,7 @@ class Highs(Solver):
     def forget(self) -> None:
         """``clearSolver``: the basis and the solution go, the model stays.
 
-        What this buys back is presolve. HiGHS skips it for a run that starts
-        from a basis, so a model presolve can crack is one where keeping the
-        answer is the slower path — and that is decided per model, which is
-        why it is the caller's word and not a rule here.
+        HiGHS skips presolve for a run that starts from a basis.
         """
         self._handle.clearSolver()
 
@@ -361,8 +341,7 @@ class Highs(Solver):
 def _row_bounds(rows: RowVectors, inf: float) -> tuple[Any, Any]:
     """HiGHS's ``(lower, upper)`` spelling of a sense code and right-hand side.
 
-    The one rule for it, asked by the load and the push alike, so the two
-    cannot drift: an inequality is open on the side its sense does not bound.
+    An inequality is open on the side its sense does not bound.
     """
     import numpy as np
 
@@ -376,8 +355,7 @@ def _loaded(h: Any, status: Any, what: str) -> None:
     """Raise unless the solver accepted the hand-off.
 
     HiGHS reports a rejected call by return value and carries on with whatever
-    it had, so an unchecked call turns a malformed hand-off into a confident
-    answer to a different problem — an unconstrained one, if it was the rows.
+    it had.
 
     Raises:
         LpspecError: If the batch was refused.
@@ -396,10 +374,7 @@ def _loaded(h: Any, status: Any, what: str) -> None:
 def _took(status: Any, what: str) -> None:
     """Raise unless the solver accepted a warm-start hint.
 
-    HiGHS reports a refusal by return value and carries on, and a dropped
-    hint would not corrupt the model — the solve would just silently start
-    cold, a wrong answer in the time dimension that the value dimension can
-    never show.
+    HiGHS reports a refusal by return value and carries on.
 
     Raises:
         LpspecError: If the hint was refused.
