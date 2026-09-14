@@ -106,9 +106,9 @@ class Solver(ABC):
 
     The two halves are split by who can answer them. **This class records the
     rule's evidence** — what was loaded and the options it was loaded with,
-    identical bookkeeping for every solver. **A subclass owns the
-    hand-off**: loading, pushing values, running, releasing, all of which are
-    its own library's shape and nothing else's.
+    identical bookkeeping for every solver. **A subclass owns the hand-off**:
+    loading, pushing values, running, releasing, all of which are its own
+    library's shape and nothing else's.
     """
 
     def __init__(

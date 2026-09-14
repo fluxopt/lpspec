@@ -89,11 +89,10 @@ class PolarsEngine:
 
         **A second call rebuilds over the same object**, which is what
         ``update`` is. The previous build is released *before* this one starts,
-        so a driver that re-solves in a loop stays at one model's peak — and the
-        held solver is told to remember its load first, so what it compares
-        against outlives frames it then stops pinning. This is the one moment
-        that costs nothing: the old frames are still here and the new ones are
-        not. A caller who never rebuilds never reaches it and never pays for it.
+        so a driver that re-solves in a loop stays at one model's peak — which
+        is also why the held solver is told to
+        :meth:`~lpspec.relational.sinks.solvers.base.Solver.remember` first: it
+        is holding those frames, and sixteen bytes is all it needs of them.
         A build that raises leaves no model at all rather than half of one,
         and ``diagnostics()`` answers from what was measured by then.
         """
