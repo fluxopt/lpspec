@@ -2233,3 +2233,23 @@ def test_evaluate_across_a_sweep_refuses_an_expression_that_reads_a_carried_para
     assert sweep.answer.evaluate('sum(p * cost)').height, 'an expression over static data evaluates per slice'
     with pytest.raises(lps.LpspecError, match='carried'):
         sweep.answer.evaluate('sum(soc_initial)')
+
+
+def test_evaluate_over_the_original_index_reindexes_like_primal(tmp_path):
+    """`evaluate(original_index=True)` reuses the reindex `primal` does — the sliced dim back, the slice key gone."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'roll.zip')
+    answer = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
+    reindexed = answer.evaluate('sum(p, over=generator)', original_index=True)
+    assert reindexed.columns == ['snapshot', 'value'], 'the sliced dim is restored and the slice key dropped'
+    by_hand = answer.primal('p', original_index=True).group_by('snapshot').agg(pl.col('value').sum()).sort('snapshot')
+    assert reindexed.sort('snapshot').equals(by_hand.select('snapshot', 'value')), (
+        'the evaluated expression reindexed equals the primal reindexed and summed by hand'
+    )
+
+
+def test_evaluate_over_the_original_index_refuses_a_quantity_reduced_over_the_sliced_dim(tmp_path):
+    """A scalar-per-window quantity has no local index to restore, so original_index refuses it — as `expression` does."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'roll.zip')
+    answer = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
+    with pytest.raises(lps.LpspecError, match="over 'snapshot'"):
+        answer.evaluate('sum(p * cost)', original_index=True)

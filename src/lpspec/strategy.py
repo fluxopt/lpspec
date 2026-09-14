@@ -930,7 +930,7 @@ class Runs:
             original_index=original_index,
         )
 
-    def evaluate(self, expression: str | Mapping[str, Any]) -> pl.DataFrame:
+    def evaluate(self, expression: str | Mapping[str, Any], *, original_index: bool = False) -> pl.DataFrame:
         """One expression the file never named, valued at every slice's solution — the slice key prepended.
 
         :meth:`~lpspec.relational.result.Result.evaluate` across a sweep: a
@@ -948,16 +948,21 @@ class Runs:
         Args:
             expression: What one ``expressions:`` entry takes — a string, or the
                 mapping carrying ``cases:`` with ``foreach:`` and ``otherwise:``.
+            original_index: Read over the dimension the axis sliced instead of
+                over the slice key, exactly as :meth:`primal` does — the same
+                reindex, the overlapping windows' recomputed rows dropped.
 
         Raises:
-            LpspecError: A Runs with no model behind it — a live solve's — or an
-                expression that reads a parameter the sweep carried.
+            LpspecError: A Runs with no model behind it — a live solve's — an
+                expression that reads a parameter the sweep carried, or
+                ``original_index`` on a hand-built axis or a quantity reduced
+                over the sliced dimension.
             LanguageError: A construct outside the language, or a name the model
                 does not declare.
         """
         if self._evaluate is None:
             raise LpspecError(no_model_behind_this_answer_message())
-        return self._evaluate(expression)
+        return self._reindexed(self._evaluate(expression), original_index=original_index)
 
     def _reindexed(self, frame: _Frame, *, original_index: bool) -> _Frame:
         """*frame* over the dimension the axis sliced, rather than over its slices.
