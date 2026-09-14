@@ -467,12 +467,11 @@ def test_a_solve_that_is_never_rebuilt_never_hashes_the_model(model, monkeypatch
 def test_a_rebuild_takes_the_evidence_and_the_fast_path_still_holds(model, monkeypatch):
     """Deferring it costs the session nothing: one digest per solve, as before (#1608).
 
-    The accounting is the whole risk. `remember` hashes the outgoing model as a
-    rebuild begins and `keeps` hashes the incoming one, so a careless deferral
-    pays twice per solve where the load-time hash paid once. It does not,
-    because a push leaves the digest describing what the solver still holds —
-    so the second rebuild, finding the digest already in place of the frames,
-    reads nothing.
+    The accounting is the whole risk. The rebuild reads the outgoing model's
+    digest and `keeps` reads the incoming one, so a careless deferral pays twice
+    per solve where the load-time hash paid once. It does not, because a push
+    leaves the digest describing what the solver still holds — so the second
+    rebuild, finding one already taken, reads nothing.
     """
     taken = _hashes(monkeypatch)
     model.solve()
@@ -495,8 +494,8 @@ def test_solving_the_same_model_twice_keeps_it_without_a_rebuild_between(model, 
     solve reached this hand-off without having passed a rebuild, so a digest
     taken *only* at rebuilds was missing exactly here, and a solver that can
     prove nothing is loaded again. It is not missing, because the solver reads
-    the digest off the tables it loaded and so has an answer whenever it is
-    asked. Two solves, no update, one load.
+    the digest off the tables it loaded whenever it is first asked, and `keeps`
+    asking is one such time. Two solves, no update, one load.
     """
     taken = _hashes(monkeypatch)
     model.solve()

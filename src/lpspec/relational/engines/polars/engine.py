@@ -90,14 +90,15 @@ class PolarsEngine:
         **A second call rebuilds over the same object**, which is what
         ``update`` is. The previous build is released *before* this one starts,
         so a driver that re-solves in a loop stays at one model's peak — which
-        is also why the held solver is told to
-        :meth:`~lpspec.relational.sinks.solvers.base.Solver.remember` first: it
-        is holding those frames, and sixteen bytes is all it needs of them.
+        is also why the held solver is asked for its
+        :meth:`~lpspec.relational.sinks.solvers.base.Solver.structure` first:
+        reading it is what lets go of these frames, and sixteen bytes is all the
+        solver needs of them.
         A build that raises leaves no model at all rather than half of one,
         and ``diagnostics()`` answers from what was measured by then.
         """
         if self._solver is not None:
-            self._solver.remember()
+            self._solver.structure()
         self._built = None
         self._measured = Measured()
         with _clocked(self._seconds, 'attach'):
