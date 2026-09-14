@@ -1,10 +1,9 @@
 """One build: every declaration into rows of the model frames a sink drains.
 
 Declarations build one at a time and concatenate at the end; their rows are
-independent, which is what lets the model be four frames rather than a graph.
-The two registries that fill *during* a build — the variable and constraint
-label frames — are here because a declaration built later has to see what
-earlier ones produced; everything attaching produced is frozen by contrast.
+independent. The two registries that fill *during* a build — the variable and
+constraint label frames — are here because a declaration built later has to see
+what earlier ones produced; everything attaching produced is frozen by contrast.
 """
 
 from __future__ import annotations
@@ -41,8 +40,7 @@ if TYPE_CHECKING:
     from lpspec.relational.engines.polars.attaching import AttachedSources
 
 
-#: The frames a sink reads, as schemas. Stated here because the assembly is
-#: what fills them and an empty model still has to have them.
+#: The frames a sink reads, as schemas.
 _COLS = ('lb', 'ub', 'vtype')
 _OBJ = ('col', 'coeff')
 _QUAD = ('col_l', 'col_r', 'coeff')
@@ -54,11 +52,9 @@ _SOS = ('set', 'type', 'col', 'weight', 'big_m')
 #: The dtype of each of those columns. ``vtype`` is an ``Enum`` over the
 #: variable types the plan declares, so a type added upstream and not reaching
 #: here fails where the column is built. ``col``, ``set`` and ``weight`` are
-#: ``Int32``, the solver's own index width, and the cast sits inside the
-#: per-declaration streaming collect rather than on the stacked frame, where it
-#: would allocate the narrow copy beside the wide one. A *label* stays
-#: ``Int64``: it is a position in the full pre-mask coordinate product, which
-#: can pass 2^31 while every survivor fits.
+#: ``Int32``, the solver's own index width. A *label* stays ``Int64``: it is a
+#: position in the full pre-mask coordinate product, which can pass 2^31 while
+#: every survivor fits.
 _DTYPES = {
     'col': pl.Int32, 'row': pl.Int64,
     'lb': pl.Float64, 'ub': pl.Float64, 'rhs': pl.Float64, 'coeff': pl.Float64,
@@ -72,11 +68,11 @@ _DTYPES = {
 class Measured:
     """What one build measured about itself, and a rebuild replaces wholesale.
 
-    Separate from :class:`BuiltModel` because it outlives it: ``close()``
-    releases the frames and diagnostics still answer, so everything here is a
-    count or a small frame rather than a read of the model. Most of it is
-    taken as it is measured, so a build that raises still reports what it got
-    to; the three sizes are written once the build has finished.
+    It outlives :class:`BuiltModel`: ``close()`` releases the frames and
+    diagnostics still answer, so everything here is a count or a small frame
+    rather than a read of the model. Most of it is taken as it is measured, so a
+    build that raises still reports what it got to; the three sizes are written
+    once the build has finished.
     """
 
     #: ``name -> (coordinates, rows)`` for each parameter attached short of the
@@ -87,10 +83,7 @@ class Measured:
     #: ``name -> (smallest, largest)`` coefficient magnitude, per constraint
     #: block, taken as each share is built.
     coefficients: dict[str, tuple[float, float]] = field(default_factory=dict)
-    #: ``name -> (smallest, largest)`` bound magnitude, per variable block. The
-    #: axis a solver reports and does not scale for you: HiGHS prints a
-    #: ``Bound`` range beside its ``Matrix`` one, equilibrates the second and
-    #: answers the first with advice to the caller.
+    #: ``name -> (smallest, largest)`` bound magnitude, per variable block.
     bounds: dict[str, tuple[float, float]] = field(default_factory=dict)
     #: ``name -> (smallest, largest)`` right-hand-side magnitude, per constraint
     #: block, over the rows that survived.
@@ -105,8 +98,6 @@ class Measured:
 class BuiltModel:
     """One build's product: the frames a sink drains, and what reads them back.
 
-    A value, because a build is finished when it exists — which is what makes
-    releasing it one assignment and "has this engine got a model" one question.
     The compiler holds the same ``variables`` dict rather than a copy.
     """
 
@@ -195,9 +186,8 @@ class Assembly:
         The matrix and ``rows`` leave in ``(row, col)`` order, as ``Tables``
         promises its sinks. The stack already has it — each share leaves
         sorted and owns the next run of rows — so the order is *checked* with
-        one linear scan rather than sorted at the peak of the build.
-        :func:`_row_starts` reads the CSR index off that order, after which
-        ``row`` is dropped from the matrix: 8 bytes per entry no sink reads.
+        one linear scan rather than sorted. :func:`_row_starts` reads the CSR
+        index off that order, after which ``row`` is dropped from the matrix.
         """
         cols = [self._build_variable(name, v) for name, v in self.program.variables.items()]
         sets = [self._build_sos(s, self.program.variable(s.variable)) for s in self.program.sos.values()]
@@ -239,9 +229,8 @@ class Assembly:
 
         A quotient left-joins its divisor, so a missing value leaves a null —
         and a term whose row was masked out, or whose numerator variable is
-        absent, never gets this far, which is what keeps the refusal from
-        becoming a wall on ordinary sparse data. Asked of the stack before any
-        cell collapses, since ``sum`` reads a null as zero.
+        absent, never gets this far. Asked of the stack before any cell
+        collapses, since ``sum`` reads a null as zero.
         """
         undefined = int(stacked.get_column('coeff').null_count())
         if undefined:
@@ -256,14 +245,13 @@ class Assembly:
         Nothing runs unconditionally except three linear probes — the null
         count, whether the stack arrives in order, whether any cell repeats —
         so the sort and the aggregate run only when a probe says they would
-        change something (#520). The share is rechunked first: a streaming
-        collect returns morsels as chunks, and ``shift(1)`` pays at every
-        boundary where ``is_sorted`` does not (#576); the assembly needs a
-        contiguous matrix anyway (#550).
+        change something. The share is rechunked first: a streaming collect
+        returns morsels as chunks, and ``shift(1)`` crosses chunk boundaries
+        that ``is_sorted`` does not.
 
         Zeros go before any of that, so the probes read them and the sort
         orders them no longer — pruned behind a probe too, so a share with
-        nothing to drop pays no rechunk. A cancelling pair survives to the
+        nothing to drop skips the rechunk. A cancelling pair survives to the
         aggregate and only becomes a zero there, so the prune runs again on
         the path that aggregated, and only on it.
 
@@ -349,7 +337,7 @@ class Assembly:
         position**, split at the ``over`` dim, by two divisions rather than by
         reading a dim's ordinal per member. A position is the label itself
         where the variable dropped nothing; a masked one reads the ordinals
-        and renumbers the sets densely (#520, #687). A member's weight is its
+        and renumbers the sets densely. A member's weight is its
         coordinate's position in the declared order, so a masked-out
         coordinate leaves its neighbours adjacent rather than leaving a hole.
 
@@ -402,13 +390,12 @@ class Assembly:
         fragment is aggregated to its own coordinates and left-joined, so a
         coordinate it has no row for contributes zero.
 
-        **The coverage check rides on the rows pass rather than taking its own.**
-        Both read the same joined carrier, so asking separately collects every
-        constant's join twice. The flag is a boolean column dropped once counted,
-        and the refusal still precedes any use of the rows. It answers for the
-        piece the row is given, which is why a piece that arrives short of the
-        parameter behind it — a translation past the edge, a group no member
-        maps to — is caught here and nowhere else.
+        **The coverage check rides on the rows pass rather than taking its
+        own**, both reading the same joined carrier. The flag is a boolean
+        column dropped once counted, and the refusal still precedes any use of
+        the rows. It answers for the piece the row is given, which is why a
+        piece that arrives short of the parameter behind it — a translation past
+        the edge, a group no member maps to — is caught here and nowhere else.
 
         What it cannot answer for is a gap an aggregation summed away, so the
         two checks above it ask the fragments and the parameters instead,
@@ -554,8 +541,7 @@ class Assembly:
         a join can find but a row that was never there.
 
         Nothing is read for a parameter that arrived dense — it cannot be
-        short anywhere — which is what keeps this off the cost of an ordinary
-        build.
+        short anywhere.
         """
         found = [
             pair
@@ -597,11 +583,9 @@ class Assembly:
     ) -> pl.DataFrame | None:
         """One constraint's quadratic entries as ``(row, col_l, col_r, coeff)``.
 
-        The matrix share's twin, deliberately the *simple* version: it sorts
-        and aggregates unconditionally where :meth:`_matrix_share` probes
-        first, a model having few quadratic rows and each a handful of entries.
-        Pairs are ordered by column index for :meth:`_objective_quadratic`'s
-        reason.
+        It sorts and aggregates unconditionally, where :meth:`_matrix_share`
+        probes first. Pairs are ordered by column index for
+        :meth:`_objective_quadratic`'s reason.
         """
         if not quads:
             return None
@@ -630,9 +614,8 @@ class Assembly:
 
         A row with no variables is not a constraint — it asserts something
         about constants, which the solver cannot act on. Three provenances
-        reach that shape (an absent variable, an empty reduction, a missing
-        coefficient) and all three drop the row, so the rule is stated once
-        here.
+        reach that shape — an absent variable, an empty reduction, a missing
+        coefficient — and all three drop the row.
 
         *kept* is the row set the share had terms for, which is
         :meth:`_matrix_share`'s to answer: the share it returns has been pruned
@@ -674,8 +657,7 @@ class Assembly:
         hand-off scatters with ``dense[at] = values``, which keeps the *last*
         write. The aggregate runs only when a column repeats, probed by
         :func:`_repeats_a_label`: the stack arrives unordered, so adjacency
-        proves nothing, and asking the mul join to maintain order tripled an
-        objective phase for nothing (#581).
+        proves nothing.
         """
         if o is None:
             return None
@@ -730,10 +712,9 @@ class Assembly:
 def short_parameters(program: program.Program, attached: AttachedSources) -> dict[str, tuple[int, int]]:
     """Which parameters arrived short, and by how much: ``name -> (reach, rows)``.
 
-    Arithmetic over two dicts attaching already filled — a dimension's height and
-    a parameter's — so it costs no pass over any source. The door has refused
-    duplicates and strangers, so the height *is* the number of coordinates
-    covered.
+    Arithmetic over two dicts attaching already filled — a dimension's height
+    and a parameter's. The door has refused duplicates and strangers, so the
+    height *is* the number of coordinates covered.
     """
     short: dict[str, tuple[int, int]] = {}
     for name, p in program.parameters.items():
@@ -751,12 +732,10 @@ def _constant_parameters(
 ) -> Iterator[tuple[str, program.Mask | None]]:
     """Every parameter under *node*, each with the region it stands in.
 
-    A region narrows what the pieces under it owe — the cap a file states for
-    its flagged steps says nothing about the rest — and regions compose by
+    A region narrows what the pieces under it owe, and regions compose by
     conjunction as the walk descends, which is what
     :func:`~lpspec.relational.engines.polars.fragments.both_regions` says for a
-    product of two pieces. The eager lane's counterpart walks in evaluated
-    boolean arrays instead, because that is the shape its own checks take.
+    product of two pieces.
 
     Args:
         node: The expression to walk.
@@ -775,21 +754,12 @@ def _constant_parameters(
 
 
 def declares_quadratic(c: program.ConstraintDeclaration) -> bool:
-    """Whether constraint *c* multiplies two variable-carrying operands, either side.
-
-    One home, because unrelated readers act on it — what the compiler is told
-    to build, which declarations to build last, which rows come back without a
-    dual.
-    """
+    """Whether constraint *c* multiplies two variable-carrying operands, either side."""
     return program.is_quadratic(c.lhs) or program.is_quadratic(c.rhs)
 
 
 def _ordered_pair() -> tuple[pl.Expr, pl.Expr]:
-    """A quadratic pair canonicalised by column index, so ``x·y`` and ``y·x`` land in one row.
-
-    Left unordered, a sink loads half the coefficient twice — right by
-    accident on a symmetric Hessian, silently wrong in the LP section.
-    """
+    """A quadratic pair canonicalised by column index, so ``x·y`` and ``y·x`` land in one row."""
     return (
         pl.min_horizontal('var_label', 'var_label_2').cast(_DTYPES['col_l']).alias('col_l'),
         pl.max_horizontal('var_label', 'var_label_2').cast(_DTYPES['col_r']).alias('col_r'),
@@ -799,18 +769,13 @@ def _ordered_pair() -> tuple[pl.Expr, pl.Expr]:
 def _magnitude_range(frame: pl.DataFrame, *columns: str) -> tuple[float, float] | None:
     """The smallest and largest magnitude across *columns*, or ``None`` where none has one.
 
-    Magnitudes rather than signed extremes, which is the question a solver's
-    own range lines answer: a row scaled by ``-1e9`` is as badly scaled as one
-    scaled by ``1e9``. Zero and infinity are dropped, so the four callers share
-    one rule and the answer stays comparable with the ``Bound`` and ``RHS``
-    lines a solver prints, which exclude the same two.
+    Magnitudes rather than signed extremes: a row scaled by ``-1e9`` is as
+    badly scaled as one scaled by ``1e9``. Zero and infinity are dropped,
+    matching the ``Bound`` and ``RHS`` lines a solver prints, which exclude the
+    same two.
 
-    **Each sign is reduced where it lies, so ``|x|`` is never built** —
-    absolute values over the whole column, then a mask, then the survivors,
-    allocated three vectors the size of the model to answer with two floats
-    (#1592). Both signs are asked because the smallest magnitude can be
-    interior to either, and a frame rather than a series is what lets a
-    declaration's columns share the pass.
+    Each sign is reduced where it lies, so ``|x|`` is never built. Both signs
+    are asked because the smallest magnitude can be interior to either.
     """
     sides: list[pl.Expr] = []
     for i, column in enumerate(columns):
@@ -832,8 +797,7 @@ def _without_zeros(matrix: pl.DataFrame) -> pl.DataFrame:
     """*matrix* with the entries that cannot reach the answer removed.
 
     A coefficient of exactly zero states that a variable is not in a row, which
-    is what an absent row already states, and only one of the two costs the
-    solver a nonzero to load and presolve away.
+    is what an absent row already states.
 
     **A pruned share can no longer say which rows had terms**, and a row whose
     every coefficient is zero still asserts something — ``0 >= 10`` is
@@ -849,9 +813,7 @@ def _ordered_rows(matrix: pl.DataFrame) -> pl.Series:
 
     Only ever called where the caller has *established* that order — the
     ``#ordered`` probe returned true, or the sort ran, or the aggregate ended
-    on ``sort('row', 'col')``. Telling polars so turns the distinct pass from a
-    hash build into a walk of the run boundaries, 3.4 ms to 1.0 ms at 1M
-    entries over 10k rows (#1589).
+    on ``sort('row', 'col')``.
 
     ``set_sorted`` is an assertion, not a check: on a column that is not
     ascending it returns whichever labels the walk happens to see, which is a
@@ -865,17 +827,8 @@ def _ordered_rows(matrix: pl.DataFrame) -> pl.Series:
 def _repeats_a_label(labels: pl.Series, count: int) -> bool:
     """Whether any of *labels* occurs twice, over a dense ``0..count-1`` space.
 
-    The question is a yes/no, and hashing every entry to answer it costs more
-    than the aggregate it guards on a stack that has no repeat at all. Labels
-    are the solver's own indices, so they index a scratch bitmap directly:
-    13.8 ms to 4.4 ms at 1M entries over 1M columns, and the same answer on
-    every case in ``bench/`` (#1589).
-
-    The count is ``count_nonzero`` rather than ``sum``: the pass is over the
-    *bitmap*, so it costs the column count whatever the objective's density,
-    and a sparse objective on a wide model is where that shows — 1.7 ms
-    against ``n_unique``'s 1.3 ms at 100k entries over 10M columns, where
-    ``sum`` took 6.5.
+    Labels are the solver's own indices, so they index a scratch bitmap
+    directly.
 
     *count* must exceed every label — it is the declaration counter the labels
     were drawn from, so a caller passing a stale one indexes out of bounds and
@@ -889,9 +842,9 @@ def _repeats_a_label(labels: pl.Series, count: int) -> bool:
 def _pruned(matrix: pl.DataFrame) -> pl.DataFrame:
     """*matrix* without its zeros — unchanged, and not rechunked, when it has none.
 
-    Filtering leaves a chunked frame and the ``shift(1)`` probes downstream pay
-    at every boundary (#576), so a share with no zero to drop must not pay a
-    rechunk to discover that.
+    Filtering leaves a chunked frame that the ``shift(1)`` probes downstream
+    read across every boundary, so a share with no zero to drop is returned as
+    it is.
     """
     if not matrix.select(pl.col('coeff').eq(0).any()).item():
         return matrix
@@ -901,11 +854,9 @@ def _pruned(matrix: pl.DataFrame) -> pl.DataFrame:
 def _row_starts(ordered: pl.DataFrame, row_count: int) -> npt.NDArray[np.int64]:
     """Each row's first entry in the row-ordered *ordered* — CSR's own index.
 
-    Run-length, scatter, cumulative sum: ``bincount`` pays per entry — 26 ms
-    against rle's 7 ms at 10M entries over 100k rows (#550) — and
-    ``searchsorted`` per row times log entries. *ordered* must ascend in
-    ``row``: a row whose entries arrived in two runs would have the first run
-    overwritten and the spans silently wrong.
+    Run-length, scatter, cumulative sum. *ordered* must ascend in ``row``: a
+    row whose entries arrived in two runs would have the first run overwritten
+    and the spans silently wrong.
     """
     runs = ordered['row'].rle()
     starts = np.zeros(row_count + 1, dtype=np.int64)

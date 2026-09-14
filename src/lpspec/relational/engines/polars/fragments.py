@@ -6,9 +6,7 @@ arithmetic over it — product, quotient, power, negation, and the absence rule
 that decides which rows a reduction is allowed to see.
 
 It holds no state and reads no data: everything here takes fragments and
-returns fragments, which is what lets
-:mod:`~lpspec.relational.engines.polars.compiler` be about *which* query a plan
-node becomes rather than about what a term is.
+returns fragments.
 
 Column conventions, relied on by the engine:
 
@@ -46,8 +44,8 @@ def join_on(
 ) -> pl.LazyFrame:
     """``left.join(right)`` keyed by *dims* — a cross join where there are none.
 
-    One home for the fact that the empty coordinate product is one real row,
-    so a scalar piece joins by crossing rather than by an empty key.
+    The empty coordinate product is one real row, so a scalar piece joins by
+    crossing rather than by an empty key.
     """
     if dims:
         return left.join(right, on=list(dims), how=how, maintain_order=maintain_order)
@@ -115,8 +113,7 @@ class Presence:
 
 
 #: What a fragment is a piece *of*. ``term`` and ``quad`` differ only in how
-#: many label columns the coefficient multiplies, which is why the shape
-#: operators read :attr:`TermFragment.carried` rather than branching.
+#: many label columns the coefficient multiplies.
 Kind = Literal['term', 'quad', 'const']
 
 
@@ -141,10 +138,9 @@ class TermFragment:
     reduction clears it, ``sum`` skipping absent slots rather than propagating
     them (the absence rules).
 
-    A **tuple**, because a quadratic term stands on two variables and is absent
-    where either is. Joining two differently-keyed coordinate sets into one
-    frame would materialise a product to say what both halves already say, so
-    they travel side by side and each consumer applies them in turn.
+    A **tuple**: a quadratic term stands on two variables and is absent where
+    either is, so the presences travel side by side and each consumer applies
+    them in turn.
     """
 
     region: program.Mask | None = None
@@ -205,12 +201,7 @@ _LABELS: dict[Kind, list[str]] = {'term': ['var_label'], 'quad': ['var_label', '
 
 
 def value_column(kind: Kind) -> str:
-    """The value column a fragment of this kind carries.
-
-    A free function as well as a :class:`TermFragment` property because
-    :func:`join_mul` names the columns of the fragment it is *building*, whose
-    kind need not be either operand's.
-    """
+    """The value column a fragment of this kind carries."""
     return 'cval' if kind == 'const' else 'coeff'
 
 
@@ -221,14 +212,7 @@ def carried_columns(kind: Kind) -> list[str]:
 
 @dataclass(frozen=True)
 class CompiledExpression:
-    """An expression as fragments: variable terms, quadratic terms, a constant part.
-
-    Three tuples rather than one keyed by kind, because every consumer wants a
-    different subset of them and wants it named: a constraint row takes terms
-    and constants and refuses quadratics outright, the objective takes all
-    three, and a read of a named expression — every leaf a value by then —
-    the const parts alone.
-    """
+    """An expression as fragments: variable terms, quadratic terms, a constant part."""
 
     terms: tuple[TermFragment, ...]
     consts: tuple[TermFragment, ...]
@@ -290,8 +274,8 @@ def propagate_absence(compiled: CompiledExpression) -> CompiledExpression:
     join could only return them all.
 
     The presence frame is not deduplicated first: a semi-join asks whether a
-    key occurs, and occurring twice is still occurring, so the distinct changes
-    no row and costs a hash pass over every coordinate the variable has.
+    key occurs, and occurring twice is still occurring, so the distinct would
+    change no row.
     """
     absent = [(p, x) for p in (*compiled.terms, *compiled.quads, *compiled.consts) for x in p.presences]
     if not absent:
@@ -407,9 +391,9 @@ def join_pow(a: TermFragment, b: TermFragment) -> TermFragment:
 def join_quad(a: TermFragment, b: TermFragment) -> TermFragment:
     """``a * b`` where both carry a variable — one quadratic fragment.
 
-    A join on the dims the two share, so a quadratic term costs what a linear
-    one does: aligned is an equi-join, broadcast joins on the coarser side, and
-    the cross join is refused upstream (``math_spec.degree``).
+    A join on the dims the two share: aligned is an equi-join, broadcast joins
+    on the coarser side, and the cross join is refused upstream
+    (``math_spec.degree``).
 
     The second label is renamed on the way in, since both sides carry
     ``var_label`` and a suffix collision would pair a variable with itself —
