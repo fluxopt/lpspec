@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import polars as pl
 from math_spec import advice
 
+from lpspec import expressions
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source, declared, lowered
 from lpspec.layout import beside, check_the_target, write_archive
@@ -58,7 +59,7 @@ from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from math_spec.program import Program
+    from math_spec.program import ExpressionNode, Program
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep
 
@@ -146,6 +147,21 @@ class Model:
         self._sources = dict(sources)
         self._engine = PolarsEngine()
         self._fill()
+
+    def _lower(self, written: str | Mapping[str, Any]) -> ExpressionNode:
+        """One unnamed expression as a plan node, for a result reading a quantity the file never named.
+
+        Held here rather than passed to the engine at build, because the model
+        *as written* is what lowering reads and the engine may not see it
+        (docs/about/architecture.md, hard rule 2).
+        """
+        return expressions.lower(self._spec, written)
+
+    def _lower_all(
+        self, carried: Mapping[str, Any], added: Mapping[str, Any]
+    ) -> tuple[dict[str, ExpressionNode], dict[str, Any]]:
+        """A whole ``expressions:`` block as plan nodes, held here for :meth:`_lower`'s reason."""
+        return expressions.lower_all(self._spec, carried, added)
 
     def _fill(self) -> None:
         """Build the frames from whatever is attached now.
@@ -243,7 +259,13 @@ class Model:
         """
         out = None if archive is None else _the_archive_target(Path(archive))
         answered = replace(
-            self._engine.solve(solver_name, solver_options=solver_options, keep=keep),
+            self._engine.solve(
+                solver_name,
+                solver_options=solver_options,
+                keep=keep,
+                lower=self._lower,
+                lower_all=self._lower_all,
+            ),
             _spec_digest=self._digest,
             _solved_at=datetime.now(UTC),
         )
@@ -578,6 +600,6 @@ def _answer_under(out: Path, read: Reading) -> Result:
         _saved_frames(out / 'activity', read),
         'nothing',
         expressions,
-        no_duals,
+        _no_duals=no_duals,
         **carried,
     )

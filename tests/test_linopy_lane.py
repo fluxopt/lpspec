@@ -59,7 +59,7 @@ def test_the_lane_takes_sources_as_the_one_type():
     """The lane's two verbs annotate ``sources`` the way every door in ``api.py`` does."""
     from tests.test_architecture import sources_annotations
 
-    doors = {'build': lpspec_linopy.build, 'expression': lpspec_linopy.expression}
+    doors = {'build': lpspec_linopy.build, 'evaluate': lpspec_linopy.evaluate}
     assert sources_annotations(doors) == {'Mapping[str, Source]'}, (
         f'both lane verbs take sources as Mapping[str, Source], and these do not: {sources_annotations(doors)}'
     )
@@ -601,7 +601,7 @@ def test_the_two_lanes_agree_on_an_absent_slot_declared_zero_under_a_nonlinear_r
     path = yaml_file(ZERO_ABSENCE_YAML, 'zero_absence.yaml')
     with differential(path, ZERO_ABSENCE_DATA) as run:
         tidy = run.result.expression('grown')
-        eager = lpspec_linopy.expression(run.model, path, 'grown', dict(ZERO_ABSENCE_DATA))
+        eager = lpspec_linopy.evaluate(run.model, path, 'grown', dict(ZERO_ABSENCE_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
         assert got == pytest.approx(want), 'the two lanes disagree about an absent slot declared zero'
@@ -621,8 +621,8 @@ def test_a_dual_on_a_solve_that_left_none_is_refused_on_this_lane_too(yaml_file)
     built = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
     built.solve(solver_name='highs')
     with pytest.raises(LpspecError, match='duals are undefined'):
-        lpspec_linopy.expression(built, path, 'price', dict(EXPRESSION_DATA))
-    assert float(lpspec_linopy.expression(built, path, 'spend', dict(EXPRESSION_DATA)).sum()) > 0, (
+        lpspec_linopy.evaluate(built, path, 'price', dict(EXPRESSION_DATA))
+    assert float(lpspec_linopy.evaluate(built, path, 'spend', dict(EXPRESSION_DATA)).sum()) > 0, (
         'the refusal is per entry: the affine one still reads'
     )
 
@@ -637,7 +637,7 @@ def test_a_dual_on_a_solve_that_left_none_is_refused_on_this_lane_too(yaml_file)
     ],
 )
 def test_the_two_lanes_agree_on_a_named_expression(yaml_file, name):
-    """`result.expression(name)` and the lane's `expression` read one value.
+    """`result.expression(name)` and the lane's `evaluate` read one value.
 
     Including the standalone case: the rules for named expressions guarantees a never-referenced
     expression is parsed and name-checked, and #562 makes it readable — on
@@ -648,7 +648,7 @@ def test_the_two_lanes_agree_on_a_named_expression(yaml_file, name):
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
     with differential(path, EXPRESSION_DATA) as run:
         tidy = run.result.expression(name)
-        eager = lpspec_linopy.expression(run.model, path, name, dict(EXPRESSION_DATA))
+        eager = lpspec_linopy.evaluate(run.model, path, name, dict(EXPRESSION_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
         assert got == pytest.approx(want), f"the two lanes disagree about named expression '{name}'"
@@ -731,17 +731,38 @@ def test_a_named_expression_reads_off_a_masked_curve(yaml_file):
     path = yaml_file(MASKED_CURVE_YAML, 'masked_curve.yaml')
     with differential(path, MASKED_CURVE_DATA) as run:
         tidy = run.result.expression('spend')
-        eager = lpspec_linopy.expression(run.model, path, 'spend', dict(MASKED_CURVE_DATA))
+        eager = lpspec_linopy.evaluate(run.model, path, 'spend', dict(MASKED_CURVE_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
         assert got == pytest.approx(want), 'the two lanes disagree about a named expression over a masked curve'
 
 
-def test_the_lane_refuses_an_unknown_expression_name(yaml_file):
+def test_the_lane_values_an_expression_the_file_never_declared(yaml_file):
+    """An expression string is what `evaluate` takes, alongside a name the file declares.
+
+    Both spellings reach the same node — the language substitutes a declared
+    name where it stands — so the reader that used to refuse a string now
+    answers one, and `total_gen`'s own body is the check.
+    """
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
     m = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
-    with pytest.raises(KeyError, match='never an expression string'):
-        lpspec_linopy.expression(m, path, 'sum(p, over=generator)', dict(EXPRESSION_DATA))
+    m.solve(solver_name='highs')
+    written = lpspec_linopy.evaluate(m, path, 'sum(p, over=generator)', dict(EXPRESSION_DATA))
+    declared = lpspec_linopy.evaluate(m, path, 'total_gen', dict(EXPRESSION_DATA))
+    assert float(written.sum()) == pytest.approx(float(declared.sum())), (
+        'the body and the name it is declared under are one expression, so they read one value'
+    )
+
+
+def test_the_lane_refuses_an_expression_against_a_lowered_program(yaml_file):
+    """A Program is what a model lowered to, and lowering does not run backwards."""
+    from math_spec import to_program
+
+    path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
+    m = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
+    m.solve(solver_name='highs')
+    with pytest.raises(LpspecError, match='lowered Program'):
+        lpspec_linopy.evaluate(m, to_program(path), 'total_gen', dict(EXPRESSION_DATA))
 
 
 def test_one_set_of_tables_reaches_both_lanes(dispatch_yaml, dispatch_frame_inputs, tmp_path):
