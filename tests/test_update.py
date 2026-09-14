@@ -435,9 +435,8 @@ def test_the_digest_reads_the_counts_that_frame_its_vectors(count):
 def _hashes(monkeypatch) -> list[int]:
     """A counter of every ask for a digest, from however many objects ask.
 
-    A plain property in place of the `cached_property`, so an object asked twice
-    counts twice — which production does not pay, the cache being what makes
-    `_digest` cheap to repeat. Each count below is one object asked once.
+    A plain property in place of the `cached_property`, so one object asked
+    twice counts twice. Each count below is one object asked once.
     """
     from lpspec.relational.sinks import tables as tables_module
 
@@ -454,9 +453,8 @@ def _hashes(monkeypatch) -> list[int]:
 def test_a_solve_that_is_never_rebuilt_never_hashes_the_model(model, monkeypatch):
     """One solve, no digest — the comparison it would feed does not exist (#1608).
 
-    The digest runs over every byte of the model to make sixteen bytes that
-    only a *second* solve reads. A caller who solves once and closes pays for a
-    question nobody asks, which at the top of the ladder is the larger part of
+    Every byte of the model goes through that hash to make sixteen only a
+    *second* solve reads, and at the top of the ladder it is the larger part of
     the hand-off.
     """
     taken = _hashes(monkeypatch)
@@ -467,11 +465,10 @@ def test_a_solve_that_is_never_rebuilt_never_hashes_the_model(model, monkeypatch
 def test_a_rebuild_takes_the_evidence_and_the_fast_path_still_holds(model, monkeypatch):
     """Deferring it costs the session nothing: one digest per solve, as before (#1608).
 
-    The accounting is the whole risk. The rebuild reads the outgoing model's
-    digest and `keeps` reads the incoming one, so a careless deferral pays twice
-    per solve where the load-time hash paid once. It does not, because a push
-    leaves the digest describing what the solver still holds — so the second
-    rebuild, finding one already taken, reads nothing.
+    The accounting is the risk: the rebuild reads the outgoing model's digest
+    and `keeps` the incoming one, which would be twice per solve where the
+    load-time hash paid once. A push leaves the digest still describing what the
+    solver holds, so the second rebuild finds one taken and reads nothing.
     """
     taken = _hashes(monkeypatch)
     model.solve()
@@ -490,12 +487,10 @@ def test_a_rebuild_takes_the_evidence_and_the_fast_path_still_holds(model, monke
 def test_solving_the_same_model_twice_keeps_it_without_a_rebuild_between(model, monkeypatch):
     """A second solve of an *unchanged* model still takes the fast path (#1608).
 
-    The deferral's sharp edge, and the suite found it while it was still one: a
-    solve reached this hand-off without having passed a rebuild, so a digest
-    taken *only* at rebuilds was missing exactly here, and a solver that can
-    prove nothing is loaded again. It is not missing, because the solver reads
-    the digest off the tables it loaded whenever it is first asked, and `keeps`
-    asking is one such time. Two solves, no update, one load.
+    The deferral's sharp edge while it still was one: a digest taken *only* at
+    rebuilds is missing exactly here, and a solver that can prove nothing is
+    loaded again. It is not missing, because `keeps` asking is itself the first
+    ask. Two solves, no update, one load.
     """
     taken = _hashes(monkeypatch)
     model.solve()
@@ -507,19 +502,14 @@ def test_solving_the_same_model_twice_keeps_it_without_a_rebuild_between(model, 
 def test_a_rebuild_leaves_the_held_solver_pinning_none_of_the_old_model(model):
     """What outlives a build is the digest, never the frames it was read from (#1608).
 
-    The deferral's price: a solver that has not been rebuilt over yet holds the
-    tables it loaded, because reading its own digest is what lets a second solve
-    of an unchanged model prove anything. That reference has to go before the
-    next build allocates, or a driver re-solving in a loop stands at two models'
-    peak — the one being built and the one the solver is still holding — which
-    is the whole cost the deferral was avoiding.
+    The deferral's price is a solver holding the tables it loaded, and that
+    reference has to go before the next build allocates or a re-solving loop
+    stands at two models' peak.
 
-    **Asked after the rebuild and before the next solve**, which is the only
-    window where it is visible. `keeps` reads the digest too and so releases the
-    frames itself, one solve later — too late for the peak this is about, and
-    late enough to hide a missing release from a test that looks after solving.
-    Nothing about the *answer* changes either way, so the frames are asked
-    directly whether they are still reachable.
+    **Asked between the rebuild and the next solve**, the only window where it
+    shows: `keeps` releases the frames itself one solve later, too late for this
+    peak and late enough to hide a missing release from a test that looks after
+    solving. No answer changes either way, so reachability is asked directly.
     """
     model.solve()
     released = weakref.ref(model._engine._model.matrix)
