@@ -275,7 +275,7 @@ class Model:
         large primal is streamed to disk rather than passed through this
         process.
 
-        The cost row goes in after the answer rather than through
+        The metrics row goes in after the answer rather than through
         :meth:`Result.save`, which cannot write it: a result is one solve and
         the diagnostics it would come from are the model's whole life, so
         there is no reading of them a result could carry as its own. The

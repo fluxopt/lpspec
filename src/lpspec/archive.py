@@ -239,7 +239,7 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
         LayoutError: A member outside the layout or an *into* given for a
             directory, neither of which unpacks anything, and — once it is —
             an archive holding no digest table, or an answer whose layout has
-            moved since it was written or that holds no cost row.
+            moved since it was written or that holds no metrics row.
         LpspecError: An answer that names a different model than the one
             beside it.
         zipfile.BadZipFile: A file that is not a zip archive.
@@ -255,7 +255,7 @@ def scan_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
     """The same archive, read as its readers are called rather than now.
 
     :func:`load_archive`'s other half, and the same two types. What differs is
-    that nothing but the spec, the axis, the digest table and the cost row is
+    that nothing but the spec, the axis, the digest table and the metrics is
     read: the sources come back as the parquet paths they now are — a ``Path``
     being a source like any other, so attaching streams them from disk — and
     the answer reads each frame at the call that asks for it

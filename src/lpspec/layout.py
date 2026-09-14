@@ -187,7 +187,7 @@ def _digest_table(digests: Mapping[str, str], *, run: str) -> bytes:
     sources, a mapping's order being the caller's and not the model's.
 
     Stamped with *run* for the reason :func:`_put_the_answer` stamps the record
-    and the cost row: a table read across a directory of archives has to say
+    and the metrics: a table read across a directory of archives has to say
     which one each row came from, and the alternative is every reader parsing
     the paths. The run leads rather than trails, as the column every row of one
     archive shares.

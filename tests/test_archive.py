@@ -505,13 +505,13 @@ def test_a_case_that_wrote_a_file_and_one_that_did_not_are_still_one_table(
     assert files.height == 2, 'and the two files a warehouse globs are one table'
 
 
-def test_an_archive_holding_no_cost_row_is_refused_by_name(
+def test_an_archive_holding_no_metrics_row_is_refused_by_name(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     """The layout stamp cannot say this one, so the missing member has to.
 
     `format.json` is held at 0 while the layout moves, so an archive written
-    before the cost row reads as current and is short of a member instead.
+    before the metrics row reads as current and is short of a member instead.
     """
     lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
     (tmp_path / 'case' / ANSWER_DIR / METRICS_FILE).unlink()
@@ -827,10 +827,10 @@ def test_saving_an_answer_twice_leaves_only_the_second(
         lps.load_result(out).primal('p')
 
 
-def test_saving_an_answer_into_an_unpacked_archive_takes_its_cost_row_with_it(
+def test_saving_an_answer_into_an_unpacked_archive_takes_its_metrics_row_with_it(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    """A cost row belongs to the answer beside it, so a second save removes it.
+    """A metrics row belongs to the answer beside it, so a second save removes it.
 
     Unpacking an archive gives a directory `result.save` will take, and what a
     save leaves is one answer. A row saying what a different solve on a
