@@ -59,11 +59,17 @@ class PolarsEngine:
         #: The solver holding this model, kept between solves — the only thing
         #: a rebuild does *not* throw away. ``None`` until one has been solved.
         self._solver: sinks.Solver | None = None
-        #: The tables :attr:`_solver` was loaded with, which on a reformulating
-        #: sink are not ``_built``'s. Held only so a rebuild can hand them to
-        #: :meth:`~lpspec.relational.sinks.solvers.base.Solver.remember` before
-        #: they go; released there and by :meth:`close`, so nothing outlives the
-        #: model it describes.
+        #: The tables :attr:`_solver` was loaded with, held so that
+        #: :meth:`_settle` can hand them to
+        #: :meth:`~lpspec.relational.sinks.solvers.base.Solver.remember` while
+        #: they still exist; released by a rebuild and by :meth:`close`.
+        #:
+        #: **Holding them costs nothing for a model declaring no sets**, which is
+        #: nearly all of them: :func:`~lpspec.relational.sinks.ingestible`
+        #: returns the built tables *themselves* there, so this aliases frames
+        #: ``_built`` already holds and duplicates none of them. A reformulating
+        #: sink is the exception, where it is the rewrite — and that one the
+        #: solve held anyway, for as long as it ran.
         self._ingested: sinks.Tables | None = None
         #: How many solves this model has been through, and how many of them
         #: had to load the solver from scratch instead of pushing values onto
