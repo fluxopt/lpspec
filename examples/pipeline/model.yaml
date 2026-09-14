@@ -1,0 +1,49 @@
+description: >-
+  Least-cost dispatch of a generator fleet against an hourly load, with a
+  carbon read-out. The pipeline in run.py attaches data to this model, solves it
+  once per scenario, and reads the answer back.
+
+dimensions:
+  snapshot:
+    description: dispatch periods
+    dtype: int
+  generator:
+    description: generating units
+
+parameters:
+  p_max:
+    description: installed capacity
+    dims: [generator]
+  cost:
+    description: marginal cost
+    dims: [generator]
+  co2:
+    description: carbon intensity
+    dims: [generator]
+  load:
+    description: demand to be met
+    dims: [snapshot]
+
+variables:
+  p:
+    description: output of a generator in a snapshot
+    foreach: [snapshot, generator]
+    where: "p_max > 0"
+    bounds:
+      lower: 0
+      upper: p_max
+
+expressions:
+  emissions:
+    description: total carbon emitted over the horizon
+    expression: sum(p * co2)
+
+constraints:
+  power_balance:
+    foreach: [snapshot]
+    expression: sum(p, over=generator) == load
+
+objective:
+  sense: minimize
+  description: total cost of generation over the horizon
+  expression: sum(p * cost)

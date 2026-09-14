@@ -49,3 +49,6 @@ docs/*.pdf
 
 # the cell in flight, for a watchdog that outlives the process measuring it
 bench/results/.inflight
+
+# generated pipeline outputs (run examples/pipeline/run.py to produce them)
+examples/pipeline/out/

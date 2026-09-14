@@ -1,0 +1,4 @@
+# The pipeline needs lpspec and, for the validation layer, patito.
+# polars, HiGHS and the language come with lpspec.
+lpspec
+patito>=0.8

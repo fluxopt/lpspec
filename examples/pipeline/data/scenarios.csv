@@ -1,0 +1,5 @@
+name,load_scale,outage,price_gen,price_scale
+base case,1.0,,,1.0
+high demand,1.25,,,1.0
+coal outage,1.0,coal,,1.0
+gas price +60%,1.0,,gas,1.6

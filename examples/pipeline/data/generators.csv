@@ -1,0 +1,5 @@
+generator,p_max,cost,co2
+solar,90,5,0
+wind,80,12,0
+coal,120,38,0.90
+gas,200,62,0.37

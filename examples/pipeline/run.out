@@ -1,0 +1,27 @@
+1 · load
+   4 generators, 6 snapshots, 4 scenarios
+2 · validate
+   all domain rules pass — safe to attach
+3 · solve
+   base case        €24,680, 355 t CO2
+   high demand      €40,535, 502 t CO2
+   coal outage      €33,560, 159 t CO2
+   gas price +60%   €26,912, 355 t CO2
+4 · export
+   wrote summary.csv, dispatch.csv, prices.csv to examples/pipeline/out/
+5 · report
+   wrote examples/pipeline/out/report.html
+
+shape: (4, 5)
+┌────────────────┬──────────┬───────────┬───────────┬────────────┐
+│ name           ┆ feasible ┆ objective ┆ emissions ┆ peak_price │
+│ ---            ┆ ---      ┆ ---       ┆ ---       ┆ ---        │
+│ str            ┆ bool     ┆ f64       ┆ f64       ┆ f64        │
+╞════════════════╪══════════╪═══════════╪═══════════╪════════════╡
+│ base case      ┆ true     ┆ 24680.0   ┆ 355.2     ┆ 62.0       │
+│ high demand    ┆ true     ┆ 40535.0   ┆ 501.6     ┆ 62.0       │
+│ coal outage    ┆ true     ┆ 33560.0   ┆ 159.1     ┆ 62.0       │
+│ gas price +60% ┆ true     ┆ 26912.0   ┆ 355.2     ┆ 99.2       │
+└────────────────┴──────────┴───────────┴───────────┴────────────┘
+
+pipeline complete — 4/4 scenarios feasible
