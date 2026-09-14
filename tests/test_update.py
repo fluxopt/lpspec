@@ -511,14 +511,19 @@ def test_a_rebuild_leaves_the_held_solver_pinning_none_of_the_old_model(model):
     tables it loaded, because reading its own digest is what lets a second solve
     of an unchanged model prove anything. That reference has to go before the
     next build allocates, or a driver re-solving in a loop stands at two models'
-    peak — the one being built and the one the solver is still holding — for
-    every build after the first, which is the whole cost the deferral was
-    avoiding. Nothing about the *answer* would change, so no other test here can
-    see this: the frames are asked directly whether they are still reachable.
+    peak — the one being built and the one the solver is still holding — which
+    is the whole cost the deferral was avoiding.
+
+    **Asked after the rebuild and before the next solve**, which is the only
+    window where it is visible. `keeps` reads the digest too and so releases the
+    frames itself, one solve later — too late for the peak this is about, and
+    late enough to hide a missing release from a test that looks after solving.
+    Nothing about the *answer* changes either way, so the frames are asked
+    directly whether they are still reachable.
     """
     model.solve()
     released = weakref.ref(model._engine._model.matrix)
-    model.update({'load': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [12.0, 22.0, 32.0, 42.0]})}).solve()
+    model.update({'load': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [12.0, 22.0, 32.0, 42.0]})})
     gc.collect()
     assert released() is None, "the rebuilt-over model's matrix is still reachable, so the solver kept a whole model"
 
