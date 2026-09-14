@@ -76,17 +76,13 @@ if TYPE_CHECKING:
 #: A frame lazy or not, going in and coming back out the same way.
 _Frame = TypeVar('_Frame', pl.DataFrame, pl.LazyFrame)
 
-#: Parquet rather than pickle, and not a knob: zstd measured smaller *and*
-#: faster than pickling the frame, on compressible and incompressible data
-#: alike (#459).
+#: The compression codec frames are written with when they cross a process
+#: or spill.
 _COMPRESSION = 'zstd'
 
 
 class _Slice(NamedTuple):
     """One slice of a sweep: the key, the sources that build it, and what it owns.
-
-    A tuple on purpose: a hand-built axis is a plain list of ``(key, sources)``,
-    and those unpack the same way — which is why ``owns`` has a default.
 
     ``owns`` is how many coordinates of the re-indexed dimension this slice is
     responsible for, the rest being lookahead the next slice recomputes. It is
@@ -100,16 +96,12 @@ class _Slice(NamedTuple):
 
 
 #: What a spilled sweep carries beside its frames: the manifest saying whose
-#: sweep the directory is, and the coordinates each window owns. Named here
-#: because :class:`_Spill` writes them and :func:`load_runs` reads them back.
+#: sweep the directory is, and the coordinates each window owns.
 _MANIFEST_FILE = 'sweep.json'
 _OWNED_FILE = 'owned.parquet'
 
 #: The phases a slice clocks, in the order they run — the engine's own keys,
-#: which the columns suffix with ``_seconds``. Splatted into
-#: :class:`~lpspec.relational.parquet.SliceMetrics` below, so a name here that
-#: the type does not declare fails at the first slice rather than writing a
-#: column nothing reads.
+#: which the columns suffix with ``_seconds``.
 _PHASES = ('attach', 'build', 'handoff', 'solve')
 
 
@@ -137,10 +129,8 @@ class _CarryRule:
     """One resolved carry: which variable moves into a parameter, and how.
 
     ``dropped`` is the one dimension the carry collapses, and ``None`` where the
-    whole frame moves forward. Which coordinate of it is handed on is not
-    recorded, because it is not the caller's to choose: a carry exists to meet
-    the next slice at the seam, so the coordinate is the last one this slice
-    owns, and only the axis knows which that is.
+    whole frame moves forward. The coordinate of it handed on is the last one
+    this slice owns, which only the axis knows.
     """
 
     variable: str
@@ -153,9 +143,8 @@ class _CarryRule:
         The variable's dims minus the parameter's is the one dimension the
         carry collapses; everything else passes through, so a myopic pathway
         hands a whole capacity vector forward rather than one number at a time.
-        Nothing here reads data, which is why the plan resolves before the axis
-        slices any. Whether the dropped dimension is one the axis can answer for
-        is :func:`_check_the_carry`'s, which is where the axis is.
+        Nothing here reads data. Whether the dropped dimension is one the axis
+        can answer for is :func:`_check_the_carry`'s.
         """
         if parameter not in program.parameters:
             raise LpspecError(f'carry writes parameter {parameter!r}, which the spec does not declare')
@@ -214,8 +203,8 @@ class _Answer:
     """One slice, solved and read out — what the fold absorbs.
 
     What :func:`_serially` and :func:`_pooled` both produce. Plain data
-    throughout, because a worker returns it and so it has to pickle: frames,
-    strings and numbers, never a result or a model.
+    throughout — frames, strings and numbers, never a result or a model — so
+    it can cross a process.
     """
 
     meta: Record
@@ -226,11 +215,9 @@ class _Answer:
     duals: dict[str, pl.DataFrame]
     #: Every declared named expression, evaluated at this slice's solution.
     expressions: dict[str, pl.DataFrame]
-    #: Why this slice has none, when it has none. Carried rather than raised:
-    #: one mixed-integer slice must not fail a whole sweep.
+    #: Why this slice has none, when it has none.
     no_duals: str | None
-    #: Per expression, why this slice could not evaluate it — the same
-    #: carried-not-raised rule, per name because each fails on its own data.
+    #: Per expression, why this slice could not evaluate it.
     no_expressions: dict[str, str]
 
 
@@ -281,10 +268,8 @@ class _OriginalIndex:
 def _one_key_type(keys: Sequence[Label], key_name: str) -> pl.DataType:
     """The type every file writes *key_name* as, settled over the whole sweep.
 
-    Refused rather than coerced where the keys disagree: an ``int`` beside a
-    ``float`` would widen every key to a float, so a sweep keyed 1 and 2 would
-    read back keyed 1.0 and 2.0 — the caller's own labels, changed to make the
-    files line up.
+    Keys of disagreeing types are refused rather than coerced, so the caller's
+    labels are not widened to line the files up.
 
     Raises:
         LpspecError: The keys are of more than one type.
@@ -305,15 +290,11 @@ def _keyed(frame: pl.DataFrame, key_name: str, key: Label, dtype: pl.DataType) -
 
     The literal takes *dtype* rather than ``pl.lit``'s own, which reads a
     Python int as ``Int32`` where every dict-built frame here reads it as
-    ``Int64``. A sweep whose record and whose frames disagree about the type
-    of its own key still joins in polars and still casts in duckdb, but cannot
-    be concatenated or loaded into one typed table — and the files outlive the
-    process that could paper over it.
+    ``Int64``.
 
     *dtype* is the whole sweep's, never this key's: keys of ``[1, 2.5]`` infer
-    per file to ``Int64`` and ``Float64``, which is the same split one file
-    later, so the type has to be settled over the keys before any of them is
-    written.
+    per file to ``Int64`` and ``Float64``, so the type is settled over the keys
+    before any file is written.
     """
     return frame.select(pl.lit(key, dtype=dtype).alias(key_name), pl.all())
 
@@ -352,11 +333,8 @@ class _Spill:
     ) -> _Spill:
         """The directory ready to take this sweep, or refused as another's.
 
-        A directory already holding a sweep is **checked**, never re-stamped:
-        resuming into one an earlier build wrote would otherwise overwrite the
-        layout it is in and mix two under one manifest, which is the one
-        failure the stamp exists to catch. Only a directory that holds no
-        sweep yet is stamped, and it is stamped with the manifest.
+        A directory already holding a sweep is **checked**, never re-stamped;
+        only one holding no sweep yet is stamped, with the manifest.
 
         Raises:
             LayoutError: The directory holds a sweep in another layout.
@@ -411,9 +389,7 @@ class _Spill:
 
         Raises:
             LayoutError: A slice whose record or metrics is short of a column
-                or carries one nothing declares, which is a slice written
-                before the layout moved. Read as frames instead, it would be
-                folded into a sweep whose own table is the wrong shape.
+                or carries one nothing declares.
         """
         row = pl.read_parquet(self._file('objective', position)).drop(self.key_name).row(0, named=True)
         held = pl.read_parquet(self._file('metrics', position)).drop(self.key_name).row(0, named=True)
@@ -438,10 +414,9 @@ class _Spill:
     def whole(self, kind: str, name: str) -> list[pl.DataFrame]:
         """The same frames read into memory, one per slice that wrote one, in slice order.
 
-        Apart rather than concatenated, because that is how a sweep holds what
-        it did not spill: one frame per slice, each already carrying the key
-        column this wrote it with, so a held sweep read back off disk is the
-        same value as the one that never went to disk.
+        One frame per slice, apart rather than concatenated, each already
+        carrying the key column it was written with — the same value a held
+        sweep keeps in memory.
         """
         under = self.directory / kind / name
         return [pl.read_parquet(file) for file in sorted(under.glob('*.parquet'))]
@@ -454,9 +429,9 @@ def _listed(entries: Mapping[str, str]) -> str:
 def _least(program: Program, sources: Mapping[str, Source], name: str) -> int:
     """The least value of parameter *name*, which decides how far its rows read ahead; an empty one reads nowhere.
 
-    Read through :func:`~lpspec.sources.least_value`, so every shape a source
-    may arrive in — a parquet path, a table, a scalar, a ``{label: value}``
-    map, a sequence — is the one door's business rather than this driver's.
+    Read through :func:`~lpspec.sources.least_value`, which handles every shape
+    a source may arrive in — a parquet path, a table, a scalar, a
+    ``{label: value}`` map, a sequence.
 
     Raises:
         DataError: *name* is a parameter nothing supplies.
@@ -499,10 +474,8 @@ class EachCoordinate:
     def _check_the_program(self, program: Program, sources: Mapping[str, Source]) -> None:
         """Refuse a sweep over a dimension the spec declares, which nothing would then supply.
 
-        The only thing a coordinate sweep needs of the program, and the reason
-        it needs nothing else: the column is dropped from every source, so a
-        spec that declared it could not be built — and a program that never
-        sees the axis cannot tie it together either.
+        The column is dropped from every source, so a spec that declared *dim*
+        could not be built.
 
         Raises:
             LpspecError: The spec declares *dim*.
@@ -560,8 +533,7 @@ class EachWindow:
         For building one window alone: ``lps.build(spec, axis.slices(sources)[37][1])``.
         Pairs, so a window's ownership is not in them: solved as a list the
         slices key by ``key_name=``, ``original_index`` is refused and a
-        ``carry`` cannot collapse a dimension, because none of the three has
-        anything to read the seam off. Windowing stays this axis's own.
+        ``carry`` cannot collapse a dimension.
         """
         return [(current.key, current.sources) for current in self._slice(sources, self._key_name())[0]]
 
@@ -595,16 +567,15 @@ class EachWindow:
 
         The program answers through
         :attr:`~math_spec.program.Program.separability` and nothing here walks
-        it: a window needs ``into`` *windowable*, and
-        its lookahead to cover what the rows read ahead. Where a reach is an
-        offset the data decides, the parameter's least value is read off the
-        data and :meth:`~math_spec.program.Separability.resolved` folds it in,
-        so the rule turning a value into a reach stays in the language.
+        it: a window needs ``into`` *windowable*, and its lookahead to cover
+        what the rows read ahead. Where a reach is an offset the data decides,
+        the parameter's least value is read off the data and
+        :meth:`~math_spec.program.Separability.resolved` folds it in.
 
         What the rows read *behind* is not refused: it is what a window's
-        first rows meet the edge policy with, which is the rolling-horizon
-        seed and the caller's to carry. A position the program counts is
-        reported as a warning, every window restarting it.
+        first rows meet the edge policy with, the rolling-horizon seed the
+        caller carries. A position the program counts is reported as a warning,
+        every window restarting it.
 
         Raises:
             LpspecError: ``into`` names no dimension the spec declares, the
@@ -653,12 +624,7 @@ class EachWindow:
     def _slice(self, sources: Mapping[str, Source], key_name: str) -> tuple[list[_Slice], _OriginalIndex]:
         """One slice per window, keyed by its **first coordinate**.
 
-        Keyed by the coordinate rather than the window's position, which is
-        what names a window in the caller's own terms. Sources without *dim*
-        pass through untouched.
-
-        The filter leads because it is what a scan can push down; the
-        re-indexing that follows is over a frame already filtered to one window.
+        Sources without *dim* pass through untouched.
 
         **A window owns the coordinates its block names**, and the
         :class:`_OriginalIndex` records which — the rest is lookahead the next
@@ -692,10 +658,9 @@ class EachWindow:
         """How many coordinates each window owns, in order, summing to exactly *total*.
 
         An ``int`` repeats until the axis runs out, the last window owning
-        whatever is left — which is why no window in the middle of a sweep can
-        own fewer than ``steps``, and so why a carry always finds its seam. A
-        sequence is taken as written, and one that stops short of the axis is
-        refused rather than dropping the coordinates it never reached.
+        whatever is left. A sequence is taken as written, and one that stops
+        short of the axis is refused rather than dropping the coordinates it
+        never reached.
 
         Raises:
             DataError: A sequence of blocks that does not cover the axis.
@@ -720,8 +685,7 @@ class EachWindow:
         return out
 
 
-#: What ``axis=`` accepts. A plain list of ``(key, sources)`` is also
-#: taken, so an irregular ladder or a hand-built draw needs no third class.
+#: What ``axis=`` accepts. A plain list of ``(key, sources)`` is also taken.
 Axis = EachCoordinate | EachWindow
 
 
@@ -759,9 +723,7 @@ class Runs:
     #: The ``_seconds`` columns are this slice's own share, so a slow sweep
     #: says which slice, and which phase of it.
     metrics: pl.DataFrame
-    #: Per slice, not concatenated. Joining them is the reader's work so a
-    #: sweep pays it for the names actually read, and so the concatenated copy
-    #: never exists beside the pieces it was built from.
+    #: Per slice, not concatenated.
     _primals: dict[str, list[pl.DataFrame]] = field(repr=False, default_factory=dict)
     _duals: dict[str, list[pl.DataFrame]] = field(repr=False, default_factory=dict)
     _expressions: dict[str, list[pl.DataFrame]] = field(repr=False, default_factory=dict)
@@ -1018,14 +980,11 @@ class Runs:
         """The named values of one *kind* as one :class:`xarray.Dataset`; all of that kind by default.
 
         One kind per call: a dual and a variable of the same name would
-        collide, and mean something else per row. Costs more than
-        ``Result``'s does — each name arrives dense over its own dims *and*
-        over every slice. Name the few you need, or use :meth:`save`,
-        which writes every kind.
+        collide, and mean something else per row. Name the few you need, or
+        use :meth:`save`, which writes every kind.
 
-        No ``original_index``: this and :meth:`save` export what the
-        sweep *holds*, and the original index is lossy — a bulk export is the
-        wrong place to drop the lookahead rows.
+        No ``original_index``: this and :meth:`save` export what the sweep
+        *holds*, lookahead rows included.
 
         Args:
             names: What to include; none means every name of *kind* some
@@ -1052,9 +1011,8 @@ class Runs:
             The directory.
 
         A sweep whose every slice terminated without values writes each
-        slice's record and no frames, as one such solve does: an infeasible
-        sweep is an answer a set of saved cases needs on disk, not an export
-        that refuses.
+        slice's record and no frames, as one such solve does, rather than
+        refusing.
 
         Raises:
             LpspecError: The sweep is spilled — its frames are in a directory
@@ -1214,7 +1172,7 @@ def scan_runs(directory: str | Path) -> Runs:
 
 
 def axis_manifest(axis: EachCoordinate | EachWindow) -> dict[str, Any]:
-    """*axis* as the JSON an archive carries — the one home for that shape, with :func:`axis_from`."""
+    """*axis* as the JSON an archive carries, read back by :func:`axis_from`."""
     if isinstance(axis, EachCoordinate):
         return {'each': 'coordinate', 'dim': axis.dim}
     steps = axis.steps if isinstance(axis.steps, int) else list(axis.steps)
@@ -1235,10 +1193,8 @@ def _what_an_archive_needs(
 ) -> tuple[Path, Spec, EachCoordinate | EachWindow] | None:
     """Where the archive goes, the spec it holds and the axis that re-runs it — ``None`` for no archive.
 
-    One value, so that "this sweep is being archived" is a single thing to
-    test rather than three that have to agree. Asked before a slice is solved:
-    both refusals are answerable from the arguments, and an hour of solving
-    should not end in one the call already implied.
+    Checked before a slice is solved: both refusals are answerable from the
+    arguments.
     """
     if archive is None:
         return None
@@ -1384,14 +1340,12 @@ def _archive_the_sweep(
     """Pack the sweep's question and its answers into one zip at *out*.
 
     A spilled sweep is packed from its spill, which already holds exactly the
-    layout an archive's ``answer/`` is: nothing is re-materialised, and the
-    sweep that was too large to hold is the one this serves. A held sweep is
-    laid out in a scratch directory first.
+    layout an archive's ``answer/`` is; nothing is re-materialised. A held
+    sweep is laid out in a scratch directory first.
 
-    What the sources are checked against is *one_slice* — the door the sweep
-    itself built from — while what is written is all of them, the column the
-    axis cuts on included, because one copy per slice is what a sweep exists
-    not to write.
+    The sources are checked against *one_slice* — the door the sweep itself
+    built from — while what is written is all of them, the column the axis cuts
+    on included.
     """
     manifest = axis_manifest(axis)
     whole = carries(sources, axis.dim)
@@ -1414,8 +1368,7 @@ def _check_the_carry(
 
     A carry that collapses a dimension hands on the last coordinate the slice
     owns, so the dimension has to be the one the axis advances along —
-    :attr:`EachWindow.into`. Any other is a coordinate nothing here can choose,
-    and choosing one would be model arithmetic in a driver argument.
+    :attr:`EachWindow.into`.
     """
     for parameter, rule in plan.items():
         if parameter not in first:
@@ -1532,8 +1485,7 @@ def _named_slice(key: Label, position: int, count: int) -> Generator[None, None,
     """Whatever a slice raises leaves naming the slice, as a note on the exception.
 
     A note rather than a new message: the error stays the engine's own, so a
-    caller matching on it still matches, and the traceback of a fifty-window
-    sweep says which window without anyone counting.
+    caller matching on it still matches.
     """
     try:
         yield
@@ -1599,15 +1551,12 @@ def _pooled(
 def _answers(result: Result, program: Program, metrics: SliceMetrics) -> _Answer:
     """One slice's answer, read out of *result*: its meta row, its cost, and its frames.
 
-    Read here rather than held, so that what a sweep accumulates is frames and
-    never results — holding a result per slice would hold that slice's label
-    frames with it. Every declared expression is evaluated here rather than
-    deferred, for the same reason: the deferred reader holds the build's frames.
+    What a sweep accumulates is frames, never results: every declared
+    expression is evaluated here rather than deferred.
 
     **A slice that answered nothing is not a failure**, and neither is one
-    whose duals are undefined: an integer variable makes them so, and one such
-    slice must not fail a whole sweep. ``Result.dual`` already writes the
-    sentence saying why, so it is caught and carried rather than rewritten.
+    whose duals are undefined, which an integer variable makes so. The reason
+    ``Result.dual`` gives is caught and carried rather than rewritten.
     """
     meta = Record.of(
         result.termination_condition,
@@ -1642,9 +1591,8 @@ def _run_slice(
 ) -> _Answer:
     """One slice, start to finish, over plain data — the *pooled* branch.
 
-    Module-level and closure-free on purpose: a remote executor has to pickle
-    what it is handed, and a bound method or a lambda over the axis object
-    cannot cross.
+    Module-level and closure-free: a remote executor pickles what it is handed,
+    and a bound method or a lambda over the axis object cannot cross.
     """
     with build(document, _decode(encoded)) as model, model.solve(**call) as result:
         answer = _answers(result, program, _slice_metrics(model.diagnostics(), None))
@@ -1665,12 +1613,11 @@ def _key_column(
 ) -> str:
     """What to call the column holding the slice key.
 
-    Two rules, both the caller's rather than any axis's: an axis that cannot
-    name its own key has to be told, and no key may be a column the frames
-    already carry — a dimension the spec declares, or one of the fixed names
-    every reader and :attr:`Runs.objective` use. What a class axis calls its
-    key when it is not told is :meth:`EachCoordinate._key_name` and
-    :meth:`EachWindow._key_name`.
+    Two rules: an axis that cannot name its own key has to be told, and no key
+    may be a column the frames already carry — a dimension the spec declares,
+    or one of the fixed names every reader and :attr:`Runs.objective` use. What
+    a class axis calls its key when it is not told is
+    :meth:`EachCoordinate._key_name` and :meth:`EachWindow._key_name`.
 
     Raises:
         LpspecError: A hand-built axis with no ``key_name``, a name the spec
@@ -1719,9 +1666,8 @@ def _shares_filesystem(executor: Executor, declared: bool | None) -> bool:
 def _crosses_a_process(executor: Executor) -> bool:
     """Whether a slice's sources have to be encoded to reach *executor*.
 
-    A thread pool runs in this process, so encoding would be a parquet round
-    trip for a boundary that is not there. Every other executor is assumed to
-    cross, none of them being answerable.
+    A thread pool runs in this process and does not cross. Every other executor
+    is assumed to cross, none of them being answerable.
     """
     return not isinstance(executor, ThreadPoolExecutor)
 
@@ -1732,15 +1678,13 @@ def _encode(
     """Sources in the shape a worker can be handed.
 
     A path the workers can reach stays a path. A path they cannot travels as
-    **its own bytes, untouched** — decoding and re-encoding a parquet file
-    produces byte-identical output for 79x the CPU (#459).
-    A table held in memory is written to parquet, which beats pickling the
-    frame on size and time; a source that is not a table — a number, a map,
-    a bare sequence — crosses as itself.
+    **its own bytes, untouched**. A table held in memory is written to parquet;
+    a source that is not a table — a number, a map, a bare sequence — crosses
+    as itself.
 
-    *memo* keeps a source no slice rewrote — the static tables, which is most
-    of them — from being encoded once per slice. ``bytes`` is what
-    :func:`_decode` reads back, and cannot be confused with a path.
+    *memo* keeps a source no slice rewrote from being encoded once per slice.
+    ``bytes`` is what :func:`_decode` reads back, and cannot be confused with a
+    path.
     """
     out: dict[str, Any] = {}
     for name, obj in sources.items():
@@ -1767,8 +1711,7 @@ def _decode(encoded: Mapping[str, Any]) -> dict[str, Any]:
     """The inverse of :func:`_encode`, and a pass-through for what never crossed.
 
     Called on every returned frame rather than only the encoded ones: a frame
-    that stayed in this process is not ``bytes`` and comes back untouched, so
-    the caller needs no branch and the two paths cannot answer differently.
+    that stayed in this process is not ``bytes`` and comes back untouched.
     """
     return {name: pl.read_parquet(io.BytesIO(v)) if isinstance(v, bytes) else v for name, v in encoded.items()}
 
@@ -1781,8 +1724,7 @@ def _decode(encoded: Mapping[str, Any]) -> dict[str, Any]:
 def carries(sources: Mapping[str, Source], dim: str) -> dict[str, pl.LazyFrame]:
     """The sources that carry a column called *dim*, by name.
 
-    Derived rather than declared, and the one home for that derivation: a
-    source carrying the slice key that is *not* filtered produces a
+    A source carrying the slice key that is *not* filtered produces a
     duplicate-coordinate error at attach time, so a sweep and an archive have
     to agree about which they are.
     """
@@ -1793,9 +1735,8 @@ def carries(sources: Mapping[str, Source], dim: str) -> dict[str, pl.LazyFrame]:
 def _coordinates(sources: Mapping[str, Source], dim: str, verb: str) -> tuple[dict[str, pl.LazyFrame], list[Label]]:
     """The sources a slice has to filter, by name, and the ordered coordinates to slice.
 
-    *carrying* is derived rather than declared: a source that carries the slice
-    key and is *not* filtered produces a duplicate-coordinate error at attach
-    time, so the derivation cannot silently miss one.
+    A source that carries the slice key and is *not* filtered produces a
+    duplicate-coordinate error at attach time.
 
     The coordinates are sorted as **values of the column**, so a window is a
     span of those and never of the numbers in them.
@@ -1806,8 +1747,7 @@ def _coordinates(sources: Mapping[str, Source], dim: str, verb: str) -> tuple[di
     Warns:
         LpspecWarning: A source carrying *dim* is short of a coordinate
             another has. The slice there builds it empty, and an absent row
-            reads as zero — which is how a model masks, and so is reported
-            rather than refused, the way the engine reports sparsity.
+            reads as zero.
     """
     carrying = carries(sources, dim)
     if not carrying:
