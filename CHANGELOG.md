@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.327](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.326...v0.0.1-alpha.327) (2026-09-14)
+
+
+### Performance
+
+* **engine:** a model is hashed for a re-solve only once a re-solve is reached ([#1608](https://github.com/fluxopt/lpspec/issues/1608)) ([8d27e88](https://github.com/fluxopt/lpspec/commit/8d27e88b791335c20412faab45a7727a1b6a7a6c))
+
 ## [0.0.1-alpha.326](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.325...v0.0.1-alpha.326) (2026-09-14)
 
 
