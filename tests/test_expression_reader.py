@@ -448,9 +448,9 @@ def test_extending_a_loaded_archive_reads_the_added_names(result, archived):
     assert report.expression('co2').sort('snapshot').equals(live.sort('snapshot')), (
         'the added name reads the archived primal, matching the live evaluate'
     )
-    assert report.expression('total_gen').height, 'the model’s own declared names are still readable'
+    assert report.expression('total_gen').height, 'the declared names the model itself holds are still readable'
     later = report.extend({'expressions': {'per_gen': 'co2 / total_gen'}})
-    assert later.expression('per_gen').height, 'a later block reads an earlier one’s added entry'
+    assert later.expression('per_gen').height, 'a later block reads the entry an earlier one added'
 
 
 def test_extending_a_bare_answer_directory_still_refuses(result, tmp_path):
