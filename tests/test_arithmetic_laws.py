@@ -464,6 +464,21 @@ def test_a_sparse_divisor_is_refused_rather_than_read_as_zero():
         )
 
 
+def test_a_sparse_divisor_written_as_a_power_is_named_and_refused_on_both_lanes():
+    """The same gap under `**`, where the walk used to see nothing (#1536).
+
+    `program.children` had no branch for a power, so `d ** 2` hid `d` from every
+    walk this package asks the language for a divisor's names. The relational
+    lane named the divisor `''`, and the eager lane found no divisor to check,
+    filled the missing row with a zero coefficient and built `inf` into the
+    matrix with no refusal at all — the two lanes disagreed, and neither answer
+    was usable. energy-models/math-spec#403 fixed the walk upstream; this pins
+    what is owed here, that both lanes name `d` and refuse in one sentence.
+    """
+    spec = override(DIVISOR_SPEC, **{'constraints.c.expression': 'x / (d ** 2) <= 10'})
+    both_lanes_refuse(spec, SPARSE_D, match="parameter 'd' is used as a divisor")
+
+
 def test_a_sparse_divisor_in_the_objective_is_refused_too():
     """The refusal holds in the one declaration with no rows to mask.
 
