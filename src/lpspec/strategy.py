@@ -1324,7 +1324,7 @@ def solve_over(
     if spill is not None:
         write_reasons(spill.directory, folded._no_duals, folded._no_expressions)
     if archiving is not None:
-        _archive_the_sweep(*archiving, sources, folded, slices[0].sources)
+        _archive_the_sweep(*archiving, dict(carry or {}), sources, folded, slices[0].sources)
     return folded
 
 
@@ -1332,6 +1332,7 @@ def _archive_the_sweep(
     out: Path,
     spec: Spec,
     axis: EachCoordinate | EachWindow,
+    carry: Mapping[str, str],
     sources: Mapping[str, Source],
     folded: Runs,
     one_slice: Mapping[str, Source],
@@ -1348,6 +1349,8 @@ def _archive_the_sweep(
     on included.
     """
     manifest = axis_manifest(axis)
+    if carry:
+        manifest['carry'] = dict(carry)
     whole = carries(sources, axis.dim)
     if folded._spill is not None:
         write_archive(out, spec, sources, checked=one_slice, whole=whole, axis=manifest, answer=folded._spill.directory)

@@ -107,7 +107,9 @@ class SweepArchive:
     sweep's sources carry the column it slices on, which the model does not
     declare, so they are legible only beside it.
 
-    ``lps.solve_over(sweep.spec, sweep.sources, sweep.axis)`` runs it again.
+    ``lps.solve_over(sweep.spec, sweep.sources, sweep.axis, carry=sweep.carry)``
+    runs it again — the carry included, without which a re-run of a chained
+    sweep would drop the coupling and answer a different question.
 
     Attributes:
         spec: The spec as written, as :class:`SolveArchive` holds it.
@@ -115,6 +117,9 @@ class SweepArchive:
             rows. A table or a path, as :class:`SolveArchive` holds them.
         axis: :class:`~lpspec.strategy.EachCoordinate` or
             :class:`~lpspec.strategy.EachWindow`, the axis that cut them.
+        carry: ``{parameter: variable}`` the sweep chained its slices with, empty
+            where it chained none. Stored because neither the spec nor the
+            frames record it, and a re-run needs it to be the same sweep.
         answer: Every slice's answers, keyed by slice — **held** from
             :func:`load_archive`, so :meth:`~lpspec.strategy.Runs.primal` and
             its siblings answer, and **spilled** from :func:`scan_archive`,
@@ -129,6 +134,7 @@ class SweepArchive:
     spec: Spec
     sources: Mapping[str, Source]
     axis: EachCoordinate | EachWindow
+    carry: Mapping[str, str]
     answer: Runs
     source_digests: pl.DataFrame
 
@@ -281,6 +287,7 @@ def _archive_under(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
         saved = under / ANSWER_DIR
         answer = attach_evaluator((load_result if whole else scan_result)(saved), spec, sources)
         return SolveArchive(spec, sources, answer, digests, _metrics_in(saved))
-    axis = axis_from(json.loads(axis_member.read_text()))
+    manifest = json.loads(axis_member.read_text())
+    axis = axis_from(manifest)
     slices = (load_runs if whole else scan_runs)(under / ANSWER_DIR)
-    return SweepArchive(spec, sources, axis, slices, digests)
+    return SweepArchive(spec, sources, axis, manifest.get('carry', {}), slices, digests)

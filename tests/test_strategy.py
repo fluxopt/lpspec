@@ -2172,3 +2172,25 @@ def test_an_export_reads_the_key_off_each_frame_and_skips_an_empty_one(sweep):
     by_key = strategy._by_key([empty, *frames], sweep.key_name)
     assert list(by_key) == ['high', 'low', 'mid'], 'one entry per frame that has rows, keyed by its own key'
     assert all(sweep.key_name not in frame.columns for frame in by_key.values()), 'the key column is dropped'
+
+
+def test_a_sweep_archive_carries_its_carry(tmp_path):
+    """The carry is config the frames do not hold, so the archive stores it beside the axis."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll')
+    assert lps.load_archive(tmp_path / 'roll').carry == {'soc_initial': 'soc'}, 'the carry reads back as it was given'
+
+
+def test_a_sweep_archive_with_no_carry_reads_an_empty_carry(tmp_path):
+    """A sweep that chained nothing carries nothing — the manifest omits the key and the reader defaults it."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'plain')
+    assert lps.load_archive(tmp_path / 'plain').carry == {}, 'no carry given, none stored, an empty mapping read back'
+
+
+def test_a_carried_sweep_reruns_from_its_archive_with_the_stored_carry(tmp_path):
+    """The stored carry is what makes a re-run the same sweep: with it the chained answer is reproduced."""
+    original = lps.solve_over(
+        WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll'
+    )
+    packed = lps.load_archive(tmp_path / 'roll')
+    rerun = lps.solve_over(packed.spec, packed.sources, packed.axis, carry=packed.carry)
+    assert rerun.primal('soc').equals(original.primal('soc')), 'the re-run with the stored carry matches the archive'
