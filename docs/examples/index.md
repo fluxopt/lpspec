@@ -28,6 +28,7 @@ Every page starts from data in the shape
 | [piecewise segment lines](piecewise_lp.md) | A piecewise-linear cost curve stated as **the lines its segments lie on** — [piecewise](piecewise.md) with one line changed, and the only method that declares no auxiliary variable at all. |
 | [piecewise curves of differing length](piecewise_ragged.md) | Per-generator cost curves of **different lengths**, each as long as its own data. |
 | [piecewise conversion](piecewise_conversion.md) | Converters whose flows share one curve, where **how many flows** is data. |
+| [district heating](district_heating.md) | A heating plant that meets one network's heat from four committed units — a boiler, a CHP unit, a heat pump and an electric boiler — each on its own conversion curve. |
 | [special-ordered sets](sos.md) | A piecewise-linear cost curve stated as a **special-ordered set** — [piecewise](piecewise.md) with one line changed, handed to the solver as a set it branches on itself. |
 | [monthly budget](monthly_budget.md) | A cap on what each technology may generate per calendar month — an aggregate over a *coarser grouping of time*, written with the same operator that places a generator on a bus. |
 | [multi-period](multi_period.md) | Capacity decided once per investment period, binding at every snapshot inside it — and the periods need not be the same size. |
@@ -99,6 +100,7 @@ A model here is one [spec](../reference/glossary.md) with its data attached.
 | model | verified | `sum` | `sum(by=)` | `at()` | `shift` | `shift(edge='wrap')` | `where` | `bounds` | `piecewise` | `sos` | MILP |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | [dispatch](dispatch.md) | **✔** 10500 | **✓** | · | · | · | · | **✓** | **✓** | · | · | · |
+| [district_heating](district_heating.md) | · | **✓** | **✓** | **✓** | **✓** | **✓** | **✓** | **✓** | · | **✓** | **✓** |
 | [monthly_budget](monthly_budget.md) | **✔** 9500 | **✓** | **✓** | · | · | · | · | **✓** | · | · | · |
 | [multi_period](multi_period.md) | **✔** 10020 | **✓** | · | **✓** | · | · | · | **✓** | · | · | · |
 | [piecewise](piecewise.md) | **✔** 3850 | **✓** | · | · | · | · | · | **✓** | **✓** | · | · |
