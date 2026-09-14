@@ -216,11 +216,7 @@ def _widest(within: Any) -> int:
 
 
 def _merged(terms: list[Any]) -> Any:
-    """The sum of *terms*, which all share one set of coordinates.
-
-    Merged in one step rather than added one at a time: a running sum
-    re-concatenates the term axis once per lag it has already absorbed.
-    """
+    """The sum of *terms*, which all share one set of coordinates."""
     if isinstance(terms[0], xr.DataArray):
         return reduce(operator.add, terms)
     from linopy import merge
@@ -315,8 +311,7 @@ class _Groups:
     """How one lookup partitions an axis, as the arrays every in-group gather reads.
 
     Computed once per operand and shared across a window's lags: the partition
-    does not depend on the lag, and the roster is the one Python loop over the
-    axis in this lane.
+    does not depend on the lag.
 
     Attributes:
         labels: The axis's own labels, in order.

@@ -97,9 +97,8 @@ def _check_bounds_are_defined(name: str, vdef: program.VariableDeclaration, data
 def _bound(bound: program.ExpressionNode, dataset: xr.Dataset) -> Any:
     """A bound as linopy takes it: the literal, or the named parameter's array.
 
-    Read raw rather than through :func:`absence.coefficient`: the absence
-    rules' zero is a coefficient and never a bound, so a gap has to survive to
-    :func:`_check_bounds_are_defined` instead of being filled in.
+    A gap is not filled here: absence's zero is a coefficient and never a
+    bound, so a gap survives to :func:`_check_bounds_are_defined`.
     """
     if isinstance(bound, program.Constant):
         return bound.value
@@ -115,12 +114,7 @@ def _bound(bound: program.ExpressionNode, dataset: xr.Dataset) -> Any:
 
 
 def _build_sos(ctx: EvaluationContext) -> None:
-    """Attach every ``sos:`` block to the variable it names.
-
-    linopy holds a set the same way the language declares one — a variable, a
-    dimension of it, a type — so this is the block handed over, not a
-    formulation rebuilt.
-    """
+    """Attach every ``sos:`` block to the variable it names."""
     for name, sos in ctx.program.sos.items():
         with note(f"while building sos '{name}'"):
             ctx.model.add_sos_constraints(
@@ -139,8 +133,7 @@ def _build_sos(ctx: EvaluationContext) -> None:
 def _refuse_what_the_lane_cannot_build(p: program.Program) -> None:
     """Refuse a construct the language accepts and this lane cannot build, before linopy is asked.
 
-    What the lane lacks is :data:`lpspec.lanes.LANES`'s to say; refused in the
-    language's own words rather than as linopy's ``NotImplementedError``.
+    What the lane lacks is :data:`lpspec.lanes.LANES`'s to say.
     """
     if missing := LANES['linopy'].missing(required(p)):
         raise LaneError(lane_cannot_build_message('linopy', missing))
@@ -172,12 +165,10 @@ _FLIPPED: dict[program.ConstraintSense, program.ConstraintSense] = {'==': '==', 
 def _sides(lhs: Any, rhs: Any, sense: program.ConstraintSense) -> tuple[Any, Any, program.ConstraintSense]:
     """The comparison with a term on the left, which is the only side linopy takes one on.
 
-    The language puts the terms on neither side — either may carry them — so a
-    file writing ``cap >= p`` says what ``p <= cap`` says, and both have to build.
-    ``add_constraints`` accepts an expression as its ``lhs`` alone and answers
-    anything else with a ``TypeError`` naming a linopy type, so the swap
-    happens here; reading the row from the other side reverses the comparison,
-    which is the whole of what it costs.
+    Either side may carry the terms — ``cap >= p`` and ``p <= cap`` both build
+    — and ``add_constraints`` accepts an expression as its ``lhs`` alone,
+    answering anything else with a ``TypeError`` naming a linopy type. Reading
+    the row from the other side reverses the comparison.
 
     Reached only once a side is known to carry a term, so the ``rhs`` returned
     where the ``lhs`` is term-free is the one that does.
@@ -241,12 +232,7 @@ OBJECTIVE_CONSTANT_IS_A_LANE_GAP = (
 
 
 def _refuse_an_objective_constant(expr: Any) -> None:
-    """Refuse an objective this lane cannot build, before linopy is asked.
-
-    linopy's own refusal names neither the file nor the other lane. A check
-    rather than a `try`, because the upstream message is not a contract and a
-    nonzero constant is the whole of what it means.
-    """
+    """Refuse an objective this lane cannot build, before linopy is asked."""
     const = getattr(expr, 'const', None)
     if const is not None and bool(np.any(np.asarray(const) != 0)):
         raise LaneError(OBJECTIVE_CONSTANT_IS_A_LANE_GAP)
@@ -364,13 +350,9 @@ def _dual(name: str, ctx: EvaluationContext) -> xr.DataArray:
 def _in_region(value: Any, mask: xr.DataArray) -> Any:
     """*value* where the region holds, and a hard zero everywhere else.
 
-    A **fill**, not a multiplication. Multiplying would carry the value's own
-    absence out of the region that owns it: the ``otherwise`` of a commitment
-    file shifts with no fill and so has nothing at the first snapshot, which
-    times a false mask is still nothing rather than zero, and the row the
-    other regions do cover would be unmade by a region that does not claim it.
-    Inside the mask absence still stands. A bare number is the one value with
-    no absence to protect, so there the mask multiplies.
+    A **fill**, not a multiplication: inside the mask absence still stands, and
+    outside it the value is a hard zero. A bare number has no absence to
+    protect, so there the mask multiplies.
     """
     if hasattr(value, 'to_linexpr'):
         value = value.to_linexpr()
