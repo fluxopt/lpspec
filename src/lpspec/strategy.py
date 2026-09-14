@@ -1073,7 +1073,7 @@ def _by_key(frames: Sequence[pl.DataFrame], key_name: str) -> dict[Label, pl.Dat
 
 
 def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], objective: pl.DataFrame) -> str:
-    """Why *name* has no frame.
+    """The message for *name* having no frame.
 
     A sweep keeps everything every slice produced, so a declared name arrives
     here only when no slice produced it; an undeclared name arrives here too,

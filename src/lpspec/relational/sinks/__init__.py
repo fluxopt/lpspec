@@ -61,7 +61,7 @@ def sink_capabilities(name: str) -> caps.Capabilities:
 
 
 def _blocker(name: str, needed: Collection[caps.Capability]) -> Callable[[Sequence[str]], str] | None:
-    """Why the sink called *name* refuses capabilities *needed*, or ``None``.
+    """The sink called *name*'s refusal of capabilities *needed*, or ``None``.
 
     The one home for what "takes" means, so the refusal and the takers it names
     cannot disagree. What comes back is the message short of its third clause, a
@@ -76,7 +76,7 @@ def _blocker(name: str, needed: Collection[caps.Capability]) -> Callable[[Sequen
 
 
 def refusal(program: program.Program, name: str) -> str | None:
-    """Why the sink called *name* cannot take *program*, or ``None``.
+    """The sink called *name*'s refusal of *program*, or ``None`` where it takes it.
 
     The refusal names **the construct, the sink, and the sinks that do take
     it**. Two shapes: a capability the sink lacks outright, and a pair it has
