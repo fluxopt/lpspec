@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.328](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.327...v0.0.1-alpha.328) (2026-09-14)
+
+
+### Documentation
+
+* **bench:** the benchmark page publishes the newest run, and says where that run left a gap ([#1618](https://github.com/fluxopt/lpspec/issues/1618)) ([089f816](https://github.com/fluxopt/lpspec/commit/089f816a926eeedb3e00fe894ac1823ef32704da))
+
 ## [0.0.1-alpha.327](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.326...v0.0.1-alpha.327) (2026-09-14)
 
 
