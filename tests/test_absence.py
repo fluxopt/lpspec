@@ -140,6 +140,50 @@ def test_a_where_is_the_escape_from_the_constant_side_check():
         )
 
 
+def test_a_constant_piece_beside_a_term_is_refused_on_both_lanes():
+    """A parameter added beside a variable term is a constant piece, not skipped (#1521).
+
+    `w * x + c <= 100` reads `w * x <= 100` where the file says `w * x <= 100 - c`,
+    the missing `c` filled with the zero that is a bound. The eager check asked
+    its question of a side carrying no variable, so a piece beside a term went
+    unasked and the lane built the wrong row in silence; the relational lane,
+    asking of every constant fragment, refused alone.
+    """
+    spec = override(SPARSE_COEFFICIENT_SPEC, **{'constraints.cap.expression': 'w * x + c <= 100'})
+    both_lanes_refuse(spec, SPARSE_CONSTANT_DATA, match="parameter 'c' covers 1 fewer")
+
+
+def test_a_constant_piece_beside_a_term_is_refused_through_a_reduction():
+    """The same piece under a sum, where both lanes were blind (#1521).
+
+    `sum(w * x, over=t) + sum(c, over=t) <= 100` sums the gap away before either
+    lane's per-coordinate check can see it — the eager lane skipped the side for
+    its variable, the relational lane could not see the hole through the sum
+    (#1465's mechanism) — so the parameter is asked directly, of both lanes now.
+    """
+    spec = override(
+        SPARSE_COEFFICIENT_SPEC,
+        **{'constraints.cap': {'foreach': [], 'expression': 'sum(w * x, over=t) + sum(c, over=t) <= 100'}},
+    )
+    both_lanes_refuse(spec, SPARSE_CONSTANT_DATA, match="parameter 'c' covers 1 fewer")
+
+
+def test_a_sparse_coefficient_beside_a_constant_piece_is_still_a_zero():
+    """The widened check still reads a sparse coefficient as a zero (#1521).
+
+    `w * x + c <= 100` with `w` short and `c` whole builds and both lanes agree:
+    `w` is a coefficient wherever a variable stands with it, so its missing row
+    is the zero the absence rules allow rather than an uncovered bound — only the
+    piece `c`, which no variable stands with, is owed its coordinates.
+    """
+    data = {'t': [0, 1, 2], 'w': pd.Series({1: 1.0, 2: 1.0}), 'c': pd.Series({0: 5.0, 1: 4.0, 2: 5.0})}
+    spec = override(SPARSE_COEFFICIENT_SPEC, **{'constraints.cap.expression': 'w * x + c <= 100'})
+    with differential(spec, data, lp=True) as run:
+        assert run.result.objective == pytest.approx(10.0 + 10.0 + 10.0, rel=RTOL), (
+            't=0: w absent, so its term is zero and x runs to its bound; elsewhere the bound is slack'
+        )
+
+
 #: `south` is a load-only bus: both generators sit on `north`, so the group
 #: behind `south`'s constant side has no members at all.
 GROUPED_CONSTANT_SPEC = {

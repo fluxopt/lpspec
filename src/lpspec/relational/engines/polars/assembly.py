@@ -544,11 +544,7 @@ class Assembly:
         short anywhere.
         """
         found = [
-            pair
-            for side in (c.lhs, c.rhs)
-            if not program.carries_variable(side)
-            for pair in _constant_parameters(side)
-            if pair[0] in self.measured.sparse
+            pair for side in (c.lhs, c.rhs) for pair in _constant_parameters(side) if pair[0] in self.measured.sparse
         ]
         for param, region in sorted(found, key=itemgetter(0)):
             missing = self._uncovered_coordinates(frame, param, c, region)
@@ -728,9 +724,16 @@ def short_parameters(program: program.Program, attached: AttachedSources) -> dic
 
 
 def _constant_parameters(
-    node: program.ExpressionNode, region: program.Mask | None = None
+    node: program.ExpressionNode, region: program.Mask | None = None, coefficient: bool = False
 ) -> Iterator[tuple[str, program.Mask | None]]:
-    """Every parameter under *node*, each with the region it stands in.
+    """Every parameter standing as a constant piece under *node*, each with the region it stands in.
+
+    A constant piece is a parameter in a variable-free additive position — `hi`
+    in `x + hi`, or in `sum(x) + sum(hi)`. A parameter a variable stands with in
+    a product is a coefficient instead, and a sparse coefficient is a zero the
+    absence rules allow, so ``coefficient`` records having passed through such a
+    product on the way down and suppresses the parameters below it. Additive
+    structure, a reduction and a division by it leave the flag as it was.
 
     A region narrows what the pieces under it owe, and regions compose by
     conjunction as the walk descends, which is what
@@ -741,16 +744,28 @@ def _constant_parameters(
         node: The expression to walk.
         region: The region *node* already stands in — the recursion's own
             accumulator, ``None`` at the call a caller writes.
+        coefficient: Whether *node* stands in a product with a variable — the
+            recursion's own accumulator, ``False`` at the call a caller writes.
     """
+    if isinstance(node, program.Variable):
+        return
     if isinstance(node, program.Parameter):
-        yield node.name, region
+        if not coefficient:
+            yield node.name, region
         return
     if isinstance(node, program.Cases):
         for r in node.regions:
-            yield from _constant_parameters(r.value, both_regions(region, r.when))
+            yield from _constant_parameters(r.value, both_regions(region, r.when), coefficient)
+        return
+    if isinstance(node, program.Multiply):
+        yield from _constant_parameters(node.left, region, coefficient or program.carries_variable(node.right))
+        yield from _constant_parameters(node.right, region, coefficient or program.carries_variable(node.left))
+        return
+    if isinstance(node, program.Divide):
+        yield from _constant_parameters(node.numerator, region, coefficient)
         return
     for child in program.children(node):
-        yield from _constant_parameters(child, region)
+        yield from _constant_parameters(child, region, coefficient)
 
 
 def declares_quadratic(c: program.ConstraintDeclaration) -> bool:
