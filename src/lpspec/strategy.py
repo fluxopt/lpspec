@@ -73,12 +73,12 @@ from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to
 from lpspec.sources import least_value
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
 
     import pandas as pd
     import xarray as xr
     from math_spec import Spec
-    from math_spec.program import Program
+    from math_spec.program import ExpressionNode, Program
 
     from lpspec.api import Model
     from lpspec.lanes import Buildable, Label, Source
@@ -1463,6 +1463,36 @@ def attach_sweep_readers(
     )
 
 
+def _per_slice(
+    runs: Runs, spec: Spec, sources: Mapping[str, Source], axis: EachCoordinate | EachWindow
+) -> Iterator[tuple[Label, Any, Any]]:
+    """``(key, evaluate, extend)`` for each slice that produced a solution, its model rebuilt once.
+
+    The one place a slice is put back together: its stored frames become a
+    :class:`~...compiler.Solution` against the model rebuilt from that slice's
+    cut of the sources, and the engine hands back the readers a live solve
+    would. A slice that reached no solution is skipped.
+    """
+    primal, dual = _slice_index(runs, 'primal'), _slice_index(runs, 'dual')
+    for key, slice_sources in axis.slices(sources):
+        slice_primals = {name: by_key[key] for name, by_key in primal.items() if key in by_key}
+        if not slice_primals:
+            continue
+        slice_duals = {name: by_key[key] for name, by_key in dual.items() if key in by_key} or None
+        model = build(spec, slice_sources)
+        evaluate, extend = model._engine.reconstruct(
+            slice_primals, slice_duals, runs._no_duals, model._lower, model._lower_all
+        )
+        assert evaluate is not None and extend is not None
+        yield key, evaluate, extend
+
+
+def _refuse_carried(carried: set[str], nodes: Iterable[ExpressionNode]) -> None:
+    """Refuse a block that reads a parameter the sweep carried — its value is not stored per slice."""
+    if touched := sorted({name for node in nodes for name in parameters_of(node)} & carried):
+        raise LpspecError(carried_parameter_message(touched))
+
+
 def _sweep_extender(
     spec: Spec,
     sources: Mapping[str, Source],
@@ -1471,10 +1501,9 @@ def _sweep_extender(
 ) -> Callable[[Runs, Mapping[str, Any]], Runs]:
     """A block of expressions valued at every slice's solution and kept, one frame list per entry.
 
-    Each entry is computed the way :func:`_sweep_evaluator` computes one, and the
-    entries join the sweep's ``_expressions`` so :meth:`Runs.expression` reads
-    them. A spilled sweep is refused, its frames being on disk where an added
-    one, held in memory, cannot join them.
+    The entries join the sweep's ``_expressions`` so :meth:`Runs.expression`
+    reads them. A spilled sweep is refused, its frames being on disk where an
+    added one, held in memory, cannot join them.
     """
     carried = set(carry)
 
@@ -1486,25 +1515,13 @@ def _sweep_extender(
                 f'extend it.'
             )
         nodes, merged = expressions.lower_all(spec, runs._added, added)
-        if touched := sorted({name for node in nodes.values() for name in parameters_of(node)} & carried):
-            raise LpspecError(carried_parameter_message(touched))
+        _refuse_carried(carried, nodes.values())
         if clash := sorted(set(nodes) & set(runs._expressions)):
             raise LpspecError(already_readable_message(clash))
         key_dtype = runs.objective.schema[runs.key_name]
-        primal, dual = _slice_index(runs, 'primal'), _slice_index(runs, 'dual')
         grown: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
-        for key, slice_sources in axis.slices(sources):
-            slice_primals = {name: by_key[key] for name, by_key in primal.items() if key in by_key}
-            if not slice_primals:
-                continue
-            slice_duals = {name: by_key[key] for name, by_key in dual.items() if key in by_key} or None
-            model = build(spec, slice_sources)
-            _, extend_one = model._engine.reconstruct(
-                slice_primals, slice_duals, runs._no_duals, model._lower, model._lower_all
-            )
-            assert extend_one is not None
-            slice_readers, _ = extend_one(runs._added, added)
-            for name, reader in slice_readers.items():
+        for key, _, extend_one in _per_slice(runs, spec, sources, axis):
+            for name, reader in extend_one(runs._added, added)[0].items():
                 grown[name].append(_keyed(reader(), runs.key_name, key, key_dtype))
         return replace(runs, _expressions={**runs._expressions, **grown}, _added=merged)
 
@@ -1518,7 +1535,7 @@ def _sweep_evaluator(
     axis: EachCoordinate | EachWindow,
     carry: Mapping[str, str],
 ) -> Callable[[str | Mapping[str, Any]], pl.DataFrame]:
-    """One expression at every slice's solution, each slice rebuilt from stored inputs and stitched by key.
+    """One expression at every slice's solution, stitched by key.
 
     An expression that reads a carried parameter is refused: a carried value is
     a previous slice's answer rather than stored data, so the archive cannot put
@@ -1528,20 +1545,11 @@ def _sweep_evaluator(
     key_dtype = runs.objective.schema[runs.key_name]
 
     def evaluate(expression: str | Mapping[str, Any]) -> pl.DataFrame:
-        touched = sorted(set(parameters_of(expressions.lower(spec, expression))) & carried)
-        if touched:
-            raise LpspecError(carried_parameter_message(touched))
-        primal, dual = _slice_index(runs, 'primal'), _slice_index(runs, 'dual')
-        pieces = []
-        for key, slice_sources in axis.slices(sources):
-            slice_primals = {name: by_key[key] for name, by_key in primal.items() if key in by_key}
-            if not slice_primals:
-                continue
-            slice_duals = {name: by_key[key] for name, by_key in dual.items() if key in by_key} or None
-            model = build(spec, slice_sources)
-            reader, _ = model._engine.reconstruct(slice_primals, slice_duals, runs._no_duals, model._lower, None)
-            assert reader is not None
-            pieces.append(_keyed(reader(expression), runs.key_name, key, key_dtype))
+        _refuse_carried(carried, [expressions.lower(spec, expression)])
+        pieces = [
+            _keyed(evaluate_one(expression), runs.key_name, key, key_dtype)
+            for key, evaluate_one, _ in _per_slice(runs, spec, sources, axis)
+        ]
         if not pieces:
             raise LpspecError('no slice of this sweep produced a solution, so an expression has nothing to read at.')
         return pl.concat(pieces)
