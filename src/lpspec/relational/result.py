@@ -1,11 +1,10 @@
 """What a caller reads back — a solve's :class:`Result`, a build's :class:`Diagnostics`.
 
 The objects ``lps.solve`` and ``model.diagnostics()`` hand back, so they are
-the pieces of this subpackage a reader meets without going looking. They live
-beside the engine rather than in it because they answer different questions:
-the engine *builds* a model, and these *read* one — a :class:`Result` holds one
-finished frame per declaration, its values already laid out over the build's
-coordinates, so no reader ever goes back to the engine.
+the pieces of this subpackage a reader meets without going looking. A
+:class:`Result` holds one finished frame per declaration, its values already
+laid out over the build's coordinates, so no reader ever goes back to the
+engine.
 
 Named for linopy's envelope (``Result`` = status + solution + report).
 """
@@ -43,16 +42,15 @@ if TYPE_CHECKING:
 
 #: How much of the session a solve keeps, as a request to
 #: :meth:`lpspec.api.Model.solve` and as the report in
-#: :attr:`Result.kept`. One word rather than a pair of flags because the two
-#: things a session holds — the solver with the model on it, and the work that
-#: solver did — can only be dropped in that order: there is no carrying on from
-#: a solver that was closed, so the fourth combination does not exist.
+#: :attr:`Result.kept`. The two things a session holds — the solver with the
+#: model on it, and the work that solver did — can only be dropped in that
+#: order: there is no carrying on from a solver that was closed, so the fourth
+#: combination does not exist.
 Keep = Literal['nothing', 'solver', 'progress']
 
-#: What each word keeps, in the order of how much that is. Deliberately about
-#: provenance and not mechanism: whether *progress* is a basis, an incumbent
-#: or a sink's own notion is the sink's business, so a solver with no simplex
-#: fits these words unchanged.
+#: What each word keeps, in the order of how much that is. About provenance
+#: and not mechanism: whether *progress* is a basis, an incumbent or a sink's
+#: own notion is the sink's business.
 KEEPS: Mapping[Keep, str] = {
     'nothing': 'the model is handed to a fresh solver, which has nothing to begin from',
     'solver': 'the solver already holding the model is reused, and the work the last solve did is discarded',
@@ -61,7 +59,7 @@ KEEPS: Mapping[Keep, str] = {
 
 
 def unknown_keep_message(keep: object) -> str:
-    """Why *keep* is not one, and what the three are."""
+    """The message for a *keep* outside the three."""
     options = '\n'.join(f'  {name}: {what}' for name, what in KEEPS.items())
     return f'unknown keep {keep!r}. A solve may keep:\n{options}'
 
@@ -77,12 +75,6 @@ _NEEDS_THE_EXTRA = (
 
 def tidy_to_pandas(frame: pl.DataFrame) -> pd.DataFrame:
     """A tidy polars frame as pandas, column by column.
-
-    The three bridges below are shared by :class:`Result` and
-    :class:`~lpspec.strategy.Runs`, which differ only in where the tidy frame
-    comes from — a sweep's is the same frame one slice wider. Built column by
-    column because polars' own ``to_pandas`` reaches for pyarrow; pandas itself
-    ships with the ``[linopy]`` extra.
 
     Raises:
         ModuleNotFoundError: On an install without pandas, naming the extra.
@@ -100,11 +92,8 @@ def tidy_to_dataarray(frame: pd.DataFrame, name: str) -> xr.DataArray:
 
     A scalar declaration has none and comes back 0-dimensional.
 
-    Probed rather than imported, unlike the pandas bridge above: xarray is the
-    oracle lane's, and an ``import xarray`` anywhere under ``relational/`` is
-    what hard rule 2 forbids (``tests/test_architecture.py``). pandas reaches
-    it for us on the line below, and reports it as a missing *package* — this
-    turns that into the extra, before it happens.
+    Probed rather than imported: an ``import xarray`` anywhere under
+    ``relational/`` is what hard rule 2 forbids (``tests/test_architecture.py``).
 
     Raises:
         ModuleNotFoundError: On an install without xarray, naming the extra.
@@ -130,8 +119,8 @@ def tidy_to_dataset(names: Sequence[str], one: Callable[[str], xr.DataArray]) ->
 def _number(value: float, *, sign: bool = False) -> str:
     """*value* as the shortest string that reads back as itself.
 
-    Shortest round-trip, never rounded: a row is read to find the number the
-    data produced. A trailing ``.0`` is dropped, as linopy prints ``+50``.
+    Shortest round-trip, never rounded. A trailing ``.0`` is dropped, as linopy
+    prints ``+50``.
     """
     text = repr(float(value))
     text = text.removesuffix('.0')
@@ -141,8 +130,7 @@ def _number(value: float, *, sign: bool = False) -> str:
 def _bracket(labels: str) -> str:
     """``[1, wind]``, or nothing at all for a declaration over no dims.
 
-    A scalar is ``z``, not ``z[]`` — linopy's spelling, and an empty bracket
-    states a coordinate that does not exist.
+    A scalar is ``z``, not ``z[]`` — linopy's spelling.
     """
     return f'[{labels}]' if labels else ''
 
@@ -156,10 +144,11 @@ class ConstraintRow:
     Read off the built model, so it needs no solve — and it is the *built*
     row, after ``where`` masking, after any term whose variable was absent
     dropped out, and after a coefficient the data made exactly zero stopped
-    being a term at all (:func:`~lpspec.relational.engines.polars.assembly._without_zeros`
-    — what a zero states, absence already states). Those three are why a row
-    can be shorter than the file suggests, and why reading one is worth it
-    when a model says something other than what its author wrote.
+    being a term at all
+    (:func:`~lpspec.relational.engines.polars.assembly._without_zeros`). Those
+    three are why a row can be shorter than the file suggests, and why reading
+    one is worth it when a model says something other than what its author
+    wrote.
 
     Printing it gives the row as one line of math, which is what reading a row
     usually means; :attr:`terms` is the same content as a frame, for the row
@@ -184,10 +173,7 @@ class ConstraintRow:
     sense: str
     rhs: float
 
-    #: How many terms a line spells out before it summarises instead. The
-    #: number *is* the decision: past it the terms no longer fit a line worth
-    #: reading, and an arbitrary dozen of three hundred answers nothing that
-    #: their count and their spread does not answer better.
+    #: How many terms a line spells out before it summarises instead.
     display_terms = 12
 
     def __str__(self) -> str:
@@ -198,9 +184,7 @@ class ConstraintRow:
         """
         return f'{self.name}{_bracket(self._where())}: {self._body()} {self.sense} {_number(self.rhs)}'
 
-    #: The line, not the field-by-field dataclass dump. A row is read at a
-    #: prompt and in a notebook cell more often than it is printed, and there
-    #: the default would put a multi-line frame inside one row's identity.
+    #: The line, not the field-by-field dataclass dump.
     __repr__ = __str__
 
     def _where(self) -> str:
@@ -221,9 +205,9 @@ class ConstraintRow:
     def _per_declaration(self) -> str:
         """``p: 300 (|coef| 1…50)`` per variable, in the row's own term order.
 
-        The two questions a row too wide to read is asked: how much of it each
+        The two things a row too wide to read shows: how much of it each
         declaration contributes, and whether its coefficients span an order of
-        magnitude that will cost the solve.
+        magnitude.
         """
         import polars as pl
 
@@ -244,15 +228,13 @@ class ConstraintRow:
 class Diagnostics:
     """What a build and its solves did that the answer does not show.
 
-    Advisory, all of it: no answer depends on any field, and a caller who
-    branches on one has made this engine's bookkeeping part of their model.
-    Read them when a loop is slower or smaller than it should be.
+    Advisory, all of it: no answer depends on any field. Read them when a loop
+    is slower or smaller than it should be.
     """
 
-    #: The shape the build produced: columns, rows, and matrix entries. What
-    #: ``check`` cannot answer, needing no data where this needs all of it,
-    #: and the thing to report when a model is bigger than its author
-    #: expected — a broadcast that multiplied rows shows up here first.
+    #: The shape the build produced: columns, rows, and matrix entries. The
+    #: thing to report when a model is bigger than its author expected — a
+    #: broadcast that multiplied rows shows up here first.
     columns: int
     rows: int
     nonzeros: int
@@ -260,25 +242,19 @@ class Diagnostics:
     #: What the **last solve's sink** had to add on top of those to take the
     #: model, and zero for every sink that took it as built. A sink with no
     #: SOS concept is handed the sets as binaries and linking rows
-    #: (:mod:`lpspec.relational.sinks.sos`), which is the one thing that grows
-    #: a model after the build and the one growth no declaration accounts
-    #: for — so a solve that is larger than the model reads it here rather
-    #: than nowhere. Zero until something has been solved: a *writer* is
-    #: handed the model as built, and reports nothing.
+    #: (:mod:`lpspec.relational.sinks.sos`). Zero until something has been
+    #: solved: a *writer* is handed the model as built, and reports nothing.
     added_columns: int
     added_rows: int
 
     #: ``(constraint, rows_not_built)`` — every declared row that did not reach
     #: the solver (the absence rules), by either route: one emptied of all its
     #: terms, and one a **propagated absence** deleted while its other terms were
-    #: still live. Without this record a declared constraint could go unenforced
-    #: with no way to notice. Empty for a model whose every declared row was built — a recurrence's
-    #: first coordinate counting as a row it declared and did not get, so a
-    #: ``shift`` against the horizon's edge reports here and is the boundary
-    #: rather than a fault. Counts rather than coordinates: the label of an
-    #: unbuilt row does not exist, so naming which went would mean holding the
-    #: pre-drop frame — memory proportional to the omission, on the path this
-    #: package measures hardest.
+    #: still live. Empty for a model whose every declared row was built — a
+    #: recurrence's first coordinate counting as a row it declared and did not
+    #: get, so a ``shift`` against the horizon's edge reports here and is the
+    #: boundary rather than a fault. Counts rather than coordinates: the label
+    #: of an unbuilt row does not exist.
     omissions: pl.DataFrame
 
     #: ``(parameter, coordinates, rows, missing)`` — one row per parameter whose
@@ -286,10 +262,7 @@ class Diagnostics:
     #: and **empty where every one is complete**. Sparsity is the ordinary case
     #: here — absence is how a model masks — so this reports it rather than
     #: judging it: what a missing row means is the absence rules', and whether
-    #: it was meant is the caller's to say. It exists because the two are
-    #: indistinguishable from the answer alone: a table that lost a row and a
-    #: ``where:`` that removed one build the same model, and one of them is a
-    #: mistake nothing else would report.
+    #: it was meant is the caller's to say.
     #:
     #: A parameter over no dims has one coordinate and attaching already refuses
     #: a source that does not carry exactly one row for it, so it is never
@@ -312,9 +285,8 @@ class Diagnostics:
     #: and answers the bounds with ``Consider scaling the bounds by …`` — so a
     #: model can be clean on :attr:`coefficient_range` and still be the one the
     #: solver is complaining about. Zero and infinity are excluded, an
-    #: unbounded side and a ``lower: 0`` being nothing the solver represents,
-    #: which is what makes this comparable with the line it prints. A large
-    #: ``largest`` is usually a big number standing in for "uncapped", and
+    #: unbounded side and a ``lower: 0`` being nothing the solver represents. A
+    #: large ``largest`` is usually a big number standing in for "uncapped", and
     #: wants no upper bound at all rather than a rounder one.
     bound_range: pl.DataFrame
 
@@ -326,9 +298,6 @@ class Diagnostics:
 
     #: The same pair for the objective's coefficients, or ``None`` where the
     #: model declares no objective and where every term of one cancelled.
-    #: Beside the frame rather than in it: it is one declaration and never a
-    #: table, and badly scaled costs and a badly scaled matrix are different
-    #: faults with different repairs.
     objective_range: tuple[float, float] | None
 
     #: How many times this model has been solved, and how many of those solves
@@ -420,11 +389,10 @@ class Result:
     #: How much of the session this solve kept, read off what actually ran —
     #: never off what was asked for.
     _kept: Keep
-    #: One deferred reader per declared named expression. A callable rather
-    #: than a frame because deferral is the contract (the rules for named expressions): nothing about
-    #: an expression is lowered or compiled until its reader is called, so a
-    #: model that reads none pays for none. Released with the primals by
-    #: :meth:`close`, since each holds this build's frames and values.
+    #: One deferred reader per declared named expression. Nothing about an
+    #: expression is lowered or compiled until its reader is called. Released
+    #: with the primals by :meth:`close`, since each holds this build's frames
+    #: and values.
     _expressions: Mapping[str, Callable[[], pl.DataFrame]] | None = None
     #: Why there are no duals, when a solve that left values still has none.
     #: ``None`` whenever :attr:`_duals` holds them.
@@ -433,9 +401,7 @@ class Result:
     #: names it. Attached by the model that solved, so a solve run off a
     #: lowered program — which has no document — leaves it ``None``.
     _spec_digest: str | None = None
-    #: When the solver returned, in UTC. Attached by the model that solved,
-    #: for the same reason as :attr:`_spec_digest`: a saved answer has to say
-    #: when it was reached, and only the caller of the solver knows.
+    #: When the solver returned, in UTC. Attached by the model that solved.
     _solved_at: datetime | None = None
 
     @property
@@ -504,10 +470,7 @@ class Result:
         """The primals, or why nothing here can be read: this result was closed.
 
         The closed check is read off the primals whichever mapping the caller
-        wants, because :meth:`close` releases them together and a solve may
-        legitimately leave the duals empty. Split from :meth:`_readable`
-        because an export writes the record of a solve that left no values,
-        and only closedness stops it.
+        wants: :meth:`close` releases them together.
         """
         if self._primals is None:
             raise LpspecError(
@@ -749,9 +712,7 @@ class Result:
         Its frames, which carry both its own values and its hold on the label
         frames of the build it answered. Frames already read stay valid. Never
         the model or the solver, which are the
-        :class:`~lpspec.api.Model`'s to close: a result closed on the way
-        out of a ``with`` block must not take down the model a loop is still
-        solving, and a sibling result keeps its own.
+        :class:`~lpspec.api.Model`'s to close.
         """
         self._primals = self._duals = self._activities = self._expressions = None
 

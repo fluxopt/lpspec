@@ -3,15 +3,10 @@
 A solver sink holds the model it was given and outlives the solve it was loaded
 for, so that an updated model (:meth:`~lpspec.api.Model.update`) has its new
 numbers *pushed* onto what the solver already has and re-solves from the basis
-the last one ended on. linopy's shape, and its word: their ``Solver`` is the
-persistent object too. Copied rather than imported, and tested here.
+the last one ended on.
 
 **This module imports no solver.** It is the one thing ``solvers/`` members may
-read besides ``tables.py``, and that is the whole reason it can exist: the fence
-`tests/test_architecture.py` draws keeps ``gurobipy`` off the import path of a
-caller who solves with HiGHS, and a base that reaches for neither cannot carry
-one across. Sharing through it is what stops the alternative — one leaf importing
-the other — from ever being the tempting option.
+read besides ``tables.py``.
 """
 
 from __future__ import annotations
@@ -43,8 +38,8 @@ class WarmStart:
     no valid basis anywhere and carries its incumbent instead.
 
     Opaque, and the statuses are the reading solver's own encoding, so only a
-    session of the same solver takes them back. Machinery, not a surface:
-    nothing above ``solvers/`` carries one.
+    session of the same solver takes them back. Nothing above ``solvers/``
+    carries one.
     """
 
     #: Which member of ``SOLVERS`` read it; only that member takes it back.
@@ -87,8 +82,7 @@ class SolveAnswer:
     def unreadable(cls, status: SolveStatus) -> SolveAnswer:
         """The answer for a solve that left nothing worth reading.
 
-        One home for the fact that an unreadable status carries a NaN
-        objective and no vector at all, so two sinks cannot spell it apart.
+        An unreadable status carries a NaN objective and no vector at all.
         """
         return cls(status, float('nan'), None, None, None)
 
@@ -104,12 +98,9 @@ class Solver(ABC):
         solver.run(tables)  # …repeatedly
         solver.close()
 
-    The two halves are split by who can answer them. **This class records the
-    rule's evidence** — the structure of what was loaded and the options it was
-    loaded with, identical bookkeeping for every solver. **A subclass owns the
-    hand-off**:
-    loading, pushing values, running, releasing, all of which are its own
-    library's shape and nothing else's.
+    This class records the structure of what was loaded and the options it was
+    loaded with; a subclass owns the hand-off — loading, pushing values,
+    running, releasing.
     """
 
     def __init__(
@@ -118,48 +109,38 @@ class Solver(ABC):
         batch_rows: int | None = None,
         solver_options: Mapping[str, Any] | None = None,
     ) -> None:
-        #: The options the loaded model was told. Set at the load, so a solve
-        #: asking for others has to be given something that was.
+        #: The options the loaded model was told, set at the load.
         self._options = dict(solver_options or {})
         self._load(tables, batch_rows)
         #: The build's own frames, until :meth:`structure` reads their digest
-        #: and lets them go. Holding them pins nothing a caller does not hold.
+        #: and lets them go.
         self._tables: Tables | None = tables
         #: The digest of everything a re-solve may not change, or ``None``
         #: before :meth:`structure` is first asked. Read through it, never here.
         self._structure: bytes | None = None
         #: The loaded model's spans, read by :meth:`_takes` alone — of the
         #: *ingested* tables, which on a reformulating sink are wider than what
-        #: was built, so a warm start is checked against the model the solver
-        #: actually holds.
+        #: was built.
         self._columns = tables.column_count
         self._rows = tables.row_count
 
     #: The packages this member imports lazily, and so the ones an environment
-    #: has to have for it to run at all. Data rather than a probe per member:
-    #: how availability is *decided* is one rule and lives in
-    #: :meth:`is_available`, where a copy of it in each leaf could drift.
+    #: has to have for it to run at all.
     requires: ClassVar[tuple[str, ...]]
 
     #: What this member can ingest, and what it refuses in combination. A
     #: member states it; the family acts on it
-    #: (:func:`~lpspec.relational.sinks.ingestible`), so no ``_load``
-    #: has to remember to ask.
+    #: (:func:`~lpspec.relational.sinks.ingestible`).
     capabilities: ClassVar[Capabilities]
 
     #: What to tell a caller when :meth:`is_available` says no — which package
-    #: is missing, and whether it ships or needs an extra. The member's own
-    #: fact, so the sentence a caller reads is the one written beside the
-    #: import that needs it, and there is only one of it. Named for when it
-    #: prints rather than for what it advises: it is a message, not a verb.
+    #: is missing, and whether it ships or needs an extra.
     unavailable_message: ClassVar[str]
 
     def structure(self) -> bytes:
         """The digest of the loaded model, hashed off its frames the first time it is asked.
 
-        Only a second hand-off asks, so one solve never pays (#1608). Reading it
-        lets the frames go, which is why the engine reads it as it releases a
-        build — before the next one allocates. Idempotent.
+        Reading it lets the frames go. Idempotent.
         """
         if self._structure is None:
             assert self._tables is not None, 'a solver holds the tables it loaded until their digest replaces them'
@@ -168,11 +149,7 @@ class Solver(ABC):
         return self._structure
 
     def keeps(self, tables: Tables, solver_options: Mapping[str, Any] | None) -> bool:
-        """Whether this held solver may keep its load and take *tables* by value.
-
-        Options first: a dict comparison, where the structural half hashes two
-        models.
-        """
+        """Whether this held solver may keep its load and take *tables* by value."""
         return self._options == dict(solver_options or {}) and self.structure() == tables.structure
 
     @classmethod
@@ -180,10 +157,7 @@ class Solver(ABC):
         """Every package in :attr:`requires`, imported — or :attr:`unavailable_message`.
 
         Returns the first, the member's own library; the rest are imported only
-        to fail here, where the message covers them, rather than mid-load.
-        Through ``__import__``, the hook the members' own ``import`` statements
-        use, so an absence fails here rather than at the first statement past
-        the guard.
+        to fail here.
         """
         try:
             modules = [__import__(package) for package in cls.requires]
@@ -195,9 +169,9 @@ class Solver(ABC):
     def is_available(cls) -> bool:
         """Whether this build can actually run this solver.
 
-        A probe of the import system rather than an import: answering must not
-        cost the load it is asked to avoid, and must not raise. Probed at the
-        top-level name — ``find_spec`` on a dotted one imports the parent.
+        A probe of the import system rather than an import, and it does not
+        raise. Probed at the top-level name — ``find_spec`` on a dotted one
+        imports the parent.
         """
         return all(importlib.util.find_spec(package.partition('.')[0]) is not None for package in cls.requires)
 
@@ -205,8 +179,7 @@ class Solver(ABC):
     def _load(self, tables: Tables, batch_rows: int | None) -> None:
         """Hand *tables* to the solver and hold whatever reads it back.
 
-        Called by ``__init__`` rather than by a caller, so that a subclass
-        cannot exist in a state where the other three have nothing to work on.
+        Called by ``__init__`` rather than by a caller.
         """
 
     @abstractmethod
@@ -215,8 +188,7 @@ class Solver(ABC):
 
         Everything an update may change without moving a label, and only ever
         after *tables*'s digest matched the loaded one. Whole vectors rather
-        than a diff: the model that would say which cells moved is the one
-        this replaces.
+        than a diff.
         """
 
     @abstractmethod
@@ -235,9 +207,7 @@ class Solver(ABC):
 
         The caller vouches that *ws* was read from a model with this one's
         label set; what is checked here is what can be — the sink it came
-        from, and that its vectors span the loaded model. A member writes
-        :meth:`_warm`; this is the contract around it, as :meth:`run` is
-        around :meth:`_run`.
+        from, and that its vectors span the loaded model.
 
         Raises:
             LpspecError: A warm start read from another solver, or whose
@@ -291,13 +261,7 @@ class Solver(ABC):
         """Solve what is loaded, read it back, and refuse a vector that lies.
 
         Reading a solution back is positional, so a vector that does not span
-        the model is an answer about a *different* one. Refused here, where the
-        solver hands it over, rather than where it is read: the objective comes
-        back directly, so a result built on a broken vector would report a
-        plausible number and only fail if someone asked for a coordinate.
-
-        A member writes :meth:`_run`; this is the contract around it, so no
-        sink can be added that forgets to be checked.
+        the model is an answer about a *different* one, and is refused here.
         """
         answer = self._run(tables)
         self._check_span('primal', answer.primal, tables.column_count)
@@ -356,17 +320,14 @@ class Solver(ABC):
     def close(self) -> None:
         """Release the loaded model, and anything outside this process with it.
 
-        Idempotent, and the counterpart to holding one: a solver kept between
-        solves is memory — and, for one of them, a licence — that no frame in
-        this process accounts for. Afterwards :attr:`handle` is ``None``.
+        Idempotent. Afterwards :attr:`handle` is ``None``.
 
         **The same release happens to a holder dropped without closing.** A
         member whose library releases its object on collection has that for
         free; one that does not — or that holds two objects, a model on an
         environment, where the order is innermost first — registers a
-        finalizer over the objects rather than over itself, so a half-torn
-        holder is never what runs it. ``tests/test_solver_release.py`` asks
-        every member.
+        finalizer over the objects rather than over itself.
+        ``tests/test_solver_release.py`` asks every member.
         """
 
     def __enter__(self) -> Self:

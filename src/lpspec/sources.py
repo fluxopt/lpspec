@@ -477,7 +477,7 @@ def _wrong_rank(name: str, said: str, dims: Sequence[str]) -> str:
 
 
 def _broadcast(name: str, value: pl.Expr, dims: Sequence[str], sources: Mapping[str, pl.LazyFrame]) -> pl.LazyFrame:
-    """One number over every coordinate of *dims* — a cross join, since nothing downstream broadcasts."""
+    """One number over every coordinate of *dims* — a cross join."""
     frame = pl.LazyFrame({'__one__': [0]})
     for dim in dims:
         frame = frame.join(pl.LazyFrame({dim: _labels(name, dim, sources)}), how='cross')
@@ -536,10 +536,9 @@ def _check_one_row_per_coordinate(
     """A parameter is a function of its dims: one row per coordinate, every label a real one.
 
     Labels are checked against the dimensions whose index has been read; one
-    still missing is refused once every source is in. A parameter with no dims has exactly one coordinate, so the rule reads as
-    "exactly one row" — and a second row would silently multiply every row it
-    broadcasts into. Every cheap question runs in one pass; naming an offender
-    costs a pass of its own and runs only on a path about to raise.
+    still missing is refused once every source is in. A parameter with no dims
+    has exactly one coordinate, so the rule reads as "exactly one row" — and a
+    second row would silently multiply every row it broadcasts into.
     """
     if not p.dims:
         if frame.height != 1:
@@ -621,9 +620,7 @@ _COLUMNS: Mapping[str, tuple[type[pl.DataType], ...]] = {
 }
 
 #: What each declared dtype accepts. ``int`` serving ``float`` is the one
-#: widening: it is the only conversion between two declared types that loses
-#: nothing. A float column under ``int`` is refused, which is what makes a
-#: fractional offset unrepresentable rather than checked.
+#: widening; a float column under ``int`` is refused.
 ACCEPTED_VALUE_TYPES: Mapping[str, tuple[type[pl.DataType], ...]] = {
     **_COLUMNS,
     'float': _COLUMNS['float'] + _COLUMNS['int'],

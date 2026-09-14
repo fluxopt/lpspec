@@ -3,8 +3,7 @@
 Four frames plus the scalars a writer needs to size its batching, and the
 projections more than one sink needs — the dense column and row vectors, the
 matrix a block at a time. Those belong to the contract rather than to either
-solver: two sinks computing them separately could disagree about the model
-they loaded, which is the one thing neither may do.
+solver, so two sinks cannot disagree about the model they loaded.
 """
 
 from __future__ import annotations
@@ -65,18 +64,14 @@ class MatrixBlock:
         return self.hi - self.lo
 
 
-#: ``sense`` as a number, so a row's comparison crosses into numpy as one byte
-#: rather than as a boxed Python string. The vocabulary is the language's; the
-#: order is arbitrary and shared, since a solver indexes its own spelling with
-#: these.
+#: ``sense`` as a number. The vocabulary is the language's; the order is
+#: arbitrary and shared, since a solver indexes its own spelling with these.
 SENSE_CODES: Mapping[program.ConstraintSense, int] = {
     sense: code for code, sense in enumerate(get_args(program.ConstraintSense))
 }
 
 #: The dtype the ``rows`` frame holds a comparison in. Built from
-#: :data:`SENSE_CODES` so a category's index *is* its code, which is what lets
-#: :meth:`Tables.dense_rows` read the physical column rather than hash every
-#: row's string through a lookup.
+#: :data:`SENSE_CODES` so a category's index *is* its code.
 SENSE = pl.Enum(list(SENSE_CODES))
 
 
@@ -119,10 +114,9 @@ class Tables:
     indices and no sink builds a mapping. **``cols`` carries no ``col`` and
     ``matrix`` no ``row``**: a ``cols`` row's position is its index and a
     matrix entry's row is where it sits between two starts, which is what a
-    solver's matrix API takes — where a row label per nonzero would hold
-    8 bytes an entry for the model's lifetime. :meth:`matrix_block` spells them
-    back out for the one consumer that renders them. ``obj`` keeps its ``col``,
-    being genuinely sparse (0.71 of ``cols`` on `transport`).
+    solver's matrix API takes. :meth:`matrix_block` spells them back out for the
+    one consumer that renders them. ``obj`` keeps its ``col``, being genuinely
+    sparse.
     """
 
     cols: pl.DataFrame
@@ -146,16 +140,9 @@ class Tables:
         """The row ranges a block reader walks — one rule, for both of them.
 
         Width is the average row, since a reader pays in nonzeros: 100k rows is
-        900k entries in one model and 10M in another. There is deliberately no
-        row-counted twin to reach for by mistake.
+        900k entries in one model and 10M in another.
 
-        ``budget=None`` is one span, and a real answer: whether splitting pays
-        is a property of the API being fed, not the model. HiGHS takes a chunk
-        at a time and its budget bounds the temporary; Gurobi's ``addMConstr``
-        charges per *model column* per call whatever the block holds, so
-        splitting a matrix into many blocks costs it dearly (#434).
-
-        Private, so no caller can pair spans and entries that disagree.
+        ``budget=None`` is one span.
         """
         linear = self.linear_row_count
         if budget is None:
@@ -176,7 +163,7 @@ class Tables:
         """How many rows a sink may load as ordinary linear constraints.
 
         Where the quadratic tail starts, or the whole row count for a model
-        with none — which keeps every affine hand-off what it was.
+        with none.
         """
         return int(self.qmatrix['row'][0]) if self.qmatrix.height else self.row_count
 
@@ -189,10 +176,6 @@ class Tables:
         only ``cost`` is scattered, ``obj`` being sparse, and a variable in no
         objective term costs zero. Every vector returned is freshly produced —
         nothing aliases the built model.
-
-        The three column vectors are one polars pass, and the integrality test
-        is made in polars so nothing textual crosses into numpy — an order of
-        magnitude apart at the top of the ladder (#418).
         """
         prepared = self.cols.select(
             _finite(pl.col('lb'), infinity).alias('lb'),
@@ -246,28 +229,18 @@ class Tables:
 
         **A quadratic *constraint* is structure whole** — coefficients and
         right-hand side — where the quadratic *objective* contributes only its
-        pattern. The asymmetry is the APIs': an objective's quadratic part is
-        replaced by one call, a constraint's only by removing the row and
-        adding it again. Pushing half of one would leave the rest stale, so a
-        model whose quadratic row moved at all is loaded again.
+        pattern. A model whose quadratic row moved at all is loaded again.
 
         **The quadratic objective contributes its pattern and not its values.**
-        A pair that appeared or moved is a model to load again, no solver
-        taking new Hessian entries by value; a coefficient that merely changed
-        is pushed.
+        A pair that appeared or moved is a model to load again; a coefficient
+        that merely changed is pushed.
 
-        **A set is structure even though nothing about it is a coefficient.**
-        No solver takes new members by value, and a mask that moved one while
-        leaving the matrix alone would otherwise re-solve the old sets under
-        the new numbers. A reformulating sink's big-M *is* a matrix coefficient
-        by the time this is asked, so a bound that moved one reloads.
+        **A set is structure even though nothing about it is a coefficient.** A
+        reformulating sink's big-M *is* a matrix coefficient by the time this
+        is asked, so a bound that moved one reloads.
 
         Every vector read has an order contract — the label-ordered columns,
-        the row-ordered matrix and rows — so two builds of one model agree. A
-        digest rather than the frames, because holding the previous matrix
-        would keep two models alive across a rebuild; cached, so the
-        keep-or-reload comparison and the load that records what it loaded
-        share one pass.
+        the row-ordered matrix and rows — so two builds of one model agree.
         """
         import hashlib
 
@@ -308,10 +281,9 @@ class Tables:
         """Each quadratic row and the ``(col_l, col_r, coeff)`` entries it owns.
 
         One row at a time, unlike the linear matrix: every API that takes a
-        quadratic constraint takes one per call, and a model with enough of
-        them for that to matter is one no spatial search would finish. They are
-        the contiguous tail beginning at :attr:`linear_row_count`, so they
-        arrive ascending and a sink's read-back stays two runs.
+        quadratic constraint takes one per call. They are the contiguous tail
+        beginning at :attr:`linear_row_count`, so they arrive ascending and a
+        sink's read-back stays two runs.
         """
         for (row,), entries in self.qmatrix.group_by('row', maintain_order=True):
             yield int(row), entries.select('col_l', 'col_r', 'coeff')
@@ -332,8 +304,7 @@ class Tables:
         """Rows ``[lo, hi)`` of the matrix with their ``row`` labels spelled out.
 
         The adjoint of what CSR compressed — ``np.repeat`` walks the start
-        offsets back into one label per entry — at the cost of one label column
-        per *block*, not per model.
+        offsets back into one label per entry.
         """
         import numpy as np
 
@@ -344,10 +315,7 @@ class Tables:
 def spelled_senses(spelling: Mapping[str, str]) -> Any:
     """:data:`SENSE_CODES` as one solver's spellings, indexed by code.
 
-    Built from the mapping rather than written out in its order: a wrong order
-    is a model whose comparisons are silently permuted, which every solver
-    answers confidently. A sense added to :data:`SENSE_CODES` and not to
-    *spelling* raises instead.
+    A sense added to :data:`SENSE_CODES` and not to *spelling* raises instead.
     """
     import numpy as np
 
@@ -361,9 +329,7 @@ def solver_vector(values: Any) -> pl.Series:
     """One quantity a solver produced, in its own index — every sink's read-back.
 
     A series rather than a ``(label, value)`` frame: the read-back takes a
-    declaration's share by slicing, so an index column beside it is an
-    ``arange`` nothing reads — 8 bytes a column for as long as the result is
-    held.
+    declaration's share by slicing.
     """
     import numpy as np
 
@@ -373,10 +339,8 @@ def solver_vector(values: Any) -> pl.Series:
 def _finite(value: pl.Expr, infinity: float) -> pl.Expr:
     """*value* with each infinity as the finite sentinel the asking solver reads as one.
 
-    Both substitutions in one expression, because a bound that took one and
-    not the other would reach the solver as a number it reads as real. A
-    ``NaN`` never arrives: the door refuses one in a parameter and the schema
-    refuses one written in the file.
+    Both substitutions in one expression. A ``NaN`` never arrives: the door
+    refuses one in a parameter and the schema refuses one written in the file.
     """
     return (
         pl.when(value == float('inf'))
@@ -400,9 +364,8 @@ def ranges(total: int, budget: int, width: float) -> Iterator[tuple[int, int]]:
     """Half-open ``[lo, hi)`` ranges covering ``[0, total)``, each holding about ``budget`` elements.
 
     One unit costs ``width`` of them, and every caller states it — a row is
-    its average nonzeros, a column is one — because a chunk counted in units
-    with no width reads as bounded and is not. A ``width`` below 1 is read as
-    1. Empty input yields nothing rather than one empty range.
+    its average nonzeros, a column is one. A ``width`` below 1 is read as 1.
+    Empty input yields nothing rather than one empty range.
     """
     per_chunk = max(1, int(budget // max(1.0, width)))
     for lo in range(0, total, per_chunk):

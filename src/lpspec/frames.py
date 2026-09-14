@@ -7,10 +7,9 @@ pandas is already in ``sys.modules``.
 
 **Tables in, arrays out.** What is read here is a table: rows under named
 columns, an index being a column wearing a hat. An ``xarray.DataArray`` is a
-dense n-dimensional array rather than a table, and taking one would be this
-package agreeing that a parameter is a rectangle already materialised. xarray
-is what a result is handed back *as* (``to_dataarray``) and what the linopy
-lane builds internally, never what either lane reads.
+dense n-dimensional array rather than a table and is not read. xarray is what
+a result is handed back *as* (``to_dataarray``) and what the linopy lane
+builds internally, never what either lane reads.
 """
 
 from __future__ import annotations
@@ -36,8 +35,8 @@ __all__ = ['as_frame', 'is_dense_array', 'is_multi_indexed', 'to_pandas']
 def to_pandas(table: pl.DataFrame) -> pd.DataFrame:
     """A polars frame as pandas, column by column, without reaching for pyarrow.
 
-    A dictionary-encoded column is widened first: it carries a writer's own
-    codes, and the labels have to compare the way every other arrival's do.
+    A dictionary-encoded column (``Categorical``, ``Enum``) is widened to
+    string first.
     """
     import pandas as pd
 
@@ -48,7 +47,7 @@ def to_pandas(table: pl.DataFrame) -> pd.DataFrame:
 
 
 def as_frame(obj: Source, dims: Sequence[str] = ()) -> pl.LazyFrame | None:
-    """One source as a lazy frame: a parquet path scanned, so a filter pushes down, or an in-memory table normalised.
+    """One source as a lazy frame: a parquet path scanned, or an in-memory table normalised.
 
     The one place a string is read as a parquet path, for every door a source
     enters by. *dims* names the columns a pandas index becomes.
@@ -83,7 +82,7 @@ def as_frame(obj: Source, dims: Sequence[str] = ()) -> pl.LazyFrame | None:
 
 
 def is_dense_array(obj: object) -> bool:
-    """Whether *obj* is an ``xarray.DataArray``, the one shape recognised and deliberately not read."""
+    """Whether *obj* is an ``xarray.DataArray``, the one shape recognised and not read."""
     import sys
 
     xr = sys.modules.get('xarray')
@@ -102,9 +101,8 @@ def _series_to_frame(series: pd.Series, dims: Sequence[str]) -> pd.DataFrame | N
     """A pandas Series with its one index level promoted to a column.
 
     One level is all a Series can carry here — :func:`is_multi_indexed` refuses
-    the rest — so it runs along one dimension exactly as a dict and a sequence
-    do, and a declaration of any other arity is that same mismatch, declined
-    rather than reported.
+    the rest — so it runs along one dimension as a dict and a sequence do, and
+    any other arity is declined rather than reported.
 
     Where the caller named the level it attaches by that name — renaming it to
     *dims* would transpose the data when two dims share a label space, which

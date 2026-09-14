@@ -6,9 +6,7 @@ the sources are cut. The same members either way — a zip is the directory
 packed, which is why one of them is read where it lies and the other has to be
 unpacked first.
 
-Below :mod:`lpspec.api` and :mod:`lpspec.strategy`, because both write one:
-the verb that solves is the only place that holds the spec, the data and the
-answer at once, which is why nothing assembles the three after the fact.
+Below :mod:`lpspec.api` and :mod:`lpspec.strategy`, which write archives;
 :mod:`lpspec.archive` sits above all three and reads what is written here.
 """
 
@@ -41,9 +39,9 @@ if TYPE_CHECKING:
 #: archive holds, a sweep being the one whose sources are cut.
 MODEL_MEMBER = 'model.yaml'
 AXIS_MEMBER = 'axis.json'
-#: ``(run, source, digest)`` for every member of ``sources/``, beside the
-#: directory rather than in it: anything under ``sources/`` is a source table
-#: keyed by its stem, so a table *about* them cannot live there.
+#: ``(run, source, digest)`` for every member of ``sources/``, beside that
+#: directory rather than in it — everything under ``sources/`` is a source
+#: table keyed by its stem.
 DIGESTS_MEMBER = 'sources.parquet'
 SOURCES_DIR = PurePosixPath('sources')
 ANSWER_DIR = PurePosixPath('answer')
@@ -65,12 +63,9 @@ def beside(out: Path) -> Iterator[Path]:
 def check_the_target(out: Path) -> None:
     """Refuse a directory target that already holds something, before anything is solved.
 
-    Called where the archive is asked for as well as where it is written, so
-    an hour of solving does not end in a refusal the call already implied.
-
-    A ``.zip`` target is replaced, because renaming one file over another is
-    one atomic step. A directory cannot be replaced that way, so merging into
-    what is there would leave two archives readable as one.
+    Called both where the archive is asked for and where it is written. A
+    ``.zip`` target is replaced; a non-empty directory target is refused,
+    since a directory archive is written whole rather than merged.
     """
     if out.suffix != '.zip' and out.is_dir() and any(out.iterdir()):
         raise LayoutError(
@@ -186,11 +181,9 @@ def _digest_table(digests: Mapping[str, str], *, run: str) -> bytes:
     Sorted so one model's data digests to one table whoever assembled the
     sources, a mapping's order being the caller's and not the model's.
 
-    Stamped with *run* for the reason :func:`_put_the_answer` stamps the record
-    and the metrics: a table read across a directory of archives has to say
-    which one each row came from, and the alternative is every reader parsing
-    the paths. The run leads rather than trails, as the column every row of one
-    archive shares.
+    Stamped with *run* so a table read across a directory of archives says
+    which one each row came from; the run leads rather than trails, as the
+    column every row of one archive shares.
     """
     frame = pl.DataFrame(
         {
@@ -209,17 +202,10 @@ def _put_the_answer(members: _Members, answer: Path, *, run: str) -> None:
     """*answer*'s layout into *members*, its record consolidated and stamped with *run*.
 
     The frames are copied as they lie — a spilled sweep is archived without
-    being re-materialised, which is what serves the sweep too large to hold.
-    The record and the metrics are not: a spill writes them one file per
-    slice because the objective file's existence is how a resume knows a slice
-    finished, and an archive has no resume to serve. One file each instead, so
-    that one glob over a warehouse finds every run whether a solve or a sweep
-    wrote it.
-
-    *run* is written onto both here rather than by whatever solved, because
-    the name is the publisher's: it is the archive's own, and nothing before
-    this point knows it. Onto both, so that a table concatenated from a
-    warehouse can attribute a slice's cost as readily as its answer.
+    being re-materialised. The record and the metrics, which a spill writes
+    one file per slice, are consolidated to one file each and stamped with
+    *run*, so a table concatenated across a warehouse of archives attributes
+    each row.
     """
     consolidating = (RECORD_FILE, METRICS_FILE)
     for file in consolidating:
@@ -236,9 +222,8 @@ def _put_the_answer(members: _Members, answer: Path, *, run: str) -> None:
 class _Members:
     """Somewhere to put the layout's members, whether that is a zip or a directory.
 
-    One writer for both shapes, because the layout is the same either way and
-    only the container differs. Everything lands inside the caller's staging
-    directory so the real one appears whole.
+    Everything lands inside the caller's staging directory so the real one
+    appears whole.
     """
 
     def __init__(self, part: Path, archive: zipfile.ZipFile | None) -> None:
@@ -291,9 +276,8 @@ def opened(path: str | Path, into: Path | None) -> Path:
     """Where an archive's members are on disk, unpacking it first if it is one file.
 
     A directory archive is read where it lies: its parquet files are already
-    where a scan needs them, so there is nothing to unpack and nowhere to put
-    it. A zip is not, so it needs somewhere writable — which only the caller
-    knows, an archive often living where it is only read.
+    where a scan needs them, so there is nothing to unpack. A zip needs
+    somewhere writable to unpack into.
 
     Args:
         path: The archive, a ``.zip`` or a directory.

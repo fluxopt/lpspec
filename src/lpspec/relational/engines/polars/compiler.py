@@ -1,8 +1,6 @@
 """Logical plan → polars. Lazy: nothing is read, nothing is executed.
 
-The language compiles a spec to a plan; this compiles the plan to a query, so
-docs/about/architecture.md's admissibility test is a ``.explain()`` away. An identifier is
-a value here, never syntax.
+The language compiles a spec to a plan; this compiles the plan to a query.
 
 Column conventions, relied on by the engine:
 
@@ -91,10 +89,9 @@ class Solution:
     """What a solve left, for a compiler reading a named expression at it.
 
     Attached, a variable compiles to its primal and ``dual(c)`` to the
-    constraint's row duals — const fragments, like a parameter's — so an entry
-    the math never reads is arithmetic over numbers at whatever degree the
-    file wrote it. ``dual`` is ``None`` where the solve left no duals, and
-    ``no_duals`` then says why, which is what reading one raises.
+    constraint's row duals, as const fragments. ``dual`` is ``None`` where the
+    solve left no duals, and ``no_duals`` then says why, which is what reading
+    one raises.
     """
 
     primal: pl.Series
@@ -107,12 +104,11 @@ class Solution:
 class PolarsCompiler:
     """Turn plan nodes into polars queries over the model's tidy frames.
 
-    ``data`` is everything attaching produced, frozen. ``variables`` is
-    deliberately outside it — the engine's own dict, not a copy, because a
-    variable frame appears while its declaration is built and a constraint
-    compiled afterwards has to see it. ``solution`` is set on the compiler a
-    read builds and on no other: with it every variable and every
-    ``dual(c)`` compiles to a value (:class:`Solution`).
+    ``data`` is everything attaching produced, frozen. ``variables`` is the
+    engine's own dict, not a copy: a variable frame appears while its
+    declaration is built and a constraint compiled afterwards has to see it.
+    ``solution`` is set on the compiler a read builds and on no other: with it
+    every variable and every ``dual(c)`` compiles to a value (:class:`Solution`).
     """
 
     program: program.Program
@@ -130,19 +126,15 @@ class PolarsCompiler:
         Labels, plus the ordinals a caller sorts by so labels follow
         declaration order.
 
-        **A mask that has to join restricts by semi-join, not by value join.**
-        The predicate reads only its own dims, so it is evaluated over *their*
-        product and the full product is semi-joined against the truth set: the
-        mask's parameter columns never touch the full product, and a semi-join
-        leaves the left side's row order alone where a value join + filter does
-        not — which keeps labelling's verify-then-sort a verify.
+        A mask that has to join restricts by semi-join: the predicate reads
+        only its own dims, so it is evaluated over *their* product and the full
+        product is semi-joined against the truth set, which leaves the left
+        side's row order intact.
 
         Four shapes stay on the direct filter path, which is pointwise and
         keeps order too: a predicate that joins nothing, one reading no frame
         dim, one reading dims outside the frame (so errors name the full
-        frame), and one reading **every** frame dim — where the truth set is as
-        wide as the product and the semi-join would build it twice to save no
-        width.
+        frame), and one reading **every** frame dim.
         """
         out = self._coordinate_product(dims)
         if where is None:
@@ -163,10 +155,8 @@ class PolarsCompiler:
 
         **Folded in reverse, then projected back.** polars' streaming engine
         walks a cross join right-major, so folding backwards makes the product
-        arrive in declaration row-major order — label order, which is what lets
-        labelling and ``cols`` be read positionally instead of sorted (#433).
-        :func:`labels.frame` verifies that rather than trusting it, so the fold
-        decides speed, never correctness.
+        arrive in declaration row-major order — label order.
+        :func:`labels.frame` verifies that rather than trusting it.
 
         The empty product is one *real* row carrying only :data:`UNIT`: a
         ``where`` on a scalar declaration filters this frame, and nothing
@@ -201,10 +191,8 @@ class PolarsCompiler:
         story.
 
         *maintain_order* is asked for only by the bounds, which become ``cols``
-        and are read in order. Asking the join for that order costs an order of
-        magnitude less than sorting the same frame afterwards (#433), so it is
-        passed deliberately rather than defaulted on; every other consumer
-        verifies order where it reads.
+        and are read in order; every other consumer verifies order where it
+        reads.
         """
         declaration = self.program.parameter(param)
         assert not set(declaration.dims) - set(frame_dims), (
@@ -218,11 +206,7 @@ class PolarsCompiler:
     # ------------------------------------------------------------------
 
     def bounds(self, frame: pl.LazyFrame, variable: str, v: program.VariableDeclaration) -> pl.LazyFrame:
-        """*frame* with ``lb``/``ub`` columns for the variable *variable* declares as *v*.
-
-        Joins and arithmetic are one object, so a bound cannot be evaluated
-        against a frame missing what it reads.
-        """
+        """*frame* with ``lb``/``ub`` columns for the variable *variable* declares as *v*."""
         carrier = Carrier(frame)
 
         def attach_bound(f: pl.LazyFrame, alias: str, name: str) -> pl.LazyFrame:
@@ -250,16 +234,11 @@ class PolarsCompiler:
     ) -> pl.LazyFrame | None:
         """*frame* with *param* attached **by position**, or ``None`` to join.
 
-        A bound dense over the whole variable product — the ordinary shape in
-        energy modelling — would cost a full-size join against a full-size
-        coordinate product, where the eager lane gets it free from array
-        position (#511). Each parameter row's slot is its :meth:`row_major`
-        position and its value is scattered there — the table's row order is
-        nothing, and ``_scattered`` refuses a product any slot of which nothing
-        wrote.
+        Each parameter row's slot is its :meth:`row_major` position and its
+        value is scattered there — the table's row order is nothing, and
+        ``_scattered`` refuses a product any slot of which nothing wrote.
 
-        **Wrong bounds are a wrong model with no error**, so this is refused
-        unless all three hold, each a fact already computed:
+        Attached by position only where all three hold:
 
         * the parameter's dims are exactly the variable's, in the same order —
           fewer broadcast, more is already refused, a different order is a
@@ -288,13 +267,13 @@ class PolarsCompiler:
     def row_major(self, dims: tuple[str, ...], ordinals: Callable[[str], pl.Expr]) -> pl.Expr:
         """A coordinate's row-major position in the declared product of *dims*.
 
-        The one numbering rule in the lane: a label, a bound's slot and a set's
-        position all read it, so two builds of one model agree on every index.
-        Dense over the *full* product rather than the survivors; with no dims,
-        the literal zero of the empty product's one row. *ordinals* says how
-        the frame in hand carries a dim's ordinal — a compiler frame has the
-        column beside the label, a built variable frame kept only the label
-        and reads it through :meth:`ordinal_of`.
+        A label, a bound's slot and a set's position all read this one rule, so
+        two builds of one model agree on every index. Dense over the *full*
+        product rather than the survivors; with no dims, the literal zero of the
+        empty product's one row. *ordinals* says how the frame in hand carries a
+        dim's ordinal — a compiler frame has the column beside the label, a
+        built variable frame kept only the label and reads it through
+        :meth:`ordinal_of`.
         """
         position: pl.Expr = pl.lit(0, dtype=pl.Int64)
         for d in dims:
@@ -304,11 +283,10 @@ class PolarsCompiler:
     def ordinal_of(self, dim: str) -> pl.Expr:
         """A *dim* value column as that dimension's ordinal.
 
-        **Free for a string dimension**, which is most of them: attaching encodes
-        those as an ``Enum`` over the labels in ordinal order
-        (``_Attacher.encode_dimensions``), so the physical code already *is* the
-        ordinal. Every other dtype pays a dictionary built from the dimension
-        table — one entry per label, not per row.
+        A string dimension is Enum-encoded by attaching over the labels in
+        ordinal order (``_Attacher.encode_dimensions``), so the physical code
+        already *is* the ordinal. Every other dtype uses a dictionary built from
+        the dimension table — one entry per label, not per row.
         """
         column = pl.col(dim)
         if self.data.is_enum_encoded(dim):
@@ -453,13 +431,9 @@ class PolarsCompiler:
                 A mask that reads **no dimension** — a ``when`` of ``true``,
                 a scalar switch, and the ``otherwise`` that is the negation of
                 either — has no coordinate set to join against, so it filters
-                the piece by its own constant instead. Building one and
-                crossing against it is what the first cut did, and an empty
-                frame hands a literal back a row: both regions then landed
-                everywhere and were summed. The presence still relaxes, and
-                for the same reason as everywhere else: a constant that is
-                false leaves the region claiming nothing, and a region
-                claiming nothing may not unmake a row.
+                the piece by its own constant instead. The presence still
+                relaxes: a constant that is false leaves the region claiming
+                nothing, and a region claiming nothing may not unmake a row.
                 """
                 if truth is None:
                     carrier, condition = compile_predicate(self, p.frame, r.when, p.dims)
@@ -477,7 +451,7 @@ class PolarsCompiler:
             return map_fragments(ev(r.value), kept)
 
         def cases(e: program.Cases) -> CompiledExpression:
-            """Every region added, which is what disjoint and total buys.
+            """Every region added.
 
             No region is ranked against another and none is subtracted back
             out: the language proved them apart before any data attached, so a
@@ -686,9 +660,7 @@ class PolarsCompiler:
         are added by the terminal aggregate as ``Sum``'s are. A group is a sum,
         so it constructs rather than ``replace``s — see :meth:`_sum_fragment`.
 
-        Grouping through several coordinates costs nothing extra here: they
-        ride the same dim table and the same single join, which is why the
-        surface is a list rather than a composition of calls.
+        Several coordinates ride the same dim table and the same single join.
         """
         if g.over not in p.dims:
             refuse_a_fragment_without_the_dims(p, [g.over], context, f'sum(by=) over {g.over!r}')
@@ -703,8 +675,7 @@ class PolarsCompiler:
         One relation per coordinate, met on ``over`` by **inner** joins: a
         label some coordinate does not map has no row in that relation and so
         none here, which is what "reaches no slot" means for the whole tuple.
-        Reading several at once therefore costs joins and no null bookkeeping —
-        the tuple exists exactly where every coordinate does.
+        The tuple exists exactly where every coordinate does.
         """
         pairs = list(zip(coordinate, into, strict=True))
         mapping, *rest = (self.data.lookups[c].select(pl.col(over), pl.col(c).alias(i)) for c, i in pairs)
@@ -737,8 +708,7 @@ class PolarsCompiler:
         holds a *value* — the empty sum — and not a hole. The two are the same
         missing row to :meth:`PolarsEngine._build_constraint`'s coverage check,
         which reads what the fragment produced and cannot see why a label is
-        absent, so the value is written down here where the reason is known
-        (#1026).
+        absent, so the value is written down here where the reason is known.
 
         Several coordinates land on a *product* of targets, and a combination
         no member sits at is empty for the reason one unreached label is — so
@@ -786,14 +756,13 @@ class PolarsCompiler:
         inner join swallows both — the operand's own, and the **lookup's**,
         where the map has no row for the label. Unreported, the term merely
         vanishes and its row survives to assert `x <= 0` where the model said
-        nothing (#968).
+        nothing.
 
         A total lookup over an operand with nothing to report yields nothing
-        rather than a restriction admitting everything, so a model with no
-        absence in it does not pay for the machinery that carries one. The key
-        is stated rather than left implied because a later product widens the
-        fragment's dims while this frame keeps the one column that matters —
-        the hazard :class:`Presence` names.
+        rather than a restriction admitting everything. The key is stated
+        rather than left implied because a later product widens the fragment's
+        dims while this frame keeps the one column that matters — the hazard
+        :class:`Presence` names.
         """
         reachable = self._mapping(a.over, a.coordinate, a.into)
         if not p.presences:
@@ -827,8 +796,7 @@ class PolarsCompiler:
         relations, keyed by ``over`` and named for the dims they target — and
         the rewrite is a single inner equi-join on *consumed*. A group consumes
         ``over`` (:meth:`_group_fragment`); an ``At`` reads the same table
-        backwards (:meth:`_at_fragment`). Written once so the adjoints cannot
-        drift: a change to how the mapping joins is a change to both.
+        backwards (:meth:`_at_fragment`).
 
         One of the two sides is always a single dim — a group consumes the one
         the coordinates are over, a pullback produces it — so exactly one join

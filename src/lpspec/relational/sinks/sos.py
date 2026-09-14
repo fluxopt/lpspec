@@ -4,10 +4,8 @@ Which sink needs this and why the family rather than a member decides it:
 ``README.md``, *the one uneven stream*.
 
 The formulation is linopy's (``linopy/sos_reformulation.py``), member for
-member, because the lanes are compared against each other and a differently
-relaxed MILP is a different search even where it is the same feasible set. For
-members :math:`x_1 … x_k` in weight order, with :math:`M_i` the tighter of the
-block's ``big_m`` and the member's own upper bound:
+member. For members :math:`x_1 … x_k` in weight order, with :math:`M_i` the
+tighter of the block's ``big_m`` and the member's own upper bound:
 
 - **SOS1** — a binary :math:`y_i` per member, :math:`x_i \le M_i y_i`, and
   :math:`\sum_i y_i \le 1`.
@@ -16,9 +14,8 @@ block's ``big_m`` and the member's own upper bound:
   :math:`x_k \le M_k z_{k-1}`, and :math:`\sum_j z_j \le 1`.
 
 Everything it adds goes **after** the model, so an appended column moves none
-of the model's own and an appended row renumbers none of its rows — the label
-contract spent (docs/about/architecture.md), and why a solve reads its answer back by
-the same slice either way.
+of the model's own and an appended row renumbers none of its rows
+(docs/about/architecture.md).
 
 **Nothing here sorts, groups or joins.** The stream arrives in ``(set, weight)``
 order, so every question about a set — where it starts, where it ends, which
@@ -26,11 +23,7 @@ binary a member reaches — is a comparison against the neighbouring row, and th
 rows it emits are produced in the order CSR wants them.
 
 **It asks them in numpy rather than in polars**, the one place this lane
-departs from the rest of the sink (``tables._scattered`` and the engine's own
-CSR index are the precedents): every question above is a scan or a scatter over
-one contiguous buffer, where an expression frame would carry a dozen columns
-across the whole member stream to answer them — a factor of two at 2M members
-(#687).
+departs from the rest of the sink.
 """
 
 from __future__ import annotations
@@ -54,9 +47,8 @@ def reformulated(tables: Tables) -> Tables:
     """*tables* with every SOS set written as binaries and linking rows.
 
     A pure function of the tables — the members, their columns' bounds and the
-    two counts are all it reads — so a sink asks for it without knowing how the
-    model was built. The result is **mixed-integer**, so an LP that carried a
-    set comes back without duals.
+    two counts are all it reads. The result is **mixed-integer**, so an LP that
+    carried a set comes back without duals.
 
     Args:
         tables: A built model whose ``sos`` frame holds at least one member.
@@ -106,8 +98,7 @@ class _Members:
         cardinality: Every binary, in set order, which is the whole of the
             cardinality block's columns.
         set_widths: How many of them each set owns — one cardinality row's
-            width, counted where the counting is free rather than off the
-            finished block.
+            width.
     """
 
     col: npt.NDArray[Any]
@@ -126,15 +117,13 @@ def _members(tables: Tables) -> _Members:
     the first of its set when the row above belongs to another and the last
     when the row below does. The rest follows — a last member holds no binary,
     a first closes no segment, and a **SOS2 set of one is both**, so it is
-    dropped whole (one nonzero is already at most two, and there is no segment
-    to hold a binary; linopy returns early on the same case).
+    dropped whole.
 
     Which binary a member reaches is the running count of those assigned
     before it, its own being the next to be assigned.
 
-    **Nothing is dropped unless a set is that singleton**, which no common
-    shape has, so whether any is is asked before every array is compacted for
-    the answer.
+    **Nothing is dropped unless a set is that singleton**, so whether any is is
+    asked before every array is compacted for the answer.
 
     Raises:
         DataError: A member a big-M cannot stand in for.
@@ -166,9 +155,8 @@ def _members(tables: Tables) -> _Members:
 def _edges(sets: npt.NDArray[Any]) -> tuple[npt.NDArray[np.bool_], npt.NDArray[np.bool_]]:
     """Which members begin and which end a run of one set.
 
-    The one comparison everything else here is derived from, and the reason
-    the stream's ``(set, weight)`` order is a contract rather than a
-    convenience.
+    The one comparison everything else here is derived from; the stream's
+    ``(set, weight)`` order is a contract.
     """
     first = np.empty(len(sets), dtype=np.bool_)
     first[:1] = True
@@ -182,18 +170,15 @@ def _edges(sets: npt.NDArray[Any]) -> tuple[npt.NDArray[np.bool_], npt.NDArray[n
 def _refuse_unbounded(tables: Tables, col: npt.NDArray[Any], magnitude: npt.NDArray[np.float64]) -> None:
     """Refuse a member no finite big-M can stand in for — linopy's two conditions.
 
-    Asked of the big-M rather than of the bound, in that order for the reason
-    the order exists: ``big_m:`` is what a caller declares *because* the bound
-    is open, so asking first would refuse the model the answer was given for.
+    Asked of the big-M rather than of the bound: ``big_m:`` is declared
+    *because* the bound is open, so checking the bound first would refuse the
+    model ``big_m:`` was given for.
 
-    The first is asked of the whole model's bounds before it is asked of the
-    members: no member can have a negative lower bound where no column does,
-    and that is one comparison against a column already in hand rather than a
-    gather of one bound per member.
+    The first is asked of the whole model's bounds before the members: no
+    member can have a negative lower bound where no column does.
 
     Raises:
-        DataError: Either condition, counted rather than located: a member is
-            a column index, and what a caller acts on is the bound.
+        DataError: Either condition, counted rather than located.
     """
     lb = tables.cols.get_column('lb')
     for offending, what, fix in (
@@ -224,8 +209,7 @@ def _linking_matrix(members: _Members) -> pl.DataFrame:
     what keeps the block in CSR order with nothing sorted: a row holds its own
     column, then the segment closing into it, then the segment it opens, and
     those are already ascending — a model column comes before any appended
-    binary, and a closing segment is the one before the opening. Sorting the
-    block in polars instead is the largest thing here.
+    binary, and a closing segment is the one before the opening.
 
     So a span is **broadcast and then corrected**, twice, rather than
     scattered entry by entry: every entry of a member's row but the first
@@ -277,11 +261,6 @@ def _binary_columns(count: int, cols: pl.DataFrame) -> pl.DataFrame:
 
 
 def _row_starts(tables: Tables, members: _Members) -> Any:
-    """The CSR index, extended by what each appended row owns.
-
-    Counted where the counting was free rather than off the finished block:
-    reading it back off the entries would mean a pass over every one of them,
-    which is the largest thing here.
-    """
+    """The CSR index, extended by what each appended row owns."""
     lengths = np.concatenate([members.entries, members.set_widths])
     return np.concatenate([tables.row_starts, tables.row_starts[-1] + np.cumsum(lengths)])

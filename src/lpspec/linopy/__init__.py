@@ -8,9 +8,8 @@ caller then owns. Both accept *exactly* the same language, which is what makes
 the differential tests an oracle rather than a comparison of dialects.
 
 Two functions — a producer and a reader — and both are **pure**: YAML goes in,
-a model or a value comes out, and nothing is retained, which is why
-:func:`expression` takes ``sources`` again rather than remembering what
-:func:`build` saw::
+a model or a value comes out, and nothing is retained. :func:`expression` takes
+``sources`` again rather than remembering what :func:`build` saw::
 
     from lpspec import linopy as lpspec_linopy
 
@@ -66,9 +65,6 @@ __all__ = ['build', 'expression']
 
 def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
     """Attach *sources* to *spec* and build it as a ``linopy.Model``.
-
-    :func:`lpspec.build`'s signature: which lane builds a file is the caller's
-    choice, so the call cannot differ.
 
     Args:
         spec: As :func:`lpspec.check` takes it.
@@ -145,7 +141,6 @@ def expression(
 def _named(spec: Buildable) -> str:
     """What to call *spec* in an error note.
 
-    A path names itself; a mapping or an already-loaded schema has no name, and
-    saying so beats printing a dict into a traceback.
+    A path names itself; a mapping or an already-loaded schema has no name.
     """
     return f"YAML '{spec}'" if isinstance(spec, (str, Path)) else 'the spec passed in'
