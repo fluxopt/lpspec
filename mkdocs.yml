@@ -54,6 +54,7 @@ nav:
       - Editor completion and offline checking: https://math-spec.readthedocs.io/en/latest/howto/installation/#editor-completion-and-offline-checking
       - Running a sweep in parallel: howto/parallel.md
       - Archiving a solve: howto/archiving.md
+      - Reading a directory of runs: howto/warehouse.md
       - Debugging a wrong answer: howto/debug.md
   - Reference:
       - The verbs: reference/api.md

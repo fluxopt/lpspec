@@ -454,8 +454,10 @@ declare. `spill_to=` and `archive=` are different destinations and compose —
 the spill is what the archive packs.
 
 The recipes are [archiving a solve](../howto/archiving.md): keeping the answer
-an update produced, archiving a sweep too large to hold, comparing cases solved
-apart, and querying an archive from a database.
+an update produced, and archiving a sweep too large to hold. Reading many of
+them at once — comparing cases solved apart, finding the input that moved, and
+querying the tree from a database — is
+[reading a directory of runs](../howto/warehouse.md).
 
 The sources go in through the same door that reads them, so what is refused
 there is refused here and nothing is written: `build`'s for one solve, and for
