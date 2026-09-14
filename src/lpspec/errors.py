@@ -126,6 +126,16 @@ def already_readable_message(clash: list[str]) -> str:
     )
 
 
+def carried_parameter_message(carried: list[str]) -> str:
+    """An expression to evaluate across a sweep that reads a carried parameter."""
+    return (
+        f'this expression reads {carried}, which the sweep carried from one slice into the next, and a '
+        f"carried value is a previous slice's answer rather than stored data — so it cannot be put back "
+        f'per slice from the archive. Re-run the sweep with lps.solve_over(spec, sources, axis, carry=...) '
+        f'and evaluate on what comes back, or read a quantity over the sweep that reads no carried parameter.'
+    )
+
+
 def no_model_behind_this_answer_message() -> str:
     """An expression to read in an answer that has no model behind it."""
     return (

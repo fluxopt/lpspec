@@ -44,7 +44,15 @@ from lpspec.layout import (
     opened,
 )
 from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of, row_of
-from lpspec.strategy import EachCoordinate, EachWindow, Runs, axis_from, load_runs, scan_runs
+from lpspec.strategy import (
+    EachCoordinate,
+    EachWindow,
+    Runs,
+    attach_sweep_evaluator,
+    axis_from,
+    load_runs,
+    scan_runs,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -289,5 +297,7 @@ def _archive_under(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
         return SolveArchive(spec, sources, answer, digests, _metrics_in(saved))
     manifest = json.loads(axis_member.read_text())
     axis = axis_from(manifest)
+    carry = manifest.get('carry', {})
     slices = (load_runs if whole else scan_runs)(under / ANSWER_DIR)
-    return SweepArchive(spec, sources, axis, manifest.get('carry', {}), slices, digests)
+    answer = attach_sweep_evaluator(slices, spec, sources, axis, carry)
+    return SweepArchive(spec, sources, axis, carry, answer, digests)

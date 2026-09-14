@@ -2194,3 +2194,42 @@ def test_a_carried_sweep_reruns_from_its_archive_with_the_stored_carry(tmp_path)
     packed = lps.load_archive(tmp_path / 'roll')
     rerun = lps.solve_over(packed.spec, packed.sources, packed.axis, carry=packed.carry)
     assert rerun.primal('soc').equals(original.primal('soc')), 'the re-run with the stored carry matches the archive'
+
+
+def test_a_sweep_archive_evaluates_a_quantity_the_file_never_named_per_slice(tmp_path):
+    """`Runs.evaluate` reads an undeclared quantity at each slice's own solution — matches solving that slice alone."""
+    axis = lps.EachCoordinate('scenario')
+    lps.solve_over(DISPATCH, scenario_sources(), axis, archive=tmp_path / 'study.zip')
+    sweep = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'out')
+    expr = 'sum(p * cost, over=generator)'
+    swept = sweep.answer.evaluate(expr)
+    for key, slice_sources in axis.slices(scenario_sources()):
+        live = lps.solve(DISPATCH, slice_sources).evaluate(expr)
+        got = swept.filter(pl.col(sweep.answer.key_name) == key).drop(sweep.answer.key_name)
+        columns = live.columns[:-1]
+        assert got.sort(columns).equals(live.sort(columns)), f'slice {key!r} evaluates at its own primal, no re-solve'
+
+
+def test_a_scanned_sweep_archive_evaluates_the_same(tmp_path):
+    """A sweep left on disk (`scan_archive`) evaluates against those frames, the same values held reads."""
+    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), archive=tmp_path / 'study.zip')
+    expr = 'sum(p * cost, over=generator)'
+    whole = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'whole').answer.evaluate(expr)
+    scanned = lps.scan_archive(tmp_path / 'study.zip', tmp_path / 'scan').answer.evaluate(expr)
+    assert scanned.equals(whole), 'a scanned sweep evaluates against the frames on disk, the same answer'
+
+
+def test_a_live_sweep_has_no_model_to_evaluate_against():
+    """A Runs a live solve returned retains no model, so evaluate says why — the archive is what carries one."""
+    runs = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'))
+    with pytest.raises(lps.LpspecError, match='no model behind it'):
+        runs.evaluate('sum(p, over=generator)')
+
+
+def test_evaluate_across_a_sweep_refuses_an_expression_that_reads_a_carried_parameter(tmp_path):
+    """The narrow gap: a carried value is a previous slice's answer, not stored data, so evaluate refuses it."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll.zip')
+    sweep = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll')
+    assert sweep.answer.evaluate('sum(p * cost)').height, 'an expression over static data evaluates per slice'
+    with pytest.raises(lps.LpspecError, match='carried'):
+        sweep.answer.evaluate('sum(soc_initial)')

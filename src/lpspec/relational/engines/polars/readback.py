@@ -196,19 +196,30 @@ def reordered(
             rebuilt model holds — the frame is not this model's answer.
     """
     in_start_order = sorted((held.start, name) for name, held in registry.items())
-    pieces = [_aligned(attached, name, registry[name], declared[name].dims, frames[name]) for _, name in in_start_order]
+    pieces = [
+        _aligned(attached, name, registry[name], declared[name].dims, frames.get(name)) for _, name in in_start_order
+    ]
     return pl.concat(pieces) if pieces else pl.Series(SOLUTION, [], dtype=pl.Float64)
 
 
 def _aligned(
-    attached: AttachedSources, name: str, held: labels.Labelled, dims: tuple[str, ...], stored: pl.DataFrame
+    attached: AttachedSources, name: str, held: labels.Labelled, dims: tuple[str, ...], stored: pl.DataFrame | None
 ) -> pl.Series:
     """One declaration's saved values in its label order — its slice of the vector.
 
     Joined onto the rebuilt label frame rather than trusted in file order, and
     the string dims cast back the way :func:`laid_out` cast them out, so the
-    alignment holds whatever order the parquet came back in.
+    alignment holds whatever order the parquet came back in. A declaration the
+    rebuild masks away entirely holds no label, so its slice is empty and a
+    missing *stored* is no error; a missing one the rebuild *does* build is.
     """
+    if held.height == 0:
+        return pl.Series(SOLUTION, [], dtype=pl.Float64)
+    if stored is None:
+        raise LpspecError(
+            f"the saved answer holds no '{name}' frame, but this model builds it, so it is not this model's "
+            f'answer. Re-solve rather than read.'
+        )
     if not dims:
         return stored['value'].rename(SOLUTION)
     order = (

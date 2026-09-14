@@ -35,9 +35,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 
 import polars as pl
+from math_spec.program import parameters_of
 
+from lpspec import expressions
 from lpspec.api import build, check
-from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning, did_you_mean
+from lpspec.errors import (
+    DataError,
+    LayoutError,
+    LpspecError,
+    LpspecWarning,
+    carried_parameter_message,
+    did_you_mean,
+    no_model_behind_this_answer_message,
+)
 from lpspec.frames import as_frame
 from lpspec.lanes import declared
 from lpspec.layout import beside, check_the_target, write_archive
@@ -62,7 +72,7 @@ from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to
 from lpspec.sources import least_value
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
 
     import pandas as pd
     import xarray as xr
@@ -737,6 +747,10 @@ class Runs:
     _hand_built: bool = field(repr=False, default=False)
     #: Where the frames are instead, for a sweep solved with ``spill_to=``.
     _spill: _Spill | None = field(repr=False, default=None)
+    #: :meth:`evaluate`'s implementation, wired by a sweep archive over the
+    #: spec, sources, axis and carry it carries. ``None`` on a Runs a live solve
+    #: returned, which retains no model to lower an expression against.
+    _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = field(repr=False, default=None)
 
     @classmethod
     def _folded(
@@ -915,6 +929,35 @@ class Runs:
             self._read(self._expressions, 'named expression', name, self._no_expressions.get(name)),
             original_index=original_index,
         )
+
+    def evaluate(self, expression: str | Mapping[str, Any]) -> pl.DataFrame:
+        """One expression the file never named, valued at every slice's solution — the slice key prepended.
+
+        :meth:`~lpspec.relational.result.Result.evaluate` across a sweep: a
+        quantity written the way ``expressions:`` writes one, evaluated at each
+        slice's own solution and stitched keyed by slice, no re-solve. Each
+        slice's model is rebuilt from the archive's spec and that slice's cut of
+        the sources, and the slice's saved primal put back against it.
+
+        Available on the sweep :func:`~lpspec.archive.load_archive` hands back,
+        which carries the spec, sources and axis; a Runs a live solve returned
+        retains no model and says so. It reads only what an archive can put back:
+        an expression over a parameter the sweep **carried** is refused, that
+        value being a previous slice's answer rather than stored data.
+
+        Args:
+            expression: What one ``expressions:`` entry takes — a string, or the
+                mapping carrying ``cases:`` with ``foreach:`` and ``otherwise:``.
+
+        Raises:
+            LpspecError: A Runs with no model behind it — a live solve's — or an
+                expression that reads a parameter the sweep carried.
+            LanguageError: A construct outside the language, or a name the model
+                does not declare.
+        """
+        if self._evaluate is None:
+            raise LpspecError(no_model_behind_this_answer_message())
+        return self._evaluate(expression)
 
     def _reindexed(self, frame: _Frame, *, original_index: bool) -> _Frame:
         """*frame* over the dimension the axis sliced, rather than over its slices.
@@ -1357,6 +1400,72 @@ def _archive_the_sweep(
         return
     with beside(out) as scratch:
         write_archive(out, spec, sources, checked=one_slice, whole=whole, axis=manifest, answer=folded.save(scratch))
+
+
+def attach_sweep_evaluator(
+    runs: Runs,
+    spec: Spec,
+    sources: Mapping[str, Source],
+    axis: EachCoordinate | EachWindow,
+    carry: Mapping[str, str],
+) -> Runs:
+    """*runs* with :meth:`Runs.evaluate` wired, over a sweep archive's own inputs.
+
+    A sweep archive carries the spec, the uncut sources, the axis that cut them
+    and the carry that chained them — everything a per-slice rebuild needs. The
+    frames a save wrote supply each slice's primal, so nothing is re-solved.
+    """
+    return replace(runs, _evaluate=_sweep_evaluator(runs, spec, sources, axis, carry))
+
+
+def _sweep_evaluator(
+    runs: Runs,
+    spec: Spec,
+    sources: Mapping[str, Source],
+    axis: EachCoordinate | EachWindow,
+    carry: Mapping[str, str],
+) -> Callable[[str | Mapping[str, Any]], pl.DataFrame]:
+    """One expression at every slice's solution, each slice rebuilt from stored inputs and stitched by key.
+
+    The carry is the narrow gap: a carried parameter's per-slice value is a
+    previous slice's answer, not stored data, so an expression that reads one is
+    refused rather than answered from a value the archive does not hold.
+    """
+    carried = set(carry)
+    key_dtype = runs.objective.schema[runs.key_name]
+
+    def evaluate(expression: str | Mapping[str, Any]) -> pl.DataFrame:
+        touched = sorted(set(parameters_of(expressions.lower(spec, expression))) & carried)
+        if touched:
+            raise LpspecError(carried_parameter_message(touched))
+        primal, dual = _slice_index(runs, 'primal'), _slice_index(runs, 'dual')
+        pieces = []
+        for key, slice_sources in axis.slices(sources):
+            slice_primals = {name: by_key[key] for name, by_key in primal.items() if key in by_key}
+            if not slice_primals:
+                continue
+            slice_duals = {name: by_key[key] for name, by_key in dual.items() if key in by_key} or None
+            model = build(spec, slice_sources)
+            reader = model._engine.evaluator(slice_primals, slice_duals, runs._no_duals, model._lower)
+            pieces.append(_keyed(reader(expression), runs.key_name, key, key_dtype))
+        if not pieces:
+            raise LpspecError('no slice of this sweep produced a solution, so an expression has nothing to read at.')
+        return pl.concat(pieces)
+
+    return evaluate
+
+
+def _slice_index(runs: Runs, kind: str) -> dict[str, dict[Label, pl.DataFrame]]:
+    """``{name: {slice key: frame}}`` for *kind*, whether the sweep is held or spilled."""
+    if runs._spill is None:
+        held = runs._primals if kind == 'primal' else runs._duals
+        return {name: _by_key(frames, runs.key_name) for name, frames in held.items()}
+    index: dict[str, dict[Label, pl.DataFrame]] = {}
+    for name in runs._spill.held(kind):
+        frame = runs._spill.scan(kind, name)
+        if frame is not None:
+            index[name] = _by_key(frame.collect().partition_by(runs.key_name), runs.key_name)
+    return index
 
 
 def _check_the_carry(
