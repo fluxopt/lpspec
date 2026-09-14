@@ -50,6 +50,7 @@ nav:
       - Fix, relax, remove: lifecycle.ipynb
   - How-to guides:
       - Preparing the data: howto/data.md
+      - Validating data before you attach it: howto/validate.md
       # The schema is the language's, so the editor recipe is documented with it.
       - Editor completion and offline checking: https://math-spec.readthedocs.io/en/latest/howto/installation/#editor-completion-and-offline-checking
       - Running a sweep in parallel: howto/parallel.md
