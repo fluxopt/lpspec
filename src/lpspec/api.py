@@ -605,17 +605,17 @@ def _answer_under(out: Path, read: Reading) -> Result:
     )
 
 
-def attach_evaluator(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
-    """*answer* with :meth:`~lpspec.relational.result.Result.evaluate` wired, over *spec* and *sources* rebuilt.
+def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
+    """*answer* with :meth:`~lpspec.relational.result.Result.evaluate` and :meth:`~...Result.extend` wired, over *spec* and *sources* rebuilt.
 
-    Evaluating a quantity the file never named lowers the model as written, so
-    the model is rebuilt (a build, never a solve) and the saved primal and dual
-    put back in order against it. The declared readers a save wrote are
-    untouched; only an expression outside them reaches the rebuilt reader.
-    *answer* is returned unchanged where the solve left no values.
+    Reading or adding a quantity the file never named lowers the model as
+    written, so the model is rebuilt (a build, never a solve) and the saved
+    primal and dual put back in order against it. The declared readers a save
+    wrote are untouched; only an expression outside them reaches the rebuilt
+    readers. *answer* is returned unchanged where the solve left no values.
 
-    The rebuild is deferred to the first
-    :meth:`~lpspec.relational.result.Result.evaluate` call and cached.
+    The rebuild is deferred to the first :meth:`~...Result.evaluate` or
+    :meth:`~...Result.extend` call and cached.
 
     Args:
         answer: A saved solve, as :func:`load_result` or :func:`scan_result`
@@ -628,10 +628,10 @@ def attach_evaluator(answer: Result, spec: Buildable, sources: Mapping[str, Sour
     frames = answer._primals
     dual_frames = answer._duals
     no_duals = answer._no_duals
-    reader: list[Callable[[str | Mapping[str, Any]], pl.DataFrame]] = []
+    built: list[tuple[Any, Any]] = []
 
-    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
-        if not reader:
+    def readers() -> tuple[Any, Any]:
+        if not built:
             primals = {name: frame.collect() for name, frame in frames.items()}
             duals = (
                 {name: frame.collect() for name, frame in dual_frames.items()}
@@ -639,7 +639,13 @@ def attach_evaluator(answer: Result, spec: Buildable, sources: Mapping[str, Sour
                 else None
             )
             model = build(spec, sources)
-            reader.append(model._engine.evaluator(primals, duals, no_duals, model._lower))
-        return reader[0](written)
+            built.append(model._engine.reconstruct(primals, duals, no_duals, model._lower, model._lower_all))
+        return built[0]
 
-    return replace(answer, _evaluate=evaluate)
+    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
+        return readers()[0](written)
+
+    def extend(carried: Mapping[str, Any], added: Mapping[str, Any]) -> tuple[Any, Any]:
+        return readers()[1](carried, added)
+
+    return replace(answer, _evaluate=evaluate, _extend=extend)

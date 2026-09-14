@@ -395,28 +395,32 @@ class PolarsEngine:
 
         return declared, (evaluate if lower is not None else None), (extend if lower_all is not None else None)
 
-    def evaluator(
+    def reconstruct(
         self,
         primals: Mapping[str, pl.DataFrame],
         duals: Mapping[str, pl.DataFrame] | None,
         no_duals: str | None,
-        lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode],
-    ) -> Callable[[str | Mapping[str, Any]], pl.DataFrame]:
-        """The ``evaluate`` reader for a saved solution, over this rebuilt model.
+        lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
+        lower_all: _LowerAll | None,
+    ) -> tuple[
+        Callable[[str | Mapping[str, Any]], pl.DataFrame] | None,
+        _Extend | None,
+    ]:
+        """The ``evaluate`` and ``extend`` readers for a saved solution, over this rebuilt model.
 
         The primal and dual are reconstructed from the frames a save wrote,
         this build supplying the labels that put the values back in vector order
-        (:func:`readback.reordered`); the reader is then the one :meth:`solve`
-        hands a live result.
+        (:func:`readback.reordered`); the readers are then the ones :meth:`solve`
+        hands a live result. ``evaluate`` comes back where *lower* is given,
+        ``extend`` where *lower_all* is.
 
         Args:
             primals: The saved ``(dims…, value)`` frame per variable.
             duals: The same per constraint, or ``None`` where the solve left no
                 duals — *no_duals* then says why, and a read of one raises it.
             no_duals: Why there are no duals, or ``None`` when *duals* holds them.
-            lower: How an expression the caller writes becomes a plan node,
-                composed above the lane from the spec (docs/about/architecture.md,
-                hard rule 2).
+            lower: How an expression the caller writes becomes a plan node.
+            lower_all: How a block of them does, for ``extend``.
         """
         model = self._model
         primal = readback.reordered(model.attached, model.variables, model.program.variables, primals)
@@ -425,9 +429,8 @@ class PolarsEngine:
             if duals is not None
             else None
         )
-        _, evaluate, _ = self._readers(primal, dual, no_duals, lower, None)
-        assert evaluate is not None, 'a reconstructed solution given a lower has an evaluate'
-        return evaluate
+        _, evaluate, extend = self._readers(primal, dual, no_duals, lower, lower_all)
+        return evaluate, extend
 
     def _discrete(self) -> list[str]:
         """The variables this model declared as anything but continuous."""

@@ -441,10 +441,22 @@ def test_a_declared_name_off_an_archive_is_served_from_disk_not_lowered(archived
     assert frame.columns == ['snapshot', 'value'], 'a declared name off an archive reads its written frame'
 
 
-def test_extending_a_loaded_archive_still_refuses(archived):
-    """`extend` is not wired onto a loaded answer — only `evaluate` is — so it still says why it cannot."""
+def test_extending_a_loaded_archive_reads_the_added_names(result, archived):
+    """`extend` off a loaded archive keeps a quantity the file never named, at the archived solution."""
+    report = lps.load_archive(archived).answer.extend({'expressions': {'co2': 'sum(p * p_max, over=generator)'}})
+    live = result.evaluate('sum(p * p_max, over=generator)')
+    assert report.expression('co2').sort('snapshot').equals(live.sort('snapshot')), (
+        'the added name reads the archived primal, matching the live evaluate'
+    )
+    assert report.expression('total_gen').height, 'the model’s own declared names are still readable'
+    later = report.extend({'expressions': {'per_gen': 'co2 / total_gen'}})
+    assert later.expression('per_gen').height, 'a later block reads an earlier one’s added entry'
+
+
+def test_extending_a_bare_answer_directory_still_refuses(result, tmp_path):
+    """A bare `load_result` directory carries no spec, so there is no model to extend against."""
     with pytest.raises(LpspecError, match='no model behind it'):
-        lps.load_archive(archived).answer.extend(REPORT)
+        lps.load_result(result.save(tmp_path)).extend(REPORT)
 
 
 def test_a_closed_result_refuses_to_evaluate():

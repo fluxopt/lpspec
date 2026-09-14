@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 from math_spec import to_spec
 
-from lpspec.api import attach_evaluator, load_result, scan_result
+from lpspec.api import attach_readers, load_result, scan_result
 from lpspec.errors import LayoutError, LpspecError
 from lpspec.layout import (
     ANSWER_DIR,
@@ -48,7 +48,7 @@ from lpspec.strategy import (
     EachCoordinate,
     EachWindow,
     Runs,
-    attach_sweep_evaluator,
+    attach_sweep_readers,
     axis_from,
     load_runs,
     scan_runs,
@@ -293,11 +293,11 @@ def _archive_under(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
     axis_member = under / AXIS_MEMBER
     if not axis_member.is_file():
         saved = under / ANSWER_DIR
-        answer = attach_evaluator((load_result if whole else scan_result)(saved), spec, sources)
+        answer = attach_readers((load_result if whole else scan_result)(saved), spec, sources)
         return SolveArchive(spec, sources, answer, digests, _metrics_in(saved))
     manifest = json.loads(axis_member.read_text())
     axis = axis_from(manifest)
     carry = manifest.get('carry', {})
     slices = (load_runs if whole else scan_runs)(under / ANSWER_DIR)
-    answer = attach_sweep_evaluator(slices, spec, sources, axis, carry)
+    answer = attach_sweep_readers(slices, spec, sources, axis, carry)
     return SweepArchive(spec, sources, axis, carry, answer, digests)

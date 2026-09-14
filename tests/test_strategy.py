@@ -2253,3 +2253,41 @@ def test_evaluate_over_the_original_index_refuses_a_quantity_reduced_over_the_sl
     answer = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
     with pytest.raises(lps.LpspecError, match="over 'snapshot'"):
         answer.evaluate('sum(p * cost)', original_index=True)
+
+
+def test_a_sweep_archive_extends_with_a_kept_quantity_read_per_slice(tmp_path):
+    """`Runs.extend` keeps an undeclared quantity readable at every slice, matching solving that slice alone."""
+    axis = lps.EachCoordinate('scenario')
+    lps.solve_over(DISPATCH, scenario_sources(), axis, archive=tmp_path / 'study.zip')
+    sweep = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'out').answer
+    report = sweep.extend({'expressions': {'spend': 'sum(p * cost, over=generator)'}})
+    spend = report.expression('spend')
+    for key, slice_sources in axis.slices(scenario_sources()):
+        live = lps.solve(DISPATCH, slice_sources).evaluate('sum(p * cost, over=generator)')
+        got = spend.filter(pl.col(report.key_name) == key).drop(report.key_name)
+        columns = live.columns[:-1]
+        assert got.sort(columns).equals(live.sort(columns)), f'slice {key!r} keeps its own value'
+    assert 'spend' not in sweep._expressions, 'the sweep it extended is left alone'
+
+
+def test_extending_a_spilled_sweep_is_refused(tmp_path):
+    """A spilled sweep's frames are on disk, where an added one held in memory cannot join them."""
+    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), archive=tmp_path / 'study.zip')
+    scanned = lps.scan_archive(tmp_path / 'study.zip', tmp_path / 'scan').answer
+    with pytest.raises(lps.LpspecError, match='on disk'):
+        scanned.extend({'expressions': {'spend': 'sum(p * cost, over=generator)'}})
+
+
+def test_a_live_sweep_has_no_model_to_extend_against():
+    """A Runs a live solve returned retains no model, so extend says why."""
+    runs = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'))
+    with pytest.raises(lps.LpspecError, match='no model behind it'):
+        runs.extend({'expressions': {'spend': 'sum(p * cost, over=generator)'}})
+
+
+def test_extending_across_a_sweep_refuses_an_expression_that_reads_a_carried_parameter(tmp_path):
+    """The carried-parameter gap is caught for extend as for evaluate."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll.zip')
+    sweep = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
+    with pytest.raises(lps.LpspecError, match='carried'):
+        sweep.extend({'expressions': {'seed': 'sum(soc_initial)'}})
