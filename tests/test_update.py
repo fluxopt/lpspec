@@ -14,6 +14,8 @@ rebuilds and solves cold; nothing about the answer changes, and
 
 from __future__ import annotations
 
+import gc
+import weakref
 from dataclasses import replace
 from typing import Any, NamedTuple
 
@@ -428,6 +430,92 @@ def test_the_digest_reads_the_counts_that_frame_its_vectors(count):
     tables = _tables(REACH)
     moved = replace(tables, **{count: getattr(tables, count) + 1})
     assert moved.structure != tables.structure, f'{count} is framing, not decoration: the same bytes split elsewhere'
+
+
+def _hashes(monkeypatch) -> list[int]:
+    """A counter of every ask for a digest, from however many objects ask.
+
+    A plain property in place of the `cached_property`, so one object asked
+    twice counts twice. Each count below is one object asked once.
+    """
+    from lpspec.relational.sinks import tables as tables_module
+
+    taken: list[int] = []
+    real = tables_module.Tables.structure.func
+    monkeypatch.setattr(
+        tables_module.Tables,
+        'structure',
+        property(lambda self: (taken.append(1), real(self))[1]),
+    )
+    return taken
+
+
+def test_a_solve_that_is_never_rebuilt_never_hashes_the_model(model, monkeypatch):
+    """One solve, no digest — the comparison it would feed does not exist (#1608).
+
+    Every byte of the model goes through that hash to make sixteen only a
+    *second* solve reads, and at the top of the ladder it is the larger part of
+    the hand-off.
+    """
+    taken = _hashes(monkeypatch)
+    model.solve()
+    assert taken == [], f'a first solve has nothing to compare against, so it hashed {len(taken)} time(s) for nothing'
+
+
+def test_a_rebuild_takes_the_evidence_and_the_fast_path_still_holds(model, monkeypatch):
+    """Deferring it costs the session nothing: one digest per solve, as before (#1608).
+
+    The accounting is the risk: the rebuild reads the outgoing model's digest
+    and `keeps` the incoming one, which would be twice per solve where the
+    load-time hash paid once. A push leaves the digest still describing what the
+    solver holds, so the second rebuild finds one taken and reads nothing.
+    """
+    taken = _hashes(monkeypatch)
+    model.solve()
+    model.update({'load': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [10.0, 20.0, 30.0, 40.0]})}).solve()
+    assert model.diagnostics().loads == 1, 'a pushable update still takes the fast path'
+    assert len(taken) == 2, (
+        f'two solves take two digests — the outgoing model at the rebuild and the incoming one at the '
+        f'comparison — and not {len(taken)}'
+    )
+
+    model.update({'load': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [11.0, 21.0, 31.0, 41.0]})}).solve()
+    assert model.diagnostics().loads == 1, 'and again'
+    assert len(taken) == 3, f'each further solve adds one, not two: {len(taken)} after three solves'
+
+
+def test_solving_the_same_model_twice_keeps_it_without_a_rebuild_between(model, monkeypatch):
+    """A second solve of an *unchanged* model still takes the fast path (#1608).
+
+    The deferral's sharp edge while it still was one: a digest taken *only* at
+    rebuilds is missing exactly here, and a solver that can prove nothing is
+    loaded again. It is not missing, because `keeps` asking is itself the first
+    ask. Two solves, no update, one load.
+    """
+    taken = _hashes(monkeypatch)
+    model.solve()
+    assert model.solve().kept == 'solver', 'an unchanged model is the easiest thing there is to keep'
+    assert model.diagnostics().loads == 1, 'and keeping it means not loading it twice'
+    assert len(taken) == 2, f'the outgoing model and the incoming one, as ever, not {len(taken)}'
+
+
+def test_a_rebuild_leaves_the_held_solver_pinning_none_of_the_old_model(model):
+    """What outlives a build is the digest, never the frames it was read from (#1608).
+
+    The deferral's price is a solver holding the tables it loaded, and that
+    reference has to go before the next build allocates or a re-solving loop
+    stands at two models' peak.
+
+    **Asked between the rebuild and the next solve**, the only window where it
+    shows: `keeps` releases the frames itself one solve later, too late for this
+    peak and late enough to hide a missing release from a test that looks after
+    solving. No answer changes either way, so reachability is asked directly.
+    """
+    model.solve()
+    released = weakref.ref(model._engine._model.matrix)
+    model.update({'load': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [12.0, 22.0, 32.0, 42.0]})})
+    gc.collect()
+    assert released() is None, "the rebuilt-over model's matrix is still reachable, so the solver kept a whole model"
 
 
 #: The option name each sink gives a time limit — `solver_options` is forwarded

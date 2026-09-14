@@ -105,10 +105,11 @@ class Solver(ABC):
         solver.close()
 
     The two halves are split by who can answer them. **This class records the
-    rule's evidence** — the digest of what was loaded and the options it was
+    rule's evidence** — the structure of what was loaded and the options it was
     loaded with, identical bookkeeping for every solver. **A subclass owns the
-    hand-off**: loading, pushing values, running, releasing, all of which are
-    its own library's shape and nothing else's.
+    hand-off**:
+    loading, pushing values, running, releasing, all of which are its own
+    library's shape and nothing else's.
     """
 
     def __init__(
@@ -121,12 +122,12 @@ class Solver(ABC):
         #: asking for others has to be given something that was.
         self._options = dict(solver_options or {})
         self._load(tables, batch_rows)
-        #: What the loaded model *is* —
-        #: :attr:`~lpspec.relational.sinks.tables.Tables.structure`, the
-        #: digest of everything a re-solve may not change. Sixteen bytes, where
-        #: holding the frames themselves would keep two models alive across a
-        #: rebuild.
-        self._structure = tables.structure
+        #: The build's own frames, until :meth:`structure` reads their digest
+        #: and lets them go. Holding them pins nothing a caller does not hold.
+        self._tables: Tables | None = tables
+        #: The digest of everything a re-solve may not change, or ``None``
+        #: before :meth:`structure` is first asked. Read through it, never here.
+        self._structure: bytes | None = None
         #: The loaded model's spans, read by :meth:`_takes` alone — of the
         #: *ingested* tables, which on a reformulating sink are wider than what
         #: was built, so a warm start is checked against the model the solver
@@ -153,14 +154,26 @@ class Solver(ABC):
     #: prints rather than for what it advises: it is a message, not a verb.
     unavailable_message: ClassVar[str]
 
+    def structure(self) -> bytes:
+        """The digest of the loaded model, hashed off its frames the first time it is asked.
+
+        Only a second hand-off asks, so one solve never pays (#1608). Reading it
+        lets the frames go, which is why the engine reads it as it releases a
+        build — before the next one allocates. Idempotent.
+        """
+        if self._structure is None:
+            assert self._tables is not None, 'a solver holds the tables it loaded until their digest replaces them'
+            self._structure = self._tables.structure
+            self._tables = None
+        return self._structure
+
     def keeps(self, tables: Tables, solver_options: Mapping[str, Any] | None) -> bool:
         """Whether this held solver may keep its load and take *tables* by value.
 
-        Both halves of the recorded evidence live here — the digest of what was
-        loaded and the options it was loaded with — so the reuse test reads
-        them where they were written.
+        Options first: a dict comparison, where the structural half hashes two
+        models.
         """
-        return self._options == dict(solver_options or {}) and self._structure == tables.structure
+        return self._options == dict(solver_options or {}) and self.structure() == tables.structure
 
     @classmethod
     def imported(cls) -> Any:

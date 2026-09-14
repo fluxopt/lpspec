@@ -76,11 +76,10 @@ def loaded(
 
     *held* is kept exactly when it is the named class holding a model that
     differs from this one in nothing but numbers — same
-    :attr:`~lpspec.relational.sinks.tables.Tables.structure`, same
-    options, both recorded at its load — and then the new numbers are pushed
-    onto it. The digest is the correctness floor: a model whose structure
-    moved is a different model wearing the same labels, and pushing values
-    onto it would answer a question nobody asked.
+    :attr:`~lpspec.relational.sinks.tables.Tables.structure`, same options — and
+    then the new numbers are pushed onto it. The digest is the correctness
+    floor: a model whose structure moved is a different model wearing the same
+    labels, and pushing values onto it would answer a question nobody asked.
 
     A solver being replaced is closed here. It holds memory — and for one of
     them a licence — that no frame in this process accounts for, so leaving it
