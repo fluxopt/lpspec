@@ -13,11 +13,16 @@ curve is where the shapes live: the boiler's part-load efficiency, the CHP's
 heat-to-power ratio, and the heat pump's coefficient of performance (COP, heat
 delivered per unit of electricity drawn). None of them is a clause in the file.
 
-On top of the curve, each unit is committed. A binary status per period says
-whether it runs, a minimum load says how low it may run when it does, and a
-start-up charge and a minimum time up and down bind its schedule across periods
-— the [unit commitment](pypsa_unit_commitment.md) and
+On top of the curve, the two burners are committed. A binary status per period
+says whether a unit runs, a minimum load says how low it may run when it does,
+and a start-up charge and a minimum time up and down bind its schedule across
+periods — the [unit commitment](pypsa_unit_commitment.md) and
 [minimum up and down times](pypsa_min_up_down.md) shapes.
+
+Commitment is opt-in. The heat pump and electric boiler are fast and carry no
+minimum, so they are not committed: `where: committable` leaves them out of the
+status variable and every commitment row, and their curve alone bounds them
+between zero and capacity.
 
 The two compose in one row. The status bounds the unit's heat output, and the
 curve maps that output to the fuel and power it takes and makes:
@@ -36,14 +41,14 @@ the curve prices every point on the way up.
 <details markdown="1">
 <summary>The same model, as math</summary>
 
-Least-cost operation of a district-heating plant: a gas boiler, a CHP unit, a heat pump and an electric boiler feed one heat network with a store, each unit committed on or off with a minimum load, a start-up charge and a minimum time up and down. What a unit consumes and produces is one shared curve per unit — a boiler tying gas to heat, the CHP tying gas to heat and power, the heat pump tying electricity to heat at its coefficient of performance — so the number of flows a unit has, and the shape of its efficiency, are data. Heat sells at nothing, gas and grid electricity are bought, CHP power is sold, and every unit of gas burned is charged a carbon price.
+Least-cost operation of a district-heating plant: a gas boiler, a CHP unit, a heat pump and an electric boiler feed one heat network with a store. The two burners are committed on or off with a minimum load, a start-up charge and a minimum time up and down; the electric units carry none of that and dispatch freely, which `where: committable` decides. What a unit consumes and produces is one shared curve per unit — a boiler tying gas to heat, the CHP tying gas to heat and power, the heat pump tying electricity to heat at its coefficient of performance — so the number of flows a unit has, and the shape of its efficiency, are data. Heat sells at nothing, gas and grid electricity are bought, CHP power is sold, and every unit of gas burned is charged a carbon price.
 
 #### Sets
 
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` (`int` coordinates) — dispatch periods in order, cyclic at the horizon for the store |
-| $`\mathcal{U}`$ | index $`u`$ — `unit` — the converting units, each committed on or off in every period |
+| $`\mathcal{U}`$ | index $`u`$ — `unit` — the converting units, some committed on or off and some freely dispatched |
 | $`\mathcal{F}`$ | index $`f`$ — `flow` with $`\mathrm{unit\_of}: \mathcal{F} \to \mathcal{U},\ \mathrm{carrier\_of}: \mathcal{F} \to \mathcal{C}`$ — a unit's inputs and outputs, one row each |
 | $`\mathcal{C}`$ | index $`c`$ — `carrier` — what a flow carries — gas, grid electricity or heat |
 | $`\mathcal{B}`$ | index $`b`$ — `bp` — breakpoints of a unit's curve, as many as the longest curve needs |
@@ -59,6 +64,7 @@ Least-cost operation of a district-heating plant: a gas boiler, a CHP unit, a he
 | $`\mathrm{is\_input}`$ | `is_input` over $`\mathcal{F}`$ — which flows are bought — gas into a burner, electricity into a heat pump |
 | $`\mathrm{is\_sold}`$ | `is_sold` over $`\mathcal{F}`$ — which flows are sold back — the CHP unit's power export |
 | $`\mathrm{heat\_max}`$ | `heat_max` over $`\mathcal{U}`$ — a unit's heat output at full load, the size its commitment switches |
+| $`\mathrm{committable}`$ | `committable` over $`\mathcal{U}`$ — which units are committed on or off rather than freely dispatched — the thermal burners, whose minimum load and switching costs matter, and not the electric units, which follow the price from zero up |
 | $`\mathrm{min\_load}`$ | `min_load` over $`\mathcal{U}`$ — the share of its heat output a committed unit must run at least at |
 | $`\mathrm{min\_up\_time}`$ | `min_up_time` over $`\mathcal{U}`$ — how many periods a unit must stay on once it has started |
 | $`\mathrm{min\_down\_time}`$ | `min_down_time` over $`\mathcal{U}`$ — how many periods a unit must stay off once it has stopped |
@@ -78,7 +84,7 @@ Least-cost operation of a district-heating plant: a gas boiler, a CHP unit, a he
 |---|---|
 | $`\mathit{rate}`$ | `rate` over $`\mathcal{F} \times \mathcal{T}`$ — what each flow runs at |
 | $`\mathit{weight}`$ | `weight` over $`\mathcal{U} \times \mathcal{T} \times \mathcal{B}`$ — how much of each breakpoint a unit's operating point is made of — one convex combination per unit and period, over the breakpoints its own curve runs to |
-| $`\mathit{status}`$ | `status` over $`\mathcal{U} \times \mathcal{T}`$ — is this unit committed in this period? |
+| $`\mathit{status}`$ | `status` over $`\mathcal{U} \times \mathcal{T}`$ — is this unit committed in this period? Declared only for committable units |
 | $`\mathit{start\_up}`$ | `start_up` over $`\mathcal{U} \times \mathcal{T}`$ — does this unit come up entering this period? |
 | $`\mathit{shut\_down}`$ | `shut_down` over $`\mathcal{U} \times \mathcal{T}`$ — does this unit go down entering this period? |
 | $`\mathit{charge}`$ | `charge` over $`\mathcal{T}`$ — heat taken into the store |
@@ -120,37 +126,37 @@ $`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`
 **`commitment_max`**
 
 ```math
-\mathit{unit\_heat}_{t,u} - \mathrm{heat\_max}_{u} \cdot \mathit{status}_{u,t} \le 0 \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T}
+\mathit{unit\_heat}_{t,u} - \mathrm{heat\_max}_{u} \cdot \mathit{status}_{u,t} \le 0 \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, \mathrm{committable}_{u}
 ```
 
 **`commitment_min`**
 
 ```math
-\mathit{unit\_heat}_{t,u} - \mathrm{min\_load}_{u} \cdot \mathrm{heat\_max}_{u} \cdot \mathit{status}_{u,t} \ge 0 \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T}
+\mathit{unit\_heat}_{t,u} - \mathrm{min\_load}_{u} \cdot \mathrm{heat\_max}_{u} \cdot \mathit{status}_{u,t} \ge 0 \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, \mathrm{committable}_{u}
 ```
 
 **`start_up`**
 
 ```math
-\mathit{start\_up}_{u,t} - \mathit{status}_{u,t} + \mathit{status}_{u,t \boxminus_{0} 1} \ge 0 \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T}
+\mathit{start\_up}_{u,t} - \mathit{status}_{u,t} + \mathit{status}_{u,t \boxminus_{0} 1} \ge 0 \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, \mathrm{committable}_{u}
 ```
 
 **`shut_down`**
 
 ```math
-\mathit{shut\_down}_{u,t} + \mathit{status}_{u,t} - \mathit{status}_{u,t - 1} \ge 0 \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T}
+\mathit{shut\_down}_{u,t} + \mathit{status}_{u,t} - \mathit{status}_{u,t - 1} \ge 0 \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, \mathrm{committable}_{u}
 ```
 
 **`min_up_time`**
 
 ```math
-\sum_{t' \in \mathcal{T} \,:\, 0 \le t - t' < \mathrm{min\_up\_time}} \mathit{start\_up}_{u,t'} \le \mathit{status}_{u,t} \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, t > 0
+\sum_{t' \in \mathcal{T} \,:\, 0 \le t - t' < \mathrm{min\_up\_time}} \mathit{start\_up}_{u,t'} \le \mathit{status}_{u,t} \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, \mathrm{committable}_{u} \wedge t > 0
 ```
 
 **`min_down_time`**
 
 ```math
-\mathit{status}_{u,t} + \sum_{t' \in \mathcal{T} \,:\, 0 \le t - t' < \mathrm{min\_down\_time}} \mathit{shut\_down}_{u,t'} \le 1 \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, t > 0
+\mathit{status}_{u,t} + \sum_{t' \in \mathcal{T} \,:\, 0 \le t - t' < \mathrm{min\_down\_time}} \mathit{shut\_down}_{u,t'} \le 1 \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, \mathrm{committable}_{u} \wedge t > 0
 ```
 
 **`heat_balance`**
@@ -196,19 +202,19 @@ $`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`
 **`status`**
 
 ```math
-\mathit{status}_{u,t} \in \{0, 1\} \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T}
+\mathit{status}_{u,t} \in \{0, 1\} \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, \mathrm{committable}_{u}
 ```
 
 **`start_up`**
 
 ```math
-\mathit{start\_up}_{u,t} \in \{0, 1\} \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T}
+\mathit{start\_up}_{u,t} \in \{0, 1\} \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, \mathrm{committable}_{u}
 ```
 
 **`shut_down`**
 
 ```math
-\mathit{shut\_down}_{u,t} \in \{0, 1\} \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T}
+\mathit{shut\_down}_{u,t} \in \{0, 1\} \qquad \forall\, u \in \mathcal{U},\ t \in \mathcal{T} \,:\, \mathrm{committable}_{u}
 ```
 
 **`charge`**
@@ -240,9 +246,11 @@ parameter.
     ```yaml
     description: >-
       Least-cost operation of a district-heating plant: a gas boiler, a CHP unit, a
-      heat pump and an electric boiler feed one heat network with a store, each unit
-      committed on or off with a minimum load, a start-up charge and a minimum time
-      up and down. What a unit consumes and produces is one shared curve per unit —
+      heat pump and an electric boiler feed one heat network with a store. The two
+      burners are committed on or off with a minimum load, a start-up charge and a
+      minimum time up and down; the electric units carry none of that and dispatch
+      freely, which `where: committable` decides. What a unit consumes and produces
+      is one shared curve per unit —
       a boiler tying gas to heat, the CHP tying gas to heat and power, the heat pump
       tying electricity to heat at its coefficient of performance — so the number of
       flows a unit has, and the shape of its efficiency, are data. Heat sells at
@@ -254,7 +262,7 @@ parameter.
         description: dispatch periods in order, cyclic at the horizon for the store
         dtype: int
       unit:
-        description: the converting units, each committed on or off in every period
+        description: the converting units, some committed on or off and some freely dispatched
         dtype: str
       flow:
         description: a unit's inputs and outputs, one row each
@@ -299,6 +307,13 @@ parameter.
       heat_max:
         description: a unit's heat output at full load, the size its commitment switches
         dims: [unit]
+      committable:
+        description: >-
+          which units are committed on or off rather than freely dispatched — the
+          thermal burners, whose minimum load and switching costs matter, and not the
+          electric units, which follow the price from zero up
+        dims: [unit]
+        dtype: bool
       min_load:
         description: the share of its heat output a committed unit must run at least at
         dims: [unit]
@@ -356,16 +371,19 @@ parameter.
           lower: 0
           upper: 1
       status:
-        description: is this unit committed in this period?
+        description: is this unit committed in this period? Declared only for committable units
         foreach: [unit, snapshot]
+        where: committable
         domain: binary
       start_up:
         description: does this unit come up entering this period?
         foreach: [unit, snapshot]
+        where: committable
         domain: binary
       shut_down:
         description: does this unit go down entering this period?
         foreach: [unit, snapshot]
+        where: committable
         domain: binary
       charge:
         description: heat taken into the store
@@ -413,36 +431,41 @@ parameter.
       commitment_max:
         description: >-
           a committed unit puts out no more than its full-load heat and an
-          uncommitted one is pinned to zero — capacity times status is a parameter
-          against a variable, so the product stays degree 1
+          uncommitted period is pinned to zero — capacity times status is a parameter
+          against a variable, so the product stays degree 1. A unit that is not
+          committable builds no such row and is capped by its curve instead
         foreach: [unit, snapshot]
+        where: committable
         expression: unit_heat - heat_max * status <= 0
       commitment_min:
-        description: a committed unit runs at no less than its minimum load, an uncommitted one at zero
+        description: a committed unit runs at no less than its minimum load, an off period at zero
         foreach: [unit, snapshot]
+        where: committable
         expression: unit_heat - min_load * heat_max * status >= 0
       start_up:
         description: >-
-          a unit whose status rises entering this period pays for a start. Every unit
-          begins the horizon off, which is the 0 the first period reads where it has
-          no predecessor
+          a committable unit whose status rises entering this period pays for a start.
+          It begins the horizon off, which is the 0 the first period reads where it
+          has no predecessor
         foreach: [unit, snapshot]
+        where: committable
         expression: start_up - status + shift(status, over=snapshot, offset=1, edge=0) >= 0
       shut_down:
-        description: a unit whose status falls entering this period pays for a stop
+        description: a committable unit whose status falls entering this period pays for a stop
         foreach: [unit, snapshot]
+        where: committable
         expression: shut_down + status - shift(status, over=snapshot, offset=1) >= 0
       min_up_time:
         description: >-
           over the last `min_up_time` periods a unit may have started at most as often
           as it is running now, which stops it starting and stopping inside its window
         foreach: [unit, snapshot]
-        where: "snapshot > 0"
+        where: "committable AND snapshot > 0"
         expression: sum_back(start_up, over=snapshot, within=min_up_time) <= status
       min_down_time:
         description: the mirror — having stopped inside the window and running now cannot both hold
         foreach: [unit, snapshot]
-        where: "snapshot > 0"
+        where: "committable AND snapshot > 0"
         expression: status + sum_back(shut_down, over=snapshot, within=min_down_time) <= 1
       heat_balance:
         description: what the units put out, plus what the store gives back net of charging, meets the demand
@@ -472,7 +495,7 @@ parameter.
     ```python
     # sources: parameter name -> frame or parquet path
     with lps.solve('examples/district_heating.yaml', sources) as solution:
-        solution.objective  # 14235.04
+        solution.objective  # 14228.04
         solution.primal('status')  # which units are committed, per period
         solution.primal('rate')  # what every flow runs at
     ```
@@ -484,6 +507,11 @@ unit runs and its minimum load how hard; the shared curve decides what running
 costs, in fuel bought and power sold. Neither construct knows about the other —
 `unit_heat` is the one expression that ties them, and it is the unit's heat read
 off the same flows the balance sums.
+
+**Commitment is per unit, through `where`.** `where: committable` on the status
+variable and on every commitment row builds them for the two burners and not the
+electric units. An uncommitted unit has no status and no minimum: it is one
+`where` clause away from a committed one, not a second kind of unit.
 
 **The fleet is data.** Nothing in the file says there are four units, or that
 the CHP has three flows and the boiler two. The `unit_of` and `carrier_of`

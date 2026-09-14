@@ -83,17 +83,19 @@ CURVES = {
     ],
 }
 
-#: Per-unit commitment: minimum load as a share of capacity, the times it must
-#: stay up and down once switched, and what a start and a stop cost.
+#: The committable units and their commitment data: minimum load as a share of
+#: capacity, the times a unit must stay up and down once switched, and what a
+#: start and a stop cost. The heat pump and electric boiler are absent — they
+#: are not committed, so they carry no status and no minimum, and `where`
+#: leaves the binaries and the commitment rows unbuilt for them.
 COMMITMENT = {
     'boiler': {'min_load': 0.2, 'min_up_time': 2, 'min_down_time': 2, 'start_up_cost': 40.0, 'shut_down_cost': 0.0},
     'chp': {'min_load': 0.5, 'min_up_time': 3, 'min_down_time': 3, 'start_up_cost': 100.0, 'shut_down_cost': 0.0},
-    'hp': {'min_load': 0.1, 'min_up_time': 1, 'min_down_time': 1, 'start_up_cost': 5.0, 'shut_down_cost': 0.0},
-    'eboiler': {'min_load': 0.0, 'min_up_time': 1, 'min_down_time': 1, 'start_up_cost': 2.0, 'shut_down_cost': 0.0},
 }
 
 UNIT_OF = {flow: flow.split('_')[0] for flow in FLOWS}
 UNITS = list(CURVES)
+COMMITTABLE = list(COMMITMENT)
 CARRIERS = ['gas', 'power', 'heat']
 BREAKPOINTS = max(len(curve) for curve in CURVES.values())
 
@@ -129,8 +131,8 @@ def sources() -> dict[str, object]:
             rate_max['flow'].append(flow)
             rate_max['value'].append(curve[-1][flow])
 
-    def per_unit(key: str) -> pl.DataFrame:
-        return pl.DataFrame({'unit': UNITS, 'value': [COMMITMENT[u][key] for u in UNITS]})
+    def committable_param(key: str) -> pl.DataFrame:
+        return pl.DataFrame({'unit': COMMITTABLE, 'value': [COMMITMENT[u][key] for u in COMMITTABLE]})
 
     return {
         'unit': pl.DataFrame({'unit': UNITS}),
@@ -147,11 +149,12 @@ def sources() -> dict[str, object]:
         'is_input': pl.DataFrame({'flow': list(flow_names), 'value': [float(r == 'input') for r in roles]}),
         'is_sold': pl.DataFrame({'flow': list(flow_names), 'value': [float(r == 'sold') for r in roles]}),
         'heat_max': pl.DataFrame({'unit': UNITS, 'value': [CURVES[u][-1][f'{u}_heat'] for u in UNITS]}),
-        'min_load': per_unit('min_load'),
-        'min_up_time': per_unit('min_up_time'),
-        'min_down_time': per_unit('min_down_time'),
-        'start_up_cost': per_unit('start_up_cost'),
-        'shut_down_cost': per_unit('shut_down_cost'),
+        'committable': pl.DataFrame({'unit': UNITS, 'value': [u in COMMITMENT for u in UNITS]}),
+        'min_load': committable_param('min_load'),
+        'min_up_time': committable_param('min_up_time'),
+        'min_down_time': committable_param('min_down_time'),
+        'start_up_cost': committable_param('start_up_cost'),
+        'shut_down_cost': committable_param('shut_down_cost'),
         'carrier_price': pl.DataFrame(
             {
                 'carrier': [c for c in CARRIERS for _ in range(PERIODS)],
@@ -199,8 +202,8 @@ def main() -> None:
     heat = rate.filter(pl.col('role') == 'heat').select('unit', 'snapshot', 'value')
     heat_wide = heat.pivot('unit', index='snapshot', values='value').fill_null(0.0).sort('snapshot')
     soc = result.primal('soc').sort('snapshot')['value']
-    committed = result.primal('status').group_by('unit').agg(pl.col('value').sum().round().cast(int)).sort('unit')
-    committed = dict(zip(committed['unit'], committed['value'], strict=True))
+    status = result.primal('status').group_by('unit').agg(pl.col('value').sum().round().cast(int))
+    committed = dict(zip(status['unit'], status['value'], strict=True))
 
     print(f'A winter day in {PERIODS} periods. Heat delivered by unit (MWh_th), and the store:')
     print(f'{"period":>6}  {"demand":>6}  ' + '  '.join(f'{u:>8}' for u in UNITS) + f'  {"soc":>6}')
@@ -210,7 +213,8 @@ def main() -> None:
         print(f'{t:>6}  {HEAT_DEMAND[t]:6.1f}  {outs}  {soc[t]:6.1f}')
 
     print()
-    print('periods committed:  ' + '   '.join(f'{u} {committed[u]:>2}' for u in UNITS))
+    print('periods committed (committable units only):  ' + '   '.join(f'{u} {committed[u]:>2}' for u in COMMITTABLE))
+    print('freely dispatched:  ' + ', '.join(u for u in UNITS if u not in COMMITMENT))
 
     priced = rate.join(_price_table(), on=['carrier', 'snapshot'])
     buy = float(priced.filter(pl.col('role') == 'input').select((pl.col('value') * pl.col('price')).sum()).item())
@@ -223,9 +227,9 @@ def main() -> None:
     )
     switches = pl.DataFrame(
         {
-            'unit': UNITS,
-            'su': [COMMITMENT[u]['start_up_cost'] for u in UNITS],
-            'sd': [COMMITMENT[u]['shut_down_cost'] for u in UNITS],
+            'unit': COMMITTABLE,
+            'su': [COMMITMENT[u]['start_up_cost'] for u in COMMITTABLE],
+            'sd': [COMMITMENT[u]['shut_down_cost'] for u in COMMITTABLE],
         }
     )
     starts = float(
@@ -243,10 +247,14 @@ def main() -> None:
     delivered = heat.group_by('snapshot').agg(pl.col('value').sum()).sort('snapshot')['value']
     charge = result.primal('charge').sort('snapshot')['value']
     discharge = result.primal('discharge').sort('snapshot')['value']
+    heat_by_unit = dict(heat.group_by('unit').agg(pl.col('value').sum()).iter_rows())
     assert all(abs(delivered[t] + discharge[t] - charge[t] - HEAT_DEMAND[t]) < 1e-6 for t in range(PERIODS)), (
         'the heat balance must close in every period'
     )
-    assert all(committed[u] > 0 for u in UNITS), 'every unit must earn its place across the day'
+    assert all(committed[u] > 0 for u in COMMITTABLE), 'each committable unit must run in some period'
+    assert all(heat_by_unit.get(u, 0.0) > 0 for u in UNITS if u not in COMMITMENT), (
+        'each freely dispatched unit must deliver heat in some period'
+    )
     assert abs(recomputed - result.objective) < 1e-4, 'the objective must equal the schedule recosted'
     print()
     print('heat balance closes every period, the whole fleet is used, and the objective is the recosted schedule.')
