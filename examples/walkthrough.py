@@ -209,7 +209,7 @@ def solution(engine: PolarsEngine) -> None:
     print(f'    status     {result.status} ({result.termination_condition})')
     print(f'    objective  {result.objective:,.1f}')
     print(_indent(result.primal('p').head(6)))
-    print(_indent(result.expression('total_supply').head(3)))
+    print(_indent(result.evaluation.expression('total_supply').head(3)))
     print('                 ^ the named expression, read back at the solution')
 
 

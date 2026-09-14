@@ -429,7 +429,7 @@ def test_every_repository_path_a_workflow_names_exists():
 #: worth in names. Adding one is a row here, which is a line in a diff a
 #: reviewer reads; the fences elsewhere in this file work the same way.
 PUBLIC_API = {
-    'run it': {'build', 'check', 'solve', 'write'},
+    'run it': {'build', 'check', 'evaluate', 'solve', 'write'},
     'run it many times': {'solve_over', 'EachCoordinate', 'EachWindow'},
     'carry it': {
         'SolveArchive',
@@ -441,7 +441,7 @@ PUBLIC_API = {
         'scan_result',
         'scan_runs',
     },
-    'name what came back': {'Model', 'Result', 'Runs'},
+    'name what came back': {'Model', 'Result', 'Runs', 'Evaluation', 'SweptEvaluation'},
     'catch it': {
         'LpspecError',
         'LanguageError',

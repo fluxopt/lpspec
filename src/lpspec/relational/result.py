@@ -12,7 +12,7 @@ Named for linopy's envelope (``Result`` = status + solution + report).
 from __future__ import annotations
 
 import importlib.util
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass
 from datetime import datetime  # noqa: TC003  — a Record annotation this module writes
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING, Any, Literal
 from lpspec.errors import (
     LpspecError,
     NoSolutionError,
-    already_readable_message,
     no_model_behind_this_answer_message,
     unknown_name_message,
 )
@@ -363,6 +362,129 @@ def _named(frames: Mapping[str, pl.LazyFrame], name: str, kind: str) -> pl.LazyF
 
 
 @dataclass
+class Evaluation:
+    """Quantities computed from a model at a point — the reading half, split from the solve.
+
+    What :func:`lpspec.evaluate` returns for a variable-free spec (a calculation,
+    with no point to choose), and what :attr:`Result.evaluation` returns at a
+    solve's point: the same reads either way. :meth:`expression` values a quantity
+    the file declared; :meth:`evaluate` values one it never named, written the
+    way ``expressions:`` writes one. Both aggregate to the quantity's own dims,
+    in declaration order, rows in label order over them.
+
+    Deferred: nothing is compiled until a read, so an evaluation nothing reads
+    costs only the data it holds. :meth:`close` releases that early, and a frame
+    already read stays valid, being its own data.
+    """
+
+    #: One deferred reader per declared named expression, or ``None`` once
+    #: closed — the absence of readers is what "closed" means.
+    _expressions: Mapping[str, Callable[[], pl.DataFrame]] | None
+    #: How an ad-hoc expression is valued — composed above the lane so it may
+    #: read the model as written (hard rule 2). ``None`` where there is no such
+    #: model: a build off an already-lowered ``Program``. Released with the
+    #: readers.
+    _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = None
+
+    @property
+    def expressions(self) -> tuple[str, ...]:
+        """The declared named expressions, in declaration order.
+
+        Raises:
+            LpspecError: This evaluation was closed.
+        """
+        return tuple(self._readers('the expressions'))
+
+    def expression(self, name: str) -> pl.DataFrame:
+        """The value of declared named expression *name* — ``(dims…, value)``.
+
+        The quantity the file declares under ``expressions:``, aggregated to its
+        own dims. Compiled on this call, so an evaluation whose expressions go
+        unread compiles none of them.
+
+        Takes a **declared name only**, never an expression string — that is
+        :meth:`evaluate`'s argument.
+
+        Raises:
+            LpspecError: This evaluation was closed.
+            DataError: A divisor with no value where the expression divides.
+            KeyError: No named expression is called *name*.
+        """
+        readers = self._readers(f"expression '{name}'")
+        try:
+            reader = readers[name]
+        except KeyError:
+            raise KeyError(
+                unknown_name_message('named expression', name, readers)
+                + ' expression() takes a name declared under expressions:; evaluate() takes an expression string.'
+            ) from None
+        return reader()
+
+    def evaluate(self, expression: str | Mapping[str, Any]) -> pl.DataFrame:
+        """The value of *expression* — ``(dims…, value)`` — a quantity the file need not have named.
+
+        :meth:`expression` for a quantity written the way ``expressions:`` writes
+        one (a string, or the mapping carrying ``cases:`` with ``foreach:`` and
+        ``otherwise:``), answered in the same shape. It may use every name the
+        model declares and only those. A declared name is served by its own
+        reader rather than lowered again.
+
+        Raises:
+            LpspecError: This evaluation was closed, or the model was built from
+                an already-lowered ``Program`` and there is nothing to lower
+                against.
+            DataError: A divisor with no value where the expression divides.
+            LanguageError: A construct outside the language, or a name the model
+                does not declare.
+        """
+        readers = self._readers('an expression')
+        if isinstance(expression, str) and expression in readers:
+            return readers[expression]()
+        if self._evaluate is None:
+            raise LpspecError(no_model_behind_this_answer_message())
+        return self._evaluate(expression)
+
+    def to_pandas(self, name: str) -> pd.DataFrame:
+        """One declared expression's values as a tidy :class:`pandas.DataFrame`.
+
+        Raises:
+            ModuleNotFoundError: On an install without pandas, naming the extra.
+        """
+        return tidy_to_pandas(self.expression(name))
+
+    def to_dataarray(self, name: str) -> xr.DataArray:
+        """One declared expression's values as a labelled :class:`xarray.DataArray`."""
+        return tidy_to_dataarray(self.to_pandas(name), name)
+
+    def to_dataset(self, *names: str) -> xr.Dataset:
+        """The declared expressions as one :class:`xarray.Dataset`; all of them by default."""
+        return tidy_to_dataset(names or self.expressions, self.to_dataarray)
+
+    def _readers(self, what: str) -> Mapping[str, Callable[[], pl.DataFrame]]:
+        """The readers, or why nothing here can be read: this evaluation was closed."""
+        if self._expressions is None:
+            raise LpspecError(
+                f'cannot read {what}: this evaluation was closed, and closing releases its readers '
+                f'and their hold on the attached data. Frames already read stay valid — they are their '
+                f'own data — so read what you need before close(), or drop the `with` and close when '
+                f'you are done.'
+            )
+        return self._expressions
+
+    def close(self) -> None:
+        """Release the readers and their hold on the attached data early. Optional."""
+        self._expressions = None
+        self._evaluate = None
+
+    def __enter__(self) -> Evaluation:
+        return self
+
+    def __exit__(self, *exc: object) -> Literal[False]:
+        self.close()
+        return False
+
+
+@dataclass
 class Result:
     """What a solve returned — the outcome, and access to any values.
 
@@ -395,32 +517,15 @@ class Result:
     #: How much of the session this solve kept, read off what actually ran —
     #: never off what was asked for.
     _kept: Keep
-    #: One deferred reader per declared named expression. Nothing about an
-    #: expression is lowered or compiled until its reader is called. Released
-    #: with the primals by :meth:`close`, since each holds this build's frames
-    #: and values.
+    #: One deferred reader per declared named expression, and the ad-hoc
+    #: evaluator — what :attr:`evaluation` hands out and what :meth:`save`
+    #: writes. Nothing is compiled until a reader is called; the pair is
+    #: composed above the lane so the evaluator may read the model as written
+    #: (hard rule 2). ``_evaluate`` is ``None`` where there is no such model —
+    #: a build off an already-lowered ``Program``. Released with the primals by
+    #: :meth:`close`, since each holds this build's frames and values.
     _expressions: Mapping[str, Callable[[], pl.DataFrame]] | None = None
-    #: :meth:`evaluate`'s implementation, over the same snapshot the readers
-    #: above close on, composed above the lane so this one need not read the
-    #: model as written (hard rule 2). ``None`` where the model was built from
-    #: an already-lowered ``Program``. Released with the primals.
     _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = None
-    #: :meth:`extend`'s half of the same: earlier entries and a new block in,
-    #: one deferred reader per new entry plus what a later extend needs to read
-    #: them out. Opaque here — the model as written, which this lane may not
-    #: read (hard rule 2). ``None`` where there is no model as written, and on a
-    #: loaded answer, which evaluates but does not extend. Released with the
-    #: primals.
-    _extend: (
-        Callable[
-            [Mapping[str, Any], Mapping[str, Any]],
-            tuple[Mapping[str, Callable[[], pl.DataFrame]], Mapping[str, Any]],
-        ]
-        | None
-    ) = None
-    #: What :attr:`_extend` carried out of the last extend, to hand back to the
-    #: next. Empty on a result no extend has been through.
-    _added: Mapping[str, Any] = field(default_factory=dict)
     #: Why there are no duals, when a solve that left values still has none.
     #: ``None`` whenever :attr:`_duals` holds them.
     _no_duals: str | None = None
@@ -571,103 +676,26 @@ class Result:
         frames = self._readable(self._activities, f"the activity of '{name}'")
         return _named(frames, name, 'constraint').collect(engine='streaming')
 
-    def expression(self, name: str) -> pl.DataFrame:
-        """The value of named expression *name* at this solution — ``(dims…, value)``.
+    @property
+    def evaluation(self) -> Evaluation:
+        """The computed quantities at this solution — declared and ad-hoc.
 
-        Evaluated at the solve's primal values and aggregated to the
-        expression's own dims, in declaration order. Lowered and compiled on
-        this call, so a model that reads no expression pays for none. Takes a
-        declared name, never an expression string.
+        The reading half, split from the solve: ``result.evaluation.expression(name)``
+        values a quantity the file declared, ``.evaluate(expr)`` one it never
+        named. Deferred, so a solve whose expressions go unread compiles none.
+        A closed result and an unreadable solve both refuse it — there is no
+        point to evaluate at.
 
         Raises:
             NoSolutionError: The solve left no values to read.
             LpspecError: This result was closed.
-            DataError: A divisor with no value where the expression divides.
-            KeyError: No named expression is called *name*.
         """
-        self._readable(self._primals, f"expression '{name}'")
-        readers = self._expressions or {}
-        try:
-            reader = readers[name]
-        except KeyError:
-            raise KeyError(
-                unknown_name_message('named expression', name, readers)
-                + ' expression() takes a name declared under expressions:, never an expression string.'
-            ) from None
-        return reader()
-
-    def evaluate(self, expression: str | Mapping[str, Any]) -> pl.DataFrame:
-        """The value of *expression* at this solution — ``(dims…, value)``.
-
-        :meth:`expression` for a quantity the file never named, written the way
-        ``expressions:`` writes one (a string, or the mapping carrying
-        ``cases:`` with ``foreach:`` and ``otherwise:``) and answered in the
-        same shape. It may use every name the solved model declares and only
-        those. A declared name is served by its own reader rather than lowered
-        again.
-
-        Names nothing, so it is not a *kind*: not written by :meth:`to_parquet`,
-        not spilled by a sweep, not reachable through ``kind='expression'``.
-
-        Raises:
-            NoSolutionError: The solve left no values to read.
-            LpspecError: This result was closed, the model was built from an
-                already-lowered ``Program``, or the expression reads a dual
-                and the solve left none.
-            DataError: A divisor with no value where the expression divides.
-            LanguageError: A construct outside the language, or a name the
-                model does not declare.
-        """
-        self._readable(self._primals, 'an expression')
-        readers = self._expressions or {}
-        if isinstance(expression, str) and expression in readers:
-            return readers[expression]()
-        if self._evaluate is None:
-            raise LpspecError(no_model_behind_this_answer_message())
-        return self._evaluate(expression)
-
-    def extend(self, added: Mapping[str, Any]) -> Result:
-        """This solve, with the expressions *added* declares also readable.
-
-        Status, objective and the frames :meth:`primal`, :meth:`dual` and
-        :meth:`activity` hand back are carried over unchanged and uncopied, so
-        the result is this solve rather than a second one::
-
-            report = result.extend({'expressions': {'co2': 'sum(p * rate, over=generator)'}})
-            report.expression('co2')  # the added one
-            report.expression('total_gen')  # the model's own, still there
-            report.to_dataset(kind='expression')
-
-        *added* is a model fragment carrying ``expressions:`` and nothing else,
-        each entry as :meth:`evaluate` takes one. Unlike :meth:`evaluate` the
-        entries are named, so they read through :meth:`expression`, ride every
-        bridge, and are written by :meth:`to_parquet` beside the declared ones.
-
-        Adds, never replaces: a name this result already reads is refused, not
-        shadowed. Nothing is mutated — closing one of the two leaves the other
-        whole. The block is lowered once when handed in, so a bad expression
-        fails here; each entry compiles only when read.
-
-        Raises:
-            NoSolutionError: The solve left no values to read.
-            LpspecError: This result was closed, the model was built from an
-                already-lowered ``Program``, or a name it already reads.
-            LanguageError: A construct outside the language, or a name the
-                model does not declare.
-            SchemaError: A fragment carrying any section but ``expressions:``.
-        """
-        self._readable(self._primals, 'an expression')
-        if self._extend is None:
-            raise LpspecError(no_model_behind_this_answer_message())
-        readers = dict(self._expressions or {})
-        added_readers, carried = self._extend(self._added, added)
-        if clash := sorted(set(added_readers) & set(readers)):
-            raise LpspecError(already_readable_message(clash))
-        return replace(self, _expressions=readers | dict(added_readers), _added=carried)
+        self._readable(self._primals, 'an evaluation')
+        return Evaluation(self._expressions, self._evaluate)
 
     def _frame(self, name: str, kind: str) -> pl.DataFrame:
         """*name* through the reader *kind* names — the dispatch every bridge shares."""
-        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[reader_kind(kind)]
+        reader = {'primal': self.primal, 'dual': self.dual}[reader_kind(kind)]
         return reader(name)
 
     def _names(self, kind: str) -> tuple[str, ...]:
@@ -680,22 +708,19 @@ class Result:
         """
         if reader_kind(kind) == 'primal':
             return tuple(self._readable(self._primals, 'the solution'))
-        if kind == 'dual':
-            frames = self._readable(self._duals, 'the duals')
-            if self._no_duals is not None:
-                raise LpspecError(self._no_duals)
-            return tuple(frames)
-        self._readable(self._primals, 'the expressions')
-        return tuple(self._expressions or {})
+        frames = self._readable(self._duals, 'the duals')
+        if self._no_duals is not None:
+            raise LpspecError(self._no_duals)
+        return tuple(frames)
 
     def to_pandas(self, name: str, kind: str = 'primal') -> pd.DataFrame:
         """One name's values as a tidy :class:`pandas.DataFrame`.
 
         Args:
-            name: A variable, a constraint or a named expression, as *kind*
-                says.
-            kind: ``primal``, ``dual`` or ``expression`` — the reader this
-                stands in for.
+            name: A variable or a constraint, as *kind* says.
+            kind: ``primal`` or ``dual`` — the reader this stands in for. A
+                computed quantity is read through :attr:`evaluation` and bridged
+                from there.
         """
         return tidy_to_pandas(self._frame(name, kind))
 
@@ -711,12 +736,11 @@ class Result:
 
         One kind per call: a dual and a variable of the same name would
         collide, and mean something else per row. Each arrives dense over its
-        own dims, all at once — on a large model name the few you need, or use
-        :meth:`save`, which writes every kind.
+        own dims, all at once — on a large model name the few you need.
 
         Args:
             names: What to include; none means every name of *kind*.
-            kind: ``primal``, ``dual`` or ``expression``.
+            kind: ``primal`` or ``dual``.
         """
         return tidy_to_dataset(names or self._names(kind), lambda name: self.to_dataarray(name, kind))
 
@@ -806,7 +830,7 @@ class Result:
         :class:`~lpspec.api.Model`'s to close.
         """
         self._primals = self._duals = self._activities = self._expressions = None
-        self._evaluate = self._extend = None
+        self._evaluate = None
 
     def __enter__(self) -> Result:
         return self

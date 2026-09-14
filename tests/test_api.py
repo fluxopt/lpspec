@@ -565,7 +565,7 @@ def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
     with lps.solve(spec, sources) as result:
         out = result.save(tmp_path)
         with pytest.raises(lps.LpspecError):
-            result.expression('ratio')
+            result.evaluation.expression('ratio')
         with pytest.raises(lps.LpspecError, match='integer'):
             result.to_dataset(kind='dual')
     assert sorted(p.name for p in out.iterdir()) == [
@@ -618,7 +618,7 @@ def test_a_saved_solution_says_why_a_kind_is_absent(tmp_path):
         with pytest.raises(lps.LpspecError) as no_dual:
             result.dual('meet')
         with pytest.raises(lps.LpspecError) as no_ratio:
-            result.expression('ratio')
+            result.evaluation.expression('ratio')
 
     absent = pl.read_parquet(out / 'reasons.parquet')
     assert absent.columns == ['kind', 'name', 'reason'], 'the kind, what is missing under it, and why'
@@ -667,13 +667,13 @@ def test_a_loaded_result_gives_the_reason_the_solve_gave(tmp_path):
         with pytest.raises(lps.LpspecError) as no_dual:
             result.dual('meet')
         with pytest.raises(lps.LpspecError) as no_ratio:
-            result.expression('ratio')
+            result.evaluation.expression('ratio')
 
-    assert loaded.expression('twice').equals(pl.DataFrame({'t': [0, 1], 'value': [4.0, 6.0]}))
+    assert loaded.evaluation.expression('twice').equals(pl.DataFrame({'t': [0, 1], 'value': [4.0, 6.0]}))
     with pytest.raises(lps.LpspecError, match='integer'):
         loaded.dual('meet')
     with pytest.raises(lps.LpspecError) as loaded_no_ratio:
-        loaded.expression('ratio')
+        loaded.evaluation.expression('ratio')
     assert (str(loaded_no_ratio.value), str(no_ratio.value)) == (str(no_ratio.value), str(no_ratio.value)), (
         'the expression names the same reason it named in the process that solved'
     )
@@ -911,7 +911,7 @@ def test_every_bridge_takes_a_kind(dispatch_solution, dispatch_yaml):
 
 
 def test_a_dataset_of_expressions_holds_every_one_this_data_evaluates():
-    """`to_dataset(kind='expression')` is every declared expression, each over
+    """`evaluation.to_dataset()` is every declared expression, each over
     its own dims, and one that fails on this data fails the call the way
     `expression` does rather than being left out silently."""
     pytest.importorskip('xarray')
@@ -924,10 +924,10 @@ def test_a_dataset_of_expressions_holds_every_one_this_data_evaluates():
         'generator': ['wind', 'gas'],
     }
     with lps.solve(spec, sources) as result:
-        ds = result.to_dataset(kind='expression')
+        ds = result.evaluation.to_dataset()
         assert set(ds.data_vars) == {'shed_twice', 'total'}, 'every declared expression, none named'
         assert list(ds['total'].dims) == ['snapshot'], 'each over its own dims'
-        assert set(result.to_dataset('total', kind='expression').data_vars) == {'total'}, 'named ones only'
+        assert set(result.evaluation.to_dataset('total').data_vars) == {'total'}, 'named ones only'
 
 
 TWO_VARIABLE_SPEC = {

@@ -13,7 +13,7 @@ from lpspec.relational.engines.polars.fragments import absence_restrictions
 from lpspec.relational.result import ConstraintRow
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from lpspec.relational.engines.polars.assembly import BuiltModel
     from lpspec.relational.engines.polars.attaching import AttachedSources
@@ -233,6 +233,65 @@ def _aligned(
             f'is not an answer to this model. Re-solve rather than read.'
         )
     return joined['value'].rename(SOLUTION)
+
+
+def deferred_readers(
+    compiler: PolarsCompiler, named: Mapping[str, program.ExpressionDeclaration]
+) -> dict[str, Callable[[], pl.DataFrame]]:
+    """One deferred reader per named expression — nothing compiled until one is called.
+
+    Shared by the two paths that read named expressions: a solve reads them at a
+    solution, and :func:`~lpspec.evaluate` reads them as arithmetic. The two
+    differ only in the *compiler* handed in — whether it carries a
+    :class:`~lpspec.relational.engines.polars.compiler.Solution` — never in how a
+    declared name becomes a thunk, so that turn lives here once.
+
+    Args:
+        compiler: The compiler each reader compiles its expression through.
+        named: The declared named expressions, by name.
+
+    Returns:
+        A reader per name; calling one compiles and evaluates that expression.
+    """
+
+    def reader(name: str, expression: program.ExpressionNode) -> Callable[[], pl.DataFrame]:
+        return lambda: expression_frame(name, expression, compiler)
+
+    return {name: reader(name, e.expression) for name, e in named.items()}
+
+
+def evaluation_readers(
+    compiler: PolarsCompiler,
+    named: Mapping[str, program.ExpressionDeclaration],
+    lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
+) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, Any]], pl.DataFrame] | None]:
+    """The reads an :class:`~lpspec.relational.result.Evaluation` is built from, over one compiler.
+
+    Shared by every producer of an evaluation — a live solve, a rebuilt archive,
+    and the variable-free arithmetic path — so the two reads a declared name and
+    an ad-hoc expression get are defined once, and differ only in the compiler.
+
+    Args:
+        compiler: The compiler each read compiles through — carrying a solution,
+            or none for pure arithmetic.
+        named: The declared named expressions, by name.
+        lower: How an expression written the way ``expressions:`` writes one
+            becomes a plan node in the model's namespace, or ``None`` where there
+            is no model as written to lower against — then ad-hoc evaluation is
+            unavailable and the second element is ``None``.
+
+    Returns:
+        One deferred reader per declared name, and the ad-hoc evaluator (or
+        ``None``).
+    """
+    declared = deferred_readers(compiler, named)
+    if lower is None:
+        return declared, None
+
+    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
+        return expression_frame('the expression', lower(written), compiler)
+
+    return declared, evaluate
 
 
 def expression_frame(name: str, expr: program.ExpressionNode, compiler: PolarsCompiler) -> pl.DataFrame:

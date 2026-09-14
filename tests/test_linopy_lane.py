@@ -600,7 +600,7 @@ def test_the_two_lanes_agree_on_an_absent_slot_declared_zero_under_a_nonlinear_r
     """`absence: zero` is a zero on both lanes, so `0.5 ** p` reads `0.5 ** 0`, which is 1, at the masked generator on each."""
     path = yaml_file(ZERO_ABSENCE_YAML, 'zero_absence.yaml')
     with differential(path, ZERO_ABSENCE_DATA) as run:
-        tidy = run.result.expression('grown')
+        tidy = run.result.evaluation.expression('grown')
         eager = lpspec_linopy.evaluate(run.model, path, 'grown', dict(ZERO_ABSENCE_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
@@ -637,7 +637,7 @@ def test_a_dual_on_a_solve_that_left_none_is_refused_on_this_lane_too(yaml_file)
     ],
 )
 def test_the_two_lanes_agree_on_a_named_expression(yaml_file, name):
-    """`result.expression(name)` and the lane's `evaluate` read one value.
+    """`result.evaluation.expression(name)` and the lane's `evaluate` read one value.
 
     Including the standalone case: the rules for named expressions guarantees a never-referenced
     expression is parsed and name-checked, and #562 makes it readable — on
@@ -647,7 +647,7 @@ def test_the_two_lanes_agree_on_a_named_expression(yaml_file, name):
     """
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
     with differential(path, EXPRESSION_DATA) as run:
-        tidy = run.result.expression(name)
+        tidy = run.result.evaluation.expression(name)
         eager = lpspec_linopy.evaluate(run.model, path, name, dict(EXPRESSION_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
@@ -730,7 +730,7 @@ def test_a_named_expression_reads_off_a_masked_curve(yaml_file):
     """
     path = yaml_file(MASKED_CURVE_YAML, 'masked_curve.yaml')
     with differential(path, MASKED_CURVE_DATA) as run:
-        tidy = run.result.expression('spend')
+        tidy = run.result.evaluation.expression('spend')
         eager = lpspec_linopy.evaluate(run.model, path, 'spend', dict(MASKED_CURVE_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}

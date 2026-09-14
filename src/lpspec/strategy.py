@@ -44,7 +44,6 @@ from lpspec.errors import (
     LayoutError,
     LpspecError,
     LpspecWarning,
-    already_readable_message,
     carried_parameter_message,
     did_you_mean,
     no_model_behind_this_answer_message,
@@ -748,17 +747,11 @@ class Runs:
     _hand_built: bool = field(repr=False, default=False)
     #: Where the frames are instead, for a sweep solved with ``spill_to=``.
     _spill: _Spill | None = field(repr=False, default=None)
-    #: :meth:`evaluate`'s implementation, wired by a sweep archive over the
-    #: spec, sources, axis and carry it carries. ``None`` on a Runs a live solve
-    #: returned, which retains no model to lower an expression against.
+    #: The ad-hoc evaluator :attr:`evaluation` hands out, wired by a sweep
+    #: archive over the spec, sources, axis and carry it carries. ``None`` on a
+    #: Runs a live solve returned, which retains no model to lower an expression
+    #: against.
     _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = field(repr=False, default=None)
-    #: :meth:`extend`'s implementation, wired beside :attr:`_evaluate`. Takes the
-    #: current sweep and a block, returns the sweep with the block's entries also
-    #: readable. ``None`` for the same reason.
-    _extend: Callable[[Runs, Mapping[str, Any]], Runs] | None = field(repr=False, default=None)
-    #: What an :meth:`extend` carried out of the last block, for a later one to
-    #: read this one's entries. Empty on a sweep no extend has been through.
-    _added: Mapping[str, Any] = field(repr=False, default_factory=dict)
 
     @classmethod
     def _folded(
@@ -858,14 +851,13 @@ class Runs:
         """One name's values across every slice as a :class:`polars.LazyFrame`, the slice key prepended.
 
         The reader for a sweep solved with ``spill_to=``, whose frames are on disk;
-        on one held in memory it is :meth:`primal`, :meth:`dual` or
-        :meth:`expression` made lazy, so the same line reads either.
+        on one held in memory it is :meth:`primal` or :meth:`dual` made lazy, so
+        the same line reads either. A computed quantity is scanned through
+        :attr:`evaluation`.
 
         Args:
-            name: A variable, a constraint or a named expression the spec
-                declares, as *kind* says.
-            kind: ``primal``, ``dual`` or ``expression`` — the reader this
-                stands in for.
+            name: A variable or a constraint the spec declares, as *kind* says.
+            kind: ``primal`` or ``dual`` — the reader this stands in for.
             original_index: Read over the dimension the axis sliced instead
                 of over the slice key.
 
@@ -877,7 +869,7 @@ class Runs:
             return self._frame(name, kind, original_index=original_index).lazy()
         frame = self._spill.scan(reader_kind(kind), name)
         if frame is None:
-            absent = {'primal': None, 'dual': self._no_duals, 'expression': self._no_expressions.get(name)}[kind]
+            absent = {'primal': None, 'dual': self._no_duals}[kind]
             held = dict.fromkeys(self._spill.held(kind))
             raise LpspecError(absent or _nothing_to_read(LABELS[kind], name, held, self.objective))
         return self._reindexed(frame, original_index=original_index)
@@ -916,89 +908,17 @@ class Runs:
             self._read(self._duals, 'constraint', name, self._no_duals), original_index=original_index
         )
 
-    def expression(self, name: str, *, original_index: bool = False) -> pl.DataFrame:
-        """One named expression's values across every slice, the slice key prepended.
+    @property
+    def evaluation(self) -> SweptEvaluation:
+        """The computed quantities across the sweep — declared, and ad-hoc off an archive.
 
-        :meth:`primal`'s shape and arguments, for the quantities the spec
-        declares under ``expressions:`` — each slice's value was evaluated at
-        that slice's solution when the fold read it.
-
-        Over the original index each coordinate carries the value of the window
-        that owns it — the recomputed lookahead rows are dropped, which is what
-        makes summing the stitched frame safe where summing per-window values
-        double-counts.
-
-        Raises:
-            LpspecError: No slice produced *name* — an evaluation that failed
-                on every slice carries its own reason — or ``original_index``
-                on a quantity reduced over the sliced dimension.
+        :attr:`~lpspec.relational.result.Result.evaluation` one dimension wider:
+        ``runs.evaluation.expression(name)`` stitches the quantity the file
+        declared across the slices, and ``.evaluate(expr)`` values one it never
+        named at every slice's solution — the latter only on the sweep
+        :func:`~lpspec.archive.load_archive` hands back, which retains the model.
         """
-        return self._reindexed(
-            self._read(self._expressions, 'named expression', name, self._no_expressions.get(name)),
-            original_index=original_index,
-        )
-
-    def evaluate(self, expression: str | Mapping[str, Any], *, original_index: bool = False) -> pl.DataFrame:
-        """One expression the file never named, valued at every slice's solution — the slice key prepended.
-
-        :meth:`~lpspec.relational.result.Result.evaluate` across a sweep: a
-        quantity written the way ``expressions:`` writes one, evaluated at each
-        slice's own solution and stitched keyed by slice, no re-solve. Each
-        slice's model is rebuilt from the archive's spec and that slice's cut of
-        the sources, and the slice's saved primal put back against it.
-
-        Available on the sweep :func:`~lpspec.archive.load_archive` hands back,
-        which carries the spec, sources and axis; a Runs a live solve returned
-        retains no model and says so. It reads only what an archive can put back:
-        an expression over a parameter the sweep **carried** is refused, that
-        value being a previous slice's answer rather than stored data.
-
-        Args:
-            expression: What one ``expressions:`` entry takes — a string, or the
-                mapping carrying ``cases:`` with ``foreach:`` and ``otherwise:``.
-            original_index: Read over the dimension the axis sliced instead of
-                over the slice key, exactly as :meth:`primal` does — the same
-                reindex, the overlapping windows' recomputed rows dropped.
-
-        Raises:
-            LpspecError: A Runs with no model behind it — a live solve's — an
-                expression that reads a parameter the sweep carried, or
-                ``original_index`` on a hand-built axis or a quantity reduced
-                over the sliced dimension.
-            LanguageError: A construct outside the language, or a name the model
-                does not declare.
-        """
-        if self._evaluate is None:
-            raise LpspecError(no_model_behind_this_answer_message())
-        return self._reindexed(self._evaluate(expression), original_index=original_index)
-
-    def extend(self, added: Mapping[str, Any]) -> Runs:
-        """This sweep, with the expressions *added* declares also readable at every slice.
-
-        :meth:`~lpspec.relational.result.Result.extend` across a sweep: *added*
-        is a model fragment carrying ``expressions:`` and nothing else, each
-        entry evaluated at every slice's own solution and kept, so the added
-        names read through :meth:`expression`, ride every bridge, and are written
-        by :meth:`save` beside the declared ones. The sweep it extended is left
-        alone; a later block reads an earlier one's entries.
-
-        Available on the sweep :func:`~lpspec.archive.load_archive` hands back. A
-        Runs a live solve returned retains no model and says so; a spilled sweep
-        is refused, its frames being on disk where an added one cannot join them.
-        An expression over a parameter the sweep carried is refused, as it is for
-        :meth:`evaluate`.
-
-        Raises:
-            LpspecError: A Runs with no model behind it — a live solve's — a
-                spilled sweep, a name already readable, or an expression that
-                reads a parameter the sweep carried.
-            LanguageError: A construct outside the language, or a name the model
-                does not declare.
-            SchemaError: A fragment carrying any section but ``expressions:``.
-        """
-        if self._extend is None:
-            raise LpspecError(no_model_behind_this_answer_message())
-        return self._extend(self, added)
+        return SweptEvaluation(self)
 
     def _reindexed(self, frame: _Frame, *, original_index: bool) -> _Frame:
         """*frame* over the dimension the axis sliced, rather than over its slices.
@@ -1029,7 +949,7 @@ class Runs:
 
     def _frame(self, name: str, kind: str, *, original_index: bool) -> pl.DataFrame:
         """*name* through the reader *kind* names — the dispatch every bridge and :meth:`scan` share."""
-        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[reader_kind(kind)]
+        reader = {'primal': self.primal, 'dual': self.dual}[reader_kind(kind)]
         return reader(name, original_index=original_index)
 
     def to_pandas(self, name: str, kind: str = 'primal', *, original_index: bool = False) -> pd.DataFrame:
@@ -1039,10 +959,9 @@ class Runs:
         held *name* says so on any install.
 
         Args:
-            name: A variable, a constraint or a named expression, as *kind*
-                says.
-            kind: ``primal``, ``dual`` or ``expression`` — the reader this
-                stands in for.
+            name: A variable or a constraint, as *kind* says.
+            kind: ``primal`` or ``dual`` — the reader this stands in for. A
+                computed quantity is read through :attr:`evaluation`.
             original_index: Read over the dimension the axis sliced instead
                 of over the slice key.
         """
@@ -1065,7 +984,8 @@ class Runs:
 
         One kind per call: a dual and a variable of the same name would
         collide, and mean something else per row. Name the few you need, or
-        use :meth:`save`, which writes every kind.
+        use :meth:`save`, which writes every kind. A computed quantity is read
+        through :attr:`evaluation`.
 
         No ``original_index``: this and :meth:`save` export what the sweep
         *holds*, lookahead rows included.
@@ -1073,7 +993,7 @@ class Runs:
         Args:
             names: What to include; none means every name of *kind* some
                 slice produced.
-            kind: ``primal``, ``dual`` or ``expression``.
+            kind: ``primal`` or ``dual``.
 
         Raises:
             LpspecError: The sweep holds no values of *kind* at all, or is
@@ -1144,6 +1064,117 @@ class Runs:
 
     def __len__(self) -> int:
         return self.objective.height
+
+
+@dataclass(frozen=True)
+class SweptEvaluation:
+    """Computed quantities across a sweep — :class:`~lpspec.relational.result.Evaluation` one dimension wider.
+
+    What :attr:`Runs.evaluation` hands back: the same reads as a single-point
+    evaluation, with the slice key prepended and ``original_index`` offered.
+    :meth:`expression` stitches a quantity the file declared across the slices;
+    :meth:`evaluate` values one it never named at every slice's solution, and is
+    available only on the sweep :func:`~lpspec.archive.load_archive` hands back,
+    which retains the model.
+    """
+
+    _runs: Runs
+
+    @property
+    def expressions(self) -> tuple[str, ...]:
+        """Every named expression some slice produced, sorted."""
+        return self._runs._names_held('expression')
+
+    def expression(self, name: str, *, original_index: bool = False) -> pl.DataFrame:
+        """One named expression's values across every slice, the slice key prepended.
+
+        :meth:`Runs.primal`'s shape and arguments, for the quantities the spec
+        declares under ``expressions:`` — each slice's value was evaluated at
+        that slice's solution when the fold read it.
+
+        Over the original index each coordinate carries the value of the window
+        that owns it — the recomputed lookahead rows are dropped, which is what
+        makes summing the stitched frame safe where summing per-window values
+        double-counts.
+
+        Raises:
+            LpspecError: No slice produced *name* — an evaluation that failed on
+                every slice carries its own reason — ``original_index`` on a
+                quantity reduced over the sliced dimension, or a spilled sweep,
+                which :meth:`scan` reads instead.
+        """
+        runs = self._runs
+        return runs._reindexed(
+            runs._read(runs._expressions, 'named expression', name, runs._no_expressions.get(name)),
+            original_index=original_index,
+        )
+
+    def evaluate(self, expression: str | Mapping[str, Any], *, original_index: bool = False) -> pl.DataFrame:
+        """One expression the file never named, valued at every slice's solution — the slice key prepended.
+
+        :meth:`~lpspec.relational.result.Evaluation.evaluate` across a sweep: a
+        quantity written the way ``expressions:`` writes one, evaluated at each
+        slice's own solution and stitched keyed by slice, no re-solve. Each
+        slice's model is rebuilt from the archive's spec and that slice's cut of
+        the sources, and the slice's saved primal put back against it.
+
+        Available on the sweep :func:`~lpspec.archive.load_archive` hands back,
+        which carries the spec, sources and axis; a Runs a live solve returned
+        retains no model and says so. It reads only what an archive can put back:
+        an expression over a parameter the sweep **carried** is refused, that
+        value being a previous slice's answer rather than stored data.
+
+        Args:
+            expression: What one ``expressions:`` entry takes — a string, or the
+                mapping carrying ``cases:`` with ``foreach:`` and ``otherwise:``.
+            original_index: Read over the dimension the axis sliced instead of
+                over the slice key, exactly as :meth:`expression` does.
+
+        Raises:
+            LpspecError: A Runs with no model behind it — a live solve's — an
+                expression that reads a parameter the sweep carried, or
+                ``original_index`` on a hand-built axis or a quantity reduced
+                over the sliced dimension.
+            LanguageError: A construct outside the language, or a name the model
+                does not declare.
+        """
+        runs = self._runs
+        if runs._evaluate is None:
+            raise LpspecError(no_model_behind_this_answer_message())
+        return runs._reindexed(runs._evaluate(expression), original_index=original_index)
+
+    def scan(self, name: str, *, original_index: bool = False) -> pl.LazyFrame:
+        """One named expression across every slice as a :class:`polars.LazyFrame`, the slice key prepended.
+
+        :meth:`Runs.scan` for a computed quantity: the reader for a spilled
+        sweep, whose frames are on disk; on one held in memory it is
+        :meth:`expression` made lazy.
+
+        Raises:
+            LpspecError: No slice produced *name*.
+        """
+        runs = self._runs
+        if runs._spill is None:
+            return self.expression(name, original_index=original_index).lazy()
+        frame = runs._spill.scan('expression', name)
+        if frame is None:
+            held = dict.fromkeys(runs._spill.held('expression'))
+            raise LpspecError(
+                runs._no_expressions.get(name) or _nothing_to_read(LABELS['expression'], name, held, runs.objective)
+            )
+        return runs._reindexed(frame, original_index=original_index)
+
+    def to_pandas(self, name: str, *, original_index: bool = False) -> pd.DataFrame:
+        """One named expression's values across every slice as a tidy :class:`pandas.DataFrame`."""
+        return tidy_to_pandas(self.expression(name, original_index=original_index))
+
+    def to_dataarray(self, name: str, *, original_index: bool = False) -> xr.DataArray:
+        """One named expression's values as an :class:`xarray.DataArray`, the slice key a dimension."""
+        return tidy_to_dataarray(self.to_pandas(name, original_index=original_index), name)
+
+    def to_dataset(self, *names: str) -> xr.Dataset:
+        """The named expressions as one :class:`xarray.Dataset`; all some slice produced by default."""
+        return tidy_to_dataset(names or self.expressions, self.to_dataarray)
 
 
 def _by_key(frames: Sequence[pl.DataFrame], key_name: str) -> dict[Label, pl.DataFrame]:
@@ -1450,27 +1481,23 @@ def attach_sweep_readers(
     axis: EachCoordinate | EachWindow,
     carry: Mapping[str, str],
 ) -> Runs:
-    """*runs* with :meth:`Runs.evaluate` and :meth:`Runs.extend` wired, over a sweep archive's own inputs.
+    """*runs* with :meth:`SweptEvaluation.evaluate` wired, over a sweep archive's own inputs.
 
     A sweep archive carries the spec, the uncut sources, the axis that cut them
     and the carry that chained them. The frames a save wrote supply each slice's
     primal, so nothing is re-solved.
     """
-    return replace(
-        runs,
-        _evaluate=_sweep_evaluator(runs, spec, sources, axis, carry),
-        _extend=_sweep_extender(spec, sources, axis, carry),
-    )
+    return replace(runs, _evaluate=_sweep_evaluator(runs, spec, sources, axis, carry))
 
 
 def _per_slice(
     runs: Runs, spec: Spec, sources: Mapping[str, Source], axis: EachCoordinate | EachWindow
-) -> Iterator[tuple[Label, Any, Any]]:
-    """``(key, evaluate, extend)`` for each slice that produced a solution, its model rebuilt once.
+) -> Iterator[tuple[Label, Callable[[str | Mapping[str, Any]], pl.DataFrame]]]:
+    """``(key, evaluate)`` for each slice that produced a solution, its model rebuilt once.
 
     The one place a slice is put back together: its stored frames become a
     :class:`~...compiler.Solution` against the model rebuilt from that slice's
-    cut of the sources, and the engine hands back the readers a live solve
+    cut of the sources, and the engine hands back the evaluator a live solve
     would. A slice that reached no solution is skipped.
     """
     primal, dual = _slice_index(runs, 'primal'), _slice_index(runs, 'dual')
@@ -1480,52 +1507,15 @@ def _per_slice(
             continue
         slice_duals = {name: by_key[key] for name, by_key in dual.items() if key in by_key} or None
         model = build(spec, slice_sources)
-        evaluate, extend = model._engine.reconstruct(
-            slice_primals, slice_duals, runs._no_duals, model._lower, model._lower_all
-        )
-        assert evaluate is not None and extend is not None
-        yield key, evaluate, extend
+        evaluate = model._engine.reconstruct(slice_primals, slice_duals, runs._no_duals, model._lower)
+        assert evaluate is not None, 'a rebuilt slice with a spec as written lowers an ad-hoc expression'
+        yield key, evaluate
 
 
 def _refuse_carried(carried: set[str], nodes: Iterable[ExpressionNode]) -> None:
     """Refuse a block that reads a parameter the sweep carried — its value is not stored per slice."""
     if touched := sorted({name for node in nodes for name in parameters_of(node)} & carried):
         raise LpspecError(carried_parameter_message(touched))
-
-
-def _sweep_extender(
-    spec: Spec,
-    sources: Mapping[str, Source],
-    axis: EachCoordinate | EachWindow,
-    carry: Mapping[str, str],
-) -> Callable[[Runs, Mapping[str, Any]], Runs]:
-    """A block of expressions valued at every slice's solution and kept, one frame list per entry.
-
-    The entries join the sweep's ``_expressions`` so :meth:`Runs.expression`
-    reads them. A spilled sweep is refused, its frames being on disk where an
-    added one, held in memory, cannot join them.
-    """
-    carried = set(carry)
-
-    def extend(runs: Runs, added: Mapping[str, Any]) -> Runs:
-        if runs._spill is not None:
-            raise LpspecError(
-                f'this sweep is on disk (spilled to {str(runs._spill.directory)!r}), and extend keeps its '
-                f'result in memory, which cannot join those frames. Read it whole with lps.load_archive to '
-                f'extend it.'
-            )
-        nodes, merged = expressions.lower_all(spec, runs._added, added)
-        _refuse_carried(carried, nodes.values())
-        if clash := sorted(set(nodes) & set(runs._expressions)):
-            raise LpspecError(already_readable_message(clash))
-        key_dtype = runs.objective.schema[runs.key_name]
-        grown: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
-        for key, _, extend_one in _per_slice(runs, spec, sources, axis):
-            for name, reader in extend_one(runs._added, added)[0].items():
-                grown[name].append(_keyed(reader(), runs.key_name, key, key_dtype))
-        return replace(runs, _expressions={**runs._expressions, **grown}, _added=merged)
-
-    return extend
 
 
 def _sweep_evaluator(
@@ -1548,7 +1538,7 @@ def _sweep_evaluator(
         _refuse_carried(carried, [expressions.lower(spec, expression)])
         pieces = [
             _keyed(evaluate_one(expression), runs.key_name, key, key_dtype)
-            for key, evaluate_one, _ in _per_slice(runs, spec, sources, axis)
+            for key, evaluate_one in _per_slice(runs, spec, sources, axis)
         ]
         if not pieces:
             raise LpspecError('no slice of this sweep produced a solution, so an expression has nothing to read at.')
@@ -1782,11 +1772,12 @@ def _answers(result: Result, program: Program, metrics: SliceMetrics) -> _Answer
     if not result.has_primal:
         return _Answer(meta, metrics, {}, {}, {}, None, {})
     primals = {name: result.primal(name) for name in program.variables}
+    evaluation = result.evaluation
     expressions: dict[str, pl.DataFrame] = {}
     no_expressions: dict[str, str] = {}
     for name in program.named_expressions:
         try:
-            expressions[name] = result.expression(name)
+            expressions[name] = evaluation.expression(name)
         except LpspecError as exc:
             no_expressions[name] = str(exc)
     try:
