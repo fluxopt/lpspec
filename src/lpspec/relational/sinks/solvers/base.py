@@ -121,17 +121,13 @@ class Solver(ABC):
         #: asking for others has to be given something that was.
         self._options = dict(solver_options or {})
         self._load(tables, batch_rows)
-        #: What was loaded, in whichever form of it still exists: the tables
-        #: themselves until :meth:`remember` trades them for their
-        #: :attr:`~lpspec.relational.sinks.tables.Tables.structure`, the digest
-        #: of everything a re-solve may not change. Asked through
-        #: :meth:`_digest`, which is what makes either form an answer.
-        #:
-        #: Holding the tables pins nothing a caller is not already holding —
-        #: they are the build's own frames — and a rebuild remembers before it
-        #: releases them, so what outlives a build is sixteen bytes rather than
-        #: a second model.
-        self._evidence: Tables | bytes = tables
+        #: What was loaded: the tables themselves, until :meth:`digest` trades
+        #: them for their :attr:`~lpspec.relational.sinks.tables.Tables.structure`,
+        #: the sixteen bytes a re-solve compares them by. Holding the tables
+        #: pins nothing a caller is not already holding — they are the build's
+        #: own frames — and a rebuild digests before it releases them, so what
+        #: outlives a build is the digest rather than a second model.
+        self._loaded: Tables | bytes = tables
         #: The loaded model's spans, read by :meth:`_takes` alone — of the
         #: *ingested* tables, which on a reformulating sink are wider than what
         #: was built, so a warm start is checked against the model the solver
@@ -158,31 +154,19 @@ class Solver(ABC):
     #: prints rather than for what it advises: it is a message, not a verb.
     unavailable_message: ClassVar[str]
 
-    def remember(self) -> None:
-        """Hold the digest of what was loaded instead of the frames it was loaded from.
+    def digest(self) -> bytes:
+        """The digest of the loaded model, taken in place of its frames the first time it is asked.
 
-        Called by the engine as it releases a build, the one moment this is both
-        necessary and free: the loaded frames are still here, the new ones do
-        not exist yet, so the hash never has two models alive at once, and the
-        solver goes on outliving the build without pinning it.
-
-        Idempotent, and cheap to repeat: a push leaves the digest describing
-        what the solver holds, so a second rebuild over a pushed model reads
+        Asked at the two places a second hand-off is reached and nowhere else —
+        :meth:`keeps`, and a rebuild about to release the frames it is read
+        from — so a model solved once and closed is never hashed (#1608). From
+        then on the solver holds the digest and not the frames, and a push
+        leaves it describing what the solver still holds, so asking again reads
         nothing.
         """
-        self._evidence = self._digest()
-
-    def _digest(self) -> bytes:
-        """The digest of the loaded model, read off its own frames while it still has them.
-
-        Deferred to whatever first asks rather than taken at the load, because
-        the whole model goes through that hash and only a *second* hand-off ever
-        reads it: a caller who solves once and closes would be paying for a
-        comparison nobody makes (#1608). Asking twice hashes once —
-        :attr:`~lpspec.relational.sinks.tables.Tables.structure` caches, and
-        :meth:`remember` keeps the result in place of its frames.
-        """
-        return self._evidence if isinstance(self._evidence, bytes) else self._evidence.structure
+        if not isinstance(self._loaded, bytes):
+            self._loaded = self._loaded.structure
+        return self._loaded
 
     def keeps(self, tables: Tables, solver_options: Mapping[str, Any] | None) -> bool:
         """Whether this held solver may keep its load and take *tables* by value.
@@ -192,7 +176,7 @@ class Solver(ABC):
         were written. The options go first because they are a dict comparison,
         where the structural half hashes two models.
         """
-        return self._options == dict(solver_options or {}) and self._digest() == tables.structure
+        return self._options == dict(solver_options or {}) and self.digest() == tables.structure
 
     @classmethod
     def imported(cls) -> Any:

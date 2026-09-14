@@ -437,7 +437,7 @@ def _hashes(monkeypatch) -> list[int]:
 
     A plain property in place of the `cached_property`, so an object asked twice
     counts twice — which production does not pay, the cache being what makes
-    `_digest` cheap to repeat. Each count below is one object asked once.
+    `Solver.digest` cheap to repeat. Each count below is one object asked once.
     """
     from lpspec.relational.sinks import tables as tables_module
 
@@ -464,10 +464,10 @@ def test_a_solve_that_is_never_rebuilt_never_hashes_the_model(model, monkeypatch
     assert taken == [], f'a first solve has nothing to compare against, so it hashed {len(taken)} time(s) for nothing'
 
 
-def test_a_rebuild_takes_the_evidence_and_the_fast_path_still_holds(model, monkeypatch):
+def test_a_rebuild_digests_the_outgoing_model_and_the_fast_path_still_holds(model, monkeypatch):
     """Deferring it costs the session nothing: one digest per solve, as before (#1608).
 
-    The accounting is the whole risk. `remember` hashes the outgoing model as a
+    The accounting is the whole risk. `digest` hashes the outgoing model as a
     rebuild begins and `keeps` hashes the incoming one, so a careless deferral
     pays twice per solve where the load-time hash paid once. It does not,
     because a push leaves the digest describing what the solver still holds —

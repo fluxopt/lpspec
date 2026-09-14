@@ -28,8 +28,8 @@ below, and sharing through it is what stops one leaf importing the other.
 The split is by who can answer. `solvers.loaded(held, name, …)` is the whole of
 **reuse or load again**: it keeps a held solver exactly when it is the named
 class whose recorded digest and options match the new tables — and then pushes
-the new numbers onto it — closing and replacing it otherwise. The base records
-that evidence at the load; a subclass owns **the hand-off**:
+the new numbers onto it — closing and replacing it otherwise. The base holds
+that evidence; a subclass owns **the hand-off**:
 
 | | |
 |---|---|
@@ -79,7 +79,9 @@ construction. [#382](https://github.com/fluxopt/lpspec/issues/382) holds what
 has to be answered before this reaches a caller.
 
 The guard is `Tables.structure` — a digest of everything a re-solve may
-not change, recorded by the solver at its load and cached on the tables. **Values are re-pushed, not diffed**: linopy's persistent layer
+not change, which the solver takes of what it loaded the first time a second
+hand-off asks (`Solver.digest()`) and never for a model solved once and closed.
+**Values are re-pushed, not diffed**: linopy's persistent layer
 (`persistent/diff.py`) computes a delta against a snapshot of the previous
 model, where here the previous model is released before the new one exists, that
 release being what keeps an updated build at one model's peak. What a diff would
