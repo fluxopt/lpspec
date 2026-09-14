@@ -2,18 +2,18 @@
 
 The plan's predicate nodes in, a boolean expression out — and the frame the
 walk had to join parameters onto to build it, since a mask reads values the
-product does not carry. Two returns rather than one because the joins happen
-*during* the walk: the condition is built first and the frame read after.
+product does not carry. The joins happen *during* the walk: the condition is
+built first and the frame read after.
 
 A closed vocabulary of its own — comparisons against a parameter, a dimension
-label, a position along a dimension, a lookup, and the three connectives — so
-it is a module rather than a method. It takes the
+label, a position along a dimension, a lookup, and the three connectives. It
+takes the
 :class:`~lpspec.relational.engines.polars.compiler.PolarsCompiler` as an
 argument and holds nothing.
 
 :class:`Carrier` lives here too, and the bounds walk imports it: both walks
 that read parameters build an expression over columns they are joining on as
-they go, and this is the larger of the two.
+they go.
 """
 
 from __future__ import annotations
@@ -86,8 +86,7 @@ def compile_predicate(
     **A name the mask is certain of is joined rather than left-joined**,
     and a certain variable is semi-joined and never read
     (:func:`_certain_names`). An atom over a missing value reads as false
-    either way, so the strategies differ only in *where* the row is dropped,
-    and the inner join saves the width of the product it is dropped from.
+    either way, so the strategies differ only in *where* the row is dropped.
 
     ``VariableDefinedNode`` is the one atom answered by a join rather than a
     column test — existence lives in the variable's own frame — keyed by
@@ -224,8 +223,7 @@ def _refuse_short_groups(p: program.DimensionPositionNode, table: pl.LazyFrame) 
     The ungrouped counterpart is :func:`_position_ordinal`, and the reason is
     the same one construct-wide: a boundary clause that silently seeds no row
     leaves that group's recurrence unanchored. Grouping only multiplies the
-    chance — one short period is enough — so it is checked per group, which
-    costs one pass over the table the mask is about to join anyway.
+    chance — one short period is enough — so it is checked per group.
 
     *table* is :meth:`PolarsCompiler.partitioned`'s, so a coordinate in no
     group is not in it and no group of ``None`` can be counted short.
@@ -251,8 +249,7 @@ def _position_ordinal(p: program.DimensionPositionNode, cardinality: int) -> int
 
     A negative position counts from the end. Out of range is an error rather
     than a predicate matching nothing: a boundary clause that silently seeds
-    no row leaves the recurrence unanchored, which is the failure this
-    construct exists to make impossible.
+    no row leaves the recurrence unanchored.
     """
     at = p.position + cardinality if p.position < 0 else p.position
     if not 0 <= at < cardinality:
@@ -272,9 +269,7 @@ def _dimension_column(dimension: str, value: float | str | datetime.date) -> pl.
     return column.cast(pl.String) if isinstance(value, str) else column
 
 
-#: The comparison operators, evaluated column against column — the one table,
-#: so a seventh operator added to :data:`program.PredicateOperator` fails here
-#: rather than falling through a second copy.
+#: The comparison operators, evaluated column against column.
 _COLUMN_COMPARISONS: dict[program.PredicateOperator, Callable[[pl.Expr, pl.Expr], pl.Expr]] = {
     '==': lambda left, right: left == right,
     '!=': lambda left, right: left != right,

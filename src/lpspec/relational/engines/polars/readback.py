@@ -58,8 +58,7 @@ def _row_index(model: BuiltModel, name: str, coordinate: Mapping[str, Any]) -> t
     """The global row index constraint *name* built at *coordinate*, and that coordinate in dim order.
 
     The coordinate has to name **every** dim of the declaration: a partial
-    one matches a set of rows, and a verb that quietly answered about the
-    first of them would be reporting one row as if it were the block.
+    one matches a set of rows.
 
     Raises:
         LpspecError: The coordinate names dims the declaration does not,
@@ -93,8 +92,7 @@ def _label(name: str, dim: str, value: Any, dtype: pl.DataType) -> pl.Expr:
     """*value* as a literal of *dim*'s own type, or a refusal naming what it is not.
 
     The cast **is** the check: a string against an integer dim and a stranger
-    against an ``Enum`` are one failure, and neither reaches polars as a
-    comparison it can only report in its own vocabulary.
+    against an ``Enum`` are one failure.
     """
     try:
         return pl.lit(pl.Series([value], dtype=dtype).item(0), dtype=dtype)

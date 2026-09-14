@@ -127,8 +127,7 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
 
     A row at *o* contributes at every ``o + lag`` for ``lag`` inside the
     window, so the terms land on each output position that can see them and
-    the terminal ``sum(coeff)`` at assembly adds them up — the same trick
-    :meth:`_sum_fragment` relies on, which is why this needs no aggregate.
+    the terminal ``sum(coeff)`` at assembly adds them up.
 
     The lag table is built to the widest window the data asks for; a named
     width then keeps only the lags that entity reaches. Every join is still
@@ -237,11 +236,9 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
         An operand with **no** presence gets one: nothing was absent before
         and the acyclic edge now is, where without this the vacated slot
         would merely fail to join and the row would survive with its term
-        quietly gone. It is keyed by the one dimension it speaks about —
-        keying it by the fragment's dims would materialise the whole
-        coordinate product to name an edge (#520). Under a wrap or a fill a
-        policy speaks about a group's edge, and a coordinate in no group has
-        none: it is absent under every policy.
+        quietly gone. It is keyed by the one dimension it speaks about. Under
+        a wrap or a fill a policy speaks about a group's edge, and a
+        coordinate in no group has none: it is absent under every policy.
         """
         if not p.presences:
             if s.wrap or s.fill is not None:
@@ -268,10 +265,7 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
 def _filled_edge(compiler: PolarsCompiler, s: program.Translate, others: list[str], fill: float) -> pl.LazyFrame:
     """``(dims…, cval=fill)`` at every coordinate the shift vacated.
 
-    Dense over *others*, not over the rows the operand happened to carry:
-    the eager lane shifts an array already reindexed to the master
-    coordinates, so a fill appearing only where the parameter was
-    non-sparse would be a second answer to the same question.
+    Dense over *others*, not over the rows the operand happened to carry.
 
     Only a *truthy* fill gets here, ``fill=0`` needing no rows at all. A
     nonzero fill reaches a translation only over a variable-free operand,
@@ -340,8 +334,7 @@ def _named_amount(
 def _edge(compiler: PolarsCompiler, s: program.Translate, *, vacated: bool) -> pl.LazyFrame:
     """The coordinates an acyclic shift vacates, or keeps.
 
-    Exact complements, so one filter negated rather than two conditions to
-    keep in step: a fill and the presence set it implies must not disagree
+    Exact complements: a fill and the presence set it implies must not disagree
     about which coordinates the edge is. One column wide under a numeric
     offset, an edge then being vacated for *every* combination of the other
     dims; under a named one, one column per :meth:`offset_dims` as well.

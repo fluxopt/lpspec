@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
 
 def _no_built_model(doing: str) -> str:
-    """Why there is no model *doing*, in the two ways that happens."""
+    """The message for a call made with no built model."""
     return (
         f'there is no built model {doing}: it was closed, or an update raised and released '
         f'it rather than leaving half of one behind. Build it again — update() with data it can '
@@ -89,10 +89,9 @@ class PolarsEngine:
 
         **A second call rebuilds over the same object**, which is what
         ``update`` is. The previous build is released *before* this one starts,
-        so a driver that re-solves in a loop stays at one model's peak — which
-        is why the held solver is asked for its
-        :meth:`~lpspec.relational.sinks.solvers.base.Solver.structure` first:
-        reading it is what lets go of these frames.
+        and the held solver is asked for its
+        :meth:`~lpspec.relational.sinks.solvers.base.Solver.structure` first,
+        reading it being what lets go of these frames.
         A build that raises leaves no model at all rather than half of one,
         and ``diagnostics()`` answers from what was measured by then.
         """
@@ -122,9 +121,7 @@ class PolarsEngine:
 
         A construct the format has no section for is refused here, the way the
         solve path refuses one a solver cannot ingest
-        (:func:`~lpspec.relational.sinks.ingestible`) and with the sentence
-        ``check(spec, sink=...)`` would have given: written anyway, the file
-        would parse, solve, and be a different model.
+        (:func:`~lpspec.relational.sinks.ingestible`).
 
         Raises:
             ValueError: A suffix nothing writes.
@@ -292,10 +289,10 @@ class PolarsEngine:
 
         References rather than copies: the frames point at this build's label
         frames, and :meth:`build` replacing the registries takes nothing from
-        what an earlier result still holds. Lazy, so composing every
-        declaration's plan here costs nothing for the ones nobody reads. A
-        vector that is ``None`` yields no frames at all rather than empty
-        ones, which is the state :class:`Result` reports through the status.
+        what an earlier result still holds. Lazy, so each declaration's plan is
+        composed only when it is read. A vector that is ``None`` yields no
+        frames at all rather than empty ones, which is the state
+        :class:`Result` reports through the status.
         """
         model = self._model
         program = model.program
@@ -324,9 +321,8 @@ class PolarsEngine:
     ) -> dict[str, Callable[[], pl.DataFrame]]:
         """One deferred reader per declared named expression — nothing compiled yet.
 
-        A closure compiles its expression when it is first called, so a solve
-        over fifty declared expressions that reads none pays for a dict of
-        closures. Each captures a snapshot the result *owns* — the program,
+        A closure compiles its expression when it is first called. Each
+        captures a snapshot the result *owns* — the program,
         the attached data, a copy of this build's variable-frame registry and
         the solver's primal vector — so it keeps answering after an update or
         ``close()``, at the cost of keeping those frames alive.
@@ -365,9 +361,8 @@ class PolarsEngine:
     def close(self) -> None:
         """Drop the built model. A :class:`Result` keeps its own frames.
 
-        One assignment, because the build is one value. A loaded solver goes
-        first, being the one thing here that is not this process's memory.
-        :meth:`diagnostics` still answers afterwards.
+        A loaded solver goes first, being the one thing here that is not this
+        process's memory. :meth:`diagnostics` still answers afterwards.
         """
         if self._solver is not None:
             self._solver.close()
@@ -388,21 +383,11 @@ def _no_duals_message(
     sets: Sequence[str],
     quadratic_rows: Sequence[str],
 ) -> str:
-    """Why a solve that *did* leave values still has no duals.
-
-    Integrality is decidable from the model, and naming the variable is
-    actionable where "the solver reported none" is not.
+    """The message for a solve that left values but no duals.
 
     *sets* are the special-ordered sets a sink without the concept turned into
-    binaries. They come first because a model that declared none of its own
-    integrality would otherwise be told it is mixed-integer with nothing named
-    — and because the fix is a different one: another sink, not a different
-    model.
-
-    *quadratic_rows* are the quadratic constraints, whose prices are off by
-    default: asking for them puts the solve on the convex path, and a nonconvex
-    row that solves without them fails with them. The one case here where
-    nothing is wrong with the model.
+    binaries. *quadratic_rows* are the quadratic constraints, whose prices are
+    off by default.
     """
     if quadratic_rows and not discrete:
         names = ', '.join(f"'{n}'" for n in quadratic_rows)
