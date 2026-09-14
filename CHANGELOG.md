@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.326](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.325...v0.0.1-alpha.326) (2026-09-14)
+
+
+### Documentation
+
+* **howto:** reading a directory of runs is its own page ([#1611](https://github.com/fluxopt/lpspec/issues/1611)) ([88105f5](https://github.com/fluxopt/lpspec/commit/88105f5fc16f8bf7540f186ffdf3e58437242de3))
+
 ## [0.0.1-alpha.325](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.324...v0.0.1-alpha.325) (2026-09-13)
 
 
