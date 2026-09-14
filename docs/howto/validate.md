@@ -100,10 +100,12 @@ Supply it under its own key, as a table of the rows it maps.
 is not a declared `bus` label is refused:
 
 ```python
-gen_bus = pl.DataFrame({
-    'generator': ['wind_n', 'gas_s'],
-    'bus': ['north', 'nrth'],  # 'south' misspelled
-})
+gen_bus = pl.DataFrame(
+    {
+        'generator': ['wind_n', 'gas_s'],
+        'bus': ['north', 'nrth'],  # 'south' misspelled
+    }
+)
 lps.solve('transport.yaml', sources | {'gen_bus': gen_bus})
 ```
 
