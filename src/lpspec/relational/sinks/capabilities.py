@@ -1,28 +1,25 @@
 """What a sink can ingest — the axis that is not the ceiling.
 
-The ceiling is about streamability and is solver-independent
-(math-spec's docs/about/limits.md); what a *sink* can take is separate, and conflating the
-two let one solver's limits read as architectural law. One descriptor per sink,
-so a construct the language says and a sink cannot take is a refusal naming
-both rather than a ``kError`` from inside a library.
+The ceiling is about streamability and is solver-independent (math-spec's
+docs/about/limits.md); what a *sink* can take is separate. One descriptor per
+sink, so a construct the language says and a sink cannot take is a refusal
+naming both rather than a ``kError`` from inside a library.
 
-Four shapes, each forced by docs/about/benchmarks.md#sink-capabilities rather
-than chosen:
+Four shapes:
 
 - **Three-valued.** ``reformulated`` is an answer, not a missing ``native``: a
   set reaches HiGHS as binaries and linking rows and the model still solves, at
   the cost of the duals an LP would have returned.
 - **Exclusions.** HiGHS takes a Hessian, takes integrality, and refuses the
-  pair — which linopy's flat ``frozenset`` reports as MIQP available.
+  pair.
 - **Some entries are data-time.** Convexity is a property of coefficients, so
   ``check`` cannot answer it (rule 2). ``nonconvex_quadratic_objective`` is
   declared anyway: the sink that discovers it at solve time reads the sinks
   that would have taken it off this table.
 - **A descriptor describes the sink as shipped, not the library it wraps.** A
   solver that takes a Hessian through an entry point this package does not call
-  cannot ingest a quadratic objective *here*, and saying otherwise would drop
-  the quadratic part and answer a different model's optimum. An entry moves
-  when the hand-off lands, so the benchmarks table may be ahead of it.
+  cannot ingest a quadratic objective *here*. An entry moves when the hand-off
+  lands, so the benchmarks table may be ahead of it.
 """
 
 from __future__ import annotations
@@ -37,8 +34,8 @@ if TYPE_CHECKING:
     from math_spec.program import Program
 
 #: What a model may need a sink to have. ``indicator`` and ``semi-continuous``
-#: are absent deliberately: they have rows in the benchmarks table and no
-#: spelling in the language, so an entry would be a fact nothing can consult.
+#: are absent: they have rows in the benchmarks table but no spelling in the
+#: language.
 Capability = Literal[
     'integrality',
     'sos',
@@ -49,7 +46,7 @@ Capability = Literal[
 
 #: How a sink satisfies one capability. ``reformulated`` means the model is
 #: rewritten into what the sink does take — a worse relaxation rather than a
-#: refusal, which a caller needs to know before choosing a sink.
+#: refusal.
 Support = Literal['native', 'reformulated', 'absent']
 
 CAPABILITIES: tuple[Capability, ...] = get_args(Capability)
@@ -76,12 +73,7 @@ class Capabilities:
     excludes: tuple[frozenset[Capability], ...] = ()
 
     def __post_init__(self) -> None:
-        """Take a read-only copy of *supports*, which a sink holds as a ``ClassVar``.
-
-        A plain ``dict`` behind a frozen field is process-wide mutable state
-        one attribute lookup away, and a test that reached it would change what
-        every later sink answers.
-        """
+        """Take a read-only copy of *supports*, which a sink holds as a ``ClassVar``."""
         object.__setattr__(self, 'supports', MappingProxyType(dict(self.supports)))
 
     def support(self, capability: Capability) -> Support:
@@ -91,8 +83,7 @@ class Capabilities:
     def missing(self, required: Collection[Capability]) -> list[Capability]:
         """Those of *required* this sink cannot take at all.
 
-        In :data:`CAPABILITIES` order rather than the caller's, so a refusal
-        naming two of them reads the same way twice.
+        In :data:`CAPABILITIES` order rather than the caller's.
         """
         return [c for c in CAPABILITIES if c in required and self.support(c) == 'absent']
 
@@ -112,12 +103,7 @@ class Capabilities:
 def required(program: Program, /) -> frozenset[Capability]:
     """What *program* needs a sink to have, decided with no data attached.
 
-    Exactly what the model declares, so a refusal built on it names constructs
-    the reader can find in their own file. What a *rewrite* then costs is the
-    performing sink's own fact and is declared there: HiGHS excludes a set
-    beside a Hessian because what it is handed for one is binaries, and a
-    requirement derived here instead would refuse the model for integrality it
-    never stated.
+    Exactly what the model declares.
 
     Only what rule 2 can decide appears here, so convexity never does.
     """
@@ -134,8 +120,7 @@ def required(program: Program, /) -> frozenset[Capability]:
     return frozenset(needed)
 
 
-#: How a capability reads in a sentence: the identifiers are the descriptor's
-#: vocabulary, and a refusal is read by whoever hit it.
+#: How a capability reads in a sentence.
 _SPELLED: Mapping[str, str] = {
     'integrality': 'binary or integer variables',
     'sos': 'special-ordered sets (`sos:`)',
@@ -153,8 +138,7 @@ def spelled(capabilities: Collection[str]) -> str:
 def lane_cannot_build_message(lane: str, missing: Collection[str]) -> str:
     """A construct the language accepts and one *lane* cannot construct.
 
-    It names the other lane rather than a rewrite, there being nothing wrong
-    with the spec.
+    It names the other lane rather than a rewrite.
     """
     return (
         f'the {lane} lane cannot build {spelled(missing)}, and no reformulation of it is exact. '
