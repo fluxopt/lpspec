@@ -14,6 +14,8 @@ rebuilds and solves cold; nothing about the answer changes, and
 
 from __future__ import annotations
 
+import gc
+import weakref
 from dataclasses import replace
 from typing import Any, NamedTuple
 
@@ -463,8 +465,9 @@ def test_a_rebuild_takes_the_evidence_and_the_fast_path_still_holds(model, monke
     The accounting is the whole risk. `remember` hashes the outgoing model as a
     rebuild begins and `keeps` hashes the incoming one, so a careless deferral
     pays twice per solve where the load-time hash paid once. It does not,
-    because `remember` is idempotent and a push leaves the digest describing
-    what the solver still holds — so the second rebuild re-reads nothing.
+    because a push leaves the digest describing what the solver still holds —
+    so the second rebuild, finding the digest already in place of the frames,
+    reads nothing.
     """
     taken = _hashes(monkeypatch)
     model.solve()
@@ -483,17 +486,37 @@ def test_a_rebuild_takes_the_evidence_and_the_fast_path_still_holds(model, monke
 def test_solving_the_same_model_twice_keeps_it_without_a_rebuild_between(model, monkeypatch):
     """A second solve of an *unchanged* model still takes the fast path (#1608).
 
-    The deferral's sharp edge, and the suite found it: the evidence used to be
-    taken at the load, so it was there however the second hand-off was reached.
-    Taken at a rebuild instead, a caller who solves twice without updating
-    anything never passes the place that takes it — and a solver with no digest
-    can prove nothing and is loaded again. Two solves, no update, one load.
+    The deferral's sharp edge, and the suite found it while it was still one: a
+    solve reached this hand-off without having passed a rebuild, so a digest
+    taken *only* at rebuilds was missing exactly here, and a solver that can
+    prove nothing is loaded again. It is not missing, because the solver reads
+    the digest off the tables it loaded and so has an answer whenever it is
+    asked. Two solves, no update, one load.
     """
     taken = _hashes(monkeypatch)
     model.solve()
     assert model.solve().kept == 'solver', 'an unchanged model is the easiest thing there is to keep'
     assert model.diagnostics().loads == 1, 'and keeping it means not loading it twice'
     assert len(taken) == 2, f'the outgoing model and the incoming one, as ever, not {len(taken)}'
+
+
+def test_a_rebuild_leaves_the_held_solver_pinning_none_of_the_old_model(model):
+    """What outlives a build is the digest, never the frames it was read from (#1608).
+
+    The deferral's price: a solver that has not been rebuilt over yet holds the
+    tables it loaded, because reading its own digest is what lets a second solve
+    of an unchanged model prove anything. That reference has to go before the
+    next build allocates, or a driver re-solving in a loop stands at two models'
+    peak — the one being built and the one the solver is still holding — for
+    every build after the first, which is the whole cost the deferral was
+    avoiding. Nothing about the *answer* would change, so no other test here can
+    see this: the frames are asked directly whether they are still reachable.
+    """
+    model.solve()
+    released = weakref.ref(model._engine._model.matrix)
+    model.update({'load': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [12.0, 22.0, 32.0, 42.0]})}).solve()
+    gc.collect()
+    assert released() is None, "the rebuilt-over model's matrix is still reachable, so the solver kept a whole model"
 
 
 #: The option name each sink gives a time limit — `solver_options` is forwarded

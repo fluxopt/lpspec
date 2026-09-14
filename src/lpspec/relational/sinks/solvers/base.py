@@ -105,8 +105,8 @@ class Solver(ABC):
         solver.close()
 
     The two halves are split by who can answer them. **This class records the
-    rule's evidence** — the digest of what was loaded and the options it was
-    loaded with, identical bookkeeping for every solver. **A subclass owns the
+    rule's evidence** — what was loaded and the options it was loaded with,
+    identical bookkeeping for every solver. **A subclass owns the
     hand-off**: loading, pushing values, running, releasing, all of which are
     its own library's shape and nothing else's.
     """
@@ -121,13 +121,17 @@ class Solver(ABC):
         #: asking for others has to be given something that was.
         self._options = dict(solver_options or {})
         self._load(tables, batch_rows)
-        #: What the loaded model *is* —
-        #: :attr:`~lpspec.relational.sinks.tables.Tables.structure`, the
-        #: digest of everything a re-solve may not change. Sixteen bytes, where
-        #: holding the frames themselves would keep two models alive across a
-        #: rebuild. ``None`` until :meth:`remember` is told to take it, which
-        #: only a rebuild does — see there for why the load is the wrong moment.
-        self._structure: bytes | None = None
+        #: What was loaded, in whichever form of it still exists: the tables
+        #: themselves until :meth:`remember` trades them for their
+        #: :attr:`~lpspec.relational.sinks.tables.Tables.structure`, the digest
+        #: of everything a re-solve may not change. Asked through
+        #: :meth:`_digest`, which is what makes either form an answer.
+        #:
+        #: Holding the tables pins nothing a caller is not already holding —
+        #: they are the build's own frames — and a rebuild remembers before it
+        #: releases them, so what outlives a build is sixteen bytes rather than
+        #: a second model.
+        self._evidence: Tables | bytes = tables
         #: The loaded model's spans, read by :meth:`_takes` alone — of the
         #: *ingested* tables, which on a reformulating sink are wider than what
         #: was built, so a warm start is checked against the model the solver
@@ -154,40 +158,41 @@ class Solver(ABC):
     #: prints rather than for what it advises: it is a message, not a verb.
     unavailable_message: ClassVar[str]
 
-    def remember(self, tables: Tables) -> None:
-        """Take the digest of *tables* — the ones this solver loaded — while they still exist.
+    def remember(self) -> None:
+        """Hold the digest of what was loaded instead of the frames it was loaded from.
 
-        Called by the engine as a rebuild begins, because that is the one moment
-        the question is both answerable and worth answering: the old frames are
-        still here, the new ones do not exist yet, so the hash never has two
-        models alive at once. Taking it at the *load* instead would charge every
-        caller who solves once for a comparison only a second solve makes
-        (#1608) — the whole model goes through that hash.
+        Called by the engine as it releases a build, the one moment this is both
+        necessary and free: the loaded frames are still here, the new ones do
+        not exist yet, so the hash never has two models alive at once, and the
+        solver goes on outliving the build without pinning it.
 
-        Idempotent, and deliberately: the digest describes what the solver
-        holds, and a push leaves that unmoved. So a second rebuild over a
-        pushed model re-reads nothing.
+        Idempotent, and cheap to repeat: a push leaves the digest describing
+        what the solver holds, so a second rebuild over a pushed model reads
+        nothing.
         """
-        if self._structure is None:
-            self._structure = tables.structure
+        self._evidence = self._digest()
+
+    def _digest(self) -> bytes:
+        """The digest of the loaded model, read off its own frames while it still has them.
+
+        Deferred to whatever first asks rather than taken at the load, because
+        the whole model goes through that hash and only a *second* hand-off ever
+        reads it: a caller who solves once and closes would be paying for a
+        comparison nobody makes (#1608). Asking twice hashes once —
+        :attr:`~lpspec.relational.sinks.tables.Tables.structure` caches, and
+        :meth:`remember` keeps the result in place of its frames.
+        """
+        return self._evidence if isinstance(self._evidence, bytes) else self._evidence.structure
 
     def keeps(self, tables: Tables, solver_options: Mapping[str, Any] | None) -> bool:
         """Whether this held solver may keep its load and take *tables* by value.
 
-        Both halves of the recorded evidence live here — the digest of what was
-        loaded and the options it was loaded with — so the reuse test reads
-        them where they were written.
-
-        No digest is no proof, and answers no: the model is loaded again. That
-        is the safe direction and the only one available, the frames it was
-        built from being gone by then. The early return is for the *cost* rather
-        than the answer — ``None`` already compares unequal — because reading
-        ``tables.structure`` to discover that hashes the whole of the model
-        being asked about.
+        Both halves of the recorded evidence live here — what was loaded and the
+        options it was loaded with — so the reuse test reads them where they
+        were written. The options go first because they are a dict comparison,
+        where the structural half hashes two models.
         """
-        if self._structure is None:
-            return False
-        return self._options == dict(solver_options or {}) and self._structure == tables.structure
+        return self._options == dict(solver_options or {}) and self._digest() == tables.structure
 
     @classmethod
     def imported(cls) -> Any:
