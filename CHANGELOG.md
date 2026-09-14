@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.329](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.328...v0.0.1-alpha.329) (2026-09-14)
+
+
+### Bug Fixes
+
+* **compat:** a constant beside a variable term is refused where its data is short ([#1621](https://github.com/fluxopt/lpspec/issues/1621)) ([545ed6d](https://github.com/fluxopt/lpspec/commit/545ed6d1bbc2e3215ca2e3ac58f497a036fe86e6))
+
 ## [0.0.1-alpha.328](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.327...v0.0.1-alpha.328) (2026-09-14)
 
 
