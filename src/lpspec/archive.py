@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 from math_spec import to_spec
 
-from lpspec.api import load_result, scan_result
+from lpspec.api import attach_evaluator, load_result, scan_result
 from lpspec.errors import LayoutError, LpspecError
 from lpspec.layout import (
     ANSWER_DIR,
@@ -279,7 +279,7 @@ def _archive_under(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
     axis_member = under / AXIS_MEMBER
     if not axis_member.is_file():
         saved = under / ANSWER_DIR
-        answer = (load_result if whole else scan_result)(saved)
+        answer = attach_evaluator((load_result if whole else scan_result)(saved), spec, sources)
         return SolveArchive(spec, sources, answer, digests, _metrics_in(saved))
     axis = axis_from(json.loads(axis_member.read_text()))
     slices = (load_runs if whole else scan_runs)(under / ANSWER_DIR)

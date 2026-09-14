@@ -399,6 +399,54 @@ def test_an_answer_read_back_off_disk_says_why_it_cannot_evaluate(result, tmp_pa
     )
 
 
+@pytest.fixture
+def archived(tmp_path):
+    """A solve written to an archive, which carries the spec and sources back."""
+    with lps.build(SPEC, sources()) as model:
+        model.solve(archive=tmp_path / 'run.zip')
+    return tmp_path / 'run.zip'
+
+
+@pytest.mark.parametrize(
+    'expression',
+    [
+        pytest.param('sum(p * p_max, over=generator)', id='over-a-parameter'),
+        pytest.param('sum(p * p, over=generator)', id='nonlinear'),
+        pytest.param('dual(balance)', id='a-dual'),
+        pytest.param('dual(balance) * total_gen', id='a-dual-times-an-expression'),
+    ],
+)
+def test_evaluate_off_a_loaded_archive_reads_the_archived_solution(result, archived, expression):
+    """A quantity the file never named reads off a loaded archive, at the values the solve left — no re-solve."""
+    read_back = lps.load_archive(archived).answer.evaluate(expression)
+    live = result.evaluate(expression)
+    keys = live.columns[:-1]
+    assert read_back.sort(keys).equals(live.sort(keys)), (
+        'an archived evaluate rebuilds the model and reads the archived primal, so it matches the live answer'
+    )
+
+
+def test_evaluate_off_a_scanned_archive_reads_the_same(result, archived, tmp_path):
+    """`scan_archive` leaves the frames on disk, and evaluate rebuilds against them just the same."""
+    read_back = lps.scan_archive(archived, into=tmp_path / 'unpacked').answer.evaluate('sum(p * p_max, over=generator)')
+    live = result.evaluate('sum(p * p_max, over=generator)')
+    keys = live.columns[:-1]
+    assert read_back.sort(keys).equals(live.sort(keys)), 'a scanned archive evaluates against the frames left on disk'
+
+
+def test_a_declared_name_off_an_archive_is_served_from_disk_not_lowered(archived, monkeypatch):
+    """A declared name was written, so it reads back without a rebuild — only a name outside them reaches the reader."""
+    monkeypatch.setattr(expressions, 'lower', lambda *a, **k: pytest.fail('a declared name must not lower'))
+    frame = lps.load_archive(archived).answer.evaluate('total_gen')
+    assert frame.columns == ['snapshot', 'value'], 'a declared name off an archive reads its written frame'
+
+
+def test_extending_a_loaded_archive_still_refuses(archived):
+    """`extend` is not wired onto a loaded answer — only `evaluate` is — so it still says why it cannot."""
+    with pytest.raises(LpspecError, match='no model behind it'):
+        lps.load_archive(archived).answer.extend(REPORT)
+
+
 def test_a_closed_result_refuses_to_evaluate():
     result = lps.solve(SPEC, sources())
     result.close()

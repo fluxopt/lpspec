@@ -190,8 +190,9 @@ class PolarsEngine:
                 rule 2). ``None`` for a build from an already-lowered
                 ``Program``, and the result then says so rather than evaluating.
             lower_all: The same for a whole ``expressions:`` block
-                (:meth:`~lpspec.relational.result.Result.extend`). Absent
-                together with *lower*.
+                (:meth:`~lpspec.relational.result.Result.extend`). Independent
+                of *lower*: a live solve passes both, a loaded answer *lower*
+                alone.
 
         Returns:
             The solution, holding this engine and the build it answered.
@@ -365,6 +366,10 @@ class PolarsEngine:
         ``close()``, at the cost of keeping those frames alive. Nothing is
         compiled until a reader is called; a block handed to ``extend`` is
         lowered once, there and then.
+
+        ``evaluate`` is served whenever *lower* is given and ``extend`` whenever
+        *lower_all* is, independently: a loaded answer rebuilds *lower* alone
+        (:meth:`evaluator`), so it evaluates without extending.
         """
         if primal is None:
             return {}, None, None
@@ -376,20 +381,54 @@ class PolarsEngine:
             return lambda: readback.expression_frame(name, expression, compiler)
 
         declared = {name: reader(name, e.expression) for name, e in model.program.named_expressions.items()}
-        if lower is None or lower_all is None:
-            return declared, None, None
-        one, block = lower, lower_all
 
         def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
-            return readback.expression_frame('the expression', one(written), compiler)
+            assert lower is not None
+            return readback.expression_frame('the expression', lower(written), compiler)
 
         def extend(
             carried: Mapping[str, Any], added: Mapping[str, Any]
         ) -> tuple[dict[str, Callable[[], pl.DataFrame]], dict[str, Any]]:
-            nodes, merged = block(carried, added)
+            assert lower_all is not None
+            nodes, merged = lower_all(carried, added)
             return {name: reader(name, node) for name, node in nodes.items()}, merged
 
-        return declared, evaluate, extend
+        return declared, (evaluate if lower is not None else None), (extend if lower_all is not None else None)
+
+    def evaluator(
+        self,
+        primals: Mapping[str, pl.DataFrame],
+        duals: Mapping[str, pl.DataFrame] | None,
+        no_duals: str | None,
+        lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode],
+    ) -> Callable[[str | Mapping[str, Any]], pl.DataFrame]:
+        """The ``evaluate`` reader for a saved solution, over this rebuilt model.
+
+        The reader :meth:`solve` hands a live result, but its primal and dual
+        are reconstructed from the frames a save wrote rather than taken from a
+        sink: this build supplies the labels that put the values back in the
+        order the vector had (:func:`readback.reordered`). A build, never a
+        solve, so the answer read is the one saved.
+
+        Args:
+            primals: The saved ``(dims…, value)`` frame per variable.
+            duals: The same per constraint, or ``None`` where the solve left no
+                duals — *no_duals* then says why, and a read of one raises it.
+            no_duals: Why there are no duals, or ``None`` when *duals* holds them.
+            lower: How an expression the caller writes becomes a plan node,
+                composed above the lane from the spec (docs/about/architecture.md,
+                hard rule 2).
+        """
+        model = self._model
+        primal = readback.reordered(model.attached, model.variables, model.program.variables, primals)
+        dual = (
+            readback.reordered(model.attached, model.constraints, model.program.constraints, duals)
+            if duals is not None
+            else None
+        )
+        _, evaluate, _ = self._readers(primal, dual, no_duals, lower, None)
+        assert evaluate is not None, 'a reconstructed solution given a lower has an evaluate'
+        return evaluate
 
     def _discrete(self) -> list[str]:
         """The variables this model declared as anything but continuous."""

@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 #: unrepresentable as declared names.
 SOLUTION = '__solution value__'
 _EXPRESSION_ROW = '__expression row__'
+_LABEL_ORDER = '__label order__'
 
 
 def row(model: BuiltModel, name: str, coordinate: Mapping[str, Any]) -> ConstraintRow:
@@ -167,6 +168,62 @@ def laid_out(
 def string_dims(attached: AttachedSources, dims: Sequence[str]) -> list[str]:
     """Those of *dims* attaching encoded as ``Enum`` — its string ones."""
     return [d for d in dims if attached.is_enum_encoded(d)]
+
+
+def reordered(
+    attached: AttachedSources,
+    registry: Mapping[str, labels.Labelled],
+    declared: Mapping[str, Any],
+    frames: Mapping[str, pl.DataFrame],
+) -> pl.Series:
+    """A saved solution's value frames back as the positional vector — the inverse of :func:`laid_out`.
+
+    Each declaration's ``(dims…, value)`` is aligned to its
+    :class:`~labels.Labelled` frame's label order and the values concatenated in
+    ``start`` order, rebuilding the vector a solver returned. Exact because a
+    rebuild of the model over the same spec and sources numbers the labels
+    identically (docs/about/architecture.md, "The relational lane"), so a slice
+    lands where it did.
+
+    Args:
+        attached: The rebuilt model's sources, for which dims it enum-encoded.
+        registry: The rebuilt model's ``variables`` or ``constraints``.
+        declared: The program's ``variables`` or ``constraints``, for the dims.
+        frames: The saved ``(dims…, value)`` frame per name, as read back.
+
+    Raises:
+        LpspecError: A declaration whose saved frame misses a coordinate the
+            rebuilt model holds — the frame is not this model's answer.
+    """
+    in_start_order = sorted((held.start, name) for name, held in registry.items())
+    pieces = [_aligned(attached, name, registry[name], declared[name].dims, frames[name]) for _, name in in_start_order]
+    return pl.concat(pieces) if pieces else pl.Series(SOLUTION, [], dtype=pl.Float64)
+
+
+def _aligned(
+    attached: AttachedSources, name: str, held: labels.Labelled, dims: tuple[str, ...], stored: pl.DataFrame
+) -> pl.Series:
+    """One declaration's saved values in its label order — its slice of the vector.
+
+    Joined onto the rebuilt label frame rather than trusted in file order, and
+    the string dims cast back the way :func:`laid_out` cast them out, so the
+    alignment holds whatever order the parquet came back in.
+    """
+    if not dims:
+        return stored['value'].rename(SOLUTION)
+    order = (
+        held.frame.select(*dims)
+        .collect()
+        .with_columns(pl.col(d).cast(pl.String) for d in string_dims(attached, dims))
+        .with_row_index(_LABEL_ORDER)
+    )
+    joined = order.join(stored, on=list(dims), how='left').sort(_LABEL_ORDER)
+    if joined['value'].null_count():
+        raise LpspecError(
+            f"the saved answer's '{name}' frame does not cover every coordinate this model builds, so it "
+            f'is not an answer to this model. Re-solve rather than read.'
+        )
+    return joined['value'].rename(SOLUTION)
 
 
 def expression_frame(name: str, expr: program.ExpressionNode, compiler: PolarsCompiler) -> pl.DataFrame:

@@ -408,7 +408,8 @@ class Result:
     #: :meth:`extend`'s half of the same: earlier entries and a new block in,
     #: one deferred reader per new entry plus what a later extend needs to read
     #: them out. Opaque here — the model as written, which this lane may not
-    #: read (hard rule 2). ``None`` with :attr:`_evaluate`. Released with the
+    #: read (hard rule 2). ``None`` where there is no model as written, and on a
+    #: loaded answer, which evaluates but does not extend. Released with the
     #: primals.
     _extend: (
         Callable[

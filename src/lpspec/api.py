@@ -603,3 +603,45 @@ def _answer_under(out: Path, read: Reading) -> Result:
         _no_duals=no_duals,
         **carried,
     )
+
+
+def attach_evaluator(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
+    """*answer* with :meth:`~lpspec.relational.result.Result.evaluate` wired, over *spec* and *sources* rebuilt.
+
+    A saved answer carries values but not the model, and evaluating a quantity
+    the file never named lowers the model as written — so the model is rebuilt
+    here (a build, never a solve) and the saved primal and dual put back in
+    order against it, exactly the solution the save held. The declared readers a
+    save wrote are untouched; only an expression outside them reaches the rebuilt
+    reader. *answer* is returned unchanged where the solve left no values.
+
+    The rebuild is deferred to the first :meth:`~...Result.evaluate` call and
+    cached, so opening an archive whose ad-hoc reader is never used costs
+    nothing, and a scanned answer stays on disk until then.
+
+    Args:
+        answer: A saved solve, as :func:`load_result` or :func:`scan_result`
+            read it back.
+        spec: The model the answer solved, as :func:`build` takes it.
+        sources: What it was solved with, as :func:`build` takes them.
+    """
+    if not answer._primals:
+        return answer
+    frames = answer._primals
+    dual_frames = answer._duals
+    no_duals = answer._no_duals
+    reader: list[Callable[[str | Mapping[str, Any]], pl.DataFrame]] = []
+
+    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
+        if not reader:
+            primals = {name: frame.collect() for name, frame in frames.items()}
+            duals = (
+                {name: frame.collect() for name, frame in dual_frames.items()}
+                if no_duals is None and dual_frames
+                else None
+            )
+            model = build(spec, sources)
+            reader.append(model._engine.evaluator(primals, duals, no_duals, model._lower))
+        return reader[0](written)
+
+    return replace(answer, _evaluate=evaluate)
