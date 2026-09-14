@@ -2,8 +2,7 @@
 
 None of these facts belongs to a lane. ``Buildable`` and ``Source`` are what
 every verb in the package takes; ``LANES`` is read by ``check`` with no extra
-installed and by the eager lane when it refuses, so it is data here rather
-than a property of a lane that may not be importable.
+installed and by the eager lane when it refuses.
 """
 
 from __future__ import annotations
@@ -28,19 +27,14 @@ if TYPE_CHECKING:
 #: Anything a verb takes as the spec: a YAML path, a mapping, or a ``Spec``
 #: the language has already read. **Not** a ``Program``: lowering has no
 #: inverse, so an answer from one could not name the model it came from, and
-#: nothing built from one can be archived. Keeping the ``Spec`` is both the
-#: archivable form and the cheaper one — reading a file costs about ten times
-#: what lowering it does (#1579).
+#: nothing built from one can be archived.
 type Buildable = str | Path | dict[str, Any] | Spec
 
 
 def declared(spec: Buildable) -> Spec:
     """*spec* as the document it is, whatever shape it arrived in.
 
-    The one door every verb reads a model through, so the refusal below is
-    written once. A lowered ``Program`` reaching :func:`math_spec.to_spec`
-    raises ``argument of type 'Program' is not iterable``, which names neither
-    what is wrong nor what to pass.
+    The one door every verb reads a model through.
 
     Args:
         spec: A YAML path, a mapping, or a ``Spec``.
@@ -111,9 +105,7 @@ def _case_collision(program: Program) -> str | None:
     """Two declarations of one namespace whose names differ only by case, as the sentence refusing them.
 
     The namespaces are the language's own — the flat one every expression
-    refers into, and constraints beside it — read off the program rather than
-    re-derived, so this and math-spec cannot come to disagree about what being
-    declared twice means.
+    refers into, and constraints beside it.
     """
     flat = (
         *(('dimension', name) for name in program.dimensions),
@@ -141,9 +133,8 @@ def _case_collision(program: Program) -> str | None:
 def lowered(spec: Buildable) -> Program:
     """*spec* as a program, refusing what this package cannot keep apart.
 
-    Every door lowers through here rather than through ``to_program``, so what
-    :func:`check` refuses :func:`build` and an archive refuse too: a rule only
-    the front door enforced is one ``solve`` walks past.
+    Every door lowers through here, so what :func:`check` refuses
+    :func:`build` and an archive refuse too.
 
     Raises:
         LanguageError: A construct outside the streaming language.

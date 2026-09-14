@@ -66,12 +66,10 @@ __all__ = ['build', 'check', 'load_result', 'scan_result', 'solve', 'write']
 
 
 def _portability(program: Program, sink: str) -> tuple[str | None, list[str]]:
-    """Why *sink* cannot take *program*, and what it would rewrite if it can.
+    """*sink*'s reason for refusing *program*, and what it would rewrite to take it.
 
-    The one place a lane is told apart from a sink: what a sink refuses or
-    reformulates is ``relational.sinks``' business, and it may not know a lane
-    exists (docs/about/architecture.md, hard rule 2). A lane rewrites nothing —
-    everything it supports it builds natively — so its second answer is empty.
+    A lane rewrites nothing — everything it supports it builds natively — so
+    its second answer is empty.
     """
     if (lane := LANES.get(sink)) is not None:
         missing = lane.missing(required(program))
@@ -83,10 +81,8 @@ def _portability(program: Program, sink: str) -> tuple[str | None, list[str]]:
 def check(spec: Buildable, sink: str | None = None) -> Program:
     """Parse, expand, validate and lower a spec; attach no data.
 
-    With *sink*, also: **will that sink take it?** The two are separate axes
-    (math-spec's docs/about/limits.md) — whether a spec is sayable is solver-independent,
-    where it can land is not — so bare ``check`` stays silent about
-    portability. The answer is read off a declared table with no data
+    With *sink*, also: **will that sink take it?** Bare ``check`` says nothing
+    about portability. The answer is read off a declared table with no data
     attached, so it needs no solver installed. The solver-independent advice
     is issued either way.
 
@@ -154,9 +150,8 @@ class Model:
     def _fill(self) -> None:
         """Build the frames from whatever is attached now.
 
-        A failure leaves nothing behind, which is also what makes an update that
-        raises leave a closed handle rather than a stale one: the half-built
-        model is released and the exception is the caller's.
+        A failure releases the half-built model and re-raises, so an update
+        that raises leaves a closed handle rather than a stale one.
         """
         try:
             self._engine.build(self._program, tidy_sources(self._program, self._sources))
@@ -172,16 +167,15 @@ class Model:
             model.update({'cap_hat': capacity}).solve()
 
         Any new data is accepted: ``model.update(x)`` answers what
-        ``build(spec, sources | x)`` answers, whatever changed. What a change
-        costs is the fast path, never the answer — data that moves a mask
-        renumbers labels, so the model is rebuilt and solved cold instead of
-        pushed onto a loaded solver, and
+        ``build(spec, sources | x)`` answers, whatever changed. Data that moves
+        a mask renumbers labels, so the model is rebuilt and solved cold
+        instead of pushed onto a loaded solver, and
         :attr:`~lpspec.relational.result.Diagnostics.loads` says which ran.
 
         Results taken before the update keep reading: each owns the frames it
-        reads, and an update builds new ones rather than touching those. What
-        retaining one costs is its build's label frames staying alive until it
-        is dropped or :meth:`~lpspec.relational.result.Result.close` is called.
+        reads, and an update builds new ones rather than touching those. A
+        retained result keeps its build's label frames alive until it is
+        dropped or :meth:`~lpspec.relational.result.Result.close` is called.
 
         Args:
             sources: Only what changed; the rest keeps what :func:`build`
@@ -192,8 +186,7 @@ class Model:
             This object, so a driver can chain.
 
         Raises:
-            DataError: A name the spec does not declare — an update that named
-                nothing would silently re-solve the numbers already attached.
+            DataError: A name the spec does not declare.
         """
         _refuse_unknown(sources, attachable(self._program))
         self._sources.update(sources)
@@ -212,11 +205,8 @@ class Model:
 
         A solver that can stay loaded is kept between calls, so an updated
         model skips the hand-off and only its numbers are pushed. Whether the
-        *work* that solver did is kept too is *keep*, and it is off by
-        default: a solver given a run to resume may forgo preparation it would
-        otherwise do, which on HiGHS measured an 18x loss on one model and a
-        1.9x win on another (#815), and only a caller knows which way their
-        model goes. How much this solve actually kept is its
+        *work* that solver did is kept too is *keep*, off by default. How much
+        this solve actually kept is its
         :attr:`~lpspec.relational.result.Result.kept`.
 
         Args:
@@ -237,15 +227,9 @@ class Model:
                 attached to it **now**, and this answer — so that
                 :func:`~lpspec.archive.load_archive` gives all three back and
                 the model solves again from the file alone. A ``.zip`` suffix
-                packs it into one file and anything else is a directory.
-                Written here rather than assembled afterwards, because this is
-                the one moment all three exist together: after an
-                :meth:`update` the spec is unchanged, so nothing outside this
-                call could tell the question it answered from the one before
-                it. What the build and its solves have spent goes in beside
-                the answer, as :class:`~lpspec.relational.parquet.Metrics` —
-                the one part of an archive re-solving it cannot recover, those
-                clocks being of the machine that ran them.
+                packs it into one file and anything else is a directory. What
+                the build and its solves have spent goes in beside the answer,
+                as :class:`~lpspec.relational.parquet.Metrics`.
 
         Returns:
             The solution, holding this model.
@@ -270,16 +254,11 @@ class Model:
     def _archive(self, out: Path, answered: Result) -> None:
         """Pack this model, what is attached to it now, and *answered* into one zip.
 
-        The answer is laid out in a scratch directory beside *out* first,
-        because that is the layout an archive's ``answer/`` is and because a
-        large primal is streamed to disk rather than passed through this
-        process.
-
-        The metrics row goes in after the answer rather than through
-        :meth:`Result.save`, which cannot write it: a result is one solve and
-        the diagnostics it would come from are the model's whole life, so
-        there is no reading of them a result could carry as its own. The
-        archive can, being written by the model that holds both.
+        The answer is laid out in a scratch directory beside *out* first, in
+        the layout an archive's ``answer/`` holds. The metrics row is written
+        after the answer rather than through :meth:`Result.save`, which cannot
+        write it: a result is one solve, and the diagnostics the metrics come
+        from span the model's whole life.
         """
         with beside(out) as scratch:
             answer = answered.save(scratch)
@@ -300,8 +279,8 @@ class Model:
 
         Raises:
             ValueError: A suffix nothing writes.
-            LpspecError: A construct the format has no section for. What each
-                one carries is :func:`check`'s ``sink=`` answer, hours earlier.
+            LpspecError: A construct the format has no section for, the same as
+                :func:`check`'s ``sink=`` answer.
         """
         self._engine.write(path)
 
@@ -317,8 +296,8 @@ class Model:
         Reads the **built** model and needs no solve, so it answers on a model
         that never reached a solver — and it is the built row, so a term whose
         variable was absent is missing from it and a row a ``where`` masked out
-        is not there at all. That is the point: it shows what the model says
-        rather than what the file appears to say.
+        is not there at all. It shows what the model says rather than what the
+        file appears to say.
 
         Args:
             name: A declared constraint. Positional, so that a dimension may
@@ -364,11 +343,7 @@ class Model:
 
 
 def _refuse_unknown(given: Mapping[str, Any], declared: Mapping[str, Any]) -> None:
-    """Refuse an update naming anything *declared* does not hold.
-
-    An update that names nothing re-solves the same numbers and reports it
-    as an answer, which is the one failure a driver cannot see.
-    """
+    """Refuse an update naming anything *declared* does not hold."""
     if unknown := set(given) - set(declared):
         raise DataError(unknown_source_keys_message(unknown, declared))
 
@@ -376,8 +351,7 @@ def _refuse_unknown(given: Mapping[str, Any], declared: Mapping[str, Any]) -> No
 def _the_archive_target(out: Path) -> Path:
     """*out*, once it is somewhere an archive can be written.
 
-    Asked before the solve rather than after it, so a solve does not end in a
-    refusal the call already implied.
+    Checked before the solve, not after.
     """
     check_the_target(out)
     return out
@@ -417,11 +391,10 @@ def solve(
     The one-shot spelling: a caller who will solve the same spec again with
     new numbers wants :func:`build` and :meth:`Model.update`.
 
-    There is no ``keep`` here and no room for one — this builds the model it
-    solves, so the solve is the first of that model's life and
+    There is no ``keep`` here — this builds the model it solves, so the solve
+    is the first of that model's life and
     :attr:`~lpspec.relational.result.Result.kept` is always ``nothing``.
-    Choosing what to keep is :meth:`Model.solve`, where a previous solve
-    exists to keep something of.
+    Choosing what to keep is :meth:`Model.solve`.
 
     Args:
         spec: As :func:`check` takes it.
@@ -479,10 +452,7 @@ def write(
 def _whole(file: Path) -> pl.LazyFrame:
     """*file* read into memory, behind the :class:`polars.LazyFrame` a saved frame is held as.
 
-    What :data:`Reading` is for a ``load_``, and a ``LazyFrame`` all the same:
-    what a reader does with one is the same work whether the bytes are already
-    here or still on disk, so only the reading differs and nothing downstream
-    branches on which it got.
+    The :data:`Reading` a ``load_`` uses: the bytes are here when it returns.
     """
     return pl.read_parquet(file).lazy()
 
@@ -508,10 +478,8 @@ def _saved_frames(under: Path, read: Reading) -> dict[str, pl.LazyFrame]:
 def _absent(reason: str) -> Callable[[], pl.DataFrame]:
     """A named expression's reader, for one the solve could not evaluate.
 
-    The reader is the contract for an expression (deferred, called at the
-    read), so a value that was never produced has to fail *there* — with the
-    sentence the solve gave, which ``reasons.parquet`` carries for exactly
-    this.
+    Deferred like every expression reader: it raises at the read, with the
+    reason the solve gave.
     """
 
     def read() -> pl.DataFrame:
@@ -580,9 +548,8 @@ def scan_result(directory: str | Path) -> Result:
 def _answer_under(out: Path, read: Reading) -> Result:
     """The saved answer under *out*, its frames read *read*'s way.
 
-    The one body behind :func:`load_result` and :func:`scan_result`: what a
-    saved answer is does not depend on when its bytes move, so only the
-    reading is passed.
+    Shared body of :func:`load_result` and :func:`scan_result`; only the
+    reading differs.
     """
     record_file = out / RECORD_FILE
     if not record_file.is_file():

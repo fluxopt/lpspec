@@ -14,13 +14,11 @@ places and nowhere else: a source is a table or the path to one, and the answer
 collects or scans.
 
 **Reading only.** Nothing here writes an archive: the verb that solves does,
-through :mod:`lpspec.layout`, because a solve is the one moment the spec, the
-data and the answer exist together. Assembling the three after the fact is
-what let a mispaired case be filed as a matching one.
+through :mod:`lpspec.layout`.
 
-Above ``api`` and ``strategy`` rather than beside them: an archive carries
-either kind of answer, so it is the one place that knows about both a
-``Result`` and a ``Runs``. Neither of them knows about it.
+Above ``api`` and ``strategy``: an archive carries either kind of answer, so
+it knows about both a ``Result`` and a ``Runs``. Neither of them knows about
+it.
 """
 
 from __future__ import annotations
@@ -87,14 +85,7 @@ class SolveArchive:
         metrics: The :class:`~lpspec.relational.parquet.Metrics` taken
             when the solve returned — the sizes, the counters and the clocks of
             what reaching that answer took, as one value rather than a frame of
-            one row. Beside
-            :attr:`answer` rather than on it, which is the asymmetry with
-            :class:`SweepArchive`, where ``answer.metrics`` carries the
-            same columns one per slice: a :class:`~lpspec.strategy.Runs` is a
-            fold and knows each slice's share of a cumulative total, where a
-            :class:`~lpspec.relational.result.Result` is one solve of a model
-            that may have had many and could only hold a number it has no way
-            to attribute.
+            one row.
     """
 
     spec: Spec
@@ -121,8 +112,7 @@ class SweepArchive:
     Attributes:
         spec: The spec as written, as :class:`SolveArchive` holds it.
         sources: What the sweep was given — **uncut**, carrying every slice's
-            rows, because one copy per slice is what a sweep exists not to
-            write. A table or a path, as :class:`SolveArchive` holds them.
+            rows. A table or a path, as :class:`SolveArchive` holds them.
         axis: :class:`~lpspec.strategy.EachCoordinate` or
             :class:`~lpspec.strategy.EachWindow`, the axis that cut them.
         answer: Every slice's answers, keyed by slice — **held** from
@@ -151,10 +141,8 @@ def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
     """Refuse an archive whose answer came back from a different model than the one beside it.
 
     A solve writes both members together, so this cannot fire on an archive
-    this package wrote — it is what stands between a hand-assembled or edited
-    zip and a reader who would take it at its word and re-solve to something
-    else. An answer solved off a lowered program digests to ``None`` and is
-    taken on trust; there is no document to compare it against.
+    this package wrote. An answer solved off a lowered program digests to
+    ``None`` and is taken on trust; there is no document to compare it against.
     """
     mine = digest_of(spec.to_yaml())
     if others := sorted({other for other in answered if other is not None and other != mine}):
@@ -168,10 +156,8 @@ def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
 def _digests_in(under: Path) -> pl.DataFrame:
     """The ``(run, source, digest)`` table *under* holds.
 
-    Read, never re-computed: verifying it means hashing every source, which is
-    a pass over all the data an archive holds and is the caller's to ask for
-    on the occasion they want it checked rather than this package's to spend
-    on every load.
+    Read, never re-computed: the digests are not verified against the sources
+    on load.
 
     Raises:
         LayoutError: An archive with no digest table, which is every one
@@ -282,11 +268,8 @@ def scan_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
 def _archive_under(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
     """The archive whose members are in *under*, read whole or left on disk.
 
-    The one body behind :func:`load_archive` and :func:`scan_archive`: what an
-    archive holds does not depend on when its bytes move, so only the reading
-    differs. Both halves of that reading — a source, and the answer — turn on
-    the one flag, there being no archive whose sources are held and whose
-    answer is not.
+    Shared body of :func:`load_archive` and :func:`scan_archive`; the one flag
+    controls both halves of the reading, a source and the answer.
     """
     spec = to_spec(under / MODEL_MEMBER)
     sources: dict[str, Source] = {
