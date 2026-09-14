@@ -1432,9 +1432,9 @@ def _sweep_evaluator(
 ) -> Callable[[str | Mapping[str, Any]], pl.DataFrame]:
     """One expression at every slice's solution, each slice rebuilt from stored inputs and stitched by key.
 
-    The carry is the narrow gap: a carried parameter's per-slice value is a
-    previous slice's answer, not stored data, so an expression that reads one is
-    refused rather than answered from a value the archive does not hold.
+    An expression that reads a carried parameter is refused: a carried value is
+    a previous slice's answer rather than stored data, so the archive cannot put
+    it back per slice.
     """
     carried = set(carry)
     key_dtype = runs.objective.schema[runs.key_name]

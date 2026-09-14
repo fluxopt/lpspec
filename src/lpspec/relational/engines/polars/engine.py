@@ -404,11 +404,10 @@ class PolarsEngine:
     ) -> Callable[[str | Mapping[str, Any]], pl.DataFrame]:
         """The ``evaluate`` reader for a saved solution, over this rebuilt model.
 
-        The reader :meth:`solve` hands a live result, but its primal and dual
-        are reconstructed from the frames a save wrote rather than taken from a
-        sink: this build supplies the labels that put the values back in the
-        order the vector had (:func:`readback.reordered`). A build, never a
-        solve, so the answer read is the one saved.
+        The primal and dual are reconstructed from the frames a save wrote,
+        this build supplying the labels that put the values back in vector order
+        (:func:`readback.reordered`); the reader is then the one :meth:`solve`
+        hands a live result.
 
         Args:
             primals: The saved ``(dims…, value)`` frame per variable.

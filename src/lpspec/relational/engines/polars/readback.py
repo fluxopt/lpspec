@@ -180,10 +180,9 @@ def reordered(
 
     Each declaration's ``(dims…, value)`` is aligned to its
     :class:`~labels.Labelled` frame's label order and the values concatenated in
-    ``start`` order, rebuilding the vector a solver returned. Exact because a
-    rebuild of the model over the same spec and sources numbers the labels
-    identically (docs/about/architecture.md, "The relational lane"), so a slice
-    lands where it did.
+    ``start`` order, rebuilding the vector a solver returned. A rebuild of the
+    model over the same spec and sources numbers the labels identically
+    (docs/about/architecture.md, "The relational lane").
 
     Args:
         attached: The rebuilt model's sources, for which dims it enum-encoded.
@@ -207,11 +206,10 @@ def _aligned(
 ) -> pl.Series:
     """One declaration's saved values in its label order — its slice of the vector.
 
-    Joined onto the rebuilt label frame rather than trusted in file order, and
-    the string dims cast back the way :func:`laid_out` cast them out, so the
-    alignment holds whatever order the parquet came back in. A declaration the
-    rebuild masks away entirely holds no label, so its slice is empty and a
-    missing *stored* is no error; a missing one the rebuild *does* build is.
+    The values are joined onto the rebuilt label frame on the dims, the string
+    ones cast as :func:`laid_out` casts them. A declaration the rebuild masks
+    away entirely holds no label, so its slice is empty and a missing *stored*
+    is no error; a missing one the rebuild does build raises.
     """
     if held.height == 0:
         return pl.Series(SOLUTION, [], dtype=pl.Float64)

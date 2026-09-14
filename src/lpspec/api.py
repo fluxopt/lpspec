@@ -608,16 +608,14 @@ def _answer_under(out: Path, read: Reading) -> Result:
 def attach_evaluator(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
     """*answer* with :meth:`~lpspec.relational.result.Result.evaluate` wired, over *spec* and *sources* rebuilt.
 
-    A saved answer carries values but not the model, and evaluating a quantity
-    the file never named lowers the model as written — so the model is rebuilt
-    here (a build, never a solve) and the saved primal and dual put back in
-    order against it, exactly the solution the save held. The declared readers a
-    save wrote are untouched; only an expression outside them reaches the rebuilt
-    reader. *answer* is returned unchanged where the solve left no values.
+    Evaluating a quantity the file never named lowers the model as written, so
+    the model is rebuilt (a build, never a solve) and the saved primal and dual
+    put back in order against it. The declared readers a save wrote are
+    untouched; only an expression outside them reaches the rebuilt reader.
+    *answer* is returned unchanged where the solve left no values.
 
-    The rebuild is deferred to the first :meth:`~...Result.evaluate` call and
-    cached, so opening an archive whose ad-hoc reader is never used costs
-    nothing, and a scanned answer stays on disk until then.
+    The rebuild is deferred to the first
+    :meth:`~lpspec.relational.result.Result.evaluate` call and cached.
 
     Args:
         answer: A saved solve, as :func:`load_result` or :func:`scan_result`
