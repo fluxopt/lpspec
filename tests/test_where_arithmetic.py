@@ -42,7 +42,8 @@ def inputs():
     ('where', 'rows'),
     [
         pytest.param('2 * cost + 50 <= p_max', EVERYWHERE, id='arithmetic-on-both-sides'),
-        pytest.param('p_max + extra > 100', [(t, GAS) for t in range(4)], id='an-absent-term-under-plus-is-one-fewer'),
+        pytest.param('p_max + extra > 50', EVERYWHERE, id='an-absent-term-under-plus-is-one-fewer'),
+        pytest.param('p_max + extra > 100', [(t, GAS) for t in range(4)], id='the-present-term-alone-is-compared'),
         pytest.param('extra * 2 == 2', [(t, GAS) for t in range(4)], id='an-absent-factor-compares-false'),
         pytest.param('extra * 2 != 1', [(t, GAS) for t in range(4)], id='an-absent-side-is-false-even-under-not-equal'),
         pytest.param('load / extra > 50', [(t, GAS) for t in range(4)], id='an-absent-divisor-compares-false'),
@@ -50,6 +51,11 @@ def inputs():
         pytest.param('sum(extra, over=generator) > 0', EVERYWHERE, id='an-absent-term-under-a-sum-is-one-fewer'),
         pytest.param(
             'sum(p_max, over=generator) - 250 > load', [], id='a-reduction-beside-a-parameter-over-another-dim'
+        ),
+        pytest.param(
+            'shift(load, over=snapshot, offset=1, edge=0) < 85',
+            [(t, g) for t in (0, 1, 3) for g in (WIND, GAS)],
+            id='a-bare-shift-has-a-value-at-the-edge-it-names',
         ),
         pytest.param(
             'load - shift(load, over=snapshot, offset=1, edge=0) > 0',
