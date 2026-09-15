@@ -545,6 +545,7 @@ is structure.
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `lps.`; a wording lives here only where two modules raise it |
 | `strategy.py` | the driver above the runner: one plan per slice, folded — scenarios, rolling horizon, myopic pathways |
+| `projection.py` | the other driver: the feasible region on two named quantities, traced by re-solving one built model along directions until no edge has anything beyond it |
 | `relational/engines/polars/compiler.py` | plan → lazy queries; pure, reads nothing |
 | `relational/engines/polars/reindex.py` | `shift` and `sum_back`: a fragment's rows moved along one dimension's own order, and the edge |
 | `relational/engines/polars/predicates.py` | a `where:` mask as a boolean query over the coordinate product; the plan's predicate nodes and nothing else |

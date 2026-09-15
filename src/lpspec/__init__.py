@@ -36,6 +36,7 @@ from lpspec.errors import (
     PiecewiseExpansionError,
     SchemaError,
 )
+from lpspec.projection import Region, project
 from lpspec.relational.result import Result
 from lpspec.strategy import EachCoordinate, EachWindow, Runs, load_runs, scan_runs, solve_over
 
@@ -52,6 +53,7 @@ __all__ = [
     'Model',
     'NoSolutionError',
     'PiecewiseExpansionError',
+    'Region',
     'Result',
     'Runs',
     'SchemaError',
@@ -63,6 +65,7 @@ __all__ = [
     'load_archive',
     'load_result',
     'load_runs',
+    'project',
     'scan_archive',
     'scan_result',
     'scan_runs',
