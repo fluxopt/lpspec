@@ -100,3 +100,21 @@ sources = {
 [lookup](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#lookups),
 so it arrives under its own name as a relation: PyPSA's `bus` column as it
 stands, not merged into an index.
+
+## Validating the data
+
+**lpspec checks the shape of the data, not the sense of it.** Attaching refuses
+a missing parameter, a null value, a stray label and a wrong dtype
+([the data contract](../reference/data.md)). It does not check that a capacity
+is non-negative, that a reverse limit is signed the way the model reads it, or
+that a bus carrying load can be reached over the lines. Those are facts about
+the system rather than the tables, and lpspec
+[leaves them to a layer of your own](https://github.com/fluxopt/lpspec/blob/main/docs/about/roadmap.md#what-it-will-not-become).
+
+**Put those checks in the code that builds `sources`.**
+[`examples/energy_model/run.py`](https://github.com/fluxopt/lpspec/blob/main/examples/energy_model/run.py)
+is a runnable pattern for a power network: typed component tables, a `validate`
+that refuses the domain mistakes, and a `to_sources` that lowers the validated
+components into what [`transport.yaml`](https://github.com/fluxopt/lpspec/blob/main/examples/transport.yaml)
+takes. A negative cost, a wrongly signed limit and an islanded bus each solve
+without complaint in lpspec, and are refused there before the build.
