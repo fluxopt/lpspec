@@ -12,9 +12,11 @@ import contextlib
 import io
 import json
 import os
+import pickle
 import subprocess
 import sys
 import tomllib
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -1543,4 +1545,149 @@ def test_the_floor_and_lpspec_agree_on_the_answer() -> None:
 
     assert ours == pytest.approx(lpspec, rel=1e-9), (
         f'the floor solves a different model than lpspec: {ours} against {lpspec}'
+    )
+
+
+# ---------------------------------------------------------------------------
+# every verb reaches the isolated child it is measured in
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize('named_arm', sorted(ARMS))
+def test_every_verb_an_isolated_pass_measures_can_be_pickled(named_arm: str) -> None:
+    """`benchmem(isolate=True)` ships the action to a spawned child, so a verb
+    that is not picklable raises before anything is timed — and a rung whose
+    every cell dies that way publishes nothing while looking merely absent.
+
+    `test_window` went a whole published run that way (#1617): both `window`
+    arms returned a closure, `window.<locals>.step`, which `pickle` cannot
+    reach. The contract in `bench/arms/__init__.py` already said every verb is
+    top-level and picklable; nothing asked.
+
+    The *verbs* are what this pickles, not a prepared call — `prepare` runs
+    against a case's parquet, and the point is reached before any of that.
+    """
+    module = ARMS[named_arm]
+    for verb in ('prepare', 'build_and_emit', 'build_only', 'objective', 'window_setup', 'window'):
+        target = getattr(module, verb, None)
+        if target is None:
+            continue
+        try:
+            pickle.loads(pickle.dumps(target))
+        except Exception as exc:
+            pytest.fail(f"the {named_arm} arm's {verb} does not pickle, so an isolated pass cannot measure it: {exc}")
+
+
+def test_the_window_verb_is_split_so_the_build_stays_out_of_the_clock() -> None:
+    """A rolling-horizon window is priced against a model that already exists,
+    so the build cannot be inside the measured call — and under `isolate=True`
+    it cannot be in the parent either, because the child starts empty.
+
+    The split is what satisfies both: `window_setup` builds and loads in the
+    child as pytest-benchmark's pedantic `setup`, which runs untracked before
+    each sample and hands back the arguments, and `window` is the one later
+    window that gets timed. An arm offering one without the other would be
+    measured as a build.
+    """
+    for name, module in sorted(ARMS.items()):
+        assert hasattr(module, 'window') == hasattr(module, 'window_setup'), (
+            f'the {name} arm offers one half of the window pair — `window_setup` builds and loads '
+            f'outside the clock, `window` is what is timed, and neither means anything alone'
+        )
+
+
+def test_the_window_payload_an_isolated_pass_ships_can_be_pickled() -> None:
+    """The reproduction of #1617, at the seam that broke: not the verbs one at a
+    time, but the `(action, setup)` pair `benchmem(isolate=True)` actually
+    pickles to its child.
+
+    Every `test_window` cell of the published run of 2026-09-14 died here with
+    ``Can't get local object 'window.<locals>.step'``, because the arms returned
+    a closure over a model the parent had built. Pickling the pair the harness
+    assembles is what the two tests above cannot see between them: each half can
+    be picklable on its own and the payload still carry a closure.
+
+    The size assertion is the other half of the contract — a payload that ships
+    pre-built state would measure *deserializing* the model rather than
+    re-attaching to it, and benchmem warns above 1 MiB.
+
+    The payload is the plugin's own, so unlike the two tests above this one is
+    only asked where pytest-benchmem is installed — the environment the ladder
+    itself runs in.
+    """
+    plugin = pytest.importorskip(
+        'pytest_benchmem.pytest_plugin',
+        reason='pytest-benchmem is not installed — bench/ runs through `pixi run -e bench`',
+    )
+
+    from bench.test_ladder import _CollectedSetup
+
+    prepared = ('spec.yaml', {'p': 'p.parquet'})
+    for name, module in sorted(ARMS.items()):
+        if not hasattr(module, 'window'):
+            continue
+        setup = _CollectedSetup(partial(module.window_setup, 'highs', prepared))
+        mem_setup, tracked = plugin._pedantic_action(module.window, (), {}, setup)
+        try:
+            blob = pickle.dumps((tracked, mem_setup))
+        except Exception as exc:
+            pytest.fail(f"the {name} arm's window payload does not reach an isolated child: {exc}")
+        assert len(blob) < 1024 * 1024, (
+            f'the {name} arm ships {len(blob)} bytes to the child, so it carries pre-built state — '
+            f'the isolated rss would measure deserializing that, not the window'
+        )
+
+
+def test_a_timing_record_says_which_rung_it_came_off(tmp_path: Path) -> None:
+    """`test_emit` and `test_window` measure the same cell — same case, size,
+    sink and arm — at two moments of a driver's life, so without a phase they
+    are one key.
+
+    They were never both in a results file before #1617, because every window
+    cell died before it was timed. The moment they are, the renderers below take
+    whichever is faster.
+    """
+    doc = {
+        'benchmarks': [
+            {
+                'name': f'{rung}[dispatch-xs-lpspec-highs]',
+                'params': {'case_name': 'dispatch', 'size': 'xs', 'arm': 'lpspec', 'sink': 'highs'},
+                'stats': {'median': 1.0, 'min': 1.0},
+                'extra_info': {},
+            }
+            for rung in ('test_emit', 'test_window')
+        ]
+    }
+    path = tmp_path / 'latest.json'
+    path.write_text(json.dumps(doc))
+    phases = [r.get('phase') for r in bench_results.records(path) if r.get('record') == 'timing']
+    assert phases == ['emit', 'window'], 'each rung names its own phase, in the order the file writes them'
+
+
+def test_a_window_measurement_is_not_published_as_a_build(tmp_path: Path) -> None:
+    """The renderers take the lowest wall clock per `(case, size, sink, arm)`,
+    and a later window is faster than the build it is measured against — that is
+    the rung's whole finding. Read into the same key it silently replaces the
+    build, and `docs/about/benchmarks.md` publishes a re-attach under a column
+    that says emit.
+
+    Both published readers take the `emit` phase, so the window number is
+    reachable through `bench.tidy` and nowhere else.
+    """
+    build = _timing('lpspec', phase='emit', wall_seconds=1.0)
+    window = _timing('lpspec', phase='window', wall_seconds=0.1)
+
+    path = tmp_path / 'latest.jsonl'
+    path.write_text('\n'.join(json.dumps(r) for r in (build, window)))
+    _run, _gates, timings, _loop = report.load(path)
+    published = report.best(timings)
+    assert published[('dispatch', 'm', 'lp', 'lpspec')]['wall_seconds'] == 1.0, (
+        'the table publishes the build, not the faster window measured against it'
+    )
+    plotted = plot.series(path)[('dispatch', 'lp', 'lpspec')]['m']
+    assert plotted['wall'] == 1.0, 'and the chart page plots the build, not the window that shares its key'
+
+    rows = list(tidy.measurements([build, window], 'run'))
+    assert sorted({row['phase'] for row in rows}) == ['emit', 'window'], (
+        'the long CSV carries both, under phases that tell them apart'
     )
