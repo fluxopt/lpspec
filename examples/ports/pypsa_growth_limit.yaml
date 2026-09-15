@@ -19,19 +19,19 @@ dimensions:
     description: generating units, each built in one period and standing from then on
     dtype: str
 
-lookups:
+relations:
   gen_carrier:
     description: the carrier a generator burns
-    over: generator
-    into: carrier
+    columns: [generator, carrier]
+    key: generator
   build_period:
     description: the period a generator is first built in, and so counted as new in
-    over: generator
-    into: period
+    columns: [generator, period]
+    key: generator
   period_of:
     description: the investment period a snapshot falls in
-    over: snapshot
-    into: period
+    columns: [snapshot, period]
+    key: snapshot
 
 parameters:
   load:
@@ -76,12 +76,12 @@ expressions:
 variables:
   p:
     description: output of a generator in a snapshot, zero where it does not yet stand
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds:
       lower: 0
   p_nom:
     description: capacity built at a generator
-    foreach: [generator]
+    dims: [generator]
     bounds:
       lower: 0
       upper: p_nom_max
@@ -91,11 +91,11 @@ constraints:
     description: >-
       a generator produces no more than the capacity built for it, and nothing in
       a period it does not stand in
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     expression: p <= p_nom * at(activity, by=period_of)
 
   power_balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) == load
 
   growth_limit:
@@ -104,9 +104,9 @@ constraints:
       share of what was built in the period before. `edge=0` keeps the first
       period's row, where there is no predecessor to grow from, as the bare
       allowance — which is the row PyPSA emits there.
-    foreach: [period]
+    dims: [period]
     expression: >-
-      new_capacity - shift(new_capacity, over=period, offset=1, edge=0) * max_relative_growth
+      new_capacity - shift(new_capacity, along=period, offset=1, edge=0) * max_relative_growth
       <= max_growth
 
 objective:

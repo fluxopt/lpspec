@@ -18,32 +18,32 @@ parameters:
 variables:
   p:
     description: output of a generator in a local snapshot
-    foreach: [t, generator]
+    dims: [t, generator]
     bounds: {lower: 0, upper: p_max}
   charge:
     description: energy into the store
-    foreach: [t]
+    dims: [t]
     bounds: {lower: 0, upper: 25}
   discharge:
     description: energy out of the store
-    foreach: [t]
+    dims: [t]
     bounds: {lower: 0, upper: 25}
   soc:
     description: state of charge at the end of a local snapshot
-    foreach: [t]
+    dims: [t]
     bounds: {lower: 0, upper: 120}
 
 constraints:
   balance:
     description: generation plus what the store gives back covers the load, net of charging
-    foreach: [t]
+    dims: [t]
     expression: sum(p, over=generator) + discharge - charge == load
 
   soc_open:
     description: >-
       the seam — at the window's first local row the level comes from what the
       previous window carried across
-    foreach: [t]
+    dims: [t]
     where: 't == 0'
     expression: soc == soc_initial + charge * 0.9 - discharge
 
@@ -51,8 +51,8 @@ constraints:
     description: >-
       everywhere else the level comes from the row before; with no edge given
       the first row drops out on its own, so nothing has to restate the origin
-    foreach: [t]
-    expression: soc == shift(soc, over=t, offset=1) + charge * 0.9 - discharge
+    dims: [t]
+    expression: soc == shift(soc, along=t, offset=1) + charge * 0.9 - discharge
 
 expressions:
   spend:

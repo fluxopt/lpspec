@@ -6,9 +6,7 @@ arithmetic over it — product, quotient, power, negation, and the absence rule
 that decides which rows a reduction is allowed to see.
 
 It holds no state and reads no data: everything here takes fragments and
-returns fragments, which is what lets
-:mod:`~lpspec.relational.engines.polars.compiler` be about *which* query a plan
-node becomes rather than about what a term is.
+returns fragments.
 
 Column conventions, relied on by the engine:
 
@@ -46,8 +44,8 @@ def join_on(
 ) -> pl.LazyFrame:
     """``left.join(right)`` keyed by *dims* — a cross join where there are none.
 
-    One home for the fact that the empty coordinate product is one real row,
-    so a scalar piece joins by crossing rather than by an empty key.
+    The empty coordinate product is one real row, so a scalar piece joins by
+    crossing rather than by an empty key.
     """
     if dims:
         return left.join(right, on=list(dims), how=how, maintain_order=maintain_order)
@@ -56,7 +54,7 @@ def join_on(
 
 #: The right-hand operand's value while a join holds both. The spaces make it
 #: unrepresentable as a declared name, so it cannot collide with a dimension or
-#: lookup the model already has.
+#: relation the model already has.
 _RHS = '__rhs value__'
 
 #: Carries the one bit a *scalar* declaration's presence frame has to say:
@@ -115,8 +113,7 @@ class Presence:
 
 
 #: What a fragment is a piece *of*. ``term`` and ``quad`` differ only in how
-#: many label columns the coefficient multiplies, which is why the shape
-#: operators read :attr:`TermFragment.carried` rather than branching.
+#: many label columns the coefficient multiplies.
 Kind = Literal['term', 'quad', 'const']
 
 
@@ -141,10 +138,9 @@ class TermFragment:
     reduction clears it, ``sum`` skipping absent slots rather than propagating
     them (the absence rules).
 
-    A **tuple**, because a quadratic term stands on two variables and is absent
-    where either is. Joining two differently-keyed coordinate sets into one
-    frame would materialise a product to say what both halves already say, so
-    they travel side by side and each consumer applies them in turn.
+    A **tuple**: a quadratic term stands on two variables and is absent where
+    either is, so the presences travel side by side and each consumer applies
+    them in turn.
     """
 
     region: program.Mask | None = None
@@ -180,7 +176,7 @@ def refuse_a_fragment_without_the_dims(p: TermFragment, dims: list[str], context
     eager lane builds — `check` passes, so `LanguageError` would be a lie — and
     it is reachable from ordinary YAML wherever a scalar is added beside a term.
     A **term** lacking them is not reachable that way: `dims_of` gives every
-    term the foreach dims at load, so reaching here means the plan is
+    term the frame dims at load, so reaching here means the plan is
     malformed.
 
     *operator* is the surface spelling, not the plan node: the reader wrote
@@ -205,12 +201,7 @@ _LABELS: dict[Kind, list[str]] = {'term': ['var_label'], 'quad': ['var_label', '
 
 
 def value_column(kind: Kind) -> str:
-    """The value column a fragment of this kind carries.
-
-    A free function as well as a :class:`TermFragment` property because
-    :func:`join_mul` names the columns of the fragment it is *building*, whose
-    kind need not be either operand's.
-    """
+    """The value column a fragment of this kind carries."""
     return 'cval' if kind == 'const' else 'coeff'
 
 
@@ -221,13 +212,7 @@ def carried_columns(kind: Kind) -> list[str]:
 
 @dataclass(frozen=True)
 class CompiledExpression:
-    """An expression as fragments: variable terms, quadratic terms, a constant part.
-
-    Three tuples rather than one keyed by kind, because every consumer wants a
-    different subset of them and wants it named: a constraint row takes terms
-    and constants and refuses quadratics outright, the objective takes all
-    three, and the reader of a named expression takes the affine two.
-    """
+    """An expression as fragments: variable terms, quadratic terms, a constant part."""
 
     terms: tuple[TermFragment, ...]
     consts: tuple[TermFragment, ...]
@@ -239,6 +224,24 @@ def constant_scalar(p: TermFragment) -> pl.LazyFrame:
     if not p.dims:
         return p.frame.select(pl.col('cval').sum())
     return p.frame.group_by(p.dims).agg(pl.col('cval').sum())
+
+
+def absence_restrictions(fragments: Sequence[TermFragment]) -> list[Presence]:
+    """The presence frames a constraint's rows — or a read's — have to be contained in.
+
+    Absence propagates into a comparison and drops the row (the absence
+    rules): ``x + y >= 10`` where ``y`` is masked is not ``x >= 10``, it is no
+    constraint at all. Only *variable* absence counts — a sparse parameter's
+    missing rows mean a zero coefficient — which is why the fragment carries
+    :attr:`TermFragment.presences` separately from its frame.
+
+    *Having* no dims is not *having nothing to restrict*: a masked scalar
+    variable restricts every row of every constraint naming it, all or nothing.
+    Each restriction leaves with its key spelled out — the fragment's dims
+    where the presence implied them — since labelling cannot know the
+    fragment it came from.
+    """
+    return [Presence(x.frame, x.keys(p.dims)) for p in fragments for x in p.presences]
 
 
 def propagate_absence(compiled: CompiledExpression) -> CompiledExpression:
@@ -271,8 +274,8 @@ def propagate_absence(compiled: CompiledExpression) -> CompiledExpression:
     join could only return them all.
 
     The presence frame is not deduplicated first: a semi-join asks whether a
-    key occurs, and occurring twice is still occurring, so the distinct changes
-    no row and costs a hash pass over every coordinate the variable has.
+    key occurs, and occurring twice is still occurring, so the distinct would
+    change no row.
     """
     absent = [(p, x) for p in (*compiled.terms, *compiled.quads, *compiled.consts) for x in p.presences]
     if not absent:
@@ -336,10 +339,12 @@ def join_mul(a: TermFragment, c: TermFragment, kind: Kind, divide: bool = False)
     is not whether the divisor is dense but whether it is defined where the
     model divides by it.
 
-    *c* is variable-free, so it contributes no absence: a sparse coefficient
-    zeroes a term, it does not unmake the variable underneath it. The output
-    dims may be wider than ``a.dims``, which is why the presence key travels
-    with the fragment rather than being re-derived from dims here.
+    At a build *c* is variable-free and contributes no absence: a sparse
+    coefficient zeroes a term, it does not unmake the variable underneath it.
+    At a read a const fragment may be a variable at its primal, carrying the
+    presence its term would, so the presences of both sides travel out. The
+    output dims may be wider than ``a.dims``, which is why the presence key
+    travels with the fragment rather than being re-derived from dims here.
     """
     shared = [d for d in a.dims if d in c.dims]
     out_dims = a.dims + tuple(d for d in c.dims if d not in a.dims)
@@ -351,7 +356,14 @@ def join_mul(a: TermFragment, c: TermFragment, kind: Kind, divide: bool = False)
     combined = value / rhs if divide else value * rhs
     out = value_column(kind)
     frame = joined.with_columns(combined.alias(out)).select(*out_dims, *carried_columns(kind))
-    return replace(a, dims=out_dims, frame=frame, kind=kind, region=both_regions(a.region, c.region))
+    return replace(
+        a,
+        dims=out_dims,
+        frame=frame,
+        kind=kind,
+        presences=a.presences + c.presences,
+        region=both_regions(a.region, c.region),
+    )
 
 
 def join_pow(a: TermFragment, b: TermFragment) -> TermFragment:
@@ -371,15 +383,17 @@ def join_pow(a: TermFragment, b: TermFragment) -> TermFragment:
     frame = joined.with_columns(pl.col('cval').pow(pl.col(_RHS)).alias('cval')).select(
         *out_dims, *carried_columns('const')
     )
-    return TermFragment(out_dims, frame, 'const', region=both_regions(a.region, b.region))
+    return TermFragment(
+        out_dims, frame, 'const', presences=a.presences + b.presences, region=both_regions(a.region, b.region)
+    )
 
 
 def join_quad(a: TermFragment, b: TermFragment) -> TermFragment:
     """``a * b`` where both carry a variable — one quadratic fragment.
 
-    A join on the dims the two share, so a quadratic term costs what a linear
-    one does: aligned is an equi-join, broadcast joins on the coarser side, and
-    the cross join is refused upstream (``math_spec.degree``).
+    A join on the dims the two share: aligned is an equi-join, broadcast joins
+    on the coarser side, and the cross join is refused upstream
+    (``math_spec.degree``).
 
     The second label is renamed on the way in, since both sides carry
     ``var_label`` and a suffix collision would pair a variable with itself —

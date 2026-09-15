@@ -24,18 +24,18 @@ parameters:
 
 variables:
   cap:
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0, upper: cap_max}
   theta:
-    foreach: []
+    dims: []
     bounds: {lower: 0}
 
 constraints:
   optimality_cut:
-    foreach: [cut]
+    dims: [cut]
     expression: theta >= cut_const + sum(cut_slope * cap, over=generator)
   feasibility_cut:
-    foreach: [fcut]
+    dims: [fcut]
     expression: sum(fcut_slope * cap, over=generator) <= fcut_const
 
 objective:

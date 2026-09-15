@@ -6,8 +6,8 @@ Per-generator convex cost curves, expanded into a λ-formulation.
 
 ## The problem
 
-Each generator gets its own breakpoint list, so the curve varies per unit —
-something a flat breakpoint list cannot express:
+Each generator gets its own breakpoint list, so the curve varies per unit,
+which a flat breakpoint list cannot express:
 
 $$p_g = \sum_k \lambda_{g,k}\, x_{g,k}, \quad
 \mathrm{cost}_g = \sum_k \lambda_{g,k}\, y_{g,k}, \quad
@@ -25,69 +25,85 @@ Least-cost dispatch where each generator's cost curve is piecewise-linear in its
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{G}$ | index $g$ — `generator` — dispatchable units |
-| $\mathcal{K}$ | index $k$ — `bp` — breakpoints of the cost curve |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — dispatchable units |
+| $`\mathcal{K}`$ | index $`k`$ — `bp` — breakpoints of the cost curve |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{max}}$ | `p_max` over $\mathcal{G}$ — maximum dispatch |
-| $\mathrm{load}$ | `load` over $\mathcal{T}$ — demand to be met |
-| $x$ | `bp_x` over $\mathcal{G} \times \mathcal{K}$ — breakpoint dispatch levels, one curve per generator |
-| $y$ | `bp_y` over $\mathcal{G} \times \mathcal{K}$ — cost at each breakpoint, one curve per generator |
+| $`\mathrm{p}^{\mathrm{max}}`$ | `p_max` over $`\mathcal{G}`$ — maximum dispatch |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T}`$ — demand to be met |
+| $`x`$ | `bp_x` over $`\mathcal{G} \times \mathcal{K}`$ — breakpoint dispatch levels, one curve per generator |
+| $`y`$ | `bp_y` over $`\mathcal{G} \times \mathcal{K}`$ — cost at each breakpoint, one curve per generator |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — dispatched power |
-| $\mathrm{cost}$ | `op_cost` over $\mathcal{T} \times \mathcal{G}$ — operating cost, piecewise-linear in dispatch |
-| $\lambda$ | `cost_curve_lam` over $\mathcal{T} \times \mathcal{G} \times \mathcal{K}$ — convex-combination weight on a breakpoint |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — dispatched power |
+| $`\mathrm{cost}`$ | `op_cost` over $`\mathcal{T} \times \mathcal{G}`$ — operating cost, piecewise-linear in dispatch |
+| $`\lambda`$ | `cost_curve_lam` over $`\mathcal{T} \times \mathcal{G} \times \mathcal{K}`$ — convex-combination weight on a breakpoint |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{max}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{max}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} \mathrm{cost}_{t,g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} \mathrm{cost}_{t,g}
+```
 
 #### Subject to
 
 **`balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 **`cost_curve_convexity`**
 
-$$\sum_{k \in \mathcal{K}} \lambda_{t,g,k} = 1 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\sum_{k \in \mathcal{K}} \lambda_{t,g,k} = 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`cost_curve_link0`**
 
-$$p_{t,g} = \sum_{k \in \mathcal{K}} \lambda_{t,g,k} \cdot x_{g,k} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} = \sum_{k \in \mathcal{K}} \lambda_{t,g,k} \cdot x_{g,k} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`cost_curve_link1`**
 
-$$\mathrm{cost}_{t,g} = \sum_{k \in \mathcal{K}} \lambda_{t,g,k} \cdot y_{g,k} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathrm{cost}_{t,g} = \sum_{k \in \mathcal{K}} \lambda_{t,g,k} \cdot y_{g,k} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \mathrm{p}^{\mathrm{max}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \mathrm{p}^{\mathrm{max}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`op_cost`**
 
-$$\mathrm{cost}_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathrm{cost}_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`cost_curve_lam`**
 
-$$0 \le \lambda_{t,g,k} \le 1 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G},\enspace k \in \mathcal{K}$$
+```math
+0 \le \lambda_{t,g,k} \le 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G},\ k \in \mathcal{K}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -124,13 +140,13 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: dispatched power
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_max
       op_cost:
         description: operating cost, piecewise-linear in dispatch
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
 
@@ -147,7 +163,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
 
     constraints:
       balance:
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
     objective:
@@ -191,17 +207,14 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
 
 ## What it exercises
 
-`piecewise:` is a **declaration, not an operator** — it expands before lowering
-into the λ-formulation above. With `method: convex` the expansion emits no
-binaries at all: the convex hull is exact for a convex curve under
-minimisation, so the model stays a pure LP. `method: adjacency`, the default,
-adds segment binaries and adjacency constraints instead, and the model becomes
-a MILP that is still entirely inside the relational subset — while
-`method: sos2` states that same restriction as a [set](sos.md) and leaves the
-binaries to whichever sink needs them.
-
-By the time the logical plan exists there is nothing left called *piecewise* —
-which is why the construct matrix reads it from the surface declaration.
+`piecewise:` is a **declaration, not an operator**. It expands into the
+λ-formulation above before lowering, and nothing called *piecewise* survives
+into the plan. With `method: convex` the expansion emits no binaries: the
+convex hull is exact for a convex curve under minimisation, so the model stays
+a pure LP. `method: adjacency`, the default, adds segment binaries and
+adjacency constraints instead, and the model becomes a MILP that is still
+inside the relational subset. `method: sos2` states the same restriction as a
+[set](sos.md) and leaves the binaries to whichever sink needs them.
 
 ---
 

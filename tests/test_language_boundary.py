@@ -61,9 +61,12 @@ def test_inside_the_language(patch):
     [
         pytest.param(_objective('sum(cost / p)'), 'divisor contains variables', id='an-expression-the-file-writes'),
         pytest.param(
-            {'expressions': {'squared': {'expression': 'sum(p * p, over=generator)'}}},
-            'degree 2',
-            id='an-expression-only-check-lowers',
+            {
+                'expressions': {'price': 'dual(power_balance)'},
+                'objective': {'sense': 'minimize', 'expression': 'sum(p * cost) + sum(price)'},
+            },
+            'a dual exists only after a solve',
+            id='an-expression-the-math-reads-is-checked-where-it-is-read',
         ),
     ],
 )
@@ -76,8 +79,9 @@ def test_outside_the_language_is_a_load_error(patch, match):
     ``to_program``, because the verb is the claim: the affine guard once
     needed data bound, so ``check`` accepted the model and it blew up at build
     time — useless as a CI verb for exactly the rules it should enforce first.
-    Named expressions are the same argument one construct along; only ``check``
-    lowers them.
+    A named expression is the same argument one construct along: it is checked
+    where the math reads it, so a dual smuggled into the objective through one
+    is refused there, and one the math never reads is held to nothing.
     """
     with pytest.raises(LanguageError, match=match):
         lps.check(schema_of(DISPATCH, **patch))

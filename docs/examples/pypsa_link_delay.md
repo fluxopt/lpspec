@@ -4,16 +4,16 @@ A shipment is the input shifted along time: withdrawn at one snapshot, delivered
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **4311.111111111111**, matched to `rtol=1e-09`.
 
-Every `shift` in the corpus so far relates a variable to *itself* — a ramp
-limit, a state of charge. Here it relates two buses' balances: what `port_a`
-gives up in snapshot 0 is what `port_b` receives in snapshot 2, times the link's
+Every other `shift` in the corpus relates a variable to *itself*: a ramp limit,
+a state of charge. Here it relates two buses' balances. What `port_a` gives up
+in snapshot 0 is what `port_b` receives in snapshot 2, times the link's
 efficiency.
 
-Two links serve the same demand, and the delay is a column, not a constant:
-`ship` takes two snapshots and loses 10%, `wire` arrives at once and loses
-nothing. So the first two snapshots at `port_b` have nothing shipped to them yet
-and are served by the expensive unit standing beside the load — which is what
-makes the delay cost something.
+Two links serve the same demand, and the delay is a column, not a constant.
+`ship` takes two snapshots and loses 10%. `wire` arrives at once and loses
+nothing. The first two snapshots at `port_b` have nothing shipped to them yet,
+so the expensive unit beside the load serves them. That is what makes the delay
+cost something.
 
 ## The model
 
@@ -27,57 +27,65 @@ PyPSA's delayed link: power withdrawn at one snapshot arrives at a later one, so
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{E}$ | index $e$ — `generator` with $\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B}$ — generating units, each sitting on one bus |
-| $\mathcal{L}$ | index $l$ — `link` with $\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}$ — controllable connections, each joining two buses |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\ \mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
+| $`\mathcal{E}`$ | index $`e`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B}`$ — generating units, each sitting on one bus |
+| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — controllable connections, each joining two buses |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{nom}}$ | `p_nom` over $\mathcal{E}$ — installed capacity of a generator |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{E}$ — cost of one unit of output |
-| $\mathrm{link\_p\_nom}$ | `link_p_nom` over $\mathcal{L}$ — most a link may take in during one snapshot |
-| $\mathrm{efficiency}$ | `efficiency` over $\mathcal{L}$ — share of what entered a link that arrives at the other end |
-| $\mathrm{delay}$ | `delay` over $\mathcal{L}$ — how many snapshots a link takes to deliver what it took in |
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{E}`$ — installed capacity of a generator |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{E}`$ — cost of one unit of output |
+| $`\mathrm{link\_p\_nom}`$ | `link_p_nom` over $`\mathcal{L}`$ — most a link may take in during one snapshot |
+| $`\mathrm{efficiency}`$ | `efficiency` over $`\mathcal{L}`$ — share of what entered a link that arrives at the other end |
+| $`\mathrm{delay}`$ | `delay` over $`\mathcal{L}`$ — how many snapshots a link takes to deliver what it took in |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{E}$ — output of a generator in a snapshot |
-| $g$ | `g` over $\mathcal{T} \times \mathcal{L}$ — what a link takes in during a snapshot, at the bus it leaves |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{E}`$ — output of a generator in a snapshot |
+| $`g`$ | `g` over $`\mathcal{T} \times \mathcal{L}`$ — what a link takes in during a snapshot, at the bus it leaves |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{nom}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
-$t \boxminus_{v} k$ denotes translation with $v$ standing where index $t-k$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $v$ rather than being dropped.
+$`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $`v`$ rather than being dropped.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace e \in \mathcal{E}} p_{t,e} \cdot \mathrm{marginal\_cost}_{e}$$
+```math
+\min \sum_{t \in \mathcal{T},\ e \in \mathcal{E}} p_{t,e} \cdot \mathrm{marginal\_cost}_{e}
+```
 
 #### Subject to
 
 **`nodal_balance`**
 
-$$\sum_{e \in \mathcal{E} \thinspace:\thinspace \mathrm{gen\_bus}(e) = b} p_{t,e} + \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{link\_to}(l) = b} g_{t \boxminus_{0} \mathrm{delay},l} \cdot \mathrm{efficiency}_{l} - \left( \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{link\_from}(l) = b} g_{t,l} \right) = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{e \in \mathcal{E} \,:\, \mathrm{gen\_bus}(e) = b} p_{t,e} + \sum_{l \in \mathcal{L} \,:\, \mathrm{link\_to}(l) = b} g_{t \boxminus_{0} \mathrm{delay},l} \cdot \mathrm{efficiency}_{l} - \left( \sum_{l \in \mathcal{L} \,:\, \mathrm{link\_from}(l) = b} g_{t,l} \right) = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,e} \le \mathrm{p}^{\mathrm{nom}}_{e} \qquad \forall\thinspace t \in \mathcal{T},\enspace e \in \mathcal{E}$$
+```math
+0 \le p_{t,e} \le \mathrm{p}^{\mathrm{nom}}_{e} \qquad \forall\, t \in \mathcal{T},\ e \in \mathcal{E}
+```
 
 **`g`**
 
-$$0 \le g_{t,l} \le \mathrm{link\_p\_nom}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+0 \le g_{t,l} \le \mathrm{link\_p\_nom}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -104,19 +112,19 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: controllable connections, each joining two buses
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       link_from:
         description: the bus a link leaves
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
       link_to:
         description: the bus a link arrives at
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
 
     parameters:
       p_nom:
@@ -142,13 +150,13 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
       g:
         description: what a link takes in during a snapshot, at the bus it leaves
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         bounds:
           lower: 0
           upper: link_p_nom
@@ -161,10 +169,10 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
           meets the load. `edge=0` is what a non-cyclic delay means: a snapshot
           earlier than a link's delay receives nothing over it, there being no such
           snapshot to have taken anything in.
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
-          + sum(shift(g, over=snapshot, offset=delay, edge=0) * efficiency, by=link_to)
+          + sum(shift(g, along=snapshot, offset=delay, edge=0) * efficiency, by=link_to)
           - sum(g, by=link_from)
           == load
 
@@ -229,11 +237,10 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
 
 **`cyclic_delay=False` is `edge=0`, one for one.** PyPSA's own attribute table
 says of the non-cyclic case that *energy is lost at the tail and first snapshots
-receive nothing from delayed links*. That is exactly what `edge=0` states: the
-vacated positions contribute zero. The cyclic case is `edge='wrap'`, which
-[cyclic storage](pypsa_cyclic_storage.md) already ports on a different
-component, so this model takes the non-cyclic one — the case with a boundary to say something
-about.
+receive nothing from delayed links*. That is what `edge=0` states: the vacated
+positions contribute zero. The cyclic case is `edge='wrap'`, which
+[cyclic storage](pypsa_cyclic_storage.md) ports on a different component, so
+this model takes the non-cyclic one.
 
 The language **refuses** a per-entity shift with no `edge=` at all:
 
@@ -244,17 +251,17 @@ Add edge='wrap' for a cyclic translation, or edge=<number> for what the vacated
 positions contribute.
 ```
 
-Which is the right refusal here: PyPSA does not leave those positions absent, it
-zeroes them, and the two readings build different models.
+The refusal is right here. PyPSA zeroes those positions rather than leaving them
+absent, and the two readings build different models.
 
 **Both ends of the horizon show.** Shipments of 44.44 leave in snapshots 0 and 1
-and arrive as 40 in snapshots 2 and 3; nothing is shipped in snapshots 4 and 5,
+and arrive as 40 in snapshots 2 and 3. Nothing is shipped in snapshots 4 and 5,
 because it would arrive after the horizon ends and be lost. The prices say the
-same thing: `port_b` pays 100 while it waits, then 11.11 — the cheap unit's 10
+same thing: `port_b` pays 100 while it waits, then 11.11, the cheap unit's 10
 divided by the ship's 0.9.
 
 ## What it exercises
 
-`shift(x, over=dim, offset=p, edge=0)` with `p` an integer column, inside a grouped
-sum that lands on a *different* entity's row — the first model in the corpus
-where a shift moves a quantity between two places rather than along one.
+`shift(x, along=dim, offset=p, edge=0)` with `p` an integer column, inside a
+grouped sum that lands on a *different* entity's row. The shift moves a quantity
+between two places rather than along one.

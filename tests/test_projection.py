@@ -30,11 +30,11 @@ CORNER: dict[str, Any] = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'cap': {'dims': ['t']}, 'limit': {'dims': []}},
     'variables': {
-        'a': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 'cap'}},
-        'b': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 4}},
+        'a': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 'cap'}},
+        'b': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 4}},
     },
     'expressions': {'total_a': 'sum(a)'},
-    'constraints': {'shared': {'foreach': ['t'], 'expression': 'a + b <= limit'}},
+    'constraints': {'shared': {'dims': ['t'], 'expression': 'a + b <= limit'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(a) + sum(b)'},
 }
 
@@ -63,9 +63,9 @@ def committed(**patch: Any) -> dict[str, Any]:
     return override(
         CORNER,
         **{
-            'variables.on': {'foreach': ['t'], 'domain': 'binary'},
-            'constraints.cap_on': {'foreach': ['t'], 'expression': 'a <= cap * on'},
-            'constraints.min_load': {'foreach': ['t'], 'expression': 'a >= 1 * on'},
+            'variables.on': {'dims': ['t'], 'domain': 'binary'},
+            'constraints.cap_on': {'dims': ['t'], 'expression': 'a <= cap * on'},
+            'constraints.min_load': {'dims': ['t'], 'expression': 'a >= 1 * on'},
             **patch,
         },
     )
@@ -222,8 +222,8 @@ def test_at_naming_a_dim_the_quantity_does_not_carry_is_refused():
         CORNER,
         **{
             'dimensions.unit': {'dtype': 'str'},
-            'variables.b.foreach': ['unit'],
-            'constraints.shared.foreach': ['t', 'unit'],
+            'variables.b.dims': ['unit'],
+            'constraints.shared.dims': ['t', 'unit'],
         },
     )
     sources = {**CORNER_SOURCES, 'unit': ['chp']}
@@ -350,8 +350,8 @@ def test_a_label_along_a_string_dim_spells_the_label_alone():
         CORNER,
         **{
             'dimensions.unit': {'dtype': 'str'},
-            'variables.on': {'foreach': ['t', 'unit'], 'domain': 'binary'},
-            'constraints.cap_on': {'foreach': ['t'], 'expression': 'a <= cap * sum(on, over=unit)'},
+            'variables.on': {'dims': ['t', 'unit'], 'domain': 'binary'},
+            'constraints.cap_on': {'dims': ['t'], 'expression': 'a <= cap * sum(on, over=unit)'},
         },
     )
     region = lps.project(
@@ -364,7 +364,7 @@ def test_a_label_along_a_string_dim_spells_the_label_alone():
 
 
 def test_an_infeasible_combination_is_left_out():
-    spec = committed(**{'constraints.someone_on': {'foreach': [], 'expression': 'sum(on) >= 1'}})
+    spec = committed(**{'constraints.someone_on': {'dims': [], 'expression': 'sum(on) >= 1'}})
     region = lps.project(spec, CORNER_SOURCES, x='a', y='b', binaries='each')
     assert [region.label(i) for i in range(3)] == [
         'on[t=0]=0, on[t=1]=1',

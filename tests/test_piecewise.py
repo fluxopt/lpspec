@@ -83,7 +83,7 @@ def test_the_convex_flag_gives_the_hull_and_stays_a_pure_lp(nonconvex_inputs):
     data = nonconvex_inputs
 
     program = to_program(schema_of(CONVEX_SPEC))
-    assert all(v.variable_type == 'continuous' for v in program.variables.values()), 'method: convex is a pure LP'
+    assert all(v.domain == 'continuous' for v in program.variables.values()), 'method: convex is a pure LP'
 
     on_curve = sum(curve(v, data['bp_x'], data['bp_y']) for v in data['load'])
     chord = sum(0.55 * v for v in data['load'])  # the (100, 55) chord from the origin
@@ -203,7 +203,7 @@ def test_the_sos2_method_states_the_restriction_instead_of_building_it():
         'cost_curve_link1',
         'balance',
     }, 'the two rows that pick and neighbour a segment are gone with the variable they restricted'
-    assert all(v.variable_type == 'continuous' for v in program.variables.values()), 'sos2 emits no binary of its own'
+    assert all(v.domain == 'continuous' for v in program.variables.values()), 'sos2 emits no binary of its own'
     assert [(s.variable, s.sos_type, s.over) for s in program.sos.values()] == [('cost_curve_lam', 2, 'bp')], (
         'one set, over the weights, of the declared type'
     )
@@ -256,7 +256,7 @@ def test_the_sos2_method_gates_off_like_the_binaries_do(nonconvex_inputs):
 def test_the_adjacency_row_survives_at_the_first_breakpoint(nonconvex_inputs):
     """The reason ``shift`` kept an escape hatch when it started meaning absence.
 
-    Adjacency is ``lam <= seg + shift(seg, over=bp, offset=1, edge=0)``. At the first
+    Adjacency is ``lam <= seg + shift(seg, along=bp, offset=1, edge=0)``. At the first
     breakpoint the shifted term has no predecessor: filled it contributes zero
     and the row reads ``lam <= seg``, which is correct. Absent it would
     propagate and drop the row (#289), leaving the first lambda bounded only by
@@ -550,10 +550,10 @@ parameters:
 
 variables:
   p:
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0, upper: p_max}
   op_cost:
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0}
 
 piecewise:
@@ -566,7 +566,7 @@ piecewise:
 
 constraints:
   balance:
-    foreach: []
+    dims: []
     expression: sum(p, over=generator) == load
 
 objective:
@@ -811,7 +811,7 @@ def test_a_gate_that_does_not_exist_leaves_the_curve_ungated(nonconvex_inputs, m
     raw = raw_of(GATED_YAML)
     raw['piecewise']['cost_curve']['method'] = method
     raw['parameters']['gate_rows'] = {'dims': ['snapshot'], 'dtype': 'bool'}
-    raw['variables']['u'] = {'foreach': ['snapshot'], 'domain': 'binary', 'where': 'gate_rows'}
+    raw['variables']['u'] = {'dims': ['snapshot'], 'domain': 'binary', 'where': 'gate_rows'}
 
     gated = [True, False] * 6
     data = {
@@ -839,7 +839,7 @@ def test_a_masked_gate_declaring_its_absence_pins_the_curve_off(nonconvex_inputs
     raw = raw_of(GATED_YAML)
     raw['parameters']['gate_rows'] = {'dims': ['snapshot'], 'dtype': 'bool'}
     raw['variables']['u'] = {
-        'foreach': ['snapshot'],
+        'dims': ['snapshot'],
         'domain': 'binary',
         'where': 'gate_rows',
         'absence': 'zero',

@@ -4,12 +4,12 @@ Capacity that comes in whole modules: an integer count decides it, not a continu
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **56700.0**, matched to `rtol=1e-09`.
 
-The capacity variable survives. What changes is that it is no longer free to
-land anywhere: `p_nom = n_mod × p_nom_mod` ties it to a whole number of modules,
-so a technology sold in 30 MW turbines cannot be built 23 MW at a time.
+The capacity variable survives, but `p_nom = n_mod × p_nom_mod` ties it to a
+whole number of modules. A technology sold in 30 MW turbines cannot be built
+23 MW at a time.
 
-One bus and no network, deliberately. A model that fails to match should
-implicate one feature, and here that feature is the module count.
+One bus and no network: a model that fails to match should implicate one
+feature, and here that feature is the module count.
 
 ## The model
 
@@ -23,66 +23,80 @@ PyPSA modular capacity expansion: a technology bought in whole units. The capaci
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{nom,mod}}$ | `p_nom_mod` over $\mathcal{G}$ — capacity of one module — what a single unit of this technology adds |
-| $\mathrm{p}^{\mathrm{nom,max}}$ | `p_nom_max` over $\mathcal{G}$ — most capacity that may stand at a generator once built |
-| $\mathrm{capital\_cost}$ | `capital_cost` over $\mathcal{G}$ — cost of holding one unit of capacity over the horizon |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
+| $`\mathrm{p}^{\mathrm{nom,mod}}`$ | `p_nom_mod` over $`\mathcal{G}`$ — capacity of one module — what a single unit of this technology adds |
+| $`\mathrm{p}^{\mathrm{nom,max}}`$ | `p_nom_max` over $`\mathcal{G}`$ — most capacity that may stand at a generator once built |
+| $`\mathrm{capital\_cost}`$ | `capital_cost` over $`\mathcal{G}`$ — cost of holding one unit of capacity over the horizon |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — capacity built at a generator |
-| $n^{\mathrm{mod}}$ | `n_mod` over $\mathcal{G}$ — how many whole modules are built |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — capacity built at a generator |
+| $`n^{\mathrm{mod}}`$ | `n_mod` over $`\mathcal{G}`$ — how many whole modules are built |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{nom,mod}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom,mod}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capital\_cost}_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capital\_cost}_{g}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$p_{t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`modularity`**
 
-$$p^{\mathrm{nom}}_{g} = n^{\mathrm{mod}}_{g} \cdot \mathrm{p}^{\mathrm{nom,mod}}_{g} \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+p^{\mathrm{nom}}_{g} = n^{\mathrm{mod}}_{g} \cdot \mathrm{p}^{\mathrm{nom,mod}}_{g} \qquad \forall\, g \in \mathcal{G}
+```
 
 **`nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{t,g} = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{t,g} = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$p_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`p_nom`**
 
-$$0 \le p^{\mathrm{nom}}_{g} \le \mathrm{p}^{\mathrm{nom,max}}_{g} \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+0 \le p^{\mathrm{nom}}_{g} \le \mathrm{p}^{\mathrm{nom,max}}_{g} \qquad \forall\, g \in \mathcal{G}
+```
 
 **`n_mod`**
 
-$$n^{\mathrm{mod}}_{g} \ge 0, n^{\mathrm{mod}}_{g} \in \mathbb{Z} \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+n^{\mathrm{mod}}_{g} \ge 0, n^{\mathrm{mod}}_{g} \in \mathbb{Z} \qquad \forall\, g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -104,11 +118,11 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: generating units, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
 
     parameters:
       p_nom_mod:
@@ -130,18 +144,18 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: capacity built at a generator
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
           upper: p_nom_max
       n_mod:
         description: how many whole modules are built
-        foreach: [generator]
+        dims: [generator]
         domain: integer
         bounds:
           lower: 0
@@ -149,19 +163,19 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     constraints:
       within_capacity:
         description: a generator produces no more than the capacity built for it
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= p_nom
 
       modularity:
         description: >-
           capacity is the module count times the module size, which is what makes
           the count rather than the capacity the decision
-        foreach: [generator]
+        dims: [generator]
         expression: p_nom == n_mod * p_nom_mod
 
       nodal_balance:
         description: what is generated at a bus meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(p, by=gen_bus) == load
 
     objective:
@@ -212,20 +226,17 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         return n
     ```
 
-**The module count has to bind, or the model proves nothing.** The three module
-sizes are 30, 25 and 20; peak load is 143. Wind fills 120 — four whole modules,
-and its own ceiling — leaving 23, which no single gas module covers and one
-25 MW module overshoots. Drop `p_nom_mod` and the same instance builds 108 of
-wind and 35 of oil, neither a multiple of anything, for **54040.0** against the
-modular **56700.0**. A port whose integer constraint were quietly ignored would
-report the cheaper number.
+**The module count binds.** The three module sizes are 30, 25 and 20; peak
+load is 143. Wind fills 120, four whole modules and its own ceiling, leaving
+23. No single gas module covers 23, and one 25 MW module overshoots it. Drop
+`p_nom_mod` and the same instance builds 108 of wind and 35 of oil, neither a
+multiple of anything, for **54040.0** against the modular **56700.0**. A port
+that ignored the integer constraint would report the cheaper number.
 
 ## What it exercises
 
-`domain: integer` on a variable that is not a status — the module count is a
-*count*, with no upper bound of its own, held down only by the capacity ceiling
-above it. Every other integrality in the corpus is a 0/1 decision.
-
-It is also the first port where a capacity variable is decided by another
-variable rather than by a bound, which is what makes `modularity` an equality
-between two decisions rather than a limit on one.
+`domain: integer` on a variable that is not a status. The module count has no
+upper bound of its own; only the capacity ceiling above it holds it down.
+Every other integrality in the corpus is a 0/1 decision. And `modularity`, an
+equality between two decisions: a capacity variable decided by another
+variable rather than by a bound.

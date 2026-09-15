@@ -11,38 +11,37 @@ $$p_{t,g} \quad\le\quad \hat p_{\thinspace\mathrm{period}(t),\thinspace g}$$
 
 Two dimensions cannot state this at the resolution a real study wants.
 `period × snapshot` is a **rectangle**, so every period gets the same number of
-snapshots — and a study that models 2030 hourly and 2050 in four-hour blocks is
-asking for exactly the opposite.
+snapshots. A study that models 2030 hourly and 2050 in four-hour blocks wants
+the opposite.
 
 So `snapshot` is one flat dimension carrying $\mathrm{period}$ as a
-[lookup](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#lookups), the same way `generator`
+[relation](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#relations), as `generator`
 carries $\mathrm{bus}$ in [transport](transport.md). Ragged periods then cost
-nothing: a lookup is a per-row column, and four snapshots in 2030 beside two in
-2050 is just a column with four of one value and two of another.
+nothing: a relation is a per-row column, and four snapshots in 2030 beside two in
+2050 is a column with four of one value and two of another.
 
 ## Both directions of one mapping
 
-Grouping reads the lookup one way:
+Grouping reads the relation one way:
 `sum(p, by=period_of)` is a per-period CO₂ budget, and
 [monthly_budget](monthly_budget.md) is the same construct on a different
-lookup.
+relation.
 
 `within_cap` reads it the other way. Capacity lives on `period` and binds at
 each `snapshot`, so a coarse quantity is pulled onto a fine one:
 
 ```yaml
 within_cap:
-  foreach: [snapshot, generator]
+  dims: [snapshot, generator]
   expression: p <= at(p_nom, by=period_of)
 ```
 
-`at` and `sum(by=)` take the same one argument because the lookup names one
-mapping table and the operator says which direction it is walked.
+`at` and `sum(by=)` take the same argument: the relation names one table, and
+the operator says which direction it is walked.
 
-A per-period **parameter** needs neither: data prep can join it onto the
-snapshot index before the model sees it. `p_nom` is a **variable**, and a
-variable is not data to be joined — which is the line between the two, and why
-the pullback is a construct in the language rather than a step before it.
+A per-period **parameter** needs neither: join it onto the snapshot index
+before the model sees it. `p_nom` is a **variable**, which no join can reach,
+so the pullback is a construct in the language.
 
 <!-- math:begin -->
 <details markdown="1">
@@ -54,56 +53,66 @@ Least-cost investment and dispatch together: capacity is decided once per period
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` with $\mathrm{period\_of}: \mathcal{T} \to \mathcal{E}$ — dispatch periods, each falling in one investment period |
-| $\mathcal{E}$ | index $e$ — `period` — investment periods, the grouping capacity is decided over |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{period\_of}: \mathcal{T} \to \mathcal{E}`$ — dispatch periods, each falling in one investment period |
+| $`\mathcal{E}`$ | index $`e`$ — `period` with $`\mathrm{period\_of}: \mathcal{T} \to \mathcal{E}`$ — investment periods, the grouping capacity is decided over |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{load}$ | `load` over $\mathcal{T}$ — demand to be met |
-| $\mathrm{weight}$ | `weight` over $\mathcal{T}$ — what one snapshot stands for — a 2050 snapshot represents four hours, so the operating cost of a coarse period is not understated against a fine one |
-| $\mathrm{opex}$ | `opex` over $\mathcal{G}$ — cost of running a generator for one snapshot-hour |
-| $\mathrm{capex}$ | `capex` over $\mathcal{G} \times \mathcal{E}$ — cost of holding a unit of capacity through a period |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T}`$ — demand to be met |
+| $`\mathrm{weight}`$ | `weight` over $`\mathcal{T}`$ — what one snapshot stands for — a 2050 snapshot represents four hours, so the operating cost of a coarse period is not understated against a fine one |
+| $`\mathrm{opex}`$ | `opex` over $`\mathcal{G}`$ — cost of running a generator for one snapshot-hour |
+| $`\mathrm{capex}`$ | `capex` over $`\mathcal{G} \times \mathcal{E}`$ — cost of holding a unit of capacity through a period |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{E} \times \mathcal{G}$ — capacity a generator holds for the whole of a period |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{E} \times \mathcal{G}`$ — capacity a generator holds for the whole of a period |
 
-Upright is what the model is given — a parameter such as $\mathrm{load}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{load}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{opex}_{g} \cdot \mathrm{weight}_{t} + \sum_{e \in \mathcal{E},\enspace g \in \mathcal{G}} p^{\mathrm{nom}}_{e,g} \cdot \mathrm{capex}_{g,e}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{opex}_{g} \cdot \mathrm{weight}_{t} + \sum_{e \in \mathcal{E},\ g \in \mathcal{G}} p^{\mathrm{nom}}_{e,g} \cdot \mathrm{capex}_{g,e}
+```
 
 #### Subject to
 
 **`within_cap`**
 
-$$p_{t,g} \le p^{\mathrm{nom}}_{\mathrm{period\_of}(t),g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \le p^{\mathrm{nom}}_{\mathrm{period\_of}(t),g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$p_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`p_nom`**
 
-$$0 \le p^{\mathrm{nom}}_{e,g} \le 100 \qquad \forall\thinspace e \in \mathcal{E},\enspace g \in \mathcal{G}$$
+```math
+0 \le p^{\mathrm{nom}}_{e,g} \le 100 \qquad \forall\, e \in \mathcal{E},\ g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -124,8 +133,8 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: generating units
         dtype: str
 
-    lookups:
-      period_of: {over: snapshot, into: period}
+    relations:
+      period_of: {columns: [snapshot, period], key: snapshot}
 
     parameters:
       load:
@@ -147,12 +156,12 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: capacity a generator holds for the whole of a period
-        foreach: [period, generator]
+        dims: [period, generator]
         bounds:
           lower: 0
           upper: 100
@@ -160,10 +169,10 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     constraints:
       within_cap:
         description: output in a snapshot is capped by the capacity of the period it falls in
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= at(p_nom, by=period_of)
       balance:
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
     objective:
@@ -206,19 +215,20 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
 
 ## Reading the answer
 
-Costs are chosen so each period picks a different technology, which is what
-makes the per-period capacity visible rather than incidental:
+On the smaller instance `tests/test_at.py` holds, costs are chosen so each
+period picks a different technology, which makes the per-period capacity
+visible:
 
 | period | wind | gas |
 |---|---|---|
 | 2030 | 20 | 10 |
 | 2050 | 60 | 0 |
 
-2030 peaks at 30 and splits the build — wind is dearer to install but free to
+2030 peaks at 30 and splits the build: wind is dearer to install but free to
 run. 2050 peaks at 60 with every snapshot weighted four times, so the operating
 term dominates and the whole build goes to wind. Objective **750.0**, agreed
 integer for integer by both lanes.
 
-The weights are the reason the two periods are comparable at all: a coarse
-snapshot standing for four hours contributes four hours of operating cost, so a
-period is not made cheap by being modelled coarsely.
+The weights make the two periods comparable: a coarse snapshot standing for
+four hours contributes four hours of operating cost, so a period is not made
+cheap by being modelled coarsely.

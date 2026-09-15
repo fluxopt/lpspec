@@ -37,7 +37,7 @@ def untested_conjuncts(name: str, program: Any, stamps: list[Mapping[str, Any]])
     a louder gap one line up, and saying it twice buries it.
     """
     gaps = []
-    for block_name, block in (program.constraints | program.variables).items():
+    for block_name, block in {**program.constraints, **program.variables}.items():
         if getattr(block, 'where', None) is None:
             continue
         seen = [stamp['conjuncts'][block_name] for stamp in stamps if block_name in stamp.get('conjuncts', {})]

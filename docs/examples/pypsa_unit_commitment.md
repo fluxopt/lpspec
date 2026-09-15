@@ -4,11 +4,9 @@ Which generators are *on*, not just how much they produce — a binary per gener
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **24900**, matched to `rtol=1e-09`.
 
-**The corpus's MILP entry.** Every other verified model is a pure continuous
-LP; this one carries integrality, which is what the gallery's construct matrix
-had no verified example of. One bus and no network, deliberately: a model that
-fails to match should implicate one feature, and here that feature is
-commitment.
+**Integrality enters here.** Every model above is a continuous LP; this one
+carries a binary status. One bus and no network: a model that fails to match
+should implicate one feature, and here that feature is commitment.
 
 `min_up_time` and `min_down_time` are left at 0 here;
 [minimum up and down times](pypsa_min_up_down.md) is the model that writes them.
@@ -25,89 +23,113 @@ PyPSA unit commitment: which generators are on, not just how much they produce �
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units, each either committed or off |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units, each either committed or off |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — installed capacity of a generator |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{p}^{\mathrm{min,pu}}$ | `p_min_pu` over $\mathcal{G}$ — share of capacity a committed unit must produce at least |
-| $\mathrm{start\_up\_cost}$ | `start_up_cost` over $\mathcal{G}$ — what bringing a unit up costs, once per start |
-| $\mathrm{shut\_down\_cost}$ | `shut_down_cost` over $\mathcal{G}$ — what taking a unit down costs, once per stop |
-| $\mathrm{load}$ | `load` over $\mathcal{T}$ — demand to be met |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — installed capacity of a generator |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{p}^{\mathrm{min,pu}}`$ | `p_min_pu` over $`\mathcal{G}`$ — share of capacity a committed unit must produce at least |
+| $`\mathrm{start\_up\_cost}`$ | `start_up_cost` over $`\mathcal{G}`$ — what bringing a unit up costs, once per start |
+| $`\mathrm{shut\_down\_cost}`$ | `shut_down_cost` over $`\mathcal{G}`$ — what taking a unit down costs, once per stop |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T}`$ — demand to be met |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $\mathit{status}$ | `status` over $\mathcal{T} \times \mathcal{G}$ — is this unit committed in this snapshot? |
-| $\mathit{start\_up}$ | `start_up` over $\mathcal{T} \times \mathcal{G}$ — does this unit come up entering this snapshot? |
-| $\mathit{shut\_down}$ | `shut_down` over $\mathcal{T} \times \mathcal{G}$ — does this unit go down entering this snapshot? |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`\mathit{status}`$ | `status` over $`\mathcal{T} \times \mathcal{G}`$ — is this unit committed in this snapshot? |
+| $`\mathit{start\_up}`$ | `start_up` over $`\mathcal{T} \times \mathcal{G}`$ — does this unit come up entering this snapshot? |
+| $`\mathit{shut\_down}`$ | `shut_down` over $`\mathcal{T} \times \mathcal{G}`$ — does this unit go down entering this snapshot? |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{nom}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
-$\mathrm{pos}(t)$ denotes where index $t$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $0$. The index itself stays the coordinate, so $t$ compares against labels and $\mathrm{pos}(t)$ against positions.
+$`\mathrm{pos}(t)`$ denotes where index $`t`$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $`0`$. The index itself stays the coordinate, so $`t`$ compares against labels and $`\mathrm{pos}(t)`$ against positions.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} \mathit{start\_up}_{t,g} \cdot \mathrm{start\_up\_cost}_{g} + \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} \mathit{shut\_down}_{t,g} \cdot \mathrm{shut\_down\_cost}_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} \mathit{start\_up}_{t,g} \cdot \mathrm{start\_up\_cost}_{g} + \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} \mathit{shut\_down}_{t,g} \cdot \mathrm{shut\_down\_cost}_{g}
+```
 
 #### Subject to
 
 **`power_balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 **`commitment_max`**
 
-$$p_{t,g} - \mathrm{p}^{\mathrm{nom}}_{g} \cdot \mathit{status}_{t,g} \le 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} - \mathrm{p}^{\mathrm{nom}}_{g} \cdot \mathit{status}_{t,g} \le 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`commitment_min`**
 
-$$p_{t,g} - \mathrm{p}^{\mathrm{min,pu}}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot \mathit{status}_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} - \mathrm{p}^{\mathrm{min,pu}}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot \mathit{status}_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`start_up_initial`**
 
-$$\mathit{start\_up}_{t,g} - \mathit{status}_{t,g} \ge -1 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{pos}(t) = 0$$
+```math
+\mathit{start\_up}_{t,g} - \mathit{status}_{t,g} \ge -1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{pos}(t) = 0
+```
 
 **`start_up`**
 
-$$\mathit{start\_up}_{t,g} - \mathit{status}_{t,g} + \mathit{status}_{t - 1,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{start\_up}_{t,g} - \mathit{status}_{t,g} + \mathit{status}_{t - 1,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`shut_down_initial`**
 
-$$\mathit{shut\_down}_{t,g} + \mathit{status}_{t,g} \ge 1 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{pos}(t) = 0$$
+```math
+\mathit{shut\_down}_{t,g} + \mathit{status}_{t,g} \ge 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{pos}(t) = 0
+```
 
 **`shut_down`**
 
-$$\mathit{shut\_down}_{t,g} + \mathit{status}_{t,g} - \mathit{status}_{t - 1,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{shut\_down}_{t,g} + \mathit{status}_{t,g} - \mathit{status}_{t - 1,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$p_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`status`**
 
-$$\mathit{status}_{t,g} \in \{0, 1\} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{status}_{t,g} \in \{0, 1\} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`start_up`**
 
-$$\mathit{start\_up}_{t,g} \in \{0, 1\} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{start\_up}_{t,g} \in \{0, 1\} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`shut_down`**
 
-$$\mathit{shut\_down}_{t,g} \in \{0, 1\} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{shut\_down}_{t,g} \in \{0, 1\} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -148,25 +170,25 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       status:
         description: is this unit committed in this snapshot?
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         domain: binary
       start_up:
         description: does this unit come up entering this snapshot?
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         domain: binary
       shut_down:
         description: does this unit go down entering this snapshot?
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         domain: binary
 
     constraints:
       power_balance:
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
       commitment_max:
@@ -174,12 +196,12 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
           a committed unit runs at no more than its capacity and an uncommitted one
           is pinned to zero — capacity times status is a parameter against a
           variable, so the product stays degree 1
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p - p_nom * status <= 0
 
       commitment_min:
         description: a committed unit runs at no less than its minimum, an uncommitted one at zero
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p - p_min_pu * p_nom * status >= 0
 
       start_up_initial:
@@ -187,7 +209,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
           the first snapshot has no predecessor, and PyPSA's default is that the
           unit was already up before the horizon — so the start-up row is slackened
           here and never binds
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: "position(snapshot) == 0"
         expression: start_up - status >= -1
 
@@ -197,22 +219,22 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
           start-up and shut-down variables are implied by these transitions, but
           PyPSA declares them binary rather than leaving it to the status, and the
           port matches that.
-        foreach: [snapshot, generator]
-        expression: start_up - status + shift(status, over=snapshot, offset=1) >= 0
+        dims: [snapshot, generator]
+        expression: start_up - status + shift(status, along=snapshot, offset=1) >= 0
 
       shut_down_initial:
         description: >-
           the mirror of the start-up row, and not slackened: a unit that begins the
           horizon off is charged for the shut-down, which is PyPSA's asymmetry and
           worth 50 on this instance
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: "position(snapshot) == 0"
         expression: shut_down + status >= 1
 
       shut_down:
         description: a unit whose status falls entering this snapshot pays for a stop
-        foreach: [snapshot, generator]
-        expression: shut_down + status - shift(status, over=snapshot, offset=1) >= 0
+        dims: [snapshot, generator]
+        expression: shut_down + status - shift(status, along=snapshot, offset=1) >= 0
 
     objective:
       sense: minimize
@@ -260,16 +282,15 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     ```
 
 **The first snapshot is not like the others.** PyPSA's default is that a unit
-was already up before the horizon began, so the start-up row is slackened to
+was already up before the horizon began. The start-up row is slackened to
 `>= -1` there and never binds, while the shut-down row still charges a unit
-that begins the horizon *off*. `peak` does, so the instance pays a shut-down it
-never visibly performs. That asymmetry is PyPSA's, it is worth 50 here, and
-reproducing it is most of what makes this a fidelity test rather than a
-plausible-looking rewrite.
+that begins the horizon off. `peak` begins off, so the instance pays a
+shut-down it never visibly performs. That asymmetry is PyPSA's, and it is
+worth 50 here.
 
-Two `where` clauses on one constraint block is how the language says "this row
-differs at the boundary" — the same shape [storage](storage.md) uses for its
-initial state of charge.
+Two `where` clauses on one constraint block say that the row differs at the
+boundary, the shape [storage](storage.md) uses for its initial state of
+charge.
 
 ## What it costs
 

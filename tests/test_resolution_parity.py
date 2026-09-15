@@ -86,16 +86,16 @@ ACCEPTED = [
 #: name fits neither slot: in a variable's own where it is a self-reference
 #: (rejected at load), and on ``balance`` it spans a dim the constraint does not
 #: (a DimensionError, correctly — reducing it needs an `all`-reduction, #469).
-#: The three lookup predicates fit the slot but not the *model*: dispatch
-#: declares no lookup, and giving it one changes a fixture the rest of this
-#: file shares. They sweep a network carrying both lookup kinds and a partial
+#: The three relation predicates fit the slot but not the *model*: dispatch
+#: declares no relation, and giving it one changes a fixture the rest of this
+#: file shares. They sweep a network carrying both relation kinds and a partial
 #: one, differentially against the same oracle.
 #: Mapped rather than skipped so the coverage guard below still names a test.
 COVERED_ELSEWHERE = {
     'VariableDefinedNode': ('tests/test_relational.py::test_a_bare_variable_name_in_a_where_asks_whether_it_exists'),
-    'LookupComparisonNode': 'tests/test_label_coords.py::test_a_where_reads_a_lookup',
-    'LookupPairComparisonNode': 'tests/test_label_coords.py::test_a_lookup_where_agrees_with_the_oracle',
-    'LookupDefinedNode': 'tests/test_label_coords.py::test_a_where_reads_a_lookup',
+    'RelationComparisonNode': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
+    'RelationPairComparisonNode': 'tests/test_label_coords.py::test_a_relation_where_agrees_with_the_oracle',
+    'RelationDefinedNode': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
 }
 
 
@@ -127,7 +127,7 @@ def test_every_resolved_predicate_is_parity_tested():
 
     `DimDefined` shipped in #62 lowering to `program.BooleanLiteralNode(True)`, which discarded
     the dimension — so unlike `DimensionComparisonNode`, nothing checked it against the frame's
-    dims, and a bare dimension name outside `foreach` raised eagerly and built
+    dims, and a bare dimension name outside `dims` raised eagerly and built
     relationally. No test touched it. This one fails if any resolved predicate
     is not exercised by ACCEPTED above, so a new node cannot arrive untested.
     """
@@ -200,10 +200,10 @@ EMPTY_AXIS_SPEC = {
     'dimensions': {'g': {'dtype': 'str'}, 'k': {'dtype': 'int'}},
     'parameters': {'exists': {'dims': ['g', 'k'], 'dtype': 'bool'}},
     'variables': {
-        'w': {'foreach': ['g', 'k'], 'where': 'exists', 'bounds': {'lower': 0, 'upper': 1}},
-        'p': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
+        'w': {'dims': ['g', 'k'], 'where': 'exists', 'bounds': {'lower': 0, 'upper': 1}},
+        'p': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'convex': {'foreach': ['g'], 'expression': 'sum(w, over=k) == 1'}},
+    'constraints': {'convex': {'dims': ['g'], 'expression': 'sum(w, over=k) == 1'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(p, over=g)'},
 }
 
@@ -249,8 +249,8 @@ def test_a_row_over_a_dimension_with_no_members_is_not_built_on_either_lane(sens
 EMPTY_FOREACH_SPEC = {
     'dimensions': {'t': {'dtype': 'int'}, 'cycle': {'dtype': 'str'}, 'line': {'dtype': 'str'}},
     'parameters': {'w': {'dims': ['cycle', 'line']}, 'cost': {'dims': ['line']}},
-    'variables': {'s': {'foreach': ['t', 'line'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'kvl': {'foreach': ['t', 'cycle'], 'expression': 'sum(w * s, over=line) == 0'}},
+    'variables': {'s': {'dims': ['t', 'line'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {'kvl': {'dims': ['t', 'cycle'], 'expression': 'sum(w * s, over=line) == 0'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(cost * s)'},
 }
 
@@ -290,8 +290,8 @@ def test_a_block_ranging_over_a_dimension_with_no_members_is_not_built_on_either
 BOOL_MASK_SPEC = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'active': {'dims': ['t'], 'dtype': 'bool'}, 'cap': {'dims': ['t']}},
-    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-    'constraints': {'floor': {'foreach': ['t'], 'expression': 'x >= cap', 'where': 'active'}},
+    'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'constraints': {'floor': {'dims': ['t'], 'expression': 'x >= cap', 'where': 'active'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x, over=t)'},
 }
 
@@ -318,10 +318,10 @@ SCALAR_ROW_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'cost': {'dims': ['f']}, 'budget': {'dims': []}},
     'variables': {
-        'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
-        'slack': {'foreach': [], 'bounds': {'lower': 0, 'upper': 10}},
+        'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
+        'slack': {'dims': [], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'budget_row': {'foreach': [], 'expression': 'sum(x, over=f) - slack <= budget'}},
+    'constraints': {'budget_row': {'dims': [], 'expression': 'sum(x, over=f) - slack <= budget'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost)'},
 }
 
@@ -381,12 +381,10 @@ def test_a_masked_scalar_variable_takes_its_row_with_it(threshold, rows, objecti
 DATETIME_SPEC = {
     'dimensions': {'snapshot': {'dtype': 'datetime'}, 'generator': {'dtype': 'str'}},
     'parameters': {'cost': {'dims': ['generator']}, 'load': {'dims': ['snapshot']}},
-    'variables': {
-        'p': {'foreach': ['snapshot', 'generator'], 'where': "snapshot > '2030-01-02'", 'bounds': {'lower': 0}}
-    },
+    'variables': {'p': {'dims': ['snapshot', 'generator'], 'where': "snapshot > '2030-01-02'", 'bounds': {'lower': 0}}},
     'constraints': {
         'bal': {
-            'foreach': ['snapshot'],
+            'dims': ['snapshot'],
             'where': "snapshot > '2030-01-02'",
             'expression': 'sum(p, over=generator) == load',
         }

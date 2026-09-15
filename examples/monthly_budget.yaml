@@ -13,11 +13,11 @@ dimensions:
     description: generating units
     dtype: str
 
-lookups:
+relations:
   month_of:
     description: the month a snapshot falls in
-    over: snapshot
-    into: month
+    columns: [snapshot, month]
+    key: snapshot
 
 parameters:
   p_max:
@@ -36,18 +36,18 @@ parameters:
 variables:
   p:
     description: output of a generator in a snapshot
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds:
       lower: 0
       upper: p_max
 
 constraints:
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) == load
   monthly_budget:
     description: what a generator produces across a month stays inside that month's budget
-    foreach: [month, generator]
+    dims: [month, generator]
     expression: sum(p, by=month_of) <= monthly_cap
 
 objective:

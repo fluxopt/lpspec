@@ -4,10 +4,9 @@ The component every sector-coupled PyPSA model uses for hydrogen, heat and gas.
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **7005.5025000000005**, matched to `rtol=1e-09`.
 
-[Storage units](pypsa_storage.md) ports the `StorageUnit`: a dispatch/store pair of
-non-negative variables so the two efficiencies can differ, and a power rating of
-its own. A `Store` is a different component, not a re-parametrisation of that
-one:
+[Storage units](pypsa_storage.md) ports the `StorageUnit`: a dispatch/store pair
+of non-negative variables, one per efficiency, and a power rating of its own. A
+`Store` is a different component:
 
 | | `StorageUnit` | `Store` |
 |---|---|---|
@@ -32,80 +31,98 @@ PyPSA's Store component: one signed power at the bus, no efficiencies and no pow
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
-| $\mathcal{S}$ | index $s$ — `store` with $\mathrm{store\_bus}: \mathcal{S} \to \mathcal{B}$ — energy stores, each sitting on one bus |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{store\_bus}: \mathcal{S} \to \mathcal{B}`$ — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
+| $`\mathcal{S}`$ | index $`s`$ — `store` with $`\mathrm{store\_bus}: \mathcal{S} \to \mathcal{B}`$ — energy stores, each sitting on one bus |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — installed capacity of a generator |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{e}^{\mathrm{nom,max}}$ | `e_nom_max` over $\mathcal{S}$ — most energy capacity that may be built at a store |
-| $\mathrm{e}^{\mathrm{capital,cost}}$ | `e_capital_cost` over $\mathcal{S}$ — cost of holding one unit of energy capacity over the horizon |
-| $\mathrm{e}^{\mathrm{initial}}$ | `e_initial` over $\mathcal{S}$ — energy in the store before the first snapshot |
-| $\mathrm{standing\_loss}$ | `standing_loss` over $\mathcal{S}$ — share of the carried-over level lost between snapshots |
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — installed capacity of a generator |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{e}^{\mathrm{nom,max}}`$ | `e_nom_max` over $`\mathcal{S}`$ — most energy capacity that may be built at a store |
+| $`\mathrm{e}^{\mathrm{capital,cost}}`$ | `e_capital_cost` over $`\mathcal{S}`$ — cost of holding one unit of energy capacity over the horizon |
+| $`\mathrm{e}^{\mathrm{initial}}`$ | `e_initial` over $`\mathcal{S}`$ — energy in the store before the first snapshot |
+| $`\mathrm{standing\_loss}`$ | `standing_loss` over $`\mathcal{S}`$ — share of the carried-over level lost between snapshots |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $\mathit{store\_p}$ | `store_p` over $\mathcal{T} \times \mathcal{S}$ — power a store puts onto its bus, negative when it takes power off — unbounded, because a Store has no rating of its own |
-| $e$ | `e` over $\mathcal{T} \times \mathcal{S}$ — energy in the store at the end of a snapshot |
-| $e^{\mathrm{nom}}$ | `e_nom` over $\mathcal{S}$ — energy capacity built at a store |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`\mathit{store\_p}`$ | `store_p` over $`\mathcal{T} \times \mathcal{S}`$ — power a store puts onto its bus, negative when it takes power off — unbounded, because a Store has no rating of its own |
+| $`e`$ | `e` over $`\mathcal{T} \times \mathcal{S}`$ — energy in the store at the end of a snapshot |
+| $`e^{\mathrm{nom}}`$ | `e_nom` over $`\mathcal{S}`$ — energy capacity built at a store |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{nom}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
-$\mathrm{pos}(t)$ denotes where index $t$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $0$. The index itself stays the coordinate, so $t$ compares against labels and $\mathrm{pos}(t)$ against positions.
+$`\mathrm{pos}(t)`$ denotes where index $`t`$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $`0`$. The index itself stays the coordinate, so $`t`$ compares against labels and $`\mathrm{pos}(t)`$ against positions.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{s \in \mathcal{S}} e^{\mathrm{nom}}_{s} \cdot \mathrm{e}^{\mathrm{capital,cost}}_{s}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{s \in \mathcal{S}} e^{\mathrm{nom}}_{s} \cdot \mathrm{e}^{\mathrm{capital,cost}}_{s}
+```
 
 #### Subject to
 
 **`nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{t,g} + \sum_{s \in \mathcal{S} \thinspace:\thinspace \mathrm{store\_bus}(s) = b} \mathit{store\_p}_{t,s} = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{t,g} + \sum_{s \in \mathcal{S} \,:\, \mathrm{store\_bus}(s) = b} \mathit{store\_p}_{t,s} = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 **`within_capacity`**
 
-$$e_{t,s} \le e^{\mathrm{nom}}_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+e_{t,s} \le e^{\mathrm{nom}}_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`energy_balance_initial`**
 
-$$e_{t,s} = \mathrm{e}^{\mathrm{initial}}_{s} - \mathit{store\_p}_{t,s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{pos}(t) = 0$$
+```math
+e_{t,s} = \mathrm{e}^{\mathrm{initial}}_{s} - \mathit{store\_p}_{t,s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \mathrm{pos}(t) = 0
+```
 
 **`energy_balance`**
 
-$$e_{t,s} = e_{t - 1,s} \cdot \left( 1 - \mathrm{standing\_loss}_{s} \right) - \mathit{store\_p}_{t,s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+e_{t,s} = e_{t - 1,s} \cdot \left( 1 - \mathrm{standing\_loss}_{s} \right) - \mathit{store\_p}_{t,s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`store_p`**
 
-$$\mathit{store\_p}_{t,s} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+\mathit{store\_p}_{t,s} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`e`**
 
-$$e_{t,s} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+e_{t,s} \ge 0 \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`e_nom`**
 
-$$0 \le e^{\mathrm{nom}}_{s} \le \mathrm{e}^{\mathrm{nom,max}}_{s} \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+0 \le e^{\mathrm{nom}}_{s} \le \mathrm{e}^{\mathrm{nom,max}}_{s} \qquad \forall\, s \in \mathcal{S}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -131,15 +148,15 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: energy stores, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       store_bus:
         description: the bus a store sits on
-        over: store
-        into: bus
+        columns: [store, bus]
+        key: store
 
     parameters:
       p_nom:
@@ -167,7 +184,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
@@ -175,15 +192,15 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: >-
           power a store puts onto its bus, negative when it takes power off —
           unbounded, because a Store has no rating of its own
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
       e:
         description: energy in the store at the end of a snapshot
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         bounds:
           lower: 0
       e_nom:
         description: energy capacity built at a store
-        foreach: [store]
+        dims: [store]
         bounds:
           lower: 0
           upper: e_nom_max
@@ -191,19 +208,19 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     constraints:
       nodal_balance:
         description: what is generated at a bus, plus what the stores supply, meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(p, by=gen_bus) + sum(store_p, by=store_bus) == load
 
       within_capacity:
         description: a store holds no more energy than the capacity built for it
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         expression: e <= e_nom
 
       energy_balance_initial:
         description: >-
           the first snapshot's level starts from the initial energy, which the
           standing loss does not decay because nothing was carried into it
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         where: "position(snapshot) == 0"
         expression: e == e_initial - store_p
 
@@ -211,9 +228,9 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: >-
           the level carried into a snapshot, decayed by the standing loss, less what
           the store supplied to its bus
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         expression: >-
-          e == shift(e, over=snapshot, offset=1) * (1 - standing_loss) - store_p
+          e == shift(e, along=snapshot, offset=1) * (1 - standing_loss) - store_p
 
     objective:
       sense: minimize
@@ -274,24 +291,24 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         return n
     ```
 
-**The standing loss is visible in the price vector, which is why it is recorded.**
-The nodal prices run `68.79, 72.41, 76.23, 85.50, 90.00, 10.00` — each earlier
+**The standing loss is visible in the price vector, so the reference reads it.**
+The nodal prices run `68.79, 72.41, 76.23, 85.50, 90.00, 10.00`. Each earlier
 snapshot's price is the next one's divided by 0.95, because a unit stored now is
 worth 0.95 of a unit later. A port that dropped the decay would still solve and
-still look sensible; it would hold more energy than it should, buy less gas, and
-report a lower cost. The dual vector catches it where a single objective figure
-might not.
+still look sensible. It would hold more energy than it should, buy less gas, and
+report a lower cost. The dual vector catches that where a single objective
+figure might not.
 
 **The initial level is not decayed, and the instance can tell.** PyPSA's first
 row is `e = e_initial - p`, so the 20 MWh in the tank before the horizon arrives
-whole. Decay it and the same instance costs **7074.30** against **7005.50** — a
-version with an empty tank reports 3116.36 either way, which is what this
-model was doing.
+whole. Decay it and the same instance costs **7074.30** against **7005.50**. A
+version with an empty tank reports 3116.36 either way, which is why the tank
+starts full.
 
 **A store with no rating still cannot move arbitrary power**, because the level
-it draws from is bounded and the level it charges into is too. That is why the
-port declares `store_p` with no bounds at all — an upper bound written here
-would be a limit PyPSA does not have.
+it draws from is bounded and so is the level it charges into. The port declares
+`store_p` with no bounds at all. An upper bound here would be a limit PyPSA does
+not have.
 
 ## What it exercises
 

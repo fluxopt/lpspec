@@ -23,10 +23,10 @@ SPEC = {
     'dimensions': {'g': {'dtype': 'str'}},
     'parameters': {'need': {'dims': []}, 'weight': {'dims': ['g']}},
     'variables': {
-        'p': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
-        'q': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
+        'p': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
+        'q': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'meet': {'foreach': [], 'expression': 'sum(p, over=g) + sum(q, over=g) >= need'}},
+    'constraints': {'meet': {'dims': [], 'expression': 'sum(p, over=g) + sum(q, over=g) >= need'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p * p, over=g)'},
 }
 
@@ -239,13 +239,13 @@ def test_a_shape_operator_moves_a_quadratic_term_like_any_other():
         'parameters': {'need': {'dims': []}},
         'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
         'variables': {
-            'p': {'foreach': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}},
-            'q': {'foreach': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}},
+            'p': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}},
+            'q': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}},
         },
-        'constraints': {'meet': {'foreach': [], 'expression': 'sum(sum(p, over=g), over=t) >= need'}},
+        'constraints': {'meet': {'dims': [], 'expression': 'sum(sum(p, over=g), over=t) >= need'}},
         'objective': {
             'sense': 'minimize',
-            'expression': "sum(sum(p * shift(p, over=t, offset=1, edge='wrap'), over=g), over=t) + "
+            'expression': "sum(sum(p * shift(p, along=t, offset=1, edge='wrap'), over=g), over=t) + "
             'sum(sum(p * p, over=g), over=t)',
         },
     }

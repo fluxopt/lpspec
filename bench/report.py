@@ -125,7 +125,7 @@ def load(
     records = bench_results.load(path)
     run = next((r for r in records if r.get('record') == 'run'), {})
     gates = [r for r in records if r.get('record') == 'gate']
-    timings = [r for r in records if r.get('record') == 'timing']
+    timings = [r for r in records if r.get('record') == 'timing' and r.get('phase', 'emit') == 'emit']
     loop = [r for r in records if r.get('record') == 'loop']
     CEILINGS.extend(r for r in records if r.get('record') == 'ceiling')
     return run, gates, timings, loop

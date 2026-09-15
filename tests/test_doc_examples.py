@@ -63,8 +63,10 @@ except ModuleNotFoundError:
 REPO = Path(__file__).resolve().parent.parent
 TRACKED = [
     'README.md',
-    # not `docs/guide.md`: its snippets are fragments of models that run, and
-    # `test_the_guide_teaches_lines_that_exist` checks them against those files.
+    'docs/guide.md',
+    'docs/howto/parallel.md',
+    'docs/howto/debug.md',
+    'docs/howto/archiving.md',
     'docs/reference/api.md',
     'docs/reference/sweeps.md',
     'docs/about/linopy.md',

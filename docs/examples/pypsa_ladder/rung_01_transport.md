@@ -37,96 +37,124 @@ The model a plain `n.optimize()` builds, stated in one file. Every declaration i
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{N}$ | index $n$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N}$ — generating units, each on one bus |
-| $\mathcal{L}$ | index $l$ — `link` with $\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N}$ — controllable connections, each from one bus to the buses it delivers to |
-| $\mathcal{O}$ | index $o$ — `link_output` with $\mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L},\enspace \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N}$ — a link's output ports, one label per port a link declares — PyPSA's `bus1`, `bus2`, … columns read long, so a link of any number of output ports is one term in the balance, data prep |
-| $\mathcal{D}$ | index $d$ — `load` with $\mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}$ — demands, each on one bus |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{N}`$ | index $`n`$ — `bus` with $`\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N},\ \mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N},\ \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N},\ \mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}`$ — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N}`$ — generating units, each on one bus |
+| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N},\ \mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L}`$ — controllable connections, each from one bus to the buses it delivers to |
+| $`\mathcal{O}`$ | index $`o`$ — `link_output` with $`\mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L},\ \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N}`$ — a link's output ports, one label per port a link declares — PyPSA's `bus1`, `bus2`, … columns read long, so a link of any number of output ports is one term in the balance, data prep |
+| $`\mathcal{D}`$ | index $`d`$ — `load` with $`\mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}`$ — demands, each on one bus |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{w}$ | `snapshot_weightings_objective` over $\mathcal{T}$ — PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost |
-| $\mathrm{p}^{\mathrm{nom}}$ | `Generator_p_nom` over $\mathcal{G}$ — nominal power |
-| $\mathrm{ext}$ | `Generator_p_nom_extendable` over $\mathcal{G}$ — whether the nominal power is a decision |
-| $\underline{\mathrm{p}}$ | `Generator_p_min_pu` over $\mathcal{T} \times \mathcal{G}$ — least output, per unit of nominal power |
-| $\overline{\mathrm{p}}$ | `Generator_p_max_pu` over $\mathcal{T} \times \mathcal{G}$ — most output, per unit of nominal power — an availability profile |
-| $\mathrm{c}$ | `Generator_marginal_cost` over $\mathcal{T} \times \mathcal{G}$ — cost of one unit of output |
-| $\mathrm{com}$ | `Generator_committable` over $\mathcal{G}$ — whether output is gated by an on/off status decision |
-| $\mathrm{f}^{\mathrm{nom}}$ | `Link_p_nom` over $\mathcal{L}$ — nominal power |
-| $\mathrm{ext}^{f}$ | `Link_p_nom_extendable` over $\mathcal{L}$ — whether the nominal power is a decision |
-| $\underline{\mathrm{f}}$ | `Link_p_min_pu` over $\mathcal{T} \times \mathcal{L}$ — least flow, per unit of nominal power — negative for a link that carries both ways |
-| $\overline{\mathrm{f}}$ | `Link_p_max_pu` over $\mathcal{T} \times \mathcal{L}$ — most flow, per unit of nominal power |
-| $\eta$ | `Link_efficiency` over $\mathcal{O}$ — share of the flow that arrives at an output port, PyPSA's `efficiency`, `efficiency2`, … read long — negative where that port consumes rather than delivers |
-| $\mathrm{d}^{f}$ | `Link_output_delay` over $\mathcal{O}$ — snapshots a port's delivery lags its link's flow — PyPSA's `delay`, `delay2`, … read long, in `snapshot_weightings.generators` units, which the file states as whole snapshots; zero for a port that delivers at once |
-| $\mathrm{cyc}^{f}$ | `Link_output_cyclic_delay` over $\mathcal{O}$ — whether a delayed port's flow wraps from the horizon's end — PyPSA's `cyclic_delay`, `cyclic_delay2`, …; where it does not, the flow still in transit at the first snapshots is lost |
-| $\mathrm{c}^{f}$ | `Link_marginal_cost` over $\mathcal{T} \times \mathcal{L}$ — cost of one unit of flow |
-| $\mathrm{load}$ | `Load_p_set` over $\mathcal{T} \times \mathcal{D}$ — demand |
-| $\mathrm{p}^{\mathrm{set}}$ | `Generator_p_set` over $\mathcal{T} \times \mathcal{G}$ — a given output schedule; a generator without one has no row here |
-| $\mathrm{f}^{\mathrm{set}}$ | `Link_p_set` over $\mathcal{T} \times \mathcal{L}$ — a given flow schedule; a link without one has no row here |
+| $`\mathrm{w}`$ | `snapshot_weightings_objective` over $`\mathcal{T}`$ — PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `Generator_p_nom` over $`\mathcal{G}`$ — nominal power |
+| $`\mathrm{ext}`$ | `Generator_p_nom_extendable` over $`\mathcal{G}`$ — whether the nominal power is a decision |
+| $`\underline{\mathrm{p}}`$ | `Generator_p_min_pu` over $`\mathcal{T} \times \mathcal{G}`$ — least output, per unit of nominal power |
+| $`\overline{\mathrm{p}}`$ | `Generator_p_max_pu` over $`\mathcal{T} \times \mathcal{G}`$ — most output, per unit of nominal power — an availability profile |
+| $`\mathrm{c}`$ | `Generator_marginal_cost` over $`\mathcal{T} \times \mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{com}`$ | `Generator_committable` over $`\mathcal{G}`$ — whether output is gated by an on/off status decision |
+| $`\mathrm{f}^{\mathrm{nom}}`$ | `Link_p_nom` over $`\mathcal{L}`$ — nominal power |
+| $`\mathrm{ext}^{f}`$ | `Link_p_nom_extendable` over $`\mathcal{L}`$ — whether the nominal power is a decision |
+| $`\underline{\mathrm{f}}`$ | `Link_p_min_pu` over $`\mathcal{T} \times \mathcal{L}`$ — least flow, per unit of nominal power — negative for a link that carries both ways |
+| $`\overline{\mathrm{f}}`$ | `Link_p_max_pu` over $`\mathcal{T} \times \mathcal{L}`$ — most flow, per unit of nominal power |
+| $`\eta`$ | `Link_efficiency` over $`\mathcal{O}`$ — share of the flow that arrives at an output port, PyPSA's `efficiency`, `efficiency2`, … read long — negative where that port consumes rather than delivers |
+| $`\mathrm{d}^{f}`$ | `Link_output_delay` over $`\mathcal{O}`$ — snapshots a port's delivery lags its link's flow — PyPSA's `delay`, `delay2`, … read long, in `snapshot_weightings.generators` units, which the file states as whole snapshots; zero for a port that delivers at once |
+| $`\mathrm{cyc}^{f}`$ | `Link_output_cyclic_delay` over $`\mathcal{O}`$ — whether a delayed port's flow wraps from the horizon's end — PyPSA's `cyclic_delay`, `cyclic_delay2`, …; where it does not, the flow still in transit at the first snapshots is lost |
+| $`\mathrm{c}^{f}`$ | `Link_marginal_cost` over $`\mathcal{T} \times \mathcal{L}`$ — cost of one unit of flow |
+| $`\mathrm{load}`$ | `Load_p_set` over $`\mathcal{T} \times \mathcal{D}`$ — demand |
+| $`\mathrm{p}^{\mathrm{set}}`$ | `Generator_p_set` over $`\mathcal{T} \times \mathcal{G}`$ — a given output schedule; a generator without one has no row here |
+| $`\mathrm{f}^{\mathrm{set}}`$ | `Link_p_set` over $`\mathcal{T} \times \mathcal{L}`$ — a given flow schedule; a link without one has no row here |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `Generator_p` over $\mathcal{T} \times \mathcal{G}$ — `Generator-p` — output of a generator in a snapshot |
-| $f$ | `Link_p` over $\mathcal{T} \times \mathcal{L}$ — `Link-p` — PyPSA's `p0`, the flow measured at the `Link_bus0` end: a positive value withdraws there and injects at every bus the link's output ports deliver to |
+| $`p`$ | `Generator_p` over $`\mathcal{T} \times \mathcal{G}`$ — `Generator-p` — output of a generator in a snapshot |
+| $`f`$ | `Link_p` over $`\mathcal{T} \times \mathcal{L}`$ — `Link-p` — PyPSA's `p0`, the flow measured at the `Link_bus0` end: a positive value withdraws there and injects at every bus the link's output ports deliver to |
 
-$t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
+#### Definitions
 
-$t \boxminus_{v} k$ denotes translation with $v$ standing where index $t-k$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $v$ rather than being dropped.
+| Symbol | Meaning |
+|---|---|
+| $`\mathit{Link\_output\_arrival}`$ | `Link_output_arrival` over $`\mathcal{T} \times \mathcal{O}`$ — what a link delivers to an output port at a snapshot — its flow after the port's efficiency, delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not |
+
+$`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
+
+$`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $`v`$ rather than being dropped.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{c}_{t,g} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\enspace l \in \mathcal{L}} f_{t,l} \cdot \mathrm{c}^{f}_{t,l} \cdot \mathrm{w}_{t}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{c}_{t,g} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\ l \in \mathcal{L}} f_{t,l} \cdot \mathrm{c}^{f}_{t,l} \cdot \mathrm{w}_{t}
+```
 
 #### Subject to
 
 **`Generator_fix_p_lower`**
 
-$$p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}$$
+```math
+p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}
+```
 
 **`Generator_fix_p_upper`**
 
-$$p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}$$
+```math
+p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}
+```
 
 **`Link_fix_p_lower`**
 
-$$f_{t,l} \ge \underline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \neg \mathrm{ext}^{f}_{l}$$
+```math
+f_{t,l} \ge \underline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \neg \mathrm{ext}^{f}_{l}
+```
 
 **`Link_fix_p_upper`**
 
-$$f_{t,l} \le \overline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \neg \mathrm{ext}^{f}_{l}$$
+```math
+f_{t,l} \le \overline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \neg \mathrm{ext}^{f}_{l}
+```
 
 **`Generator_p_set`**
 
-$$p_{t,g} = \mathrm{p}^{\mathrm{set}}_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{p}^{\mathrm{set}}_{t,g} \text{ is defined}$$
+```math
+p_{t,g} = \mathrm{p}^{\mathrm{set}}_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{p}^{\mathrm{set}}_{t,g} \text{ is defined}
+```
 
 **`Link_p_set`**
 
-$$f_{t,l} = \mathrm{f}^{\mathrm{set}}_{t,l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \mathrm{f}^{\mathrm{set}}_{t,l} \text{ is defined}$$
+```math
+f_{t,l} = \mathrm{f}^{\mathrm{set}}_{t,l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \mathrm{f}^{\mathrm{set}}_{t,l} \text{ is defined}
+```
 
 **`Bus_nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{Generator\_bus}(g) = n} p_{t,g} - \left( \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{Link\_bus0}(l) = n} f_{t,l} \right) + \sum_{o \in \mathcal{O} \thinspace:\thinspace \mathrm{Link\_output\_bus}(o) = n} \mathit{Link\_output\_arrival}_{t,o} = \sum_{d \in \mathcal{D} \thinspace:\thinspace \mathrm{Load\_bus}(d) = n} \mathrm{load}_{t,d} \qquad \forall\thinspace t \in \mathcal{T},\enspace n \in \mathcal{N}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{Generator\_bus}(g) = n} p_{t,g} - \left( \sum_{l \in \mathcal{L} \,:\, \mathrm{Link\_bus0}(l) = n} f_{t,l} \right) + \sum_{o \in \mathcal{O} \,:\, \mathrm{Link\_output\_bus}(o) = n} \mathit{Link\_output\_arrival}_{t,o} = \sum_{d \in \mathcal{D} \,:\, \mathrm{Load\_bus}(d) = n} \mathrm{load}_{t,d} \qquad \forall\, t \in \mathcal{T},\ n \in \mathcal{N}
+```
 
 #### Definitions
 
 **`Link_output_arrival`**
 
-$$\mathit{Link\_output\_arrival}_{t,o} = \begin{cases} f_{t \ominus \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{if } \mathrm{cyc}^{f}_{o} \cr f_{t \boxminus_{0} \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace o \in \mathcal{O}$$
+```math
+\mathit{Link\_output\_arrival}_{t,o} = \begin{cases} f_{t \ominus \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{if } \mathrm{cyc}^{f}_{o} \\ f_{t \boxminus_{0} \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ o \in \mathcal{O}
+```
 
 #### Variable domains
 
 **`Generator_p`**
 
-$$p_{t,g} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`Link_p`**
 
-$$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 </details>
 
@@ -150,14 +178,29 @@ $$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \
           `bus2`, … columns read long, so a link of any number of output ports is one term in the balance,
           data prep'}
       load: {description: 'demands, each on one bus'}
-    lookups:
-      Generator_bus: {description: the bus a generator sits on, over: generator, into: bus}
-      Link_bus0: {description: the bus a link leaves, over: link, into: bus}
-      Link_output_link: {description: the link an output port belongs to, over: link_output, into: link}
-      Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-          A link of three output ports is three labels here rather than a third lookup, so the file states
-          any number of them', over: link_output, into: bus}
-      Load_bus: {description: the bus a load sits on, over: load, into: bus}
+    relations:
+      Generator_bus:
+        description: the bus a generator sits on
+        columns: [generator, bus]
+        key: generator
+      Link_bus0:
+        description: the bus a link leaves
+        columns: [link, bus]
+        key: link
+      Link_output_link:
+        description: the link an output port belongs to
+        columns: [link_output, link]
+        key: link_output
+      Link_output_bus:
+        description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
+          output ports is three labels here rather than a third relation, so the file states any number of
+          them
+        columns: [link_output, bus]
+        key: link_output
+      Load_bus:
+        description: the bus a load sits on
+        columns: [load, bus]
+        key: load
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -225,41 +268,41 @@ $$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \
     variables:
       Generator_p:
         description: '`Generator-p` — output of a generator in a snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
       Link_p:
         description: '`Link-p` — PyPSA''s `p0`, the flow measured at the `Link_bus0` end: a positive value
           withdraws there and injects at every bus the link''s output ports deliver to'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
     constraints:
       Generator_fix_p_lower:
         description: '`Generator-fix-p-lower` — a fixed generator outputs at least its minimum'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom
       Generator_fix_p_upper:
         description: '`Generator-fix-p-upper` — a fixed generator outputs at most what is available'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom
       Link_fix_p_lower:
         description: '`Link-fix-p-lower` — a fixed link carries at least its minimum, negative for the other
           way'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p >= Link_p_min_pu * Link_p_nom
       Link_fix_p_upper:
         description: '`Link-fix-p-upper` — a fixed link carries at most its nominal power'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p <= Link_p_max_pu * Link_p_nom
       Generator_p_set:
         description: '`Generator-p_set` — output pinned to the given schedule, wherever one is given'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_p_set
         expression: Generator_p == Generator_p_set
       Link_p_set:
         description: '`Link-p_set` — flow pinned to the given schedule, wherever one is given'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: Link_p_set
         expression: Link_p == Link_p_set
       Bus_nodal_balance:
@@ -267,7 +310,7 @@ $$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \
           less what the links take away, plus what arrives over them after losses and any delay at every port
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(Generator_p, by=Generator_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
           by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
     expressions:
@@ -276,11 +319,11 @@ $$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \
           delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the
           horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
-        foreach: [snapshot, link_output]
+        dims: [snapshot, link_output]
         cases:
           wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
-              Link_efficiency, over=snapshot, offset=Link_output_delay, edge=''wrap'')'}
-        otherwise: shift(at(Link_p, by=Link_output_link) * Link_efficiency, over=snapshot, offset=Link_output_delay,
+              Link_efficiency, along=snapshot, offset=Link_output_delay, edge=''wrap'')'}
+        otherwise: shift(at(Link_p, by=Link_output_link) * Link_efficiency, along=snapshot, offset=Link_output_delay,
           edge=0)
     objective: {sense: minimize, description: 'operating cost, each snapshot weighted by the hours it stands
         for', expression: sum(Generator_p * Generator_marginal_cost * snapshot_weightings_objective) + sum(Link_p
@@ -290,7 +333,7 @@ $$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \
     The prep — every table the spec declares, from the network — and the solve:
 
     ```python
-    from differential.pypsa.prep import lookup, static, varying, weighting
+    from differential.pypsa.prep import relation, static, varying, weighting
 
 
     def _link_ports(n: pypsa.Network) -> pd.DataFrame:
@@ -330,7 +373,7 @@ $$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \
     def _per_port(n: pypsa.Network, column: str, as_name: str | None = None) -> pd.DataFrame:
         """One column of the long port table keyed by ``link_output`` — what a port names, or what it carries.
 
-        *as_name* is what the file calls it: a lookup keeps its target dimension's
+        *as_name* is what the file calls it: a relation keeps its target dimension's
         own name, and every parameter over the ports lands under ``value``.
         """
         ports = _link_ports(n)
@@ -347,11 +390,11 @@ $$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \
         'link': pl.Series('link', list(names(links.index).astype(str)), dtype=pl.String),
         'link_output': pl.Series('link_output', list(pd.unique(_link_ports(n)['link_output'])), dtype=pl.String),
         'load': pl.Series('load', list(names(loads.index).astype(str)), dtype=pl.String),
-        'Generator_bus': lookup(n, 'Generator', 'bus'),
-        'Link_bus0': lookup(n, 'Link', 'bus0'),
+        'Generator_bus': relation(n, 'Generator', 'bus'),
+        'Link_bus0': relation(n, 'Link', 'bus0'),
         'Link_output_link': _per_port(n, 'link'),
         'Link_output_bus': _per_port(n, 'bus'),
-        'Load_bus': lookup(n, 'Load', 'bus'),
+        'Load_bus': relation(n, 'Load', 'bus'),
         'snapshot_weightings_objective': weighting(n, 'objective'),
         'Generator_p_nom': static(n, 'Generator', 'p_nom'),
         'Generator_p_nom_extendable': static(n, 'Generator', 'p_nom_extendable'),

@@ -87,414 +87,595 @@ The model a plain `n.optimize()` builds, stated in one file. Every declaration i
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{N}$ | index $n$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N}$ — generating units, each on one bus |
-| $\mathcal{L}$ | index $l$ — `link` with $\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N}$ — controllable connections, each from one bus to the buses it delivers to |
-| $\mathcal{O}$ | index $o$ — `link_output` with $\mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L},\enspace \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N}$ — a link's output ports, one label per port a link declares — PyPSA's `bus1`, `bus2`, … columns read long, so a link of any number of output ports is one term in the balance, data prep |
-| $\mathcal{D}$ | index $d$ — `load` with $\mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}$ — demands, each on one bus |
-| $\mathcal{S}$ | index $s$ — `storage_unit` with $\mathrm{StorageUnit\_bus}: \mathcal{S} \to \mathcal{N}$ — storage units, dispatch and store behind one bus connection |
-| $\mathcal{V}$ | index $v$ — `store` with $\mathrm{Store\_bus}: \mathcal{V} \to \mathcal{N}$ — pure energy stores, each on one bus |
-| $\mathcal{B}$ | index $b$ — `global_constraint` — PyPSA's `GlobalConstraint` rows, one label per declared limit |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{N}`$ | index $`n`$ — `bus` with $`\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N},\ \mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N},\ \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N},\ \mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N},\ \mathrm{StorageUnit\_bus}: \mathcal{S} \to \mathcal{N},\ \mathrm{Store\_bus}: \mathcal{V} \to \mathcal{N}`$ — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N}`$ — generating units, each on one bus |
+| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N},\ \mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L}`$ — controllable connections, each from one bus to the buses it delivers to |
+| $`\mathcal{O}`$ | index $`o`$ — `link_output` with $`\mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L},\ \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N}`$ — a link's output ports, one label per port a link declares — PyPSA's `bus1`, `bus2`, … columns read long, so a link of any number of output ports is one term in the balance, data prep |
+| $`\mathcal{D}`$ | index $`d`$ — `load` with $`\mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}`$ — demands, each on one bus |
+| $`\mathcal{S}`$ | index $`s`$ — `storage_unit` with $`\mathrm{StorageUnit\_bus}: \mathcal{S} \to \mathcal{N}`$ — storage units, dispatch and store behind one bus connection |
+| $`\mathcal{V}`$ | index $`v`$ — `store` with $`\mathrm{Store\_bus}: \mathcal{V} \to \mathcal{N}`$ — pure energy stores, each on one bus |
+| $`\mathcal{B}`$ | index $`b`$ — `global_constraint` — PyPSA's `GlobalConstraint` rows, one label per declared limit |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{w}$ | `snapshot_weightings_objective` over $\mathcal{T}$ — PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost |
-| $\mathrm{p}^{\mathrm{nom}}$ | `Generator_p_nom` over $\mathcal{G}$ — nominal power |
-| $\mathrm{ext}$ | `Generator_p_nom_extendable` over $\mathcal{G}$ — whether the nominal power is a decision |
-| $\underline{\mathrm{p}}$ | `Generator_p_min_pu` over $\mathcal{T} \times \mathcal{G}$ — least output, per unit of nominal power |
-| $\overline{\mathrm{p}}$ | `Generator_p_max_pu` over $\mathcal{T} \times \mathcal{G}$ — most output, per unit of nominal power — an availability profile |
-| $\mathrm{c}$ | `Generator_marginal_cost` over $\mathcal{T} \times \mathcal{G}$ — cost of one unit of output |
-| $\mathrm{com}$ | `Generator_committable` over $\mathcal{G}$ — whether output is gated by an on/off status decision |
-| $\mathrm{ru}$ | `Generator_ramp_limit_up` over $\mathcal{G}$ — most a generator may raise its output between snapshots, per unit of nominal power; no value means no limit |
-| $\mathrm{rd}$ | `Generator_ramp_limit_down` over $\mathcal{G}$ — most a generator may lower its output between snapshots, per unit of nominal power; no value means no limit |
-| $\mathrm{ru}^{\mathrm{up}}$ | `Generator_ramp_limit_start_up` over $\mathcal{G}$ — most output in the snapshot a unit starts, per unit of nominal power |
-| $\mathrm{rd}^{\mathrm{dn}}$ | `Generator_ramp_limit_shut_down` over $\mathcal{G}$ — most output in the snapshot before a unit stops, per unit of nominal power |
-| $\mathrm{u}^{0}$ | `Generator_status_initial` over $\mathcal{G}$ — one where the unit was on before the first snapshot, zero where off — PyPSA's `up_time_before > 0`, data prep |
-| $\mathrm{ru}^{f}$ | `Link_ramp_limit_up` over $\mathcal{L}$ — most a link may raise its flow between snapshots, per unit of nominal power; no value means no limit |
-| $\mathrm{rd}^{f}$ | `Link_ramp_limit_down` over $\mathcal{L}$ — most a link may lower its flow between snapshots, per unit of nominal power; no value means no limit |
-| $\mathrm{f}^{\mathrm{nom}}$ | `Link_p_nom` over $\mathcal{L}$ — nominal power |
-| $\mathrm{ext}^{f}$ | `Link_p_nom_extendable` over $\mathcal{L}$ — whether the nominal power is a decision |
-| $\underline{\mathrm{f}}$ | `Link_p_min_pu` over $\mathcal{T} \times \mathcal{L}$ — least flow, per unit of nominal power — negative for a link that carries both ways |
-| $\overline{\mathrm{f}}$ | `Link_p_max_pu` over $\mathcal{T} \times \mathcal{L}$ — most flow, per unit of nominal power |
-| $\eta$ | `Link_efficiency` over $\mathcal{O}$ — share of the flow that arrives at an output port, PyPSA's `efficiency`, `efficiency2`, … read long — negative where that port consumes rather than delivers |
-| $\mathrm{d}^{f}$ | `Link_output_delay` over $\mathcal{O}$ — snapshots a port's delivery lags its link's flow — PyPSA's `delay`, `delay2`, … read long, in `snapshot_weightings.generators` units, which the file states as whole snapshots; zero for a port that delivers at once |
-| $\mathrm{cyc}^{f}$ | `Link_output_cyclic_delay` over $\mathcal{O}$ — whether a delayed port's flow wraps from the horizon's end — PyPSA's `cyclic_delay`, `cyclic_delay2`, …; where it does not, the flow still in transit at the first snapshots is lost |
-| $\mathrm{c}^{f}$ | `Link_marginal_cost` over $\mathcal{T} \times \mathcal{L}$ — cost of one unit of flow |
-| $\mathrm{load}$ | `Load_p_set` over $\mathcal{T} \times \mathcal{D}$ — demand |
-| $\mathrm{w}^{\mathrm{sto}}$ | `snapshot_weightings_stores` over $\mathcal{T}$ — PyPSA's `snapshot_weightings.stores` — hours a snapshot stands for in a storage balance |
-| $\mathrm{w}^{\mathrm{gen}}$ | `snapshot_weightings_generators` over $\mathcal{T}$ — PyPSA's `snapshot_weightings.generators` — hours a snapshot stands for in an energy total |
-| $\underline{\mathrm{p}}^{\mathrm{nom}}$ | `Generator_p_nom_min` over $\mathcal{G}$ — least nominal power an extendable generator may be built at |
-| $\overline{\mathrm{p}}^{\mathrm{nom}}$ | `Generator_p_nom_max` over $\mathcal{G}$ — most nominal power an extendable generator may be built at |
-| $\mathrm{c}^{\mathrm{cap}}$ | `Generator_capital_cost` over $\mathcal{G}$ — cost of one unit of nominal power — PyPSA's `capital_cost`, periodized as an annuity in data prep |
-| $\mathrm{p}^{\mathrm{nom,set}}$ | `Generator_p_nom_set` over $\mathcal{G}$ — a given nominal power for an extendable generator; one without a value has no row here |
-| $\underline{\mathrm{E}}$ | `Generator_e_sum_min` over $\mathcal{G}$ — least energy over the horizon; minus infinity where no floor is meant |
-| $\overline{\mathrm{E}}$ | `Generator_e_sum_max` over $\mathcal{G}$ — most energy over the horizon — a fuel or emission budget in energy terms; infinity where no cap is meant |
-| $\underline{\mathrm{f}}^{\mathrm{nom}}$ | `Link_p_nom_min` over $\mathcal{L}$ — least nominal power an extendable link may be built at |
-| $\overline{\mathrm{f}}^{\mathrm{nom}}$ | `Link_p_nom_max` over $\mathcal{L}$ — most nominal power an extendable link may be built at |
-| $\mathrm{c}^{\mathrm{cap},f}$ | `Link_capital_cost` over $\mathcal{L}$ — cost of one unit of nominal power — PyPSA's `capital_cost`, periodized as an annuity in data prep |
-| $\mathrm{f}^{\mathrm{nom,set}}$ | `Link_p_nom_set` over $\mathcal{L}$ — a given nominal power for an extendable link; one without a value has no row here |
-| $\underline{\mathrm{h}}^{\mathrm{nom}}$ | `StorageUnit_p_nom_min` over $\mathcal{S}$ — least nominal power an extendable storage unit may be built at |
-| $\overline{\mathrm{h}}^{\mathrm{nom}}$ | `StorageUnit_p_nom_max` over $\mathcal{S}$ — most nominal power an extendable storage unit may be built at |
-| $\mathrm{c}^{\mathrm{cap},h}$ | `StorageUnit_capital_cost` over $\mathcal{S}$ — cost of one unit of nominal power — PyPSA's `capital_cost`, periodized as an annuity in data prep |
-| $\mathrm{h}^{\mathrm{nom,set}}$ | `StorageUnit_p_nom_set` over $\mathcal{S}$ — a given nominal power for an extendable storage unit; one without a value has no row here |
-| $\underline{\mathrm{e}}^{\mathrm{nom}}$ | `Store_e_nom_min` over $\mathcal{V}$ — least nominal capacity an extendable store may be built at |
-| $\overline{\mathrm{e}}^{\mathrm{nom}}$ | `Store_e_nom_max` over $\mathcal{V}$ — most nominal capacity an extendable store may be built at |
-| $\mathrm{c}^{\mathrm{cap},e}$ | `Store_capital_cost` over $\mathcal{V}$ — cost of one unit of nominal capacity — PyPSA's `capital_cost`, periodized as an annuity in data prep |
-| $\mathrm{e}^{\mathrm{nom,set}}$ | `Store_e_nom_set` over $\mathcal{V}$ — a given nominal capacity for an extendable store; one without a value has no row here |
-| $\mathrm{h}^{\mathrm{nom}}$ | `StorageUnit_p_nom` over $\mathcal{S}$ — nominal power |
-| $\mathrm{ext}^{h}$ | `StorageUnit_p_nom_extendable` over $\mathcal{S}$ — whether the nominal power is a decision |
-| $\underline{\mathrm{h}}$ | `StorageUnit_p_min_pu` over $\mathcal{T} \times \mathcal{S}$ — most storing, per unit of nominal power and negated |
-| $\overline{\mathrm{h}}$ | `StorageUnit_p_max_pu` over $\mathcal{T} \times \mathcal{S}$ — most dispatch, per unit of nominal power |
-| $\mathrm{T}^{h}$ | `StorageUnit_max_hours` over $\mathcal{S}$ — energy capacity, as hours of dispatch at nominal power |
-| $\eta^{-}$ | `StorageUnit_efficiency_store` over $\mathcal{S}$ — share of the power drawn from the bus that becomes charge |
-| $\eta^{+}$ | `StorageUnit_efficiency_dispatch` over $\mathcal{S}$ — share of the charge drawn down that reaches the bus |
-| $\rho$ | `StorageUnit_retention` over $\mathcal{T} \times \mathcal{S}$ — share of charge kept over a snapshot — PyPSA's `(1 - standing_loss) ** elapsed hours`, data prep |
-| $\mathrm{soc}^{0}$ | `StorageUnit_state_of_charge_initial` over $\mathcal{S}$ — charge held before the first snapshot |
-| $\mathrm{cyc}$ | `StorageUnit_cyclic_state_of_charge` over $\mathcal{S}$ — whether the horizon closes on itself instead of opening on the initial charge |
-| $\mathrm{c}^{h}$ | `StorageUnit_marginal_cost` over $\mathcal{T} \times \mathcal{S}$ — cost of one unit of dispatch |
-| $\mathrm{c}^{\mathrm{soc}}$ | `StorageUnit_marginal_cost_storage` over $\mathcal{T} \times \mathcal{S}$ — cost of one unit of charge held over one snapshot |
-| $\mathrm{e}^{\mathrm{nom}}$ | `Store_e_nom` over $\mathcal{V}$ — nominal energy capacity |
-| $\mathrm{ext}^{e}$ | `Store_e_nom_extendable` over $\mathcal{V}$ — whether the nominal energy capacity is a decision |
-| $\underline{\mathrm{e}}$ | `Store_e_min_pu` over $\mathcal{T} \times \mathcal{V}$ — least energy held, per unit of nominal capacity — negative for a store that may go short |
-| $\overline{\mathrm{e}}$ | `Store_e_max_pu` over $\mathcal{T} \times \mathcal{V}$ — most energy held, per unit of nominal capacity |
-| $\rho^{e}$ | `Store_retention` over $\mathcal{T} \times \mathcal{V}$ — share of energy kept over a snapshot — PyPSA's `(1 - standing_loss) ** elapsed hours`, data prep |
-| $\mathrm{e}^{0}$ | `Store_e_initial` over $\mathcal{V}$ — energy held before the first snapshot |
-| $\mathrm{cyc}^{e}$ | `Store_e_cyclic` over $\mathcal{V}$ — whether the horizon closes on itself instead of opening on the initial energy |
-| $\mathrm{c}^{q}$ | `Store_marginal_cost` over $\mathcal{T} \times \mathcal{V}$ — cost of one unit of power delivered |
-| $\mathrm{c}^{e}$ | `Store_marginal_cost_storage` over $\mathcal{T} \times \mathcal{V}$ — cost of one unit of energy held over one snapshot |
-| $\mathrm{type}$ | `GlobalConstraint_type` over $\mathcal{B}$ — which formula the row takes — `primary_energy`, `operational_limit`, `transmission_volume_expansion_limit`, `transmission_expansion_cost_limit` or `tech_capacity_expansion_limit` |
-| $\mathrm{sense}$ | `GlobalConstraint_sense` over $\mathcal{B}$ — which way the row binds — `<=`, `>=` or `==` |
-| $\mathrm{K}$ | `GlobalConstraint_constant` over $\mathcal{B}$ — the constant the total is held against; what a variable cannot carry — an initial charge, a non-extendable build — is folded in here by data prep |
-| $\mathrm{len}^{f}$ | `Link_volume_weight` over $\mathcal{B} \times \mathcal{L}$ — the link's length where its carrier is in the row's set — data prep; a link outside it has no row |
-| $\mathrm{cc}^{f}$ | `Link_expansion_cost_weight` over $\mathcal{B} \times \mathcal{L}$ — the link's capital cost where its carrier is in the row's set — data prep; a link outside it has no row |
-| $\mathrm{m}$ | `Generator_tech_capacity_weight` over $\mathcal{B} \times \mathcal{G}$ — one where the generator is in the row's carrier-and-bus set — data prep; one outside it has no row |
-| $\mathrm{m}^{f}$ | `Link_tech_capacity_weight` over $\mathcal{B} \times \mathcal{L}$ — one where the link is in the row's carrier-and-bus set — data prep; one outside it has no row |
-| $\mathrm{m}^{h}$ | `StorageUnit_tech_capacity_weight` over $\mathcal{B} \times \mathcal{S}$ — one where the storage unit is in the row's carrier-and-bus set — data prep; one outside it has no row |
-| $\mathrm{m}^{e}$ | `Store_tech_capacity_weight` over $\mathcal{B} \times \mathcal{V}$ — one where the store is in the row's carrier-and-bus set — data prep; one outside it has no row |
+| $`\mathrm{w}`$ | `snapshot_weightings_objective` over $`\mathcal{T}`$ — PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `Generator_p_nom` over $`\mathcal{G}`$ — nominal power |
+| $`\mathrm{ext}`$ | `Generator_p_nom_extendable` over $`\mathcal{G}`$ — whether the nominal power is a decision |
+| $`\underline{\mathrm{p}}`$ | `Generator_p_min_pu` over $`\mathcal{T} \times \mathcal{G}`$ — least output, per unit of nominal power |
+| $`\overline{\mathrm{p}}`$ | `Generator_p_max_pu` over $`\mathcal{T} \times \mathcal{G}`$ — most output, per unit of nominal power — an availability profile |
+| $`\mathrm{c}`$ | `Generator_marginal_cost` over $`\mathcal{T} \times \mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{com}`$ | `Generator_committable` over $`\mathcal{G}`$ — whether output is gated by an on/off status decision |
+| $`\mathrm{ru}`$ | `Generator_ramp_limit_up` over $`\mathcal{G}`$ — most a generator may raise its output between snapshots, per unit of nominal power; no value means no limit |
+| $`\mathrm{rd}`$ | `Generator_ramp_limit_down` over $`\mathcal{G}`$ — most a generator may lower its output between snapshots, per unit of nominal power; no value means no limit |
+| $`\mathrm{ru}^{\mathrm{up}}`$ | `Generator_ramp_limit_start_up` over $`\mathcal{G}`$ — most output in the snapshot a unit starts, per unit of nominal power |
+| $`\mathrm{rd}^{\mathrm{dn}}`$ | `Generator_ramp_limit_shut_down` over $`\mathcal{G}`$ — most output in the snapshot before a unit stops, per unit of nominal power |
+| $`\mathrm{u}^{0}`$ | `Generator_status_initial` over $`\mathcal{G}`$ — one where the unit was on before the first snapshot, zero where off — PyPSA's `up_time_before > 0`, data prep |
+| $`\mathrm{ru}^{f}`$ | `Link_ramp_limit_up` over $`\mathcal{L}`$ — most a link may raise its flow between snapshots, per unit of nominal power; no value means no limit |
+| $`\mathrm{rd}^{f}`$ | `Link_ramp_limit_down` over $`\mathcal{L}`$ — most a link may lower its flow between snapshots, per unit of nominal power; no value means no limit |
+| $`\mathrm{f}^{\mathrm{nom}}`$ | `Link_p_nom` over $`\mathcal{L}`$ — nominal power |
+| $`\mathrm{ext}^{f}`$ | `Link_p_nom_extendable` over $`\mathcal{L}`$ — whether the nominal power is a decision |
+| $`\underline{\mathrm{f}}`$ | `Link_p_min_pu` over $`\mathcal{T} \times \mathcal{L}`$ — least flow, per unit of nominal power — negative for a link that carries both ways |
+| $`\overline{\mathrm{f}}`$ | `Link_p_max_pu` over $`\mathcal{T} \times \mathcal{L}`$ — most flow, per unit of nominal power |
+| $`\eta`$ | `Link_efficiency` over $`\mathcal{O}`$ — share of the flow that arrives at an output port, PyPSA's `efficiency`, `efficiency2`, … read long — negative where that port consumes rather than delivers |
+| $`\mathrm{d}^{f}`$ | `Link_output_delay` over $`\mathcal{O}`$ — snapshots a port's delivery lags its link's flow — PyPSA's `delay`, `delay2`, … read long, in `snapshot_weightings.generators` units, which the file states as whole snapshots; zero for a port that delivers at once |
+| $`\mathrm{cyc}^{f}`$ | `Link_output_cyclic_delay` over $`\mathcal{O}`$ — whether a delayed port's flow wraps from the horizon's end — PyPSA's `cyclic_delay`, `cyclic_delay2`, …; where it does not, the flow still in transit at the first snapshots is lost |
+| $`\mathrm{c}^{f}`$ | `Link_marginal_cost` over $`\mathcal{T} \times \mathcal{L}`$ — cost of one unit of flow |
+| $`\mathrm{load}`$ | `Load_p_set` over $`\mathcal{T} \times \mathcal{D}`$ — demand |
+| $`\mathrm{w}^{\mathrm{sto}}`$ | `snapshot_weightings_stores` over $`\mathcal{T}`$ — PyPSA's `snapshot_weightings.stores` — hours a snapshot stands for in a storage balance |
+| $`\mathrm{w}^{\mathrm{gen}}`$ | `snapshot_weightings_generators` over $`\mathcal{T}`$ — PyPSA's `snapshot_weightings.generators` — hours a snapshot stands for in an energy total |
+| $`\underline{\mathrm{p}}^{\mathrm{nom}}`$ | `Generator_p_nom_min` over $`\mathcal{G}`$ — least nominal power an extendable generator may be built at |
+| $`\overline{\mathrm{p}}^{\mathrm{nom}}`$ | `Generator_p_nom_max` over $`\mathcal{G}`$ — most nominal power an extendable generator may be built at |
+| $`\mathrm{c}^{\mathrm{cap}}`$ | `Generator_capital_cost` over $`\mathcal{G}`$ — cost of one unit of nominal power — PyPSA's `capital_cost`, periodized as an annuity in data prep |
+| $`\mathrm{p}^{\mathrm{nom,set}}`$ | `Generator_p_nom_set` over $`\mathcal{G}`$ — a given nominal power for an extendable generator; one without a value has no row here |
+| $`\underline{\mathrm{E}}`$ | `Generator_e_sum_min` over $`\mathcal{G}`$ — least energy over the horizon; minus infinity where no floor is meant |
+| $`\overline{\mathrm{E}}`$ | `Generator_e_sum_max` over $`\mathcal{G}`$ — most energy over the horizon — a fuel or emission budget in energy terms; infinity where no cap is meant |
+| $`\underline{\mathrm{f}}^{\mathrm{nom}}`$ | `Link_p_nom_min` over $`\mathcal{L}`$ — least nominal power an extendable link may be built at |
+| $`\overline{\mathrm{f}}^{\mathrm{nom}}`$ | `Link_p_nom_max` over $`\mathcal{L}`$ — most nominal power an extendable link may be built at |
+| $`\mathrm{c}^{\mathrm{cap},f}`$ | `Link_capital_cost` over $`\mathcal{L}`$ — cost of one unit of nominal power — PyPSA's `capital_cost`, periodized as an annuity in data prep |
+| $`\mathrm{f}^{\mathrm{nom,set}}`$ | `Link_p_nom_set` over $`\mathcal{L}`$ — a given nominal power for an extendable link; one without a value has no row here |
+| $`\underline{\mathrm{h}}^{\mathrm{nom}}`$ | `StorageUnit_p_nom_min` over $`\mathcal{S}`$ — least nominal power an extendable storage unit may be built at |
+| $`\overline{\mathrm{h}}^{\mathrm{nom}}`$ | `StorageUnit_p_nom_max` over $`\mathcal{S}`$ — most nominal power an extendable storage unit may be built at |
+| $`\mathrm{c}^{\mathrm{cap},h}`$ | `StorageUnit_capital_cost` over $`\mathcal{S}`$ — cost of one unit of nominal power — PyPSA's `capital_cost`, periodized as an annuity in data prep |
+| $`\mathrm{h}^{\mathrm{nom,set}}`$ | `StorageUnit_p_nom_set` over $`\mathcal{S}`$ — a given nominal power for an extendable storage unit; one without a value has no row here |
+| $`\underline{\mathrm{e}}^{\mathrm{nom}}`$ | `Store_e_nom_min` over $`\mathcal{V}`$ — least nominal capacity an extendable store may be built at |
+| $`\overline{\mathrm{e}}^{\mathrm{nom}}`$ | `Store_e_nom_max` over $`\mathcal{V}`$ — most nominal capacity an extendable store may be built at |
+| $`\mathrm{c}^{\mathrm{cap},e}`$ | `Store_capital_cost` over $`\mathcal{V}`$ — cost of one unit of nominal capacity — PyPSA's `capital_cost`, periodized as an annuity in data prep |
+| $`\mathrm{e}^{\mathrm{nom,set}}`$ | `Store_e_nom_set` over $`\mathcal{V}`$ — a given nominal capacity for an extendable store; one without a value has no row here |
+| $`\mathrm{h}^{\mathrm{nom}}`$ | `StorageUnit_p_nom` over $`\mathcal{S}`$ — nominal power |
+| $`\mathrm{ext}^{h}`$ | `StorageUnit_p_nom_extendable` over $`\mathcal{S}`$ — whether the nominal power is a decision |
+| $`\underline{\mathrm{h}}`$ | `StorageUnit_p_min_pu` over $`\mathcal{T} \times \mathcal{S}`$ — most storing, per unit of nominal power and negated |
+| $`\overline{\mathrm{h}}`$ | `StorageUnit_p_max_pu` over $`\mathcal{T} \times \mathcal{S}`$ — most dispatch, per unit of nominal power |
+| $`\mathrm{T}^{h}`$ | `StorageUnit_max_hours` over $`\mathcal{S}`$ — energy capacity, as hours of dispatch at nominal power |
+| $`\eta^{-}`$ | `StorageUnit_efficiency_store` over $`\mathcal{S}`$ — share of the power drawn from the bus that becomes charge |
+| $`\eta^{+}`$ | `StorageUnit_efficiency_dispatch` over $`\mathcal{S}`$ — share of the charge drawn down that reaches the bus |
+| $`\rho`$ | `StorageUnit_retention` over $`\mathcal{T} \times \mathcal{S}`$ — share of charge kept over a snapshot — PyPSA's `(1 - standing_loss) ** elapsed hours`, data prep |
+| $`\mathrm{soc}^{0}`$ | `StorageUnit_state_of_charge_initial` over $`\mathcal{S}`$ — charge held before the first snapshot |
+| $`\mathrm{cyc}`$ | `StorageUnit_cyclic_state_of_charge` over $`\mathcal{S}`$ — whether the horizon closes on itself instead of opening on the initial charge |
+| $`\mathrm{c}^{h}`$ | `StorageUnit_marginal_cost` over $`\mathcal{T} \times \mathcal{S}`$ — cost of one unit of dispatch |
+| $`\mathrm{c}^{\mathrm{soc}}`$ | `StorageUnit_marginal_cost_storage` over $`\mathcal{T} \times \mathcal{S}`$ — cost of one unit of charge held over one snapshot |
+| $`\mathrm{e}^{\mathrm{nom}}`$ | `Store_e_nom` over $`\mathcal{V}`$ — nominal energy capacity |
+| $`\mathrm{ext}^{e}`$ | `Store_e_nom_extendable` over $`\mathcal{V}`$ — whether the nominal energy capacity is a decision |
+| $`\underline{\mathrm{e}}`$ | `Store_e_min_pu` over $`\mathcal{T} \times \mathcal{V}`$ — least energy held, per unit of nominal capacity — negative for a store that may go short |
+| $`\overline{\mathrm{e}}`$ | `Store_e_max_pu` over $`\mathcal{T} \times \mathcal{V}`$ — most energy held, per unit of nominal capacity |
+| $`\rho^{e}`$ | `Store_retention` over $`\mathcal{T} \times \mathcal{V}`$ — share of energy kept over a snapshot — PyPSA's `(1 - standing_loss) ** elapsed hours`, data prep |
+| $`\mathrm{e}^{0}`$ | `Store_e_initial` over $`\mathcal{V}`$ — energy held before the first snapshot |
+| $`\mathrm{cyc}^{e}`$ | `Store_e_cyclic` over $`\mathcal{V}`$ — whether the horizon closes on itself instead of opening on the initial energy |
+| $`\mathrm{c}^{q}`$ | `Store_marginal_cost` over $`\mathcal{T} \times \mathcal{V}`$ — cost of one unit of power delivered |
+| $`\mathrm{c}^{e}`$ | `Store_marginal_cost_storage` over $`\mathcal{T} \times \mathcal{V}`$ — cost of one unit of energy held over one snapshot |
+| $`\mathrm{type}`$ | `GlobalConstraint_type` over $`\mathcal{B}`$ — which formula the row takes — `primary_energy`, `operational_limit`, `transmission_volume_expansion_limit`, `transmission_expansion_cost_limit` or `tech_capacity_expansion_limit` |
+| $`\mathrm{sense}`$ | `GlobalConstraint_sense` over $`\mathcal{B}`$ — which way the row binds — `<=`, `>=` or `==` |
+| $`\mathrm{K}`$ | `GlobalConstraint_constant` over $`\mathcal{B}`$ — the constant the total is held against; what a variable cannot carry — an initial charge, a non-extendable build — is folded in here by data prep |
+| $`\mathrm{len}^{f}`$ | `Link_volume_weight` over $`\mathcal{B} \times \mathcal{L}`$ — the link's length where its carrier is in the row's set — data prep; a link outside it has no row |
+| $`\mathrm{cc}^{f}`$ | `Link_expansion_cost_weight` over $`\mathcal{B} \times \mathcal{L}`$ — the link's capital cost where its carrier is in the row's set — data prep; a link outside it has no row |
+| $`\mathrm{m}`$ | `Generator_tech_capacity_weight` over $`\mathcal{B} \times \mathcal{G}`$ — one where the generator is in the row's carrier-and-bus set — data prep; one outside it has no row |
+| $`\mathrm{m}^{f}`$ | `Link_tech_capacity_weight` over $`\mathcal{B} \times \mathcal{L}`$ — one where the link is in the row's carrier-and-bus set — data prep; one outside it has no row |
+| $`\mathrm{m}^{h}`$ | `StorageUnit_tech_capacity_weight` over $`\mathcal{B} \times \mathcal{S}`$ — one where the storage unit is in the row's carrier-and-bus set — data prep; one outside it has no row |
+| $`\mathrm{m}^{e}`$ | `Store_tech_capacity_weight` over $`\mathcal{B} \times \mathcal{V}`$ — one where the store is in the row's carrier-and-bus set — data prep; one outside it has no row |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `Generator_p` over $\mathcal{T} \times \mathcal{G}$ — `Generator-p` — output of a generator in a snapshot |
-| $f$ | `Link_p` over $\mathcal{T} \times \mathcal{L}$ — `Link-p` — PyPSA's `p0`, the flow measured at the `Link_bus0` end: a positive value withdraws there and injects at every bus the link's output ports deliver to |
-| $h^{+}$ | `StorageUnit_p_dispatch` over $\mathcal{T} \times \mathcal{S}$ — `StorageUnit-p_dispatch` — power delivered to the bus |
-| $h^{-}$ | `StorageUnit_p_store` over $\mathcal{T} \times \mathcal{S}$ — `StorageUnit-p_store` — power drawn from the bus into charge |
-| $\mathit{soc}$ | `StorageUnit_state_of_charge` over $\mathcal{T} \times \mathcal{S}$ — `StorageUnit-state_of_charge` — energy held at the end of a snapshot |
-| $e$ | `Store_e` over $\mathcal{T} \times \mathcal{V}$ — `Store-e` — energy held at the end of a snapshot |
-| $q$ | `Store_p` over $\mathcal{T} \times \mathcal{V}$ — `Store-p` — power delivered to the bus; charging is negative |
-| $P$ | `Generator_p_nom_ext` over $\mathcal{G}$ — `Generator-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
-| $F$ | `Link_p_nom_ext` over $\mathcal{L}$ — `Link-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
-| $H$ | `StorageUnit_p_nom_ext` over $\mathcal{S}$ — `StorageUnit-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
-| $E$ | `Store_e_nom_ext` over $\mathcal{V}$ — `Store-e_nom` — nominal capacity where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
-| $u$ | `Generator_status` over $\mathcal{T} \times \mathcal{G}$ — `Generator-status` — how much of a committable unit is on: an integer the rows below cap at one, or at the module count where the build is modular |
+| $`p`$ | `Generator_p` over $`\mathcal{T} \times \mathcal{G}`$ — `Generator-p` — output of a generator in a snapshot |
+| $`f`$ | `Link_p` over $`\mathcal{T} \times \mathcal{L}`$ — `Link-p` — PyPSA's `p0`, the flow measured at the `Link_bus0` end: a positive value withdraws there and injects at every bus the link's output ports deliver to |
+| $`h^{+}`$ | `StorageUnit_p_dispatch` over $`\mathcal{T} \times \mathcal{S}`$ — `StorageUnit-p_dispatch` — power delivered to the bus |
+| $`h^{-}`$ | `StorageUnit_p_store` over $`\mathcal{T} \times \mathcal{S}`$ — `StorageUnit-p_store` — power drawn from the bus into charge |
+| $`\mathit{soc}`$ | `StorageUnit_state_of_charge` over $`\mathcal{T} \times \mathcal{S}`$ — `StorageUnit-state_of_charge` — energy held at the end of a snapshot |
+| $`e`$ | `Store_e` over $`\mathcal{T} \times \mathcal{V}`$ — `Store-e` — energy held at the end of a snapshot |
+| $`q`$ | `Store_p` over $`\mathcal{T} \times \mathcal{V}`$ — `Store-p` — power delivered to the bus; charging is negative |
+| $`P`$ | `Generator_p_nom_ext` over $`\mathcal{G}`$ — `Generator-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
+| $`F`$ | `Link_p_nom_ext` over $`\mathcal{L}`$ — `Link-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
+| $`H`$ | `StorageUnit_p_nom_ext` over $`\mathcal{S}`$ — `StorageUnit-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
+| $`E`$ | `Store_e_nom_ext` over $`\mathcal{V}`$ — `Store-e_nom` — nominal capacity where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
+| $`u`$ | `Generator_status` over $`\mathcal{T} \times \mathcal{G}`$ — `Generator-status` — how much of a committable unit is on: an integer the rows below cap at one, or at the module count where the build is modular |
 
-$t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
+#### Definitions
 
-$t \boxminus_{v} k$ denotes translation with $v$ standing where index $t-k$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $v$ rather than being dropped.
+| Symbol | Meaning |
+|---|---|
+| $`\mathit{Generator\_previous\_p}`$ | `Generator_previous_p` over $`\mathcal{T} \times \mathcal{G}`$ — the output a generator carries into a snapshot — nothing at the start of the horizon, which is why a unit that came in running carries no ramp row there |
+| $`\mathit{Generator\_ramp\_up\_allowance}`$ | `Generator_ramp_up_allowance` over $`\mathcal{T} \times \mathcal{G}`$ — how far a generator may raise output between two snapshots — its ramp limit of the build while it stays on, plus its start-up ramp in the snapshot it turns on |
+| $`\mathit{Generator\_ramp\_down\_allowance}`$ | `Generator_ramp_down_allowance` over $`\mathcal{T} \times \mathcal{G}`$ — how far a generator may lower output between two snapshots — its ramp limit of the build while it stays on, plus its shut-down ramp in the snapshot it turns off |
+| $`\mathit{Link\_p\_nom\_effective}`$ | `Link_p_nom_effective` over $`\mathcal{L}`$ — the build a link's limits are taken against — the chosen one where it is extendable, the given one otherwise |
+| $`\mathit{StorageUnit\_charge\_carried\_in}`$ | `StorageUnit_charge_carried_in` over $`\mathcal{T} \times \mathcal{S}`$ — the charge a unit opens a snapshot with — its last snapshot's less standing loss where it is cyclic, the given initial charge at the start of the horizon, which no standing loss has touched yet, and the previous snapshot's less standing loss otherwise |
+| $`\mathit{Store\_energy\_carried\_in}`$ | `Store_energy_carried_in` over $`\mathcal{T} \times \mathcal{V}`$ — the energy a store opens a snapshot with — its last snapshot's less standing loss where it is cyclic, the given initial energy at the start of the horizon, which no standing loss has touched yet, and the previous snapshot's less standing loss otherwise |
+| $`\mathit{Link\_output\_arrival}`$ | `Link_output_arrival` over $`\mathcal{T} \times \mathcal{O}`$ — what a link delivers to an output port at a snapshot — its flow after the port's efficiency, delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not |
+| $`\mathit{transmission\_volume\_expansion}`$ | `transmission_volume_expansion` over $`\mathcal{B}`$ — what a `transmission_volume_expansion_limit` row totals — length times the chosen build of the row's branches |
+| $`\mathit{transmission\_expansion\_cost}`$ | `transmission_expansion_cost` over $`\mathcal{B}`$ — what a `transmission_expansion_cost_limit` row totals — capital cost times the chosen build of the row's branches |
+| $`\mathit{tech\_capacity\_expansion}`$ | `tech_capacity_expansion` over $`\mathcal{B}`$ — what a `tech_capacity_expansion_limit` row totals — the chosen build of the row's carrier-and-bus set |
+| $`\mathit{Generator\_previous\_status}`$ | `Generator_previous_status` over $`\mathcal{T} \times \mathcal{G}`$ — the commitment state a generator carries into a snapshot — the state it brought into the horizon at the first, the previous snapshot's after that |
+| $`\mathit{Generator\_p\_nom\_effective}`$ | `Generator_p_nom_effective` over $`\mathcal{G}`$ — the build a generator's limits are taken against — the chosen one where it is extendable, the given one otherwise |
 
-$\mathrm{pos}(t)$ denotes where index $t$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $0$. The index itself stays the coordinate, so $t$ compares against labels and $\mathrm{pos}(t)$ against positions.
+$`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
+
+$`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $`v`$ rather than being dropped.
+
+$`\mathrm{pos}(t)`$ denotes where index $`t`$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $`0`$. The index itself stays the coordinate, so $`t`$ compares against labels and $`\mathrm{pos}(t)`$ against positions.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{c}_{t,g} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\enspace l \in \mathcal{L}} f_{t,l} \cdot \mathrm{c}^{f}_{t,l} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\enspace s \in \mathcal{S}} h^{+}_{t,s} \cdot \mathrm{c}^{h}_{t,s} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\enspace s \in \mathcal{S}} \mathit{soc}_{t,s} \cdot \mathrm{c}^{\mathrm{soc}}_{t,s} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\enspace v \in \mathcal{V}} q_{t,v} \cdot \mathrm{c}^{q}_{t,v} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\enspace v \in \mathcal{V}} e_{t,v} \cdot \mathrm{c}^{e}_{t,v} \cdot \mathrm{w}_{t} + \sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{c}^{\mathrm{cap}}_{g} + \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{c}^{\mathrm{cap},f}_{l} + \sum_{s \in \mathcal{S}} H_{s} \cdot \mathrm{c}^{\mathrm{cap},h}_{s} + \sum_{v \in \mathcal{V}} E_{v} \cdot \mathrm{c}^{\mathrm{cap},e}_{v}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{c}_{t,g} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\ l \in \mathcal{L}} f_{t,l} \cdot \mathrm{c}^{f}_{t,l} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\ s \in \mathcal{S}} h^{+}_{t,s} \cdot \mathrm{c}^{h}_{t,s} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\ s \in \mathcal{S}} \mathit{soc}_{t,s} \cdot \mathrm{c}^{\mathrm{soc}}_{t,s} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\ v \in \mathcal{V}} q_{t,v} \cdot \mathrm{c}^{q}_{t,v} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\ v \in \mathcal{V}} e_{t,v} \cdot \mathrm{c}^{e}_{t,v} \cdot \mathrm{w}_{t} + \sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{c}^{\mathrm{cap}}_{g} + \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{c}^{\mathrm{cap},f}_{l} + \sum_{s \in \mathcal{S}} H_{s} \cdot \mathrm{c}^{\mathrm{cap},h}_{s} + \sum_{v \in \mathcal{V}} E_{v} \cdot \mathrm{c}^{\mathrm{cap},e}_{v}
+```
 
 #### Subject to
 
 **`Generator_fix_p_lower`**
 
-$$p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}$$
+```math
+p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}
+```
 
 **`Generator_fix_p_upper`**
 
-$$p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}$$
+```math
+p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}
+```
 
 **`Link_fix_p_lower`**
 
-$$f_{t,l} \ge \underline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \neg \mathrm{ext}^{f}_{l}$$
+```math
+f_{t,l} \ge \underline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \neg \mathrm{ext}^{f}_{l}
+```
 
 **`Link_fix_p_upper`**
 
-$$f_{t,l} \le \overline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \neg \mathrm{ext}^{f}_{l}$$
+```math
+f_{t,l} \le \overline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \neg \mathrm{ext}^{f}_{l}
+```
 
 **`Generator_ext_p_lower`**
 
-$$p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot P_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}$$
+```math
+p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot P_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}
+```
 
 **`Generator_ext_p_upper`**
 
-$$p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot P_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}$$
+```math
+p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot P_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}
+```
 
 **`Generator_ext_p_nom_lower`**
 
-$$P_{g} \ge \underline{\mathrm{p}}^{\mathrm{nom}}_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g}$$
+```math
+P_{g} \ge \underline{\mathrm{p}}^{\mathrm{nom}}_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
+```
 
 **`Generator_ext_p_nom_upper`**
 
-$$P_{g} \le \overline{\mathrm{p}}^{\mathrm{nom}}_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g} \wedge \overline{\mathrm{p}}^{\mathrm{nom}}_{g} \text{ is defined}$$
+```math
+P_{g} \le \overline{\mathrm{p}}^{\mathrm{nom}}_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g} \wedge \overline{\mathrm{p}}^{\mathrm{nom}}_{g} \text{ is defined}
+```
 
 **`Generator_p_nom_set`**
 
-$$P_{g} = \mathrm{p}^{\mathrm{nom,set}}_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{nom,set}}_{g} \text{ is defined}$$
+```math
+P_{g} = \mathrm{p}^{\mathrm{nom,set}}_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{nom,set}}_{g} \text{ is defined}
+```
 
 **`Generator_e_sum_min`**
 
-$$\sum_{t \in \mathcal{T}} p_{t,g} \cdot \mathrm{w}^{\mathrm{gen}}_{t} \ge \underline{\mathrm{E}}_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \underline{\mathrm{E}}_{g} \text{ is defined}$$
+```math
+\sum_{t \in \mathcal{T}} p_{t,g} \cdot \mathrm{w}^{\mathrm{gen}}_{t} \ge \underline{\mathrm{E}}_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \underline{\mathrm{E}}_{g} \text{ is defined}
+```
 
 **`Generator_e_sum_max`**
 
-$$\sum_{t \in \mathcal{T}} p_{t,g} \cdot \mathrm{w}^{\mathrm{gen}}_{t} \le \overline{\mathrm{E}}_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \overline{\mathrm{E}}_{g} \text{ is defined}$$
+```math
+\sum_{t \in \mathcal{T}} p_{t,g} \cdot \mathrm{w}^{\mathrm{gen}}_{t} \le \overline{\mathrm{E}}_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \overline{\mathrm{E}}_{g} \text{ is defined}
+```
 
 **`Link_ext_p_lower`**
 
-$$f_{t,l} \ge \underline{\mathrm{f}}_{t,l} \cdot F_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \mathrm{ext}^{f}_{l}$$
+```math
+f_{t,l} \ge \underline{\mathrm{f}}_{t,l} \cdot F_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{l}
+```
 
 **`Link_ext_p_upper`**
 
-$$f_{t,l} \le \overline{\mathrm{f}}_{t,l} \cdot F_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \mathrm{ext}^{f}_{l}$$
+```math
+f_{t,l} \le \overline{\mathrm{f}}_{t,l} \cdot F_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{l}
+```
 
 **`Link_ext_p_nom_lower`**
 
-$$F_{l} \ge \underline{\mathrm{f}}^{\mathrm{nom}}_{l} \qquad \forall\thinspace l \in \mathcal{L} \thinspace:\thinspace \mathrm{ext}^{f}_{l}$$
+```math
+F_{l} \ge \underline{\mathrm{f}}^{\mathrm{nom}}_{l} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{l}
+```
 
 **`Link_ext_p_nom_upper`**
 
-$$F_{l} \le \overline{\mathrm{f}}^{\mathrm{nom}}_{l} \qquad \forall\thinspace l \in \mathcal{L} \thinspace:\thinspace \mathrm{ext}^{f}_{l} \wedge \overline{\mathrm{f}}^{\mathrm{nom}}_{l} \text{ is defined}$$
+```math
+F_{l} \le \overline{\mathrm{f}}^{\mathrm{nom}}_{l} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{l} \wedge \overline{\mathrm{f}}^{\mathrm{nom}}_{l} \text{ is defined}
+```
 
 **`Link_p_nom_set`**
 
-$$F_{l} = \mathrm{f}^{\mathrm{nom,set}}_{l} \qquad \forall\thinspace l \in \mathcal{L} \thinspace:\thinspace \mathrm{ext}^{f}_{l} \wedge \mathrm{f}^{\mathrm{nom,set}}_{l} \text{ is defined}$$
+```math
+F_{l} = \mathrm{f}^{\mathrm{nom,set}}_{l} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{l} \wedge \mathrm{f}^{\mathrm{nom,set}}_{l} \text{ is defined}
+```
 
 **`StorageUnit_fix_p_dispatch_lower`**
 
-$$h^{+}_{t,s} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \neg \mathrm{ext}^{h}_{s}$$
+```math
+h^{+}_{t,s} \ge 0 \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \neg \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_fix_p_dispatch_upper`**
 
-$$h^{+}_{t,s} \le \overline{\mathrm{h}}_{t,s} \cdot \mathrm{h}^{\mathrm{nom}}_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \neg \mathrm{ext}^{h}_{s}$$
+```math
+h^{+}_{t,s} \le \overline{\mathrm{h}}_{t,s} \cdot \mathrm{h}^{\mathrm{nom}}_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \neg \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_fix_p_store_lower`**
 
-$$h^{-}_{t,s} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \neg \mathrm{ext}^{h}_{s}$$
+```math
+h^{-}_{t,s} \ge 0 \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \neg \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_fix_p_store_upper`**
 
-$$h^{-}_{t,s} \le -\underline{\mathrm{h}}_{t,s} \cdot \mathrm{h}^{\mathrm{nom}}_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \neg \mathrm{ext}^{h}_{s}$$
+```math
+h^{-}_{t,s} \le -\underline{\mathrm{h}}_{t,s} \cdot \mathrm{h}^{\mathrm{nom}}_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \neg \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_fix_state_of_charge_lower`**
 
-$$\mathit{soc}_{t,s} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \neg \mathrm{ext}^{h}_{s}$$
+```math
+\mathit{soc}_{t,s} \ge 0 \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \neg \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_fix_state_of_charge_upper`**
 
-$$\mathit{soc}_{t,s} \le \mathrm{T}^{h}_{s} \cdot \mathrm{h}^{\mathrm{nom}}_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \neg \mathrm{ext}^{h}_{s}$$
+```math
+\mathit{soc}_{t,s} \le \mathrm{T}^{h}_{s} \cdot \mathrm{h}^{\mathrm{nom}}_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \neg \mathrm{ext}^{h}_{s}
+```
 
 **`Generator_p_ramp_limit_up`**
 
-$$p_{t,g} - \mathit{Generator\_previous\_p}_{t,g} \le \mathit{Generator\_ramp\_up\_allowance}_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ru}_{g} \text{ is defined} \wedge \neg \left( \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \right) \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{com}_{g} \wedge \mathrm{u}^{0}_{g} = 0 \right)$$
+```math
+p_{t,g} - \mathit{Generator\_previous\_p}_{t,g} \le \mathit{Generator\_ramp\_up\_allowance}_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{ru}_{g} \text{ is defined} \wedge \neg \left( \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \right) \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{com}_{g} \wedge \mathrm{u}^{0}_{g} = 0 \right)
+```
 
 **`Generator_p_ramp_limit_down`**
 
-$$\mathit{Generator\_previous\_p}_{t,g} - p_{t,g} \le \mathit{Generator\_ramp\_down\_allowance}_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{rd}_{g} \text{ is defined} \wedge \neg \left( \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \right) \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{com}_{g} \wedge \mathrm{u}^{0}_{g} = 0 \right)$$
+```math
+\mathit{Generator\_previous\_p}_{t,g} - p_{t,g} \le \mathit{Generator\_ramp\_down\_allowance}_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{rd}_{g} \text{ is defined} \wedge \neg \left( \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \right) \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{com}_{g} \wedge \mathrm{u}^{0}_{g} = 0 \right)
+```
 
 **`Link_p_ramp_limit_up`**
 
-$$f_{t,l} - f_{t - 1,l} \le \mathrm{ru}^{f}_{l} \cdot \mathit{Link\_p\_nom\_effective}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \mathrm{ru}^{f}_{l} \text{ is defined}$$
+```math
+f_{t,l} - f_{t - 1,l} \le \mathrm{ru}^{f}_{l} \cdot \mathit{Link\_p\_nom\_effective}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \mathrm{ru}^{f}_{l} \text{ is defined}
+```
 
 **`Link_p_ramp_limit_down`**
 
-$$f_{t - 1,l} - f_{t,l} \le \mathrm{rd}^{f}_{l} \cdot \mathit{Link\_p\_nom\_effective}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \mathrm{rd}^{f}_{l} \text{ is defined}$$
+```math
+f_{t - 1,l} - f_{t,l} \le \mathrm{rd}^{f}_{l} \cdot \mathit{Link\_p\_nom\_effective}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \mathrm{rd}^{f}_{l} \text{ is defined}
+```
 
 **`StorageUnit_ext_p_dispatch_lower`**
 
-$$h^{+}_{t,s} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{ext}^{h}_{s}$$
+```math
+h^{+}_{t,s} \ge 0 \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_ext_p_dispatch_upper`**
 
-$$h^{+}_{t,s} \le \overline{\mathrm{h}}_{t,s} \cdot H_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{ext}^{h}_{s}$$
+```math
+h^{+}_{t,s} \le \overline{\mathrm{h}}_{t,s} \cdot H_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_ext_p_store_lower`**
 
-$$h^{-}_{t,s} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{ext}^{h}_{s}$$
+```math
+h^{-}_{t,s} \ge 0 \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_ext_p_store_upper`**
 
-$$h^{-}_{t,s} \le -\underline{\mathrm{h}}_{t,s} \cdot H_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{ext}^{h}_{s}$$
+```math
+h^{-}_{t,s} \le -\underline{\mathrm{h}}_{t,s} \cdot H_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_ext_state_of_charge_lower`**
 
-$$\mathit{soc}_{t,s} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{ext}^{h}_{s}$$
+```math
+\mathit{soc}_{t,s} \ge 0 \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_ext_state_of_charge_upper`**
 
-$$\mathit{soc}_{t,s} \le \mathrm{T}^{h}_{s} \cdot H_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{ext}^{h}_{s}$$
+```math
+\mathit{soc}_{t,s} \le \mathrm{T}^{h}_{s} \cdot H_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_ext_p_nom_lower`**
 
-$$H_{s} \ge \underline{\mathrm{h}}^{\mathrm{nom}}_{s} \qquad \forall\thinspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{ext}^{h}_{s}$$
+```math
+H_{s} \ge \underline{\mathrm{h}}^{\mathrm{nom}}_{s} \qquad \forall\, s \in \mathcal{S} \,:\, \mathrm{ext}^{h}_{s}
+```
 
 **`StorageUnit_ext_p_nom_upper`**
 
-$$H_{s} \le \overline{\mathrm{h}}^{\mathrm{nom}}_{s} \qquad \forall\thinspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{ext}^{h}_{s} \wedge \overline{\mathrm{h}}^{\mathrm{nom}}_{s} \text{ is defined}$$
+```math
+H_{s} \le \overline{\mathrm{h}}^{\mathrm{nom}}_{s} \qquad \forall\, s \in \mathcal{S} \,:\, \mathrm{ext}^{h}_{s} \wedge \overline{\mathrm{h}}^{\mathrm{nom}}_{s} \text{ is defined}
+```
 
 **`StorageUnit_p_nom_set`**
 
-$$H_{s} = \mathrm{h}^{\mathrm{nom,set}}_{s} \qquad \forall\thinspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{ext}^{h}_{s} \wedge \mathrm{h}^{\mathrm{nom,set}}_{s} \text{ is defined}$$
+```math
+H_{s} = \mathrm{h}^{\mathrm{nom,set}}_{s} \qquad \forall\, s \in \mathcal{S} \,:\, \mathrm{ext}^{h}_{s} \wedge \mathrm{h}^{\mathrm{nom,set}}_{s} \text{ is defined}
+```
 
 **`StorageUnit_energy_balance`**
 
-$$\mathit{soc}_{t,s} = \mathit{StorageUnit\_charge\_carried\_in}_{t,s} + \eta^{-}_{s} \cdot h^{-}_{t,s} \cdot \mathrm{w}^{\mathrm{sto}}_{t} - \frac{h^{+}_{t,s} \cdot \mathrm{w}^{\mathrm{sto}}_{t}}{\eta^{+}_{s}} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+\mathit{soc}_{t,s} = \mathit{StorageUnit\_charge\_carried\_in}_{t,s} + \eta^{-}_{s} \cdot h^{-}_{t,s} \cdot \mathrm{w}^{\mathrm{sto}}_{t} - \frac{h^{+}_{t,s} \cdot \mathrm{w}^{\mathrm{sto}}_{t}}{\eta^{+}_{s}} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`Store_fix_e_lower`**
 
-$$e_{t,v} \ge \underline{\mathrm{e}}_{t,v} \cdot \mathrm{e}^{\mathrm{nom}}_{v} \qquad \forall\thinspace t \in \mathcal{T},\enspace v \in \mathcal{V} \thinspace:\thinspace \neg \mathrm{ext}^{e}_{v}$$
+```math
+e_{t,v} \ge \underline{\mathrm{e}}_{t,v} \cdot \mathrm{e}^{\mathrm{nom}}_{v} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V} \,:\, \neg \mathrm{ext}^{e}_{v}
+```
 
 **`Store_fix_e_upper`**
 
-$$e_{t,v} \le \overline{\mathrm{e}}_{t,v} \cdot \mathrm{e}^{\mathrm{nom}}_{v} \qquad \forall\thinspace t \in \mathcal{T},\enspace v \in \mathcal{V} \thinspace:\thinspace \neg \mathrm{ext}^{e}_{v}$$
+```math
+e_{t,v} \le \overline{\mathrm{e}}_{t,v} \cdot \mathrm{e}^{\mathrm{nom}}_{v} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V} \,:\, \neg \mathrm{ext}^{e}_{v}
+```
 
 **`Store_ext_e_lower`**
 
-$$e_{t,v} \ge \underline{\mathrm{e}}_{t,v} \cdot E_{v} \qquad \forall\thinspace t \in \mathcal{T},\enspace v \in \mathcal{V} \thinspace:\thinspace \mathrm{ext}^{e}_{v}$$
+```math
+e_{t,v} \ge \underline{\mathrm{e}}_{t,v} \cdot E_{v} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V} \,:\, \mathrm{ext}^{e}_{v}
+```
 
 **`Store_ext_e_upper`**
 
-$$e_{t,v} \le \overline{\mathrm{e}}_{t,v} \cdot E_{v} \qquad \forall\thinspace t \in \mathcal{T},\enspace v \in \mathcal{V} \thinspace:\thinspace \mathrm{ext}^{e}_{v}$$
+```math
+e_{t,v} \le \overline{\mathrm{e}}_{t,v} \cdot E_{v} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V} \,:\, \mathrm{ext}^{e}_{v}
+```
 
 **`Store_ext_e_nom_lower`**
 
-$$E_{v} \ge \underline{\mathrm{e}}^{\mathrm{nom}}_{v} \qquad \forall\thinspace v \in \mathcal{V} \thinspace:\thinspace \mathrm{ext}^{e}_{v}$$
+```math
+E_{v} \ge \underline{\mathrm{e}}^{\mathrm{nom}}_{v} \qquad \forall\, v \in \mathcal{V} \,:\, \mathrm{ext}^{e}_{v}
+```
 
 **`Store_ext_e_nom_upper`**
 
-$$E_{v} \le \overline{\mathrm{e}}^{\mathrm{nom}}_{v} \qquad \forall\thinspace v \in \mathcal{V} \thinspace:\thinspace \mathrm{ext}^{e}_{v} \wedge \overline{\mathrm{e}}^{\mathrm{nom}}_{v} \text{ is defined}$$
+```math
+E_{v} \le \overline{\mathrm{e}}^{\mathrm{nom}}_{v} \qquad \forall\, v \in \mathcal{V} \,:\, \mathrm{ext}^{e}_{v} \wedge \overline{\mathrm{e}}^{\mathrm{nom}}_{v} \text{ is defined}
+```
 
 **`Store_e_nom_set`**
 
-$$E_{v} = \mathrm{e}^{\mathrm{nom,set}}_{v} \qquad \forall\thinspace v \in \mathcal{V} \thinspace:\thinspace \mathrm{ext}^{e}_{v} \wedge \mathrm{e}^{\mathrm{nom,set}}_{v} \text{ is defined}$$
+```math
+E_{v} = \mathrm{e}^{\mathrm{nom,set}}_{v} \qquad \forall\, v \in \mathcal{V} \,:\, \mathrm{ext}^{e}_{v} \wedge \mathrm{e}^{\mathrm{nom,set}}_{v} \text{ is defined}
+```
 
 **`Store_energy_balance`**
 
-$$e_{t,v} = \mathit{Store\_energy\_carried\_in}_{t,v} - q_{t,v} \cdot \mathrm{w}^{\mathrm{sto}}_{t} \qquad \forall\thinspace t \in \mathcal{T},\enspace v \in \mathcal{V}$$
+```math
+e_{t,v} = \mathit{Store\_energy\_carried\_in}_{t,v} - q_{t,v} \cdot \mathrm{w}^{\mathrm{sto}}_{t} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
+```
 
 **`GlobalConstraint_transmission_volume_expansion_limit_ub`**
 
-$$\sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{len}^{f}_{b,l} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_volume\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
+```math
+\mathit{transmission\_volume\_expansion}_{b} \le \mathrm{K}_{b} \qquad \forall\, b \in \mathcal{B} \,:\, \mathrm{type}_{b} = \text{'}\mathrm{transmission\_volume\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}
+```
 
 **`GlobalConstraint_transmission_expansion_cost_limit_lb`**
 
-$$\sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{cc}^{f}_{b,l} \ge \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}$$
+```math
+\mathit{transmission\_expansion\_cost}_{b} \ge \mathrm{K}_{b} \qquad \forall\, b \in \mathcal{B} \,:\, \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}
+```
 
 **`GlobalConstraint_transmission_expansion_cost_limit_eq`**
 
-$$\sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{cc}^{f}_{b,l} = \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{==}\text{'}$$
+```math
+\mathit{transmission\_expansion\_cost}_{b} = \mathrm{K}_{b} \qquad \forall\, b \in \mathcal{B} \,:\, \mathrm{type}_{b} = \text{'}\mathrm{transmission\_expansion\_cost\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{==}\text{'}
+```
 
 **`GlobalConstraint_tech_capacity_expansion_limit_ub`**
 
-$$\sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{m}_{b,g} + \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{m}^{f}_{b,l} + \sum_{s \in \mathcal{S}} H_{s} \cdot \mathrm{m}^{h}_{b,s} + \sum_{v \in \mathcal{V}} E_{v} \cdot \mathrm{m}^{e}_{b,v} \le \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}$$
+```math
+\mathit{tech\_capacity\_expansion}_{b} \le \mathrm{K}_{b} \qquad \forall\, b \in \mathcal{B} \,:\, \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{<=}\text{'}
+```
 
 **`GlobalConstraint_tech_capacity_expansion_limit_lb`**
 
-$$\sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{m}_{b,g} + \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{m}^{f}_{b,l} + \sum_{s \in \mathcal{S}} H_{s} \cdot \mathrm{m}^{h}_{b,s} + \sum_{v \in \mathcal{V}} E_{v} \cdot \mathrm{m}^{e}_{b,v} \ge \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}$$
+```math
+\mathit{tech\_capacity\_expansion}_{b} \ge \mathrm{K}_{b} \qquad \forall\, b \in \mathcal{B} \,:\, \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{>=}\text{'}
+```
 
 **`GlobalConstraint_tech_capacity_expansion_limit_eq`**
 
-$$\sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{m}_{b,g} + \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{m}^{f}_{b,l} + \sum_{s \in \mathcal{S}} H_{s} \cdot \mathrm{m}^{h}_{b,s} + \sum_{v \in \mathcal{V}} E_{v} \cdot \mathrm{m}^{e}_{b,v} = \mathrm{K}_{b} \qquad \forall\thinspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{==}\text{'}$$
+```math
+\mathit{tech\_capacity\_expansion}_{b} = \mathrm{K}_{b} \qquad \forall\, b \in \mathcal{B} \,:\, \mathrm{type}_{b} = \text{'}\mathrm{tech\_capacity\_expansion\_limit}\text{'} \wedge \mathrm{sense}_{b} = \text{'}\mathrm{==}\text{'}
+```
 
 **`Bus_nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{Generator\_bus}(g) = n} p_{t,g} + \sum_{s \in \mathcal{S} \thinspace:\thinspace \mathrm{StorageUnit\_bus}(s) = n} \left( h^{+}_{t,s} - h^{-}_{t,s} \right) + \sum_{v \in \mathcal{V} \thinspace:\thinspace \mathrm{Store\_bus}(v) = n} q_{t,v} - \left( \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{Link\_bus0}(l) = n} f_{t,l} \right) + \sum_{o \in \mathcal{O} \thinspace:\thinspace \mathrm{Link\_output\_bus}(o) = n} \mathit{Link\_output\_arrival}_{t,o} = \sum_{d \in \mathcal{D} \thinspace:\thinspace \mathrm{Load\_bus}(d) = n} \mathrm{load}_{t,d} \qquad \forall\thinspace t \in \mathcal{T},\enspace n \in \mathcal{N}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{Generator\_bus}(g) = n} p_{t,g} + \sum_{s \in \mathcal{S} \,:\, \mathrm{StorageUnit\_bus}(s) = n} \left( h^{+}_{t,s} - h^{-}_{t,s} \right) + \sum_{v \in \mathcal{V} \,:\, \mathrm{Store\_bus}(v) = n} q_{t,v} - \left( \sum_{l \in \mathcal{L} \,:\, \mathrm{Link\_bus0}(l) = n} f_{t,l} \right) + \sum_{o \in \mathcal{O} \,:\, \mathrm{Link\_output\_bus}(o) = n} \mathit{Link\_output\_arrival}_{t,o} = \sum_{d \in \mathcal{D} \,:\, \mathrm{Load\_bus}(d) = n} \mathrm{load}_{t,d} \qquad \forall\, t \in \mathcal{T},\ n \in \mathcal{N}
+```
 
 #### Definitions
 
 **`Generator_previous_p`**
 
-$$\mathit{Generator\_previous\_p}_{t,g} = \begin{cases} 0 & \text{if } \mathrm{pos}(t) = 0 \cr p_{t - 1,g} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{Generator\_previous\_p}_{t,g} = \begin{cases} 0 & \text{if } \mathrm{pos}(t) = 0 \\ p_{t - 1,g} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`Generator_ramp_up_allowance`**
 
-$$\mathit{Generator\_ramp\_up\_allowance}_{t,g} = \begin{cases} \mathrm{ru}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot \mathit{Generator\_previous\_status}_{t,g} + \mathrm{ru}^{\mathrm{up}}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot \left( u_{t,g} - \mathit{Generator\_previous\_status}_{t,g} \right) & \text{if } \mathrm{com}_{g} \cr \mathrm{ru}_{g} \cdot \mathit{Generator\_p\_nom\_effective}_{g} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{Generator\_ramp\_up\_allowance}_{t,g} = \begin{cases} \mathrm{ru}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot \mathit{Generator\_previous\_status}_{t,g} + \mathrm{ru}^{\mathrm{up}}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot \left( u_{t,g} - \mathit{Generator\_previous\_status}_{t,g} \right) & \text{if } \mathrm{com}_{g} \\ \mathrm{ru}_{g} \cdot \mathit{Generator\_p\_nom\_effective}_{g} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`Generator_ramp_down_allowance`**
 
-$$\mathit{Generator\_ramp\_down\_allowance}_{t,g} = \begin{cases} \mathrm{rd}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot u_{t,g} + \mathrm{rd}^{\mathrm{dn}}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot \left( \mathit{Generator\_previous\_status}_{t,g} - u_{t,g} \right) & \text{if } \mathrm{com}_{g} \cr \mathrm{rd}_{g} \cdot \mathit{Generator\_p\_nom\_effective}_{g} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{Generator\_ramp\_down\_allowance}_{t,g} = \begin{cases} \mathrm{rd}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot u_{t,g} + \mathrm{rd}^{\mathrm{dn}}_{g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot \left( \mathit{Generator\_previous\_status}_{t,g} - u_{t,g} \right) & \text{if } \mathrm{com}_{g} \\ \mathrm{rd}_{g} \cdot \mathit{Generator\_p\_nom\_effective}_{g} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`Link_p_nom_effective`**
 
-$$\mathit{Link\_p\_nom\_effective}_{l} = \begin{cases} F_{l} & \text{if } \mathrm{ext}^{f}_{l} \cr \mathrm{f}^{\mathrm{nom}}_{l} & \text{otherwise} \end{cases} \qquad \forall\thinspace l \in \mathcal{L}$$
+```math
+\mathit{Link\_p\_nom\_effective}_{l} = \begin{cases} F_{l} & \text{if } \mathrm{ext}^{f}_{l} \\ \mathrm{f}^{\mathrm{nom}}_{l} & \text{otherwise} \end{cases} \qquad \forall\, l \in \mathcal{L}
+```
 
 **`StorageUnit_charge_carried_in`**
 
-$$\mathit{StorageUnit\_charge\_carried\_in}_{t,s} = \begin{cases} \rho_{t,s} \cdot \mathit{soc}_{t \ominus 1,s} & \text{if } \mathrm{cyc}_{s} \cr \mathrm{soc}^{0}_{s} & \text{if } \neg \mathrm{cyc}_{s} \wedge \mathrm{pos}(t) = 0 \cr \rho_{t,s} \cdot \mathit{soc}_{t - 1,s} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+\mathit{StorageUnit\_charge\_carried\_in}_{t,s} = \begin{cases} \rho_{t,s} \cdot \mathit{soc}_{t \ominus 1,s} & \text{if } \mathrm{cyc}_{s} \\ \mathrm{soc}^{0}_{s} & \text{if } \neg \mathrm{cyc}_{s} \wedge \mathrm{pos}(t) = 0 \\ \rho_{t,s} \cdot \mathit{soc}_{t - 1,s} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`Store_energy_carried_in`**
 
-$$\mathit{Store\_energy\_carried\_in}_{t,v} = \begin{cases} \rho^{e}_{t,v} \cdot e_{t \ominus 1,v} & \text{if } \mathrm{cyc}^{e}_{v} \cr \mathrm{e}^{0}_{v} & \text{if } \neg \mathrm{cyc}^{e}_{v} \wedge \mathrm{pos}(t) = 0 \cr \rho^{e}_{t,v} \cdot e_{t - 1,v} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace v \in \mathcal{V}$$
+```math
+\mathit{Store\_energy\_carried\_in}_{t,v} = \begin{cases} \rho^{e}_{t,v} \cdot e_{t \ominus 1,v} & \text{if } \mathrm{cyc}^{e}_{v} \\ \mathrm{e}^{0}_{v} & \text{if } \neg \mathrm{cyc}^{e}_{v} \wedge \mathrm{pos}(t) = 0 \\ \rho^{e}_{t,v} \cdot e_{t - 1,v} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
+```
 
 **`Link_output_arrival`**
 
-$$\mathit{Link\_output\_arrival}_{t,o} = \begin{cases} f_{t \ominus \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{if } \mathrm{cyc}^{f}_{o} \cr f_{t \boxminus_{0} \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace o \in \mathcal{O}$$
+```math
+\mathit{Link\_output\_arrival}_{t,o} = \begin{cases} f_{t \ominus \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{if } \mathrm{cyc}^{f}_{o} \\ f_{t \boxminus_{0} \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ o \in \mathcal{O}
+```
+
+**`transmission_volume_expansion`**
+
+```math
+\mathit{transmission\_volume\_expansion}_{b} = \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{len}^{f}_{b,l} \qquad \forall\, b \in \mathcal{B}
+```
+
+**`transmission_expansion_cost`**
+
+```math
+\mathit{transmission\_expansion\_cost}_{b} = \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{cc}^{f}_{b,l} \qquad \forall\, b \in \mathcal{B}
+```
+
+**`tech_capacity_expansion`**
+
+```math
+\mathit{tech\_capacity\_expansion}_{b} = \sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{m}_{b,g} + \sum_{l \in \mathcal{L}} F_{l} \cdot \mathrm{m}^{f}_{b,l} + \sum_{s \in \mathcal{S}} H_{s} \cdot \mathrm{m}^{h}_{b,s} + \sum_{v \in \mathcal{V}} E_{v} \cdot \mathrm{m}^{e}_{b,v} \qquad \forall\, b \in \mathcal{B}
+```
 
 **`Generator_previous_status`**
 
-$$\mathit{Generator\_previous\_status}_{t,g} = \begin{cases} \mathrm{u}^{0}_{g} & \text{if } \mathrm{pos}(t) = 0 \cr u_{t - 1,g} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{Generator\_previous\_status}_{t,g} = \begin{cases} \mathrm{u}^{0}_{g} & \text{if } \mathrm{pos}(t) = 0 \\ u_{t - 1,g} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`Generator_p_nom_effective`**
 
-$$\mathit{Generator\_p\_nom\_effective}_{g} = \begin{cases} P_{g} & \text{if } \mathrm{ext}_{g} \cr \mathrm{p}^{\mathrm{nom}}_{g} & \text{otherwise} \end{cases} \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+\mathit{Generator\_p\_nom\_effective}_{g} = \begin{cases} P_{g} & \text{if } \mathrm{ext}_{g} \\ \mathrm{p}^{\mathrm{nom}}_{g} & \text{otherwise} \end{cases} \qquad \forall\, g \in \mathcal{G}
+```
 
 #### Variable domains
 
 **`Generator_p`**
 
-$$p_{t,g} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`Link_p`**
 
-$$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 **`StorageUnit_p_dispatch`**
 
-$$h^{+}_{t,s} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+h^{+}_{t,s} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`StorageUnit_p_store`**
 
-$$h^{-}_{t,s} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+h^{-}_{t,s} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`StorageUnit_state_of_charge`**
 
-$$\mathit{soc}_{t,s} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+\mathit{soc}_{t,s} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`Store_e`**
 
-$$e_{t,v} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace v \in \mathcal{V}$$
+```math
+e_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
+```
 
 **`Store_p`**
 
-$$q_{t,v} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace v \in \mathcal{V}$$
+```math
+q_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
+```
 
 **`Generator_p_nom_ext`**
 
-$$P_{g} \in \mathbb{R} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g}$$
+```math
+P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
+```
 
 **`Link_p_nom_ext`**
 
-$$F_{l} \in \mathbb{R} \qquad \forall\thinspace l \in \mathcal{L} \thinspace:\thinspace \mathrm{ext}^{f}_{l}$$
+```math
+F_{l} \in \mathbb{R} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{l}
+```
 
 **`StorageUnit_p_nom_ext`**
 
-$$H_{s} \in \mathbb{R} \qquad \forall\thinspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{ext}^{h}_{s}$$
+```math
+H_{s} \in \mathbb{R} \qquad \forall\, s \in \mathcal{S} \,:\, \mathrm{ext}^{h}_{s}
+```
 
 **`Store_e_nom_ext`**
 
-$$E_{v} \in \mathbb{R} \qquad \forall\thinspace v \in \mathcal{V} \thinspace:\thinspace \mathrm{ext}^{e}_{v}$$
+```math
+E_{v} \in \mathbb{R} \qquad \forall\, v \in \mathcal{V} \,:\, \mathrm{ext}^{e}_{v}
+```
 
 **`Generator_status`**
 
-$$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g}$$
+```math
+u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g}
+```
 
 </details>
 
@@ -521,16 +702,37 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
       storage_unit: {description: 'storage units, dispatch and store behind one bus connection'}
       store: {description: 'pure energy stores, each on one bus'}
       global_constraint: {description: 'PyPSA''s `GlobalConstraint` rows, one label per declared limit'}
-    lookups:
-      Generator_bus: {description: the bus a generator sits on, over: generator, into: bus}
-      Link_bus0: {description: the bus a link leaves, over: link, into: bus}
-      Link_output_link: {description: the link an output port belongs to, over: link_output, into: link}
-      Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-          A link of three output ports is three labels here rather than a third lookup, so the file states
-          any number of them', over: link_output, into: bus}
-      Load_bus: {description: the bus a load sits on, over: load, into: bus}
-      StorageUnit_bus: {description: the bus a storage unit sits on, over: storage_unit, into: bus}
-      Store_bus: {description: the bus a store sits on, over: store, into: bus}
+    relations:
+      Generator_bus:
+        description: the bus a generator sits on
+        columns: [generator, bus]
+        key: generator
+      Link_bus0:
+        description: the bus a link leaves
+        columns: [link, bus]
+        key: link
+      Link_output_link:
+        description: the link an output port belongs to
+        columns: [link_output, link]
+        key: link_output
+      Link_output_bus:
+        description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
+          output ports is three labels here rather than a third relation, so the file states any number of
+          them
+        columns: [link_output, bus]
+        key: link_output
+      Load_bus:
+        description: the bus a load sits on
+        columns: [load, bus]
+        key: load
+      StorageUnit_bus:
+        description: the bus a storage unit sits on
+        columns: [storage_unit, bus]
+        key: storage_unit
+      Store_bus:
+        description: the bus a store sits on
+        columns: [store, bus]
+        key: store
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -791,172 +993,172 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
     variables:
       Generator_p:
         description: '`Generator-p` — output of a generator in a snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
       Link_p:
         description: '`Link-p` — PyPSA''s `p0`, the flow measured at the `Link_bus0` end: a positive value
           withdraws there and injects at every bus the link''s output ports deliver to'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
       StorageUnit_p_dispatch:
         description: '`StorageUnit-p_dispatch` — power delivered to the bus'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
       StorageUnit_p_store:
         description: '`StorageUnit-p_store` — power drawn from the bus into charge'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
       StorageUnit_state_of_charge:
         description: '`StorageUnit-state_of_charge` — energy held at the end of a snapshot'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
       Store_e:
         description: '`Store-e` — energy held at the end of a snapshot'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
       Store_p:
         description: '`Store-p` — power delivered to the bus; charging is negative'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
       Generator_p_nom_ext:
         description: '`Generator-p_nom` — nominal power where it is a decision; the parameter of the same
           PyPSA name carries the fixed regime'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable
       Link_p_nom_ext:
         description: '`Link-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA
           name carries the fixed regime'
-        foreach: [link]
+        dims: [link]
         where: Link_p_nom_extendable
       StorageUnit_p_nom_ext:
         description: '`StorageUnit-p_nom` — nominal power where it is a decision; the parameter of the same
           PyPSA name carries the fixed regime'
-        foreach: [storage_unit]
+        dims: [storage_unit]
         where: StorageUnit_p_nom_extendable
       Store_e_nom_ext:
         description: '`Store-e_nom` — nominal capacity where it is a decision; the parameter of the same PyPSA
           name carries the fixed regime'
-        foreach: [store]
+        dims: [store]
         where: Store_e_nom_extendable
       Generator_status:
         description: '`Generator-status` — how much of a committable unit is on: an integer the rows below
           cap at one, or at the module count where the build is modular'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
     constraints:
       Generator_fix_p_lower:
         description: '`Generator-fix-p-lower` — a fixed generator outputs at least its minimum'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom
       Generator_fix_p_upper:
         description: '`Generator-fix-p-upper` — a fixed generator outputs at most what is available'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom
       Link_fix_p_lower:
         description: '`Link-fix-p-lower` — a fixed link carries at least its minimum, negative for the other
           way'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p >= Link_p_min_pu * Link_p_nom
       Link_fix_p_upper:
         description: '`Link-fix-p-upper` — a fixed link carries at most its nominal power'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p <= Link_p_max_pu * Link_p_nom
       Generator_ext_p_lower:
         description: '`Generator-ext-p-lower` — an extendable generator outputs at least its minimum of the
           chosen build'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom_ext
       Generator_ext_p_upper:
         description: '`Generator-ext-p-upper` — an extendable generator outputs at most what is available
           of the chosen build'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom_ext
       Generator_ext_p_nom_lower:
         description: '`Generator-ext-p_nom-lower` — the chosen build is at least its floor'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable
         expression: Generator_p_nom_ext >= Generator_p_nom_min
       Generator_ext_p_nom_upper:
         description: '`Generator-ext-p_nom-upper` — the chosen build is at most its cap; a cap of infinity
           is no row'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable AND Generator_p_nom_max
         expression: Generator_p_nom_ext <= Generator_p_nom_max
       Generator_p_nom_set:
         description: '`Generator-p_nom_set` — the chosen build pinned, wherever a value is given'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable AND Generator_p_nom_set
         expression: Generator_p_nom_ext == Generator_p_nom_set
       Generator_e_sum_min:
         description: '`Generator-e_sum_min` — energy over the horizon is at least its floor; a floor of minus
           infinity is no row'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_e_sum_min
         expression: sum(Generator_p * snapshot_weightings_generators, over=snapshot) >= Generator_e_sum_min
       Generator_e_sum_max:
         description: '`Generator-e_sum_max` — energy over the horizon is at most its budget; a budget of infinity
           is no row'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_e_sum_max
         expression: sum(Generator_p * snapshot_weightings_generators, over=snapshot) <= Generator_e_sum_max
       Link_ext_p_lower:
         description: '`Link-ext-p-lower` — an extendable link carries at least its minimum of the chosen build,
           negative for the other way'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: Link_p_nom_extendable
         expression: Link_p >= Link_p_min_pu * Link_p_nom_ext
       Link_ext_p_upper:
         description: '`Link-ext-p-upper` — an extendable link carries at most the chosen build'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: Link_p_nom_extendable
         expression: Link_p <= Link_p_max_pu * Link_p_nom_ext
       Link_ext_p_nom_lower:
         description: '`Link-ext-p_nom-lower` — the chosen build is at least its floor'
-        foreach: [link]
+        dims: [link]
         where: Link_p_nom_extendable
         expression: Link_p_nom_ext >= Link_p_nom_min
       Link_ext_p_nom_upper:
         description: '`Link-ext-p_nom-upper` — the chosen build is at most its cap; a cap of infinity is no
           row'
-        foreach: [link]
+        dims: [link]
         where: Link_p_nom_extendable AND Link_p_nom_max
         expression: Link_p_nom_ext <= Link_p_nom_max
       Link_p_nom_set:
         description: '`Link-p_nom_set` — the chosen build pinned, wherever a value is given'
-        foreach: [link]
+        dims: [link]
         where: Link_p_nom_extendable AND Link_p_nom_set
         expression: Link_p_nom_ext == Link_p_nom_set
       StorageUnit_fix_p_dispatch_lower:
         description: '`StorageUnit-fix-p_dispatch-lower` — dispatch is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_p_dispatch >= 0
       StorageUnit_fix_p_dispatch_upper:
         description: '`StorageUnit-fix-p_dispatch-upper` — a fixed unit dispatches at most its nominal power'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_p_dispatch <= StorageUnit_p_max_pu * StorageUnit_p_nom
       StorageUnit_fix_p_store_lower:
         description: '`StorageUnit-fix-p_store-lower` — storing is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_p_store >= 0
       StorageUnit_fix_p_store_upper:
         description: '`StorageUnit-fix-p_store-upper` — a fixed unit stores at most its nominal power, the
           minimum-per-unit column carrying that cap negated'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_p_store <= -StorageUnit_p_min_pu * StorageUnit_p_nom
       StorageUnit_fix_state_of_charge_lower:
         description: '`StorageUnit-fix-state_of_charge-lower` — charge is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_state_of_charge >= 0
       StorageUnit_fix_state_of_charge_upper:
         description: '`StorageUnit-fix-state_of_charge-upper` — a fixed unit holds at most its hours at nominal
           power'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_state_of_charge <= StorageUnit_max_hours * StorageUnit_p_nom
       Generator_p_ramp_limit_up:
@@ -964,7 +1166,7 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
           of the build, and a committed one no further than its start-up ramp in the snapshot it turns on.
           A unit that came into the horizon running brought an unknown output, so it carries no row at the
           first snapshot — nor does any unit a big M releases instead'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_ramp_limit_up AND NOT (Generator_committable AND Generator_p_nom_extendable) AND
           (position(snapshot) > 0 OR (Generator_committable AND Generator_status_initial == 0))
         expression: Generator_p - Generator_previous_p <= Generator_ramp_up_allowance
@@ -973,148 +1175,148 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
           of the build, and a committed one no further than its shut-down ramp in the snapshot it turns off.
           A unit that came into the horizon running brought an unknown output, so it carries no row at the
           first snapshot — nor does any unit a big M releases instead'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_ramp_limit_down AND NOT (Generator_committable AND Generator_p_nom_extendable) AND
           (position(snapshot) > 0 OR (Generator_committable AND Generator_status_initial == 0))
         expression: Generator_previous_p - Generator_p <= Generator_ramp_down_allowance
       Link_p_ramp_limit_up:
         description: '`Link-p-ramp_limit_up` — a link raises flow no faster than its limit of the build. The
           translated term vacates the first snapshot, where a plain optimize builds no row either'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: Link_ramp_limit_up
-        expression: Link_p - shift(Link_p, over=snapshot, offset=1) <= Link_ramp_limit_up * Link_p_nom_effective
+        expression: Link_p - shift(Link_p, along=snapshot, offset=1) <= Link_ramp_limit_up * Link_p_nom_effective
       Link_p_ramp_limit_down:
         description: '`Link-p-ramp_limit_down` — a link lowers flow no faster than its limit of the build'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: Link_ramp_limit_down
-        expression: shift(Link_p, over=snapshot, offset=1) - Link_p <= Link_ramp_limit_down * Link_p_nom_effective
+        expression: shift(Link_p, along=snapshot, offset=1) - Link_p <= Link_ramp_limit_down * Link_p_nom_effective
       StorageUnit_ext_p_dispatch_lower:
         description: '`StorageUnit-ext-p_dispatch-lower` — dispatch is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_p_dispatch >= 0
       StorageUnit_ext_p_dispatch_upper:
         description: '`StorageUnit-ext-p_dispatch-upper` — an extendable unit dispatches at most the chosen
           build'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_p_dispatch <= StorageUnit_p_max_pu * StorageUnit_p_nom_ext
       StorageUnit_ext_p_store_lower:
         description: '`StorageUnit-ext-p_store-lower` — storing is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_p_store >= 0
       StorageUnit_ext_p_store_upper:
         description: '`StorageUnit-ext-p_store-upper` — an extendable unit stores at most the chosen build,
           the minimum-per-unit column carrying that cap negated'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_p_store <= -StorageUnit_p_min_pu * StorageUnit_p_nom_ext
       StorageUnit_ext_state_of_charge_lower:
         description: '`StorageUnit-ext-state_of_charge-lower` — charge is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_state_of_charge >= 0
       StorageUnit_ext_state_of_charge_upper:
         description: '`StorageUnit-ext-state_of_charge-upper` — an extendable unit holds at most its hours
           at the chosen build'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_state_of_charge <= StorageUnit_max_hours * StorageUnit_p_nom_ext
       StorageUnit_ext_p_nom_lower:
         description: '`StorageUnit-ext-p_nom-lower` — the chosen build is at least its floor'
-        foreach: [storage_unit]
+        dims: [storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_p_nom_ext >= StorageUnit_p_nom_min
       StorageUnit_ext_p_nom_upper:
         description: '`StorageUnit-ext-p_nom-upper` — the chosen build is at most its cap; a cap of infinity
           is no row'
-        foreach: [storage_unit]
+        dims: [storage_unit]
         where: StorageUnit_p_nom_extendable AND StorageUnit_p_nom_max
         expression: StorageUnit_p_nom_ext <= StorageUnit_p_nom_max
       StorageUnit_p_nom_set:
         description: '`StorageUnit-p_nom_set` — the chosen build pinned, wherever a value is given'
-        foreach: [storage_unit]
+        dims: [storage_unit]
         where: StorageUnit_p_nom_extendable AND StorageUnit_p_nom_set
         expression: StorageUnit_p_nom_ext == StorageUnit_p_nom_set
       StorageUnit_energy_balance:
         description: '`StorageUnit-energy_balance` — the charge carried in, plus what is stored after its
           efficiency, less what dispatch draws down before its own, plus inflow not spilled'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         expression: StorageUnit_state_of_charge == StorageUnit_charge_carried_in + StorageUnit_efficiency_store
           * StorageUnit_p_store * snapshot_weightings_stores - StorageUnit_p_dispatch * snapshot_weightings_stores
           / StorageUnit_efficiency_dispatch
       Store_fix_e_lower:
         description: '`Store-fix-e-lower` — a fixed store holds at least its floor'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         where: not Store_e_nom_extendable
         expression: Store_e >= Store_e_min_pu * Store_e_nom
       Store_fix_e_upper:
         description: '`Store-fix-e-upper` — a fixed store holds at most its nominal capacity'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         where: not Store_e_nom_extendable
         expression: Store_e <= Store_e_max_pu * Store_e_nom
       Store_ext_e_lower:
         description: '`Store-ext-e-lower` — an extendable store holds at least its floor of the chosen build'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         where: Store_e_nom_extendable
         expression: Store_e >= Store_e_min_pu * Store_e_nom_ext
       Store_ext_e_upper:
         description: '`Store-ext-e-upper` — an extendable store holds at most the chosen build'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         where: Store_e_nom_extendable
         expression: Store_e <= Store_e_max_pu * Store_e_nom_ext
       Store_ext_e_nom_lower:
         description: '`Store-ext-e_nom-lower` — the chosen build is at least its floor'
-        foreach: [store]
+        dims: [store]
         where: Store_e_nom_extendable
         expression: Store_e_nom_ext >= Store_e_nom_min
       Store_ext_e_nom_upper:
         description: '`Store-ext-e_nom-upper` — the chosen build is at most its cap; a cap of infinity is
           no row'
-        foreach: [store]
+        dims: [store]
         where: Store_e_nom_extendable AND Store_e_nom_max
         expression: Store_e_nom_ext <= Store_e_nom_max
       Store_e_nom_set:
         description: '`Store-e_nom_set` — the chosen build pinned, wherever a value is given'
-        foreach: [store]
+        dims: [store]
         where: Store_e_nom_extendable AND Store_e_nom_set
         expression: Store_e_nom_ext == Store_e_nom_set
       Store_energy_balance:
         description: '`Store-energy_balance` — the energy carried in, less what is delivered to the bus'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         expression: Store_e == Store_energy_carried_in - Store_p * snapshot_weightings_stores
       GlobalConstraint_transmission_volume_expansion_limit_ub:
         description: '`transmission_volume_expansion_limit` — its total, at most its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'transmission_volume_expansion_limit' AND GlobalConstraint_sense ==
           '<='
         expression: transmission_volume_expansion <= GlobalConstraint_constant
       GlobalConstraint_transmission_expansion_cost_limit_lb:
         description: '`transmission_expansion_cost_limit` — its total, at least its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'transmission_expansion_cost_limit' AND GlobalConstraint_sense ==
           '>='
         expression: transmission_expansion_cost >= GlobalConstraint_constant
       GlobalConstraint_transmission_expansion_cost_limit_eq:
         description: '`transmission_expansion_cost_limit` — its total, at its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'transmission_expansion_cost_limit' AND GlobalConstraint_sense ==
           '=='
         expression: transmission_expansion_cost == GlobalConstraint_constant
       GlobalConstraint_tech_capacity_expansion_limit_ub:
         description: '`tech_capacity_expansion_limit` — its total, at most its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'tech_capacity_expansion_limit' AND GlobalConstraint_sense == '<='
         expression: tech_capacity_expansion <= GlobalConstraint_constant
       GlobalConstraint_tech_capacity_expansion_limit_lb:
         description: '`tech_capacity_expansion_limit` — its total, at least its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'tech_capacity_expansion_limit' AND GlobalConstraint_sense == '>='
         expression: tech_capacity_expansion >= GlobalConstraint_constant
       GlobalConstraint_tech_capacity_expansion_limit_eq:
         description: '`tech_capacity_expansion_limit` — its total, at its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'tech_capacity_expansion_limit' AND GlobalConstraint_sense == '=='
         expression: tech_capacity_expansion == GlobalConstraint_constant
       Bus_nodal_balance:
@@ -1122,7 +1324,7 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
           less what the links take away, plus what arrives over them after losses and any delay at every port
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(Generator_p, by=Generator_bus) + sum(StorageUnit_p_dispatch - StorageUnit_p_store,
           by=StorageUnit_bus) + sum(Store_p, by=Store_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
           by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
@@ -1130,14 +1332,14 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
       Generator_previous_p:
         description: the output a generator carries into a snapshot — nothing at the start of the horizon,
           which is why a unit that came in running carries no ramp row there
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: 0}
-        otherwise: shift(Generator_p, over=snapshot, offset=1)
+        otherwise: shift(Generator_p, along=snapshot, offset=1)
       Generator_ramp_up_allowance:
         description: how far a generator may raise output between two snapshots — its ramp limit of the build
           while it stays on, plus its start-up ramp in the snapshot it turns on
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           committed: {when: Generator_committable, expression: Generator_ramp_limit_up * Generator_p_nom *
               Generator_previous_status + Generator_ramp_limit_start_up * Generator_p_nom * (Generator_status
@@ -1146,7 +1348,7 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
       Generator_ramp_down_allowance:
         description: how far a generator may lower output between two snapshots — its ramp limit of the build
           while it stays on, plus its shut-down ramp in the snapshot it turns off
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           committed: {when: Generator_committable, expression: Generator_ramp_limit_down * Generator_p_nom
               * Generator_status + Generator_ramp_limit_shut_down * Generator_p_nom * (Generator_previous_status
@@ -1155,7 +1357,7 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
       Link_p_nom_effective:
         description: the build a link's limits are taken against — the chosen one where it is extendable,
           the given one otherwise
-        foreach: [link]
+        dims: [link]
         cases:
           extendable: {when: Link_p_nom_extendable, expression: Link_p_nom_ext}
         otherwise: Link_p_nom
@@ -1163,32 +1365,32 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
         description: the charge a unit opens a snapshot with — its last snapshot's less standing loss where
           it is cyclic, the given initial charge at the start of the horizon, which no standing loss has touched
           yet, and the previous snapshot's less standing loss otherwise
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         cases:
           cyclic: {when: StorageUnit_cyclic_state_of_charge, expression: 'StorageUnit_retention * shift(StorageUnit_state_of_charge,
-              over=snapshot, offset=1, edge=''wrap'')'}
+              along=snapshot, offset=1, edge=''wrap'')'}
           opening: {when: not StorageUnit_cyclic_state_of_charge AND position(snapshot) == 0, expression: StorageUnit_state_of_charge_initial}
-        otherwise: StorageUnit_retention * shift(StorageUnit_state_of_charge, over=snapshot, offset=1)
+        otherwise: StorageUnit_retention * shift(StorageUnit_state_of_charge, along=snapshot, offset=1)
       Store_energy_carried_in:
         description: the energy a store opens a snapshot with — its last snapshot's less standing loss where
           it is cyclic, the given initial energy at the start of the horizon, which no standing loss has touched
           yet, and the previous snapshot's less standing loss otherwise
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         cases:
-          cyclic: {when: Store_e_cyclic, expression: 'Store_retention * shift(Store_e, over=snapshot, offset=1,
+          cyclic: {when: Store_e_cyclic, expression: 'Store_retention * shift(Store_e, along=snapshot, offset=1,
               edge=''wrap'')'}
           opening: {when: not Store_e_cyclic AND position(snapshot) == 0, expression: Store_e_initial}
-        otherwise: Store_retention * shift(Store_e, over=snapshot, offset=1)
+        otherwise: Store_retention * shift(Store_e, along=snapshot, offset=1)
       Link_output_arrival:
         description: what a link delivers to an output port at a snapshot — its flow after the port's efficiency,
           delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the
           horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
-        foreach: [snapshot, link_output]
+        dims: [snapshot, link_output]
         cases:
           wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
-              Link_efficiency, over=snapshot, offset=Link_output_delay, edge=''wrap'')'}
-        otherwise: shift(at(Link_p, by=Link_output_link) * Link_efficiency, over=snapshot, offset=Link_output_delay,
+              Link_efficiency, along=snapshot, offset=Link_output_delay, edge=''wrap'')'}
+        otherwise: shift(at(Link_p, by=Link_output_link) * Link_efficiency, along=snapshot, offset=Link_output_delay,
           edge=0)
       transmission_volume_expansion: {description: what a `transmission_volume_expansion_limit` row totals
           — length times the chosen build of the row's branches, expression: 'sum(Link_p_nom_ext * Link_volume_weight,
@@ -1204,14 +1406,14 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
       Generator_previous_status:
         description: the commitment state a generator carries into a snapshot — the state it brought into
           the horizon at the first, the previous snapshot's after that
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: Generator_status_initial}
-        otherwise: shift(Generator_status, over=snapshot, offset=1)
+        otherwise: shift(Generator_status, along=snapshot, offset=1)
       Generator_p_nom_effective:
         description: the build a generator's limits are taken against — the chosen one where it is extendable,
           the given one otherwise
-        foreach: [generator]
+        dims: [generator]
         cases:
           extendable: {when: Generator_p_nom_extendable, expression: Generator_p_nom_ext}
         otherwise: Generator_p_nom
@@ -1228,7 +1430,7 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
     The prep — every table the spec declares, from the network — and the solve:
 
     ```python
-    from differential.pypsa.prep import lookup, static, varying, weighting
+    from differential.pypsa.prep import relation, static, varying, weighting
 
 
     def _carrier_list(gc: pd.Series) -> list[str]:
@@ -1315,7 +1517,7 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
     def _per_port(n: pypsa.Network, column: str, as_name: str | None = None) -> pd.DataFrame:
         """One column of the long port table keyed by ``link_output`` — what a port names, or what it carries.
 
-        *as_name* is what the file calls it: a lookup keeps its target dimension's
+        *as_name* is what the file calls it: a relation keeps its target dimension's
         own name, and every parameter over the ports lands under ``value``.
         """
         ports = _link_ports(n)
@@ -1359,13 +1561,13 @@ $$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{
             **scenarios(n),
             **periods(n),
             **carriers(n),
-        'Generator_bus': lookup(n, 'Generator', 'bus'),
-        'Link_bus0': lookup(n, 'Link', 'bus0'),
+        'Generator_bus': relation(n, 'Generator', 'bus'),
+        'Link_bus0': relation(n, 'Link', 'bus0'),
         'Link_output_link': _per_port(n, 'link'),
         'Link_output_bus': _per_port(n, 'bus'),
-        'Load_bus': lookup(n, 'Load', 'bus'),
-        'StorageUnit_bus': lookup(n, 'StorageUnit', 'bus'),
-        'Store_bus': lookup(n, 'Store', 'bus'),
+        'Load_bus': relation(n, 'Load', 'bus'),
+        'StorageUnit_bus': relation(n, 'StorageUnit', 'bus'),
+        'Store_bus': relation(n, 'Store', 'bus'),
         'snapshot_weightings_objective': weighting(n, 'objective'),
         'Generator_p_nom': static(n, 'Generator', 'p_nom'),
         'Generator_p_nom_extendable': static(n, 'Generator', 'p_nom_extendable'),

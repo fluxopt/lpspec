@@ -64,7 +64,7 @@ PORT_REFERENCES: dict[str, dict[str, Any]] = constructs.REFERENCES
 
 
 def relation(over: str, into: str, labels: Sequence[Any], values: Sequence[Any]) -> pl.DataFrame:
-    """A lookup's map as the table it is supplied under its own key.
+    """A relation's map as the table it is supplied under its own key.
 
     Takes the column form these fixtures used to carry — one value per label,
     `None` where the label maps nowhere — and returns the relation: the rows it
@@ -365,7 +365,7 @@ def law_data() -> dict[str, Any]:
 def law_spec(
     expression: str,
     *,
-    foreach: list[str],
+    dims: list[str],
     objective: str = 'sum(x)',
     also: dict | None = None,
 ) -> dict:
@@ -373,7 +373,7 @@ def law_spec(
 
     Args:
         expression: The constraint the model exists to state.
-        foreach: The dimensions the row is repeated over. Required rather than
+        dims: The dimensions the row is repeated over. Required rather than
             defaulted: a row repeated across a dimension its expression does
             not carry is refused, so the caller that built the expression is
             the one that knows.
@@ -386,10 +386,10 @@ def law_spec(
         'dimensions': dict(LAW_DIMS),
         'parameters': {'gate': {'dims': ['f'], 'dtype': 'bool'}, 'w': {'dims': ['f']}},
         'variables': {
-            'x': {'foreach': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
-            'y': {'foreach': ['f', 't'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
+            'x': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
+            'y': {'dims': ['f', 't'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
         },
-        'constraints': {'c': {'foreach': foreach, 'expression': expression}, **(also or {})},
+        'constraints': {'c': {'dims': dims, 'expression': expression}, **(also or {})},
         'objective': {'sense': 'maximize', 'expression': objective},
     }
 
@@ -402,22 +402,22 @@ def masked_operand_spec(constraint: str, expression: str, *, grouped: bool = Fal
     frame of its own), and ``take`` is capped only by *expression*'s row. The
     1000x penalty on ``level`` is the knowledge: it makes "row dropped" and
     "row built and binding" separable from the objective alone, rather than
-    only from a row count. ``grouped`` adds the ``season_of`` lookup the
+    only from a row count. ``grouped`` adds the ``season_of`` relation the
     partitioned walks read.
     """
     spec: dict[str, Any] = {
         'dimensions': {'t': {'dtype': 'int'}},
         'parameters': {'usable': {'dims': ['t']}},
         'variables': {
-            'level': {'foreach': ['t'], 'where': 'usable > 0', 'bounds': {'lower': 0, 'upper': 10}},
-            'take': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}},
+            'level': {'dims': ['t'], 'where': 'usable > 0', 'bounds': {'lower': 0, 'upper': 10}},
+            'take': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}},
         },
-        'constraints': {constraint: {'foreach': ['t'], 'expression': expression}},
+        'constraints': {constraint: {'dims': ['t'], 'expression': expression}},
         'objective': {'sense': 'maximize', 'expression': 'sum(take, over=t) - 1000 * sum(level, over=t)'},
     }
     if grouped:
         spec['dimensions']['season'] = {'dtype': 'str'}
-        spec['lookups'] = {'season_of': {'over': 't', 'into': 'season'}}
+        spec['relations'] = {'season_of': {'columns': ['t', 'season'], 'key': 't'}}
     if not masked:
         del spec['parameters']
         del spec['variables']['level']['where']
@@ -504,8 +504,8 @@ def recomputed_row_values(engine, result) -> Any:
 SOLVER_VECTOR_SPEC = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'load': {'dims': ['t']}},
-    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'meet': {'foreach': ['t'], 'expression': 'x >= load'}},
+    'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {'meet': {'dims': ['t'], 'expression': 'x >= load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x, over=t)'},
 }
 
@@ -520,8 +520,8 @@ SOLVER_VECTOR_LOAD = {'t': [0, 1, 2], 'load': pl.DataFrame({'t': [0, 1, 2], 'val
 LP = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'load': {'dims': ['t']}, 'price': {'dims': ['t']}},
-    'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'meet': {'foreach': ['t'], 'expression': 'p >= load'}},
+    'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'meet': {'dims': ['t'], 'expression': 'p >= load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p * price, over=t)'},
 }
 
@@ -531,10 +531,10 @@ QP = {
     'dimensions': {'g': {'dtype': 'str'}},
     'parameters': {'need': {'dims': []}, 'toll': {'dims': ['g']}},
     'variables': {
-        'p': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
-        'q': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
+        'p': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
+        'q': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'meet': {'foreach': [], 'expression': 'sum(p, over=g) + sum(q, over=g) >= need'}},
+    'constraints': {'meet': {'dims': [], 'expression': 'sum(p, over=g) + sum(q, over=g) >= need'}},
     #: A linear term beside the quadratic one, deliberately: ``setMObjective``
     #: sets the *whole* objective, so a hand-off that passed only ``Q`` would
     #: drop the linear half — and a purely quadratic case could not tell.
@@ -552,24 +552,24 @@ QP_SOURCES = {
 MAX = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'cap': {'dims': ['t']}},
-    'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'lim': {'foreach': ['t'], 'expression': 'p <= cap'}},
+    'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {'lim': {'dims': ['t'], 'expression': 'p <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(p, over=t) + 5'},
 }
 
 MIP = {
     'dimensions': {'i': {'dtype': 'int'}, 'one': {'dtype': 'int'}},
     'parameters': {'w': {'dims': ['i']}, 'cap': {'dims': ['one']}},
-    'variables': {'x': {'foreach': ['i'], 'domain': 'binary'}},
-    'constraints': {'budget': {'foreach': ['one'], 'expression': 'sum(x * w, over=i) <= cap'}},
+    'variables': {'x': {'dims': ['i'], 'domain': 'binary'}},
+    'constraints': {'budget': {'dims': ['one'], 'expression': 'sum(x * w, over=i) <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * w, over=i)'},
 }
 
 INFEASIBLE = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'load': {'dims': ['t']}},
-    'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 1}}},
-    'constraints': {'meet': {'foreach': ['t'], 'expression': 'p == load'}},
+    'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 1}}},
+    'constraints': {'meet': {'dims': ['t'], 'expression': 'p == load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
 }
 
@@ -651,8 +651,8 @@ ITEMS = [f'item{i}' for i in range(12)]
 KNAPSACK = {
     'dimensions': {'item': {'dtype': 'str'}},
     'parameters': {'worth': {'dims': ['item']}, 'weight': {'dims': ['item']}, 'capacity': {'dims': []}},
-    'variables': {'take': {'foreach': ['item'], 'domain': 'binary'}},
-    'constraints': {'fits': {'foreach': [], 'expression': 'sum(weight * take, over=item) <= capacity'}},
+    'variables': {'take': {'dims': ['item'], 'domain': 'binary'}},
+    'constraints': {'fits': {'dims': [], 'expression': 'sum(weight * take, over=item) <= capacity'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(take * worth)'},
 }
 

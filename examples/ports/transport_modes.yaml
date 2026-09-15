@@ -16,11 +16,11 @@ dimensions:
     description: one way of reaching one centre from one depot, by rail or by road
     dtype: str
 
-lookups:
+relations:
   origin:
     description: the depot a connection leaves
-    over: connection
-    into: depot
+    columns: [connection, depot]
+    key: connection
 
 parameters:
   stock:
@@ -44,18 +44,18 @@ parameters:
 variables:
   moved:
     description: tonnes sent over a connection
-    foreach: [connection]
+    dims: [connection]
     bounds:
       lower: min_load
       upper: max_load
 
 constraints:
   within_stock:
-    foreach: [depot]
+    dims: [depot]
     expression: sum(moved, by=origin) <= stock
 
   move_the_lot:
-    foreach: []
+    dims: []
     expression: sum(moved, over=connection) == total_to_move
 
 objective:

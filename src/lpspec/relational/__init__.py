@@ -12,6 +12,5 @@ inside the function that calls it, so one a caller has not installed never
 reaches their import path.
 
 Nothing is re-exported here. Every consumer imports from the module that owns
-the name, so the import site says which layer the caller is reaching into, and
-no contract module has to name an implementation.
+the name.
 """

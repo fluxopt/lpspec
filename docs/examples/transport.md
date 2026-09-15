@@ -8,10 +8,10 @@ A network: generators sit on buses, lines connect buses, and power balances at e
 
 $$\sum_{g \thinspace:\thinspace \mathrm{bus}(g) = b} p_{s,g} \quad+\quad \sum_{\ell \thinspace:\thinspace \mathrm{to}(\ell) = b} f_{s,\ell} \quad-\quad \sum_{\ell \thinspace:\thinspace \mathrm{from}(\ell) = b} f_{s,\ell} \quad=\quad d_{s,b}$$
 
-Each sum is over the lines or generators a *coordinate map* sends to bus $b$ —
-$\mathrm{bus}$, $\mathrm{to}$ and $\mathrm{from}$ are the coordinates the
-dimensions declare, not sets in their own right. Load is $d$ here, because
-$\ell$ is already the line index.
+Each sum runs over the generators or lines a relation sends to bus $b$.
+$\mathrm{bus}$, $\mathrm{to}$ and $\mathrm{from}$ are relations the dimensions
+declare, not sets in their own right. Load is $d$ here, because $\ell$ is
+already the line index.
 
 ## The model
 
@@ -25,52 +25,81 @@ Least-cost dispatch over a network, where a generator sits on a bus, a line join
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{S}$ | index $s$ — `snapshot` — dispatch periods |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{L}$ | index $\ell$ — `line` with $\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}$ — transmission lines, each joining two buses |
+| $`\mathcal{S}`$ | index $`s`$ — `snapshot` — dispatch periods |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
+| $`\mathcal{L}`$ | index $`\ell`$ — `line` with $`\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — transmission lines, each joining two buses |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\bar p$ | `p_max` over $\mathcal{G}$ — installed capacity |
-| $c$ | `cost` over $\mathcal{G}$ — marginal cost |
-| $\bar f$ | `cap` over $\mathcal{L}$ — forward transmission limit |
-| $\underline{f}$ | `neg_cap` over $\mathcal{L}$ — reverse transmission limit |
-| $d$ | `load` over $\mathcal{S} \times \mathcal{B}$ — demand at each bus |
+| $`\bar p`$ | `p_max` over $`\mathcal{G}`$ — installed capacity |
+| $`c`$ | `cost` over $`\mathcal{G}`$ — marginal cost |
+| $`\bar f`$ | `cap` over $`\mathcal{L}`$ — forward transmission limit |
+| $`\underline{f}`$ | `neg_cap` over $`\mathcal{L}`$ — reverse transmission limit |
+| $`d`$ | `load` over $`\mathcal{S} \times \mathcal{B}`$ — demand at each bus |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{S} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $f$ | `f` over $\mathcal{S} \times \mathcal{L}$ — flow on a line, signed towards its `line_to` bus |
+| $`p`$ | `p` over $`\mathcal{S} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`f`$ | `f` over $`\mathcal{S} \times \mathcal{L}`$ — flow on a line, signed towards its `line_to` bus |
+
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $`\mathit{gen\_at\_bus}`$ | `gen_at_bus` over $`\mathcal{S} \times \mathcal{B}`$ — what the generators sitting on a bus produce there |
+| $`\mathit{net\_inflow}`$ | `net_inflow` over $`\mathcal{S} \times \mathcal{B}`$ — flow arriving at a bus minus flow leaving it, so a negative value is a net export |
 
 #### Objective
 
-$$\min \sum_{s \in \mathcal{S},\enspace g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
+```math
+\min \sum_{s \in \mathcal{S},\ g \in \mathcal{G}} p_{s,g} \cdot c_{g}
+```
 
 #### Subject to
 
 **`balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{s,g} + \sum_{\ell \in \mathcal{L} \thinspace:\thinspace \mathrm{line\_to}(\ell) = b} f_{s,\ell} - \left( \sum_{\ell \in \mathcal{L} \thinspace:\thinspace \mathrm{line\_from}(\ell) = b} f_{s,\ell} \right) = d_{s,b} \qquad \forall\thinspace s \in \mathcal{S},\enspace b \in \mathcal{B}$$
+```math
+\mathit{gen\_at\_bus}_{s,b} + \mathit{net\_inflow}_{s,b} = d_{s,b} \qquad \forall\, s \in \mathcal{S},\ b \in \mathcal{B}
+```
+
+#### Definitions
+
+**`gen_at_bus`**
+
+```math
+\mathit{gen\_at\_bus}_{s,b} = \sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{s,g} \qquad \forall\, s \in \mathcal{S},\ b \in \mathcal{B}
+```
+
+**`net_inflow`**
+
+```math
+\mathit{net\_inflow}_{s,b} = \sum_{\ell \in \mathcal{L} \,:\, \mathrm{line\_to}(\ell) = b} f_{s,\ell} - \left( \sum_{\ell \in \mathcal{L} \,:\, \mathrm{line\_from}(\ell) = b} f_{s,\ell} \right) \qquad \forall\, s \in \mathcal{S},\ b \in \mathcal{B}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{s,g} \le \bar p_{g} \qquad \forall\thinspace s \in \mathcal{S},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{s,g} \le \bar p_{g} \qquad \forall\, s \in \mathcal{S},\ g \in \mathcal{G}
+```
 
 **`f`**
 
-$$\underline{f}_{\ell} \le f_{s,\ell} \le \bar f_{\ell} \qquad \forall\thinspace s \in \mathcal{S},\enspace \ell \in \mathcal{L}$$
+```math
+\underline{f}_{\ell} \le f_{s,\ell} \le \bar f_{\ell} \qquad \forall\, s \in \mathcal{S},\ \ell \in \mathcal{L}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -94,19 +123,19 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: transmission lines, each joining two buses
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       line_from:
         description: the bus a line leaves
-        over: line
-        into: bus
+        columns: [line, bus]
+        key: line
       line_to:
         description: the bus a line arrives at
-        over: line
-        into: bus
+        columns: [line, bus]
+        key: line
 
     parameters:
       p_max:
@@ -128,13 +157,13 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_max
       f:
         description: flow on a line, signed towards its `line_to` bus
-        foreach: [snapshot, line]
+        dims: [snapshot, line]
         bounds:
           lower: neg_cap
           upper: cap
@@ -150,7 +179,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     constraints:
       balance:
         description: what is generated at a bus plus what arrives over the lines meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: gen_at_bus + net_inflow == load
 
     objective:
@@ -206,22 +235,22 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
 
 ## What it exercises
 
-Three `sum(by=)` calls, and they are what a network *is* in this language.
-A model can declare **lookups** — `gen_bus` maps `generator` onto `bus`, `line_from`
-and `line_to` map `line` — and `sum(f, by=line_to)` sums along a
-line's `line_to` lookup, landing the result on `bus`. The same `f` is summed
-twice through two different lookups, once as an inflow and once as an
+Three `sum(by=)` calls are what a network *is* in this language. The model
+declares three **relations**: `gen_bus` maps `generator` onto `bus`, and
+`line_from` and `line_to` map `line` onto `bus`. `sum(f, by=line_to)` sums
+each line's flow onto its `line_to` bus, so the result lands on `bus`. The
+same `f` is summed twice through two relations, once as an inflow and once as an
 outflow.
 
-No adjacency matrix, and no join written by the modeller: the topology is
-data on the dimension.
+There is no adjacency matrix and no hand-written join: the topology is data on
+the dimension.
 
-The two halves of the balance are **named expressions** — substituted into the
-constraint before either backend sees the model, so naming them costs nothing
-at build or solve; what it buys is a constraint that reads as the sentence it
-is, and a quantity the solution can hand back: `expression('net_inflow')` is
-the bus-by-bus net flow the balance constrained, one definition for the
-constraint and the report.
+The two halves of the balance are **named expressions**. Each is substituted
+into the constraint before either backend sees the model, so naming them costs
+nothing at build or solve. What it buys is a constraint that reads as a
+sentence, and a quantity the solution hands back: `expression('net_inflow')`
+is the net flow at each bus that the balance constrained. One definition serves
+the constraint and the report.
 
 ---
 

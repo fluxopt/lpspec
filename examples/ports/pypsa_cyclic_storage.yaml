@@ -20,23 +20,23 @@ dimensions:
     description: storage units, each sitting on one bus
     dtype: str
 
-lookups:
+relations:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    columns: [generator, bus]
+    key: generator
   link_from:
     description: the bus a link leaves
-    over: link
-    into: bus
+    columns: [link, bus]
+    key: link
   link_to:
     description: the bus a link arrives at
-    over: link
-    into: bus
+    columns: [link, bus]
+    key: link
   storage_bus:
     description: the bus a storage unit sits on
-    over: storage
-    into: bus
+    columns: [storage, bus]
+    key: storage
 
 parameters:
   p_nom:
@@ -79,31 +79,31 @@ parameters:
 variables:
   p:
     description: output of a generator in a snapshot
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds:
       lower: 0
       upper: p_nom
   f:
     description: flow on a link, signed towards its `link_to` bus
-    foreach: [snapshot, link]
+    dims: [snapshot, link]
     bounds:
       lower: neg_rating
       upper: rating
   p_dispatch:
     description: power a storage unit puts onto its bus
-    foreach: [snapshot, storage]
+    dims: [snapshot, storage]
     bounds:
       lower: 0
       upper: storage_p_nom
   p_store:
     description: power a storage unit takes off its bus
-    foreach: [snapshot, storage]
+    dims: [snapshot, storage]
     bounds:
       lower: 0
       upper: storage_p_nom
   soc:
     description: energy in the store at the end of a snapshot
-    foreach: [snapshot, storage]
+    dims: [snapshot, storage]
     bounds:
       lower: 0
       upper: soc_max
@@ -113,7 +113,7 @@ constraints:
     description: >-
       what is generated at a bus, plus what arrives over the links and out of
       the stores, meets the load there
-    foreach: [snapshot, bus]
+    dims: [snapshot, bus]
     expression: >-
       sum(p, by=gen_bus)
       + sum(f, by=link_to)
@@ -123,21 +123,21 @@ constraints:
       == load
 
   ramp_up:
-    foreach: [snapshot, generator]
-    expression: p - shift(p, over=snapshot, offset=1) <= ramp_limit_up * p_nom
+    dims: [snapshot, generator]
+    expression: p - shift(p, along=snapshot, offset=1) <= ramp_limit_up * p_nom
 
   ramp_down:
-    foreach: [snapshot, generator]
-    expression: shift(p, over=snapshot, offset=1) - p <= ramp_limit_down * p_nom
+    dims: [snapshot, generator]
+    expression: shift(p, along=snapshot, offset=1) - p <= ramp_limit_down * p_nom
 
   energy_balance:
     description: >-
       the level carried into a snapshot, decayed, plus what was stored and less
       what was taken — and it wraps at the horizon, so the first snapshot
       inherits from the last
-    foreach: [snapshot, storage]
+    dims: [snapshot, storage]
     expression: >-
-      soc == shift(soc, over=snapshot, offset=1, edge='wrap') * (1 - standing_loss)
+      soc == shift(soc, along=snapshot, offset=1, edge='wrap') * (1 - standing_loss)
       + p_store * efficiency_store
       - p_dispatch / efficiency_dispatch
 

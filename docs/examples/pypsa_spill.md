@@ -5,12 +5,12 @@ A hydro unit takes inflow it did not choose, and spills what neither turbine nor
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **3200.0**, matched to `rtol=1e-09`.
 
 `inflow` is energy that arrives whether or not the model wanted it. When the
-reservoir is full and the turbine is at its limit, the energy balance can only
-close if something lets the surplus go — which is what `spill` is.
+reservoir is full and the turbine is at its limit, the energy balance closes
+only if something lets the surplus go. That is `spill`.
 
 Two storage units share the bus: `res` receives inflow, `bat` receives none. The
-battery earns its place by absorbing water that would otherwise be spilled, so
-neither unit is decoration.
+battery absorbs water that would otherwise be spilled, so neither unit is
+decoration.
 
 ## The model
 
@@ -24,81 +24,99 @@ PyPSA storage spillage: water a reservoir cannot hold leaves through a second si
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
-| $\mathcal{S}$ | index $s$ — `storage` with $\mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}$ — storage units, each sitting on one bus |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
+| $`\mathcal{S}`$ | index $`s`$ — `storage` with $`\mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — storage units, each sitting on one bus |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — installed capacity of a generator |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{storage\_p\_nom}$ | `storage_p_nom` over $\mathcal{S}$ — most a storage unit may charge or discharge in one snapshot |
-| $\mathrm{soc}^{\mathrm{max}}$ | `soc_max` over $\mathcal{S}$ — how much energy a storage unit holds when full |
-| $\mathrm{soc}^{\mathrm{initial}}$ | `soc_initial` over $\mathcal{S}$ — energy in the store before the first snapshot |
-| $\mathrm{inflow}$ | `inflow` over $\mathcal{T} \times \mathcal{S}$ — energy arriving at a storage unit whether or not it was wanted — zero for a unit that receives none |
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — installed capacity of a generator |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{storage\_p\_nom}`$ | `storage_p_nom` over $`\mathcal{S}`$ — most a storage unit may charge or discharge in one snapshot |
+| $`\mathrm{soc}^{\mathrm{max}}`$ | `soc_max` over $`\mathcal{S}`$ — how much energy a storage unit holds when full |
+| $`\mathrm{soc}^{\mathrm{initial}}`$ | `soc_initial` over $`\mathcal{S}`$ — energy in the store before the first snapshot |
+| $`\mathrm{inflow}`$ | `inflow` over $`\mathcal{T} \times \mathcal{S}`$ — energy arriving at a storage unit whether or not it was wanted — zero for a unit that receives none |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $p^{\mathrm{dispatch}}$ | `p_dispatch` over $\mathcal{T} \times \mathcal{S}$ — power a storage unit puts onto its bus |
-| $p^{\mathrm{store}}$ | `p_store` over $\mathcal{T} \times \mathcal{S}$ — power a storage unit takes off its bus |
-| $\mathit{soc}$ | `soc` over $\mathcal{T} \times \mathcal{S}$ — energy in the store at the end of a snapshot |
-| $\mathit{spill}$ | `spill` over $\mathcal{T} \times \mathcal{S}$ — inflow let go rather than kept, and never more than that snapshot's arrival. A unit that receives no inflow has none to let go, which is a spill of zero rather than a quantity with no value — so the energy balance keeps its row there. |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`p^{\mathrm{dispatch}}`$ | `p_dispatch` over $`\mathcal{T} \times \mathcal{S}`$ — power a storage unit puts onto its bus |
+| $`p^{\mathrm{store}}`$ | `p_store` over $`\mathcal{T} \times \mathcal{S}`$ — power a storage unit takes off its bus |
+| $`\mathit{soc}`$ | `soc` over $`\mathcal{T} \times \mathcal{S}`$ — energy in the store at the end of a snapshot |
+| $`\mathit{spill}`$ | `spill` over $`\mathcal{T} \times \mathcal{S}`$ — inflow let go rather than kept, and never more than that snapshot's arrival. A unit that receives no inflow has none to let go, which is a spill of zero rather than a quantity with no value — so the energy balance keeps its row there. |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{nom}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
-$\mathrm{pos}(t)$ denotes where index $t$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $0$. The index itself stays the coordinate, so $t$ compares against labels and $\mathrm{pos}(t)$ against positions.
+$`\mathrm{pos}(t)`$ denotes where index $`t`$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $`0`$. The index itself stays the coordinate, so $`t`$ compares against labels and $`\mathrm{pos}(t)`$ against positions.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g}
+```
 
 #### Subject to
 
 **`nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{t,g} + \sum_{s \in \mathcal{S} \thinspace:\thinspace \mathrm{storage\_bus}(s) = b} p^{\mathrm{dispatch}}_{t,s} - \left( \sum_{s \in \mathcal{S} \thinspace:\thinspace \mathrm{storage\_bus}(s) = b} p^{\mathrm{store}}_{t,s} \right) = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{t,g} + \sum_{s \in \mathcal{S} \,:\, \mathrm{storage\_bus}(s) = b} p^{\mathrm{dispatch}}_{t,s} - \left( \sum_{s \in \mathcal{S} \,:\, \mathrm{storage\_bus}(s) = b} p^{\mathrm{store}}_{t,s} \right) = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 **`energy_balance_initial`**
 
-$$\mathit{soc}_{t,s} = \mathrm{soc}^{\mathrm{initial}}_{s} + p^{\mathrm{store}}_{t,s} - p^{\mathrm{dispatch}}_{t,s} + \mathrm{inflow}_{t,s} - \mathit{spill}_{t,s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{pos}(t) = 0$$
+```math
+\mathit{soc}_{t,s} = \mathrm{soc}^{\mathrm{initial}}_{s} + p^{\mathrm{store}}_{t,s} - p^{\mathrm{dispatch}}_{t,s} + \mathrm{inflow}_{t,s} - \mathit{spill}_{t,s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \mathrm{pos}(t) = 0
+```
 
 **`energy_balance`**
 
-$$\mathit{soc}_{t,s} = \mathit{soc}_{t - 1,s} + p^{\mathrm{store}}_{t,s} - p^{\mathrm{dispatch}}_{t,s} + \mathrm{inflow}_{t,s} - \mathit{spill}_{t,s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+\mathit{soc}_{t,s} = \mathit{soc}_{t - 1,s} + p^{\mathrm{store}}_{t,s} - p^{\mathrm{dispatch}}_{t,s} + \mathrm{inflow}_{t,s} - \mathit{spill}_{t,s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`p_dispatch`**
 
-$$0 \le p^{\mathrm{dispatch}}_{t,s} \le \mathrm{storage\_p\_nom}_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+0 \le p^{\mathrm{dispatch}}_{t,s} \le \mathrm{storage\_p\_nom}_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`p_store`**
 
-$$0 \le p^{\mathrm{store}}_{t,s} \le \mathrm{storage\_p\_nom}_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+0 \le p^{\mathrm{store}}_{t,s} \le \mathrm{storage\_p\_nom}_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`soc`**
 
-$$0 \le \mathit{soc}_{t,s} \le \mathrm{soc}^{\mathrm{max}}_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+0 \le \mathit{soc}_{t,s} \le \mathrm{soc}^{\mathrm{max}}_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`spill`**
 
-$$0 \le \mathit{spill}_{t,s} \le \mathrm{inflow}_{t,s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{inflow}_{t,s} \neq 0$$
+```math
+0 \le \mathit{spill}_{t,s} \le \mathrm{inflow}_{t,s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \mathrm{inflow}_{t,s} \neq 0
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -123,15 +141,15 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: storage units, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       storage_bus:
         description: the bus a storage unit sits on
-        over: storage
-        into: bus
+        columns: [storage, bus]
+        key: storage
 
     parameters:
       p_nom:
@@ -161,25 +179,25 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
       p_dispatch:
         description: power a storage unit puts onto its bus
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: storage_p_nom
       p_store:
         description: power a storage unit takes off its bus
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: storage_p_nom
       soc:
         description: energy in the store at the end of a snapshot
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: soc_max
@@ -189,7 +207,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
           arrival. A unit that receives no inflow has none to let go, which is a
           spill of zero rather than a quantity with no value — so the energy
           balance keeps its row there.
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         where: "inflow != 0"
         absence: zero
         bounds:
@@ -201,7 +219,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: >-
           what is generated at a bus, plus what comes out of the stores less what
           goes into them, meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(p_dispatch, by=storage_bus)
@@ -210,7 +228,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
 
       energy_balance_initial:
         description: the first snapshot's level is carried from the initial state of charge
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         where: "position(snapshot) == 0"
         expression: soc == soc_initial + p_store - p_dispatch + inflow - spill
 
@@ -218,9 +236,9 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: >-
           the level carried into a snapshot, plus what was stored and what arrived,
           less what was taken and what was let go
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         expression: >-
-          soc == shift(soc, over=snapshot, offset=1)
+          soc == shift(soc, along=snapshot, offset=1)
           + p_store - p_dispatch + inflow - spill
 
     objective:
@@ -288,40 +306,34 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     ```
 
 **Spilling is forced, not chosen.** Snapshot 1 opens with a full 60 MWh
-reservoir and 50 MWh more arriving against a 30 MW turbine, so at least 20 MWh
-has to go. Total gas burn is then pinned at `20 + spill` = 40 MWh, which is the
+reservoir and 50 MWh more arriving against a 30 MW turbine. At least 20 MWh has
+to go. Total gas burn is then pinned at `20 + spill` = 40 MWh, which is the
 entire objective. A port that dropped the spill variable would be **infeasible**
-rather than merely wrong — which is a better failure than most.
+rather than wrong.
 
-**The battery has no spill decision at all**, and says so. PyPSA declares the
-spill variable only for units whose inflow is positive somewhere; the port
-matches that with `where: "inflow != 0"`, which is why `spill` has six
-coordinates rather than twelve.
+**The battery has no spill decision at all.** PyPSA declares the spill variable
+only for units whose inflow is positive somewhere. The port matches that with
+`where: "inflow != 0"`, so `spill` has six coordinates rather than twelve.
 
-That mask is only safe because of the line beside it. A constraint mentioning a
-masked variable loses its **row**, not just the term — so on its own the mask
-would delete the battery's whole energy balance, its stored energy would come
-from nowhere, and the model would report **0.0** instead of 3200. `absence: zero`
-is what says the missing coordinates hold a spill of zero rather than a quantity
-with no value, so the row stands and the term simply is not in it.
+The mask is safe only because of the line beside it. A constraint mentioning a
+masked variable loses its **row**, not only the term. On its own the mask would
+delete the battery's whole energy balance. Its stored energy would come from
+nowhere, and the model would report **0.0** instead of 3200. `absence: zero`
+says the missing coordinates hold a spill of zero rather than a quantity with no
+value, so the row stands without the term.
 
-The alternative is to bound `spill` above by `inflow` and let the zero pin it,
-which is what this port did before `absence:` existed. Same answer, six more
-columns, and a model that says *this unit's spill is zero* where it means *this
-unit does not spill*.
-
-**Why the mask compares rather than naming the parameter.** `where: inflow`
+**The mask compares a value rather than naming the parameter.** `where: inflow`
 would be a **no-op** here: a `where:` on a bare parameter reads *defined and
-finite*, and the padded `0.0` is both. The zeros cannot simply be dropped from
-the table either — `inflow` is a term on the energy balance's constant side, and
-a sparse parameter there is refused at load, since a missing row read as zero
-would be a bound rather than an absence. So the sparsity that matters is in the
-*value*, and `!= 0` is how the model asks for it.
+finite*, and the padded `0.0` is both. Nor can the zeros be dropped from the
+table. `inflow` is a term on the energy balance's constant side, and a sparse
+parameter there is refused at load. A missing row read as zero would be a bound
+rather than an absence. The sparsity that matters is in the *value*, and
+`!= 0` is how the model asks for it.
 
 ## What it exercises
 
-`absence: zero` on a masked variable — the declaration that keeps a row whose
-term has gone — against an energy balance carrying two independent sinks. Also
+`absence: zero` on a masked variable, the declaration that keeps a row whose
+term has gone, against an energy balance carrying two independent sinks. Also
 the asymmetry underneath it: a masked **variable** takes its row, while a sparse
-**parameter** on a constant side is refused outright, so the two halves of this
-model's sparsity are spelled in two different ways.
+**parameter** on a constant side is refused. The two halves of this model's
+sparsity are spelled in two different ways.

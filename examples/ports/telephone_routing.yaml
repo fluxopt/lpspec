@@ -17,11 +17,11 @@ dimensions:
     description: a route end to end, serving one city pair
     dtype: str
 
-lookups:
+relations:
   call_of:
     description: the city pair a path serves, end to end
-    over: path
-    into: call
+    columns: [path, call]
+    key: path
 
 parameters:
   capacity:
@@ -42,7 +42,7 @@ variables:
       circuits carried on a path — integral because a multi-commodity flow is
       not integral by nature, even though this instance's relaxation happens to
       be
-    foreach: [path]
+    dims: [path]
     domain: integer
     bounds:
       lower: 0
@@ -50,7 +50,7 @@ variables:
 constraints:
   within_demand:
     description: a pair cannot be carried more than it asked for, however many paths serve it
-    foreach: [call]
+    dims: [call]
     expression: sum(flow, by=call_of) <= demand
 
   within_capacity:
@@ -58,7 +58,7 @@ constraints:
       an arc carries every path that traverses it, and no more than its
       capacity. A circuit reserves both directions of every arc it crosses,
       which is why the network is undirected and the flow is not signed.
-    foreach: [arc]
+    dims: [arc]
     expression: sum(flow * uses, over=path) <= capacity
 
 objective:

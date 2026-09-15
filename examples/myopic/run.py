@@ -8,15 +8,14 @@ typical days, each inheriting the fleet the last one left.
 
 One file, `pathway.yaml`, written for *a* period. The driver supplies which:
 
-    lps.solve_over(model, sources, lps.EachCoordinate('year', ordered=True),
-                   carry={'existing': ('total', None)})
+    lps.solve_over(model, sources, lps.EachCoordinate('year'),
+                   carry={'existing': 'total'})
 
-`ordered=True` is what makes a carry legal — scenarios have no "next", years
-do. The carry has **no index** because nothing is dropped: `total` is over
-`(generator)` and so is `existing`, so the whole fleet vector moves forward.
-That is the myopic case in one line, and the rolling-horizon case
-(`examples/rolling/`) is the same keyword with an index because there a
-dimension *is* dropped.
+The periods run in sorted order, which is the order the carry chains them in.
+Nothing is dropped here: `total` is over `(generator)` and so is `existing`, so
+the whole fleet vector moves forward. That is the myopic case in one line. The
+rolling-horizon case (`examples/rolling/`) is the same keyword where a dimension
+*is* dropped, and there the row handed on is the last one each window owns.
 
 **The accumulation is in the YAML, not here.** `carry` copies; it never adds.
 `total == existing + build` is a constraint in `pathway.yaml`, where it is
@@ -107,8 +106,8 @@ def main() -> None:
     runs = lps.solve_over(
         MODEL,
         sources(),
-        lps.EachCoordinate('year', ordered=True),
-        carry={'existing': ('total', None)},
+        lps.EachCoordinate('year'),
+        carry={'existing': 'total'},
     )
 
     print('myopic pathway — each period sees only itself, and inherits the last')

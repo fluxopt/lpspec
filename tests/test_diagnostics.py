@@ -1,4 +1,4 @@
-"""What the build reports about itself: omissions, timings, magnitudes, sparsity.
+"""What the build reports about itself: omissions, clocks, magnitudes, sparsity.
 
 A diagnostic is a claim about a model the solver never sees. A row that lost
 every term is not built, and saying so is the difference between a smaller
@@ -40,16 +40,18 @@ def test_a_row_with_no_terms_is_not_built_and_is_reported(solver_name, batch_row
     guard against by keeping the row; `diagnostics().omissions` answers it without asking
     the solver to carry a comparison nothing can fail.
 
-    Ragged batches because the range loop is where a *surviving* seat would be
+    Ragged batches because a block loop is where a *surviving* seat would be
     lost — labels are compacted when a row goes, so the dense vector and the
-    chunk ranges have to agree about the narrower block. Both solvers, because
-    the seating is theirs jointly.
+    block ranges have to agree about the narrower block. That is the Gurobi and
+    Xpress sinks; HiGHS takes the whole model in one call and reads
+    ``batch_rows`` not at all, so its four cases are one case asked four times.
+    Every sink all the same, because the seating is theirs jointly.
     """
     spec = {
         'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
         'parameters': {'load': {'dims': ['t']}},
-        'variables': {'p': {'foreach': ['t', 'g'], 'where': 't > 0', 'bounds': {'lower': 0, 'upper': 100}}},
-        'constraints': {'balance': {'foreach': ['t'], 'expression': 'sum(p, over=g) == load'}},
+        'variables': {'p': {'dims': ['t', 'g'], 'where': 't > 0', 'bounds': {'lower': 0, 'upper': 100}}},
+        'constraints': {'balance': {'dims': ['t'], 'expression': 'sum(p, over=g) == load'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(sum(p, over=g), over=t)'},
     }
     data = {'t': [0, 1, 2], 'g': ['a', 'b'], 'load': pl.DataFrame({'t': [0, 1, 2], 'value': [5.0, 4.0, 6.0]})}
@@ -87,10 +89,10 @@ def test_a_row_a_propagated_absence_deleted_is_reported_too():
         'dimensions': {'g': {'dtype': 'str'}},
         'parameters': {'cap': {'dims': ['g']}, 'extra': {'dims': ['g']}},
         'variables': {
-            'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}},
-            'y': {'foreach': ['g'], 'where': 'extra', 'bounds': {'lower': 0, 'upper': 0}},
+            'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}},
+            'y': {'dims': ['g'], 'where': 'extra', 'bounds': {'lower': 0, 'upper': 0}},
         },
-        'constraints': {'both': {'foreach': ['g'], 'expression': 'x + y >= 5'}},
+        'constraints': {'both': {'dims': ['g'], 'expression': 'x + y >= 5'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(x, over=g)'},
     }
     data = {
@@ -110,12 +112,12 @@ def test_a_row_a_propagated_absence_deleted_is_reported_too():
 def test_diagnostics_say_where_the_time_went(tmp_path):
     """A run that is slower than it should be can say which phase the time went to.
 
-    `timings` is advisory wall time, so nothing here asserts a magnitude —
+    `seconds` is advisory wall time, so nothing here asserts a magnitude —
     only that each phase that ran left a clock, that none ran backwards, and
     that they accumulate across calls the way `solves` counts.
     """
     with lps.build(SOLVER_VECTOR_SPEC, SOLVER_VECTOR_LOAD) as model:
-        built = model.diagnostics().timings
+        built = model.diagnostics().seconds
         assert set(built) == {'attach', 'build'}, (
             'a model only built has spent time attaching sources and building frames, nowhere else'
         )
@@ -123,7 +125,7 @@ def test_diagnostics_say_where_the_time_went(tmp_path):
 
         model.solve()
         model.write(tmp_path / 'model.lp')
-        ran = model.diagnostics().timings
+        ran = model.diagnostics().seconds
         assert set(ran) == {'attach', 'build', 'handoff', 'solve', 'write'}, (
             'a solve adds the hand-off and the solver run, a write adds the file stream'
         )
@@ -131,7 +133,7 @@ def test_diagnostics_say_where_the_time_went(tmp_path):
 
         snapshot = dict(ran)
         model.solve()
-        assert model.diagnostics().timings['solve'] >= ran['solve'], (
+        assert model.diagnostics().seconds['solve'] >= ran['solve'], (
             'the clocks accumulate across solves, the way `solves` counts'
         )
         assert ran == snapshot, 'a diagnostics snapshot is its own dict, not a view of the running clocks'
@@ -144,11 +146,11 @@ def test_diagnostics_say_where_the_time_went(tmp_path):
 SCALING = {
     'dimensions': {'unit': {'dtype': 'str'}},
     'parameters': {'small': {'dims': ['unit']}, 'large': {'dims': ['unit']}, 'cost': {'dims': ['unit']}},
-    'variables': {'p': {'foreach': ['unit'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'variables': {'p': {'dims': ['unit'], 'bounds': {'lower': 0, 'upper': 10}}},
     'constraints': {
-        'ordinary': {'foreach': ['unit'], 'expression': 'p * small >= 1'},
-        'badly_scaled': {'foreach': ['unit'], 'expression': 'p * large <= 10000000'},
-        'signed': {'foreach': ['unit'], 'expression': '0 - p * small >= -100'},
+        'ordinary': {'dims': ['unit'], 'expression': 'p * small >= 1'},
+        'badly_scaled': {'dims': ['unit'], 'expression': 'p * large <= 10000000'},
+        'signed': {'dims': ['unit'], 'expression': '0 - p * small >= -100'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost, over=unit)'},
 }
@@ -211,12 +213,12 @@ BOUNDS = {
     'dimensions': {'unit': {'dtype': 'str'}},
     'parameters': {'cap': {'dims': ['unit']}, 'cost': {'dims': ['unit']}},
     'variables': {
-        'capped': {'foreach': ['unit'], 'bounds': {'lower': 0, 'upper': 'cap'}},
-        'free': {'foreach': ['unit'], 'bounds': {'lower': 0}},
+        'capped': {'dims': ['unit'], 'bounds': {'lower': 0, 'upper': 'cap'}},
+        'free': {'dims': ['unit'], 'bounds': {'lower': 0}},
     },
     'constraints': {
-        'small_rhs': {'foreach': ['unit'], 'expression': 'capped + free >= 1'},
-        'large_rhs': {'foreach': ['unit'], 'expression': 'capped <= 250000'},
+        'small_rhs': {'dims': ['unit'], 'expression': 'capped + free >= 1'},
+        'large_rhs': {'dims': ['unit'], 'expression': 'capped <= 250000'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(capped * cost + free * cost, over=unit)'},
 }
@@ -309,8 +311,8 @@ def test_a_model_with_no_objective_has_no_objective_range():
 SPARSE_SOURCE = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
     'parameters': {'p_max': {'dims': ['g']}, 'avail': {'dims': ['t', 'g']}},
-    'variables': {'p': {'foreach': ['t', 'g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
-    'constraints': {'capped': {'foreach': ['t', 'g'], 'expression': 'p * avail <= 1'}},
+    'variables': {'p': {'dims': ['t', 'g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
+    'constraints': {'capped': {'dims': ['t', 'g'], 'expression': 'p * avail <= 1'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
 }
 
@@ -364,8 +366,8 @@ def test_the_sparsity_report_survives_the_model_being_released():
 UNDEFINED_DIVISOR = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'d': {'dims': ['f']}},
-    'variables': {'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'c': {'foreach': ['f'], 'expression': 'x / d <= 10'}},
+    'variables': {'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'c': {'dims': ['f'], 'expression': 'x / d <= 10'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
 }
 

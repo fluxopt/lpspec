@@ -95,12 +95,12 @@ that: it kills the case, where the harness' own budget can only decline the
 *next* rung and so cannot see the one it is inside.
 
 **A platform change re-baselines the page.** The committed results were taken on
-macOS `arm64` (an Apple M3), so a Linux `x86_64` box does not continue that
-series — every absolute wall time and peak moves. The cross-library *ratios*
-survive, because they compare arms measured against each other on one machine,
-which is the page's actual claim. What it costs is that the whole ladder has to
-be re-taken in one run rather than a rung at a time, or the page mixes two
-machines.
+the dedicated Linux `x86_64` box, eight cores of an AMD EPYC, so a run anywhere
+else does not continue that series — every absolute wall time and peak moves.
+The cross-library *ratios* survive, because they compare arms measured against
+each other on one machine, which is the page's actual claim. What it costs is
+that the whole ladder has to be re-taken in one run rather than a rung at a
+time, or the page mixes two machines.
 
 The workflow reads the repository variable `BENCH_RUNNER` for its label, so
 pointing the run at a box is a settings change rather than a commit. Unset, it
@@ -258,6 +258,13 @@ against each other. Publish a whole ladder or none of it.
 | `pyomo` | `ConcreteModel.write(...)` | appsi `Highs().set_instance(...)` | appsi `Gurobi().set_instance(...)` |
 | `gurobipy-loop` | — | — | `addVar` per entity, `addConstrs(quicksum(...))`, then `update()` |
 | `gurobipy-matrix` | — | — | `addMVar` + `addMConstr` over a scipy CSR, then `update()` |
+| `highspy-matrix` | — | one `addCols` + one `addRows` over the same CSR | — |
+
+**The two matrix arms build one matrix, not two.** Each case writes it once in
+`bench/models/<case>/matrix.py`, which hands back an `Lp` — bounds, objective,
+CSR, a sense per row, right-hand side — and the arm pushes that into its own
+solver's bulk API. A second copy per arm is the copy that drifts, and it would
+take a published floor down with it.
 
 `gurobi` is opt-in (`--sinks gurobi`): it needs the `[gurobi]` extra, where the
 other two need nothing a contributor does not already have. It is also the only

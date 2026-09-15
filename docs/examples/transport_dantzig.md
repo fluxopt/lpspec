@@ -23,48 +23,56 @@ Dantzig's transportation problem, the first model of the GAMS library: ship cann
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{I}$ | index $i$ — `plant` — canning plants, with limited capacity |
-| $\mathcal{J}$ | index $j$ — `market` — markets, with demand to be met |
+| $`\mathcal{I}`$ | index $`i`$ — `plant` — canning plants, with limited capacity |
+| $`\mathcal{J}`$ | index $`j`$ — `market` — markets, with demand to be met |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $a$ | `capacity` over $\mathcal{I}$ — capacity of each plant |
-| $b$ | `demand` over $\mathcal{J}$ — demand at each market |
-| $d$ | `distance` over $\mathcal{I} \times \mathcal{J}$ — distance from plant to market |
-| $f$ | `freight` (scalar) — freight rate per case per unit distance |
+| $`a`$ | `capacity` over $`\mathcal{I}`$ — capacity of each plant |
+| $`b`$ | `demand` over $`\mathcal{J}`$ — demand at each market |
+| $`d`$ | `distance` over $`\mathcal{I} \times \mathcal{J}`$ — distance from plant to market |
+| $`f`$ | `freight` (scalar) — freight rate per case per unit distance |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $x$ | `shipment` over $\mathcal{I} \times \mathcal{J}$ — cases shipped from a plant to a market |
+| $`x`$ | `shipment` over $`\mathcal{I} \times \mathcal{J}`$ — cases shipped from a plant to a market |
 
 #### Objective
 
-$$\min \sum_{i \in \mathcal{I},\enspace j \in \mathcal{J}} \frac{x_{i,j} \cdot d_{i,j} \cdot f}{1000}$$
+```math
+\min \sum_{i \in \mathcal{I},\ j \in \mathcal{J}} \frac{x_{i,j} \cdot d_{i,j} \cdot f}{1000}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$\sum_{j \in \mathcal{J}} x_{i,j} \le a_{i} \qquad \forall\thinspace i \in \mathcal{I}$$
+```math
+\sum_{j \in \mathcal{J}} x_{i,j} \le a_{i} \qquad \forall\, i \in \mathcal{I}
+```
 
 **`meet_demand`**
 
-$$\sum_{i \in \mathcal{I}} x_{i,j} \ge b_{j} \qquad \forall\thinspace j \in \mathcal{J}$$
+```math
+\sum_{i \in \mathcal{I}} x_{i,j} \ge b_{j} \qquad \forall\, j \in \mathcal{J}
+```
 
 #### Variable domains
 
 **`shipment`**
 
-$$x_{i,j} \ge 0 \qquad \forall\thinspace i \in \mathcal{I},\enspace j \in \mathcal{J}$$
+```math
+x_{i,j} \ge 0 \qquad \forall\, i \in \mathcal{I},\ j \in \mathcal{J}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -97,16 +105,16 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       shipment:
         description: cases shipped from a plant to a market
-        foreach: [plant, market]
+        dims: [plant, market]
         bounds:
           lower: 0
 
     constraints:
       within_capacity:
-        foreach: [plant]
+        dims: [plant]
         expression: sum(shipment, over=market) <= capacity
       meet_demand:
-        foreach: [market]
+        dims: [market]
         expression: sum(shipment, over=plant) >= demand
 
     objective:
@@ -156,17 +164,16 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         return m
     ```
 
-The YAML is 38 lines and names the maths; the linopy version is ~20 lines
-of Python and names the *data structures* the maths is carried in — a pivot, a
-reindex, two `.sum()` calls over named axes. Neither is obviously better and
-that is the honest read: what the declarative form buys here is not brevity but
-that the file is the model, with no host language between the reader and it.
+The YAML names the maths. The linopy version names the *data structures* the
+maths is carried in: a pivot, a reindex, two `.sum()` calls over named axes.
+What the declarative form buys is not brevity but a file that is the model,
+with no host language between the reader and it.
 
 ## What it exercises
 
-The freight rate is kept as arithmetic — `distance * freight / 1000` — rather
-than precomputed into a cost table, so the file states the model and not a
-derived table. `freight` is declared with `dims: []`: a scalar is a parameter
+The freight rate stays as arithmetic, `distance * freight / 1000`, rather
+than a precomputed cost table, so the file states the model and not a derived
+table. `freight` is declared with `dims: []`: a scalar is a parameter
 with no dimensions, not a special case.
 
 The objective is checked, never the primal. This model reaches 153.675 at a

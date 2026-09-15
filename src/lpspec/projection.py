@@ -31,10 +31,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 import polars as pl
-from math_spec import DimensionError, program, to_program, to_spec
+from math_spec import DimensionError, program, to_spec
 
 from lpspec.api import Model
 from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
+from lpspec.lanes import lowered
 from lpspec.relational.sinks import solver
 
 if TYPE_CHECKING:
@@ -397,7 +398,7 @@ def project(
             return model.update(solving).solve(solver_name, solver_options=solver_options, keep='progress')
 
         def read(result: Result) -> Point:
-            return _snap((result.expression(_AXES[0]).item(), result.expression(_AXES[1]).item()), tolerance)
+            return _snap((result.evaluate(_AXES[0]).item(), result.evaluate(_AXES[1]).item()), tolerance)
 
         def support(direction: Point) -> Point:
             with solve(direction) as result:
@@ -433,7 +434,7 @@ def project(
 
         optimum = _optimum(solve, read, declared, columns, assignments, (x, y))
 
-    dims = list(to_program(declared).dimensions)
+    dims = list(lowered(declared).dimensions)
     vertices = pl.concat(
         _frame(x, y, polygon).select(
             pl.lit(i, dtype=pl.Int64).alias('piece'), pl.int_range(pl.len(), dtype=pl.Int64).alias('vertex'), pl.all()
@@ -654,14 +655,14 @@ def _taken(declared: dict[str, Any]) -> dict[str, str]:
 def _is_scalar(declared: dict[str, Any], quantity: str) -> bool:
     """Whether *quantity* carries no dims — asked of the language, whose objective takes nothing else.
 
-    A variable's dims are written in its ``foreach``; a named expression's
+    A variable's dims are written in its ``dims``; a named expression's
     fall out of its body, and the rule that decides them is the language's.
     Lowering the spec with the quantity as its objective asks that rule
     directly: an objective must carry no dims, so it lowers exactly when the
     quantity is a scalar.
     """
     try:
-        to_program({**declared, 'objective': {'sense': 'maximize', 'expression': quantity}})
+        lowered({**declared, 'objective': {'sense': 'maximize', 'expression': quantity}})
     except DimensionError:
         return False
     return True
@@ -685,11 +686,11 @@ def _pinned_spec(probe: dict[str, Any], pinned: Sequence[str]) -> dict[str, Any]
     parameters = dict(probe['parameters'])
     constraints = dict(probe.get('constraints') or {})
     for b in pinned:
-        dims = list(probe['variables'][b]['foreach'])
+        dims = list(probe['variables'][b]['dims'])
         for parameter in _PIN_PARAMETERS:
             parameters[parameter.format(b=b)] = {'dims': dims}
         for row, expression in _PIN_ROWS:
-            constraints[row.format(b=b)] = {'foreach': dims, 'expression': expression.format(b=b)}
+            constraints[row.format(b=b)] = {'dims': dims, 'expression': expression.format(b=b)}
     return {**probe, 'parameters': parameters, 'constraints': constraints}
 
 
@@ -747,7 +748,7 @@ def _refuse_dims_at_does_not_reach(model: Model, x: str, y: str, at: Mapping[str
     The probe multiplies the selection into the quantity, and a product over
     a dim only the selection carries broadcasts rather than selects — the
     same number at every coordinate, which reads as a region and is not one.
-    A variable's dims are its ``foreach``; an expression's fall out of its
+    A variable's dims are its ``dims``; an expression's fall out of its
     body, which the built model is the first to hold.
     """
     if not at:

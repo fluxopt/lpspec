@@ -1,10 +1,8 @@
 """What a solve returned, on two axes.
 
-Copied spelling for spelling from ``linopy.constants``, so anyone arriving from
-linopy need not learn a second vocabulary for the same facts;
-`tests/test_solve_status.py` asserts the tables still match, making drift a
-test failure rather than a discovery. Nothing here imports linopy — the engine
-may not (hard rule 2) — but the test does.
+Copied spelling for spelling from ``linopy.constants``;
+`tests/test_solve_status.py` asserts the tables still match. Nothing here
+imports linopy — the engine may not (hard rule 2) — but the test does.
 
 The two axes stay separate: ``termination_condition`` is what the solver said,
 ``status`` what it means for the caller. **ok does not mean optimal** — a run
@@ -53,9 +51,8 @@ class SolveStatus:
     def is_ok(self) -> bool:
         """The linopy rollup: the run is not an error, an abort or a refusal.
 
-        Kept exactly as linopy defines it, because it is shared vocabulary.
-        It is *not* the question "can I read values" — see
-        :attr:`is_readable`.
+        Kept exactly as linopy defines it. It is *not* the question "can I read
+        values" — see :attr:`is_readable`.
         """
         return self.status == 'ok'
 
@@ -63,10 +60,9 @@ class SolveStatus:
     def is_readable(self) -> bool:
         """Whether there are primal values to read.
 
-        Deliberately beyond linopy, whose ``safe_get_solution`` gates on
-        ``is_ok``: a MIP stopped at a time limit **before finding any
+        Beyond ``is_ok``: a MIP stopped at a time limit **before finding any
         incumbent** is ``ok``, and its zero-filled ``col_value`` would be read
-        as an answer (#115).
+        as an answer.
 
         ``optimal`` always has a primal. Every other ``ok`` condition means
         "stopped early", and whether an incumbent exists is a separate fact

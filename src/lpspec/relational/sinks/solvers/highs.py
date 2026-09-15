@@ -1,9 +1,7 @@
-"""The ``highs`` solver: COO batches straight into HiGHS.
+"""The ``highs`` solver: the whole model straight into HiGHS, in one call.
 
-The default, and the only one whose dependency ships with the package. Columns
-and rows arrive as numpy slices, in batches, with no float→text→parse round
-trip — which is why this exists beside
-:mod:`~lpspec.relational.sinks.writers.lp_file`.
+The default, and the only one whose dependency ships with the package. Every
+vector crosses as a numpy buffer, with no float→text→parse round trip.
 
 **Nothing textual crosses into numpy**: a row's ``'<='`` becomes a
 :data:`~lpspec.relational.sinks.tables.SENSE_CODES` byte before it is read
@@ -32,16 +30,9 @@ if TYPE_CHECKING:
     from lpspec.relational.sinks.tables import RowVectors, Tables
 
 
-#: Elements per hand-off chunk — a column is one element, a constraint row is
-#: as many as it has nonzeros. Deliberately small: both columns and rows are
-#: numpy slices, so more chunks cost almost nothing and only residency scales
-#: with the budget (#189).
-HANDOFF_BUDGET = 100_000
-
 #: HiGHS model status -> termination condition. Copied from linopy's own
 #: ``Highs.CONDITION_MAP``; ``tests/test_solve_status.py`` asserts it still
-#: matches, so a HiGHS release that adds a status shows up as a failure here
-#: rather than as a silent ``unknown``.
+#: matches.
 _CONDITION_OF_HIGHS_STATUS = {
     'kNotset': 'unknown',
     'kLoadError': 'internal_solver_error',
@@ -67,27 +58,29 @@ _CONDITION_OF_HIGHS_STATUS = {
 
 def build_highs(
     tables: Tables,
-    batch_rows: int | None = None,
     solver_options: Mapping[str, Any] | None = None,
 ) -> Highs:
     """Load the model into a :class:`highspy.Highs` and stop there.
 
-    The hand-off without the simplex, which is the same work whoever filled the
-    model — so a measurement including it says nothing about the lane that
-    filled it. `bench/` ends here, as linopy's ``Model.to_highspy()`` does on
-    that side.
+    The hand-off without the simplex. `bench/` ends here, as linopy's
+    ``Model.to_highspy()`` does on that side.
 
     Returns:
         The :class:`Highs` holding the model, at ``.handle``.
     """
-    return Highs(tables, batch_rows, solver_options)
+    return Highs(tables, None, solver_options)
 
 
-def _built(tables: Tables, batch_rows: int | None, solver_options: Mapping[str, Any] | None) -> Any:
+def _built(tables: Tables, solver_options: Mapping[str, Any] | None) -> Any:
     """The populated :class:`highspy.Highs`.
 
-    ``batch_rows`` is the budget in *elements*; the parameter stays so tests
-    can force ragged chunks.
+    One ``passModel`` loads the whole model at once — the scalars, the five
+    dense vectors, and the matrix as row-wise CSR. Every array crosses as a
+    numpy buffer.
+
+    The integrality vector spans the whole index even where no column is
+    integer. HiGHS reads it either way, and an empty one is read as whatever
+    the memory held (1.15.1).
     """
     import highspy
     import numpy as np
@@ -102,47 +95,52 @@ def _built(tables: Tables, batch_rows: int | None, solver_options: Mapping[str, 
             'different model that solves.'
         )
 
-    batch = HANDOFF_BUDGET if batch_rows is None else batch_rows
     inf = highspy.kHighsInf
     h = highspy.Highs()
     h.setOptionValue('output_flag', False)
     for option, value in (solver_options or {}).items():
         h.setOptionValue(option, value)
 
+    cols = tables.dense_columns(inf)
+    rlb, rub = _row_bounds(tables.dense_rows(inf), inf)
+    sense = highspy.ObjSense.kMaximize if tables.objective_sense == 'maximize' else highspy.ObjSense.kMinimize
     empty_i = np.empty(0, dtype=np.int32)
     empty_f = np.empty(0, dtype=np.float64)
-    cols = tables.dense_columns(inf)
-    for lo, hi in tables.col_chunks(batch):
-        _loaded(
-            h,
-            h.addCols(hi - lo, cols.cost[lo:hi], cols.lb[lo:hi], cols.ub[lo:hi], 0, empty_i, empty_i, empty_f),
-            'a batch of columns',
-        )
-        noncontinuous = np.flatnonzero(cols.integral[lo:hi]).astype(np.int32) + np.int32(lo)
-        if len(noncontinuous):
-            integrality = np.full(len(noncontinuous), int(highspy.HighsVarType.kInteger), dtype=np.uint8)
-            h.changeColsIntegrality(len(noncontinuous), noncontinuous, integrality)
-
-    rlb, rub = _row_bounds(tables.dense_rows(inf), inf)
-    for block in tables.row_blocks(batch):
-        _loaded(
-            h,
-            h.addRows(
-                block.height,
-                rlb[block.lo : block.hi],
-                rub[block.lo : block.hi],
-                block.entries.height,
-                block.starts.astype(np.int32),
-                block.entries['col'].to_numpy().astype(np.int32, copy=False),
-                block.entries['coeff'].to_numpy(),
-            ),
-            'a batch of rows',
-        )
-
-    if tables.objective_sense == 'maximize':
-        h.changeObjectiveSense(highspy.ObjSense.kMaximize)
+    _loaded(
+        h,
+        h.passModel(
+            tables.column_count,
+            tables.row_count,
+            tables.matrix.height,
+            0,
+            int(highspy.MatrixFormat.kRowwise),
+            int(highspy.HessianFormat.kTriangular),
+            int(sense),
+            0.0,
+            cols.cost,
+            cols.lb,
+            cols.ub,
+            rlb,
+            rub,
+            tables.row_starts.astype(np.int32),
+            tables.matrix['col'].to_numpy(),
+            tables.matrix['coeff'].to_numpy(),
+            empty_i,
+            empty_i,
+            empty_f,
+            _integrality(cols),
+        ),
+        'the model',
+    )
     _pass_hessian(h, tables)
     return h
+
+
+def _integrality(cols: Any) -> Any:
+    """The per-column integrality vector HiGHS reads: 0 continuous, 1 integer."""
+    import numpy as np
+
+    return cols.integral.astype(np.int32)
 
 
 def _pass_hessian(h: Any, tables: Tables) -> None:
@@ -192,29 +190,23 @@ def _pass_hessian(h: Any, tables: Tables) -> None:
 class Highs(Solver):
     """HiGHS, holding one model — :class:`Solver`'s member for the default sink.
 
-    What makes an iterative driver cheap. The second solve of an updated model
-    changes bounds, costs and right-hand sides on the model HiGHS already
-    holds and starts from the basis the last solve ended on, where loading
-    again would hand over the matrix a second time and start cold — unless
-    the caller carries the basis across with :meth:`warm_start` and
+    The second solve of an updated model changes bounds, costs and right-hand
+    sides on the model HiGHS already holds and starts from the basis the last
+    solve ended on, unless the caller carries the basis across with
+    :meth:`warm_start` and
     :meth:`~lpspec.relational.sinks.solvers.base.Solver.warm`.
-
-    Pushing the whole vectors costs a pass over the columns and the rows,
-    against the matrix pass that loading would cost.
     """
 
-    #: The loaded model. Declared rather than inferred, ``close`` dropping it.
+    #: The loaded model. ``close`` drops it.
     _handle: Any
 
     requires = ('highspy',)
     unavailable_message = 'highspy ships with lpspec, so a build without it is broken rather than missing an extra'
 
     #: No SOS concept at all, so a set arrives already written as binaries and
-    #: linking rows. A *convex* Hessian goes in through ``passHessian``; the
-    #: exclusions beside it are why this is a descriptor rather than a set of
-    #: features, and the pair is probed in ``test_sink_capability_probes.py``.
-    #: A set is that same refusal one step removed: the rewrite that gets one
-    #: in here *is* binaries, so it cannot stand beside a Hessian either.
+    #: linking rows. A *convex* Hessian goes in through ``passHessian``, and
+    #: the pair is probed in ``test_sink_capability_probes.py``. A set cannot
+    #: stand beside a Hessian: the rewrite that gets one in here *is* binaries.
     capabilities = Capabilities(
         supports={
             'integrality': 'native',
@@ -228,14 +220,16 @@ class Highs(Solver):
     )
 
     def _load(self, tables: Tables, batch_rows: int | None) -> None:
-        self._handle = _built(tables, batch_rows, self._options)
+        """Load in one call — *batch_rows* is the family's parameter and this member has no batches."""
+        del batch_rows
+        self._handle = _built(tables, self._options)
 
     @property
     def handle(self) -> Any:
         return self._handle
 
     def push(self, tables: Tables) -> None:
-        """The index vectors are built here rather than held — an ``arange`` is cheaper to make than to keep."""
+        """The index vectors are built here rather than held."""
         import highspy
         import numpy as np
 
@@ -278,8 +272,7 @@ class Highs(Solver):
         """``setBasis`` for a basis, ``setSolution`` for an incumbent.
 
         Both report a refusal by return value, like every hand-off here, so
-        both go through :func:`_took` — an unchecked call would start cold and
-        call it warm.
+        both go through :func:`_took`.
         """
         import highspy
 
@@ -302,14 +295,9 @@ class Highs(Solver):
         """Solve, and read the one error HiGHS reports as a refusal to start.
 
         A ``kError`` from ``run()`` leaves the model status unset — there is no
-        solve to read back — so a quadratic model that gets one is refused with
-        the sentence the curvature earns rather than as an unreadable status.
-        The pair a Hessian is otherwise refused for, integrality beside it, is
-        declared on the descriptor and never reaches a load.
-
-        The way out is spelled as the loader takes it (``method: convex``): a
-        message sending its reader to a key ``piecewise:`` rejects would be
-        worse than none.
+        solve to read back — so a quadratic model that gets one is refused
+        explicitly. The pair a Hessian is otherwise refused for, integrality
+        beside it, is declared on the descriptor and never reaches a load.
         """
         import highspy
 
@@ -340,10 +328,7 @@ class Highs(Solver):
     def forget(self) -> None:
         """``clearSolver``: the basis and the solution go, the model stays.
 
-        What this buys back is presolve. HiGHS skips it for a run that starts
-        from a basis, so a model presolve can crack is one where keeping the
-        answer is the slower path — and that is decided per model, which is
-        why it is the caller's word and not a rule here.
+        HiGHS skips presolve for a run that starts from a basis.
         """
         self._handle.clearSolver()
 
@@ -356,8 +341,7 @@ class Highs(Solver):
 def _row_bounds(rows: RowVectors, inf: float) -> tuple[Any, Any]:
     """HiGHS's ``(lower, upper)`` spelling of a sense code and right-hand side.
 
-    The one rule for it, asked by the load and the push alike, so the two
-    cannot drift: an inequality is open on the side its sense does not bound.
+    An inequality is open on the side its sense does not bound.
     """
     import numpy as np
 
@@ -371,8 +355,7 @@ def _loaded(h: Any, status: Any, what: str) -> None:
     """Raise unless the solver accepted the hand-off.
 
     HiGHS reports a rejected call by return value and carries on with whatever
-    it had, so an unchecked call turns a malformed hand-off into a confident
-    answer to a different problem — an unconstrained one, if it was the rows.
+    it had.
 
     Raises:
         LpspecError: If the batch was refused.
@@ -391,10 +374,7 @@ def _loaded(h: Any, status: Any, what: str) -> None:
 def _took(status: Any, what: str) -> None:
     """Raise unless the solver accepted a warm-start hint.
 
-    HiGHS reports a refusal by return value and carries on, and a dropped
-    hint would not corrupt the model — the solve would just silently start
-    cold, a wrong answer in the time dimension that the value dimension can
-    never show.
+    HiGHS reports a refusal by return value and carries on.
 
     Raises:
         LpspecError: If the hint was refused.

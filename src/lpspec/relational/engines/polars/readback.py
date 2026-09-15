@@ -9,24 +9,24 @@ import polars as pl
 from math_spec import program
 
 from lpspec.errors import DataError, LpspecError, sparse_divisor_message, unknown_name_message
+from lpspec.relational.collect import polars_engine
 from lpspec.relational.engines.polars import labels
-from lpspec.relational.engines.polars.assembly import absence_restrictions
-from lpspec.relational.engines.polars.fragments import join_on
+from lpspec.relational.engines.polars.fragments import absence_restrictions
 from lpspec.relational.result import ConstraintRow
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from lpspec.relational.engines.polars.assembly import BuiltModel
     from lpspec.relational.engines.polars.attaching import AttachedSources
     from lpspec.relational.engines.polars.compiler import PolarsCompiler
-    from lpspec.relational.engines.polars.fragments import TermFragment
     from lpspec.relational.result import Result
 
 #: Scratch columns of the expression reader. The spaces make them
 #: unrepresentable as declared names.
 SOLUTION = '__solution value__'
 _EXPRESSION_ROW = '__expression row__'
+_LABEL_ORDER = '__label order__'
 
 
 def row(model: BuiltModel, name: str, coordinate: Mapping[str, Any]) -> ConstraintRow:
@@ -62,8 +62,7 @@ def _row_index(model: BuiltModel, name: str, coordinate: Mapping[str, Any]) -> t
     """The global row index constraint *name* built at *coordinate*, and that coordinate in dim order.
 
     The coordinate has to name **every** dim of the declaration: a partial
-    one matches a set of rows, and a verb that quietly answered about the
-    first of them would be reporting one row as if it were the block.
+    one matches a set of rows.
 
     Raises:
         LpspecError: The coordinate names dims the declaration does not,
@@ -97,8 +96,7 @@ def _label(name: str, dim: str, value: Any, dtype: pl.DataType) -> pl.Expr:
     """*value* as a literal of *dim*'s own type, or a refusal naming what it is not.
 
     The cast **is** the check: a string against an integer dim and a stranger
-    against an ``Enum`` are one failure, and neither reaches polars as a
-    comparison it can only report in its own vocabulary.
+    against an ``Enum`` are one failure.
     """
     try:
         return pl.lit(pl.Series([value], dtype=dtype).item(0), dtype=dtype)
@@ -232,65 +230,169 @@ def expression_dims(name: str, expr: program.ExpressionNode, compiler: PolarsCom
     frame the language proved it spans.
     """
     compiled = compiler.expression(expr, f"named expression '{name}'")
-    return _fragment_dims(compiler, (*compiled.terms, *compiled.consts))
+    return compiler.spanned((*compiled.terms, *compiled.consts))
 
 
-def _fragment_dims(compiler: PolarsCompiler, fragments: Sequence[TermFragment]) -> tuple[str, ...]:
-    union = {d for p in fragments for d in p.dims}
-    return tuple(d for d in compiler.program.dimensions if d in union)
+def reordered(
+    attached: AttachedSources,
+    registry: Mapping[str, labels.Labelled],
+    declared: Mapping[str, Any],
+    frames: Mapping[str, pl.DataFrame],
+) -> pl.Series:
+    """A saved solution's value frames back as the positional vector — the inverse of :func:`laid_out`.
+
+    Each declaration's ``(dims…, value)`` is aligned to its
+    :class:`~labels.Labelled` frame's label order and the values concatenated in
+    ``start`` order, rebuilding the vector a solver returned. A rebuild of the
+    model over the same spec and sources numbers the labels identically
+    (docs/about/architecture.md, "The relational lane").
+
+    Args:
+        attached: The rebuilt model's sources, for which dims it enum-encoded.
+        registry: The rebuilt model's ``variables`` or ``constraints``.
+        declared: The program's ``variables`` or ``constraints``, for the dims.
+        frames: The saved ``(dims…, value)`` frame per name, as read back.
+
+    Raises:
+        LpspecError: A declaration whose saved frame misses a coordinate the
+            rebuilt model holds — the frame is not this model's answer.
+    """
+    in_start_order = sorted((held.start, name) for name, held in registry.items())
+    pieces = [
+        _aligned(attached, name, registry[name], declared[name].dims, frames.get(name)) for _, name in in_start_order
+    ]
+    return pl.concat(pieces) if pieces else pl.Series(SOLUTION, [], dtype=pl.Float64)
 
 
-def expression_frame(
-    name: str, expr: program.ExpressionNode, compiler: PolarsCompiler, values: pl.LazyFrame
-) -> pl.DataFrame:
-    """Named expression *expr* evaluated at the primal *values* — ``(dims…, value)``.
+def _aligned(
+    attached: AttachedSources, name: str, held: labels.Labelled, dims: tuple[str, ...], stored: pl.DataFrame | None
+) -> pl.Series:
+    """One declaration's saved values in its label order — its slice of the vector.
 
-    A value is ``sum(coeff · value)`` over the expression's term stream plus
-    its constant part: each fragment from :meth:`PolarsCompiler.expression` is
-    joined to the solver's primal vector (a term) or taken as it is (a
-    constant part), aggregated to its own dims, and accumulated over the
-    expression's coordinate product the way a constraint's right-hand side is.
+    The values are joined onto the rebuilt label frame on the dims, the string
+    ones cast as :func:`laid_out` casts them. A declaration the rebuild masks
+    away entirely holds no label, so its slice is empty and a missing *stored*
+    is no error; a missing one the rebuild does build raises.
+    """
+    if held.height == 0:
+        return pl.Series(SOLUTION, [], dtype=pl.Float64)
+    if stored is None:
+        raise LpspecError(
+            f"the saved answer holds no '{name}' frame, but this model builds it, so it is not this model's "
+            f'answer. Re-solve rather than read.'
+        )
+    if not dims:
+        return stored['value'].rename(SOLUTION)
+    order = (
+        held.frame.select(*dims)
+        .collect()
+        .with_columns(pl.col(d).cast(pl.String) for d in string_dims(attached, dims))
+        .with_row_index(_LABEL_ORDER)
+    )
+    joined = order.join(stored, on=list(dims), how='left').sort(_LABEL_ORDER)
+    if joined['value'].null_count():
+        raise LpspecError(
+            f"the saved answer's '{name}' frame does not cover every coordinate this model builds, so it "
+            f'is not an answer to this model. Re-solve rather than read.'
+        )
+    return joined['value'].rename(SOLUTION)
+
+
+def deferred_readers(
+    compiler: PolarsCompiler, named: Mapping[str, program.ExpressionDeclaration]
+) -> dict[str, Callable[[], pl.DataFrame]]:
+    """One deferred reader per named expression — nothing compiled until one is called.
+
+    Shared by the two paths that read named expressions: a solve reads them at a
+    solution, and :func:`~lpspec.evaluate` reads them as arithmetic. The two
+    differ only in the *compiler* handed in — whether it carries a
+    :class:`~lpspec.relational.engines.polars.compiler.Solution` — never in how a
+    declared name becomes a thunk, so that turn lives here once.
+
+    Args:
+        compiler: The compiler each reader compiles its expression through.
+        named: The declared named expressions, by name.
+
+    Returns:
+        A reader per name; calling one compiles and evaluates that expression.
+    """
+
+    def reader(name: str, expression: program.ExpressionNode) -> Callable[[], pl.DataFrame]:
+        return lambda: expression_frame(name, expression, compiler)
+
+    return {name: reader(name, e.expression) for name, e in named.items()}
+
+
+def evaluation_readers(
+    compiler: PolarsCompiler,
+    named: Mapping[str, program.ExpressionDeclaration],
+    lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
+) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, Any]], pl.DataFrame] | None]:
+    """The reads :meth:`~lpspec.relational.result.Result.evaluate` is built from, over one compiler.
+
+    Shared by every producer of them — a live solve, a rebuilt archive, and the
+    variable-free arithmetic path — so the two reads a declared name and an
+    ad-hoc expression get are defined once, and differ only in the compiler.
+
+    Args:
+        compiler: The compiler each read compiles through — carrying a solution,
+            or none for pure arithmetic.
+        named: The declared named expressions, by name.
+        lower: How an expression written the way ``expressions:`` writes one
+            becomes a plan node in the model's namespace, or ``None`` where there
+            is no model as written to lower against — then ad-hoc evaluation is
+            unavailable and the second element is ``None``.
+
+    Returns:
+        One deferred reader per declared name, and the ad-hoc evaluator (or
+        ``None``).
+    """
+    declared = deferred_readers(compiler, named)
+    if lower is None:
+        return declared, None
+
+    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
+        return expression_frame('the expression', lower(written), compiler)
+
+    return declared, evaluate
+
+
+def expression_frame(name: str, expr: program.ExpressionNode, compiler: PolarsCompiler) -> pl.DataFrame:
+    """Named expression *expr* evaluated at the solve *compiler* holds — ``(dims…, value)``.
+
+    Every leaf is a number after a solve: the compiler reads a variable as its
+    primal and ``dual(c)`` as the constraint's row duals, so the expression is
+    const fragments at whatever degree the file wrote it — a product of two
+    variables, a variable under a power, a division by one — each added up
+    per coordinate over the expression's coordinate product the way a
+    constraint's right-hand side is.
 
     The frame answers the way a constraint over the same expression would: a
     coordinate a parameter does not cover contributes zero, a coordinate where
-    a term's variable is absent has no row, and a variable-free expression is
-    one row of ``value``. Dims come back in declaration order and rows in
-    label order over those dims.
+    a variable is absent has no row — or holds a zero, under ``absence:
+    zero`` — and a variable-free expression is one row of ``value``. Dims come back in declaration order and rows in label order
+    over those dims.
 
     Raises:
         DataError: A divisor with no value where the expression divides —
             checked before any sum can read the null as zero.
+        LpspecError: The expression reads a dual and the solve left none.
     """
     context = f"named expression '{name}'"
     compiled = compiler.expression(expr, context)
-    fragments = (*compiled.terms, *compiled.consts)
-    dims = _fragment_dims(compiler, fragments)
 
-    divisors = sorted(program.divisor_parameters(expr))
+    divisors = [q.divisor for q in program.quotients(expr)]
     if divisors:
-        counts = pl.collect_all([p.frame.select(pl.col(p.value_column).null_count()) for p in fragments])
+        counts = pl.collect_all([p.frame.select(pl.col('cval').null_count()) for p in compiled.consts])
         undefined = sum(count.item() for count in counts)
         if undefined:
-            raise DataError(f'{context}: {sparse_divisor_message(", ".join(divisors), undefined)}')
+            names = sorted({*program.parameters_of(*divisors), *program.variables_of(*divisors)})
+            raise DataError(f'{context}: {sparse_divisor_message(", ".join(names), undefined)}')
 
-    restrictions = absence_restrictions(list(compiled.terms))
-    carrier = labels.frame(compiler, dims, None, _EXPRESSION_ROW, 0, restrictions).lazy()
-
-    total = pl.lit(0.0, dtype=pl.Float64)
-    for i, p in enumerate(fragments):
-        column = f'__piece {i}__'
-        if p.kind != 'const':
-            valued = p.frame.join(values, on='var_label', how='left').select(
-                *p.dims, (pl.col('coeff') * pl.col(SOLUTION)).alias(column)
-            )
-        else:
-            valued = p.frame.select(*p.dims, pl.col('cval').alias(column))
-        aggregated = (
-            valued.group_by(p.dims).agg(pl.col(column).sum()) if p.dims else valued.select(pl.col(column).sum())
-        )
-        carrier = join_on(carrier, aggregated, p.dims, 'left')
-        total = total + pl.col(column).fill_null(0.0)
-
-    out = carrier.select(_EXPRESSION_ROW, *dims, total.alias('value')).collect(engine='streaming')
+    fragments = compiled.consts
+    dims = compiler.spanned(fragments)
+    carrier = labels.frame(compiler, dims, None, _EXPRESSION_ROW, 0, absence_restrictions(fragments)).lazy()
+    added = compiler.added(fragments, carrier, fill=True)
+    out = added.select(_EXPRESSION_ROW, *dims, pl.col('cval').alias('value')).collect(engine=polars_engine())
     ordered = labels.in_position_order(out, _EXPRESSION_ROW).drop(_EXPRESSION_ROW)
     return ordered.with_columns(pl.col(d).cast(pl.String) for d in string_dims(compiler.data, dims))

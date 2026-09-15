@@ -43,35 +43,35 @@ parameters:
 variables:
   p:
     description: output of a generator in a snapshot
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds:
       lower: 0
   status:
     description: is this unit committed in this snapshot?
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     domain: binary
   start_up:
     description: does this unit come up entering this snapshot?
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     domain: binary
   shut_down:
     description: does this unit go down entering this snapshot?
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     domain: binary
 
 constraints:
   power_balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) == load
 
   commitment_max:
     description: a committed unit runs at no more than its capacity, an uncommitted one at zero
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     expression: p - p_nom * status <= 0
 
   commitment_min:
     description: a committed unit runs at no less than its minimum, an uncommitted one at zero
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     expression: p - p_min_pu * p_nom * status >= 0
 
   start_up:
@@ -79,33 +79,33 @@ constraints:
       a unit whose status rises entering this snapshot pays for a start. Every
       unit begins the horizon off, which is the 0 the first snapshot reads where
       it has no predecessor
-    foreach: [snapshot, generator]
-    expression: start_up - status + shift(status, over=snapshot, offset=1, edge=0) >= 0
+    dims: [snapshot, generator]
+    expression: start_up - status + shift(status, along=snapshot, offset=1, edge=0) >= 0
 
   shut_down:
     description: >-
       a unit whose status falls entering this snapshot pays for a stop. There is
       no first-snapshot counterpart: a unit that begins off has nothing to stop,
       and the row PyPSA emits there holds for every value of both variables.
-    foreach: [snapshot, generator]
-    expression: shut_down + status - shift(status, over=snapshot, offset=1) >= 0
+    dims: [snapshot, generator]
+    expression: shut_down + status - shift(status, along=snapshot, offset=1) >= 0
 
   min_up_time:
     description: >-
       over the last `min_up_time` snapshots a unit may have started at most as
       often as it is running now — which is what stops it starting and stopping
       again inside its own window
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     where: "snapshot > 0"
-    expression: sum_back(start_up, over=snapshot, within=min_up_time) <= status
+    expression: sum_back(start_up, along=snapshot, window=min_up_time) <= status
 
   min_down_time:
     description: >-
       the mirror: having stopped inside the window and running now cannot both
       be true
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     where: "snapshot > 0"
-    expression: status + sum_back(shut_down, over=snapshot, within=min_down_time) <= 1
+    expression: status + sum_back(shut_down, along=snapshot, window=min_down_time) <= 1
 
 objective:
   sense: minimize

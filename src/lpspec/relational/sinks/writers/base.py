@@ -1,13 +1,9 @@
 """What a writer **is**: three decisions every format makes the same way.
 
 How a section is appended, how a float is rendered, and how an index is. One
-home each, because a second copy of any of them drifts into a file one solver
-reads and another does not.
+home each.
 
-The family base for :mod:`~lpspec.relational.sinks.solvers.base`'s reason, one
-family over: it renders no format of its own, so it cannot carry one across —
-and it is what stops the alternative, one writer importing the other to share
-a rule.
+The family base; it renders no format of its own.
 """
 
 from __future__ import annotations
@@ -26,9 +22,8 @@ def sink(frame: pl.LazyFrame, f: IO[bytes]) -> None:
     holds: polars writes through its buffer, so an ``f.write()`` between two
     sinks lands between them and no concatenation pass rereads the file.
 
-    ``maintain_order`` is polars' default, stated rather than inherited because
-    the parameter is documented as unstable and a flipped default would make
-    the bytes non-reproducible in silence (#109).
+    ``maintain_order`` is stated rather than inherited: the parameter is
+    documented as unstable.
     """
     frame.sink_csv(f, include_header=False, quote_style='never', maintain_order=True)
 
@@ -37,8 +32,7 @@ def chunk_key(axis: pl.Expr, lo: int, slots: int, within: pl.Expr) -> pl.Expr:
     """The one sort key of a chunked section: ``slots`` consecutive keys per *axis* value.
 
     Chunk-relative, so the product is bounded by a chunk's height rather than
-    the model's — a global index times ``slots`` is one careless model away
-    from overflowing ``Int64`` and reordering the file in silence.
+    the model's.
     """
     return ((axis - lo) * slots + within).alias('key')
 
@@ -47,9 +41,7 @@ def number(value: pl.Expr) -> pl.Expr:
     """A float as text.
 
     Polars' cast is shortest-*round-trip* rather than merely shortest, so the
-    double a solver reads back is the double the engine computed. That is what
-    makes emit affordable: it is almost entirely float-to-text, and a cast is
-    far cheaper than a format string.
+    double a solver reads back is the double the engine computed.
     """
     return value.cast(pl.String)
 
