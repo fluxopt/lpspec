@@ -27,8 +27,9 @@ from lpspec.linopy import absence
 from lpspec.linopy._notes import note
 from lpspec.linopy.coverage import check_constant_side_covers, check_divisors_cover, gaps_under
 from lpspec.linopy.operators import operator_at, operator_grouped_sum, operator_shift, operator_sum, operator_sum_back
-from lpspec.linopy.where import EvaluationContext, as_linopy_mask, bound_lookup, evaluate_where
+from lpspec.linopy.where import EvaluationContext, as_linopy_mask, bound_relation, evaluate_where
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
+from lpspec.relations import maps_out_of, partition_of
 
 if TYPE_CHECKING:
     import linopy
@@ -288,13 +289,15 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
     if isinstance(node, program.GroupSum):
         return operator_grouped_sum(
             _eval(node.operand, ctx),
-            _lookup_arrays(node.over, node.coordinate, ctx),
+            _relation_arrays(node.over[0], node.coordinate, ctx),
             into=node.into,
             labels=ctx.master_coords,
         )
 
     if isinstance(node, program.At):
-        return operator_at(_eval(node.operand, ctx), _lookup_arrays(node.over, node.coordinate, ctx), into=node.into)
+        return operator_at(
+            _eval(node.operand, ctx), _relation_arrays(node.over[0], node.coordinate, ctx), into=node.into
+        )
 
     if isinstance(node, program.Translate):
         return operator_shift(
@@ -382,19 +385,20 @@ def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
 
 
 def _partition(node: program.Translate | program.Window, ctx: EvaluationContext) -> Any:
-    """The lookup a windowed operator may not reach across, as its values.
+    """The relation a windowed operator may not reach across, as its values.
 
     **Named for the dimension its values are labels of**, not for itself: an
     amount declared over the group's own dim is read through this array by
     :func:`~lpspec.linopy.operators._per_group`, which pairs the two by that
     name.
     """
-    if node.partition is None:
+    by = partition_of(node)
+    if by is None:
         return None
-    array = bound_lookup(node.partition, node.dimension, ctx.dim_coords)
-    return array.rename(ctx.program.dimension(node.dimension).targets[node.partition])
+    array = bound_relation(by, node.dimension, ctx.dim_coords)
+    return array.rename(maps_out_of(ctx.program, node.dimension)[by])
 
 
-def _lookup_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The declared lookups *names* as arrays over *over*, in the order the plan wrote them."""
-    return tuple(bound_lookup(name, over, ctx.dim_coords) for name in names)
+def _relation_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
+    """The declared maps *names* as arrays over *over*, in the order the plan wrote them."""
+    return tuple(bound_relation(name, over, ctx.dim_coords) for name in names)

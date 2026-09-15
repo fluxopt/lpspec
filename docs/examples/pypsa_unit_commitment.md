@@ -220,7 +220,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           PyPSA declares them binary rather than leaving it to the status, and the
           port matches that.
         dims: [snapshot, generator]
-        expression: start_up - status + shift(status, over=snapshot, offset=1) >= 0
+        expression: start_up - status + shift(status, along=snapshot, offset=1) >= 0
 
       shut_down_initial:
         description: >-
@@ -234,7 +234,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       shut_down:
         description: a unit whose status falls entering this snapshot pays for a stop
         dims: [snapshot, generator]
-        expression: shut_down + status - shift(status, over=snapshot, offset=1) >= 0
+        expression: shut_down + status - shift(status, along=snapshot, offset=1) >= 0
 
     objective:
       sense: minimize

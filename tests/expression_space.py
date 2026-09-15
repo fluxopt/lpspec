@@ -114,7 +114,7 @@ def shifted(a: Node, over: str) -> Node | None:
     """
     if over not in a.dims:
         return None
-    return Node(f'shift({a}, over={over}, offset=1)', a.dims, a.degree, total=False)
+    return Node(f'shift({a}, along={over}, offset=1)', a.dims, a.degree, total=False)
 
 
 #: Every way to grow an expression by one node. Ordered, so the enumeration is

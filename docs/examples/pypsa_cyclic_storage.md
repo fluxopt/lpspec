@@ -15,8 +15,8 @@ and drops that row, `edge='wrap'` puts it onto the last.
 -    where: "position(snapshot) == 0"
 -    expression: soc == soc_initial + p_store * ... - p_dispatch / ...
    energy_balance:
--    expression: soc == shift(soc, over=snapshot, offset=1) * (1 - standing_loss) + ...
-+    expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap') * (1 - standing_loss) + ...
+-    expression: soc == shift(soc, along=snapshot, offset=1) * (1 - standing_loss) + ...
++    expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap') * (1 - standing_loss) + ...
 ```
 
 `soc_initial` leaves the instance with it: a cyclic horizon has no seed to
@@ -39,7 +39,7 @@ PyPSA linear optimal power flow whose storage is closed into a cycle — the fir
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods, cyclic at the horizon |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B},\ \mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — controllable connections, each joining two buses |
 | $`\mathcal{S}`$ | index $`s`$ — `storage` with $`\mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — storage units, each sitting on one bus |
@@ -169,23 +169,23 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: storage units, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       link_from:
         description: the bus a link leaves
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
       link_to:
         description: the bus a link arrives at
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
       storage_bus:
         description: the bus a storage unit sits on
-        over: storage
-        into: bus
+        columns: [storage, bus]
+        key: storage
 
     parameters:
       p_nom:
@@ -273,11 +273,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
       ramp_up:
         dims: [snapshot, generator]
-        expression: p - shift(p, over=snapshot, offset=1) <= ramp_limit_up * p_nom
+        expression: p - shift(p, along=snapshot, offset=1) <= ramp_limit_up * p_nom
 
       ramp_down:
         dims: [snapshot, generator]
-        expression: shift(p, over=snapshot, offset=1) - p <= ramp_limit_down * p_nom
+        expression: shift(p, along=snapshot, offset=1) - p <= ramp_limit_down * p_nom
 
       energy_balance:
         description: >-
@@ -286,7 +286,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           inherits from the last
         dims: [snapshot, storage]
         expression: >-
-          soc == shift(soc, over=snapshot, offset=1, edge='wrap') * (1 - standing_loss)
+          soc == shift(soc, along=snapshot, offset=1, edge='wrap') * (1 - standing_loss)
           + p_store * efficiency_store
           - p_dispatch / efficiency_dispatch
 

@@ -71,8 +71,8 @@ def varying(n: pypsa.Network, component: str, attr: str) -> pd.DataFrame:
     return table.astype({DIM[component]: str, 'value': float})
 
 
-def lookup(n: pypsa.Network, component: str, attr: str, into: str = 'bus') -> pd.DataFrame:
-    """What a component's *attr* names, as the lookup the file declares over it *into* a dimension; a blank names none."""
+def relation(n: pypsa.Network, component: str, attr: str, into: str = 'bus') -> pd.DataFrame:
+    """What a component's *attr* names, as the relation the file declares over it *into* a dimension; a blank names none."""
     table = n.static(component)
     named = table[attr].astype(str) if attr in table.columns else pd.Series('', index=table.index, dtype=str)
     out = pd.DataFrame(keyed(table.index, DIM[component]) | {into: named.to_numpy()})
@@ -116,7 +116,7 @@ def _link_ports(n: pypsa.Network) -> pd.DataFrame:
 def _per_port(n: pypsa.Network, column: str, as_name: str | None = None) -> pd.DataFrame:
     """One column of the long port table keyed by ``link_output`` — what a port names, or what it carries.
 
-    *as_name* is what the file calls it: a lookup keeps its target dimension's
+    *as_name* is what the file calls it: a relation keeps its target dimension's
     own name, and every parameter over the ports lands under ``value``.
     """
     ports = _link_ports(n)
@@ -334,7 +334,7 @@ def carriers(n: pypsa.Network) -> dict[str, object]:
     growth = table['max_growth']
     return {
         'carrier': pl.Series('carrier', list(table.index.astype(str)), dtype=pl.String),
-        'Generator_carrier': lookup(n, 'Generator', 'carrier', into='carrier'),
+        'Generator_carrier': relation(n, 'Generator', 'carrier', into='carrier'),
         'Carrier_max_growth': pd.DataFrame(
             {
                 'carrier': growth.index[growth < float('inf')].astype(str),
@@ -371,13 +371,13 @@ def sources(n: pypsa.Network, *, segments: int = 0) -> dict[str, object]:
         **scenarios(n),
         **periods(n),
         **carriers(n),
-        'Generator_bus': lookup(n, 'Generator', 'bus'),
-        'Link_bus0': lookup(n, 'Link', 'bus0'),
-        'Load_bus': lookup(n, 'Load', 'bus'),
-        'StorageUnit_bus': lookup(n, 'StorageUnit', 'bus'),
-        'Store_bus': lookup(n, 'Store', 'bus'),
-        'Line_bus0': lookup(n, 'Line', 'bus0'),
-        'Line_bus1': lookup(n, 'Line', 'bus1'),
+        'Generator_bus': relation(n, 'Generator', 'bus'),
+        'Link_bus0': relation(n, 'Link', 'bus0'),
+        'Load_bus': relation(n, 'Load', 'bus'),
+        'StorageUnit_bus': relation(n, 'StorageUnit', 'bus'),
+        'Store_bus': relation(n, 'Store', 'bus'),
+        'Line_bus0': relation(n, 'Line', 'bus0'),
+        'Line_bus1': relation(n, 'Line', 'bus1'),
         'snapshot_weightings_objective': weighting(n, 'objective'),
         'snapshot_weightings_stores': weighting(n, 'stores'),
         'snapshot_weightings_generators': weighting(n, 'generators'),

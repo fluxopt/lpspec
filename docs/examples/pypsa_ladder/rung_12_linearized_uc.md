@@ -55,9 +55,9 @@ The relaxed class of a plain `n.optimize()`: `linearized_unit_commitment`, state
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{N}`$ | index $`n`$ — `bus` — network nodes |
+| $`\mathcal{N}`$ | index $`n`$ — `bus` with $`\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N},\ \mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N},\ \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N},\ \mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N}`$ — generating units, each on one bus |
-| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N}`$ — controllable connections, each from one bus to the buses it delivers to |
+| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N},\ \mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L}`$ — controllable connections, each from one bus to the buses it delivers to |
 | $`\mathcal{O}`$ | index $`o`$ — `link_output` with $`\mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L},\ \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N}`$ — a link's output ports, one label per port a link declares — PyPSA's `bus1`, `bus2`, … columns read long, so a link of any number of output ports is one term in the balance, data prep |
 | $`\mathcal{D}`$ | index $`d`$ — `load` with $`\mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}`$ — demands, each on one bus |
 
@@ -310,14 +310,14 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
           `bus2`, … columns read long, so a link of any number of output ports is one term in the balance,
           data prep'}
       load: {description: 'demands, each on one bus'}
-    lookups:
-      Generator_bus: {description: the bus a generator sits on, over: generator, into: bus}
-      Link_bus0: {description: the bus a link leaves, over: link, into: bus}
-      Link_output_link: {description: the link an output port belongs to, over: link_output, into: link}
+    relations:
+      Generator_bus: {description: the bus a generator sits on, columns: [generator, bus], key: generator}
+      Link_bus0: {description: the bus a link leaves, columns: [link, bus], key: link}
+      Link_output_link: {description: the link an output port belongs to, columns: [link_output, link], key: link_output}
       Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-          A link of three output ports is three labels here rather than a third lookup, so the file states
-          any number of them', over: link_output, into: bus}
-      Load_bus: {description: the bus a load sits on, over: load, into: bus}
+          A link of three output ports is three labels here rather than a third relation, so the file states
+          any number of them', columns: [link_output, bus], key: link_output}
+      Load_bus: {description: the bus a load sits on, columns: [load, bus], key: load}
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -483,13 +483,13 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
           carries'
         dims: [snapshot, generator]
         where: Generator_committable AND Generator_min_up_time > 0 AND position(snapshot) > 0
-        expression: sum_back(Generator_start_up, over=snapshot, within=Generator_min_up_time) <= Generator_status
+        expression: sum_back(Generator_start_up, along=snapshot, window=Generator_min_up_time) <= Generator_status
       Generator_com_down_time:
         description: '`Generator-com-down-time` — a unit stopped within its own minimum down time is still
           off'
         dims: [snapshot, generator]
         where: Generator_committable AND Generator_min_down_time > 0 AND position(snapshot) > 0
-        expression: sum_back(Generator_shut_down, over=snapshot, within=Generator_min_down_time) <= 1 - Generator_status
+        expression: sum_back(Generator_shut_down, along=snapshot, window=Generator_min_down_time) <= 1 - Generator_status
       Generator_com_status_must_stay_up:
         description: '`Generator-com-status-min_up_time_must_stay_up` — a unit still serving the up time it
           brought in stays on'
@@ -539,8 +539,8 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
           the first snapshot, as PyPSA''s `sns[1:]` does'
         dims: [snapshot, generator]
         where: Generator_committable AND Generator_partly_tightened
-        expression: shift(Generator_p, over=snapshot, offset=1) - Generator_ramp_limit_shut_down * Generator_p_nom
-          * shift(Generator_status, over=snapshot, offset=1) - (Generator_p_max_pu * Generator_p_nom - Generator_ramp_limit_shut_down
+        expression: shift(Generator_p, along=snapshot, offset=1) - Generator_ramp_limit_shut_down * Generator_p_nom
+          * shift(Generator_status, along=snapshot, offset=1) - (Generator_p_max_pu * Generator_p_nom - Generator_ramp_limit_shut_down
           * Generator_p_nom) * (Generator_status - Generator_start_up) <= 0
       Generator_com_p_current:
         description: '`Generator-com-p-current` — output fits the share on, and the share starting up only
@@ -554,17 +554,17 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
           by the ramp of the share on and the start-up ramp of the share coming on'
         dims: [snapshot, generator]
         where: Generator_committable AND Generator_partly_tightened
-        expression: Generator_p - shift(Generator_p, over=snapshot, offset=1) - (Generator_p_min_pu * Generator_p_nom
+        expression: Generator_p - shift(Generator_p, along=snapshot, offset=1) - (Generator_p_min_pu * Generator_p_nom
           + Generator_ramp_limit_up * Generator_p_nom) * Generator_status + Generator_p_min_pu * Generator_p_nom
-          * shift(Generator_status, over=snapshot, offset=1) + (Generator_p_min_pu * Generator_p_nom + Generator_ramp_limit_up
+          * shift(Generator_status, along=snapshot, offset=1) + (Generator_p_min_pu * Generator_p_nom + Generator_ramp_limit_up
           * Generator_p_nom - Generator_ramp_limit_start_up * Generator_p_nom) * Generator_start_up <= 0
       Generator_com_partly_shut_down:
         description: '`Generator-com-partly-shut-down` — lowering output while a share is shutting down is
           bounded likewise, by the shut-down ramp'
         dims: [snapshot, generator]
         where: Generator_committable AND Generator_partly_tightened
-        expression: shift(Generator_p, over=snapshot, offset=1) - Generator_p - Generator_ramp_limit_shut_down
-          * Generator_p_nom * shift(Generator_status, over=snapshot, offset=1) + (Generator_ramp_limit_shut_down
+        expression: shift(Generator_p, along=snapshot, offset=1) - Generator_p - Generator_ramp_limit_shut_down
+          * Generator_p_nom * shift(Generator_status, along=snapshot, offset=1) + (Generator_ramp_limit_shut_down
           * Generator_p_nom - Generator_ramp_limit_down * Generator_p_nom) * Generator_status - (Generator_p_min_pu
           * Generator_p_nom + Generator_ramp_limit_down * Generator_p_nom - Generator_ramp_limit_shut_down
           * Generator_p_nom) * Generator_start_up <= 0
@@ -575,14 +575,14 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
         dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: Generator_status_initial}
-        otherwise: shift(Generator_status, over=snapshot, offset=1)
+        otherwise: shift(Generator_status, along=snapshot, offset=1)
       Generator_previous_p:
         description: the output a generator carries into a snapshot — nothing at the start of the horizon,
           which is why a unit that came in running carries no ramp row there
         dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: 0}
-        otherwise: shift(Generator_p, over=snapshot, offset=1)
+        otherwise: shift(Generator_p, along=snapshot, offset=1)
     objective: {sense: minimize, description: 'operating cost by weighted snapshot, plus what starts, stops
         and standing by cost', expression: sum(Generator_p * Generator_marginal_cost * snapshot_weightings_objective)
         + sum(Link_p * Link_marginal_cost * snapshot_weightings_objective) + sum(Generator_status * Generator_stand_by_cost
@@ -593,7 +593,7 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
     The prep — every table the spec declares, from the network — and the solve:
 
     ```python
-    from differential.pypsa.prep import lookup, static, varying, weighting
+    from differential.pypsa.prep import relation, static, varying, weighting
 
 
     def _link_ports(n: pypsa.Network) -> pd.DataFrame:
@@ -645,7 +645,7 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
     def _per_port(n: pypsa.Network, column: str, as_name: str | None = None) -> pd.DataFrame:
         """One column of the long port table keyed by ``link_output`` — what a port names, or what it carries.
 
-        *as_name* is what the file calls it: a lookup keeps its target dimension's
+        *as_name* is what the file calls it: a relation keeps its target dimension's
         own name, and every parameter over the ports lands under ``value``.
         """
         ports = _link_ports(n)
@@ -662,11 +662,11 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
         'link': pl.Series('link', list(names(links.index).astype(str)), dtype=pl.String),
         'link_output': pl.Series('link_output', list(pd.unique(_link_ports(n)['link_output'])), dtype=pl.String),
         'load': pl.Series('load', list(names(loads.index).astype(str)), dtype=pl.String),
-        'Generator_bus': lookup(n, 'Generator', 'bus'),
-        'Link_bus0': lookup(n, 'Link', 'bus0'),
+        'Generator_bus': relation(n, 'Generator', 'bus'),
+        'Link_bus0': relation(n, 'Link', 'bus0'),
         'Link_output_link': _per_port(n, 'link'),
         'Link_output_bus': _per_port(n, 'bus'),
-        'Load_bus': lookup(n, 'Load', 'bus'),
+        'Load_bus': relation(n, 'Load', 'bus'),
         'snapshot_weightings_objective': weighting(n, 'objective'),
         'Generator_p_nom': static(n, 'Generator', 'p_nom'),
         'Generator_p_min_pu': varying(n, 'Generator', 'p_min_pu'),

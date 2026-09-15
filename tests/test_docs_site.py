@@ -22,6 +22,7 @@ import functools
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / 'docs'
@@ -217,6 +218,12 @@ def test_the_translation_table_names_every_built_in_operator():
     )
 
 
+def _gen_bus_walk(program: Any) -> Any:
+    """One map walked one way — what a `by=` node stands on, whichever operator takes it."""
+    gen_bus = program.RelationDeclaration('gen_bus', (('g', 'g'), ('bus', 'bus')), ('g',))
+    return program.Walk(gen_bus, ('g',), ('bus',), ())
+
+
 def test_the_plan_table_names_every_expression_node():
     """`The plan, node for node` is a copy of two dispatches, so something checks it.
 
@@ -246,8 +253,8 @@ def test_the_plan_table_names_every_expression_node():
             program.Divide(x, program.Parameter('p')),
             program.Power(program.Parameter('p'), program.Constant(2.0)),
             program.Sum(x, ('t',)),
-            program.GroupSum(x, 'g', ('bus',), ('b',)),
-            program.At(x, 'g', ('bus',), ('b',)),
+            program.GroupSum(x, (_gen_bus_walk(program),)),
+            program.At(x, (_gen_bus_walk(program),)),
             program.Translate(x, 't', 1, wrap=False),
             program.Window(x, 't', 3, wrap=False),
             program.Cases((program.Region(program.Mask(program.BooleanLiteralNode(True)), x),)),

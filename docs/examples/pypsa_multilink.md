@@ -39,7 +39,7 @@ PyPSA multi-link: one Link, one input bus, several output buses, each output der
 
 | Symbol | Meaning |
 |---|---|
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{L}`$ | index $`l`$ — `link` — conversions, each drawing at one bus and delivering at several |
 
@@ -117,8 +117,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: conversions, each drawing at one bus and delivering at several
         dtype: str
 
-    lookups:
-      gen_bus: {over: generator, into: bus, description: "the bus a generator sits on"}
+    relations:
+      gen_bus: {columns: [generator, bus], key: generator, description: "the bus a generator sits on"}
 
     parameters:
       gen_p_nom:
@@ -246,6 +246,6 @@ of its draw in station load, with no new column and no new construct.
 enough.** A per-end variable or bound (a heat-offtake cap on the CHP's heat
 port alone), a value pulled through an end's bus with `at(..., by=…)`, or a
 link touching the same bus twice all need the ends as a dimension with leg
-lookups. A parameter holds one value per `(link, bus)` pair and gives the pair
+relations. A parameter holds one value per `(link, bus)` pair and gives the pair
 no identity. [Reserves](reserves.md) proves that other idiom with its
 three-legged offers.

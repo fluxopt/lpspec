@@ -221,7 +221,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           unit begins the horizon off, which is the 0 the first snapshot reads where
           it has no predecessor
         dims: [snapshot, generator]
-        expression: start_up - status + shift(status, over=snapshot, offset=1, edge=0) >= 0
+        expression: start_up - status + shift(status, along=snapshot, offset=1, edge=0) >= 0
 
       shut_down:
         description: >-
@@ -229,7 +229,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           no first-snapshot counterpart: a unit that begins off has nothing to stop,
           and the row PyPSA emits there holds for every value of both variables.
         dims: [snapshot, generator]
-        expression: shut_down + status - shift(status, over=snapshot, offset=1) >= 0
+        expression: shut_down + status - shift(status, along=snapshot, offset=1) >= 0
 
       min_up_time:
         description: >-
@@ -238,7 +238,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           again inside its own window
         dims: [snapshot, generator]
         where: "snapshot > 0"
-        expression: sum_back(start_up, over=snapshot, within=min_up_time) <= status
+        expression: sum_back(start_up, along=snapshot, window=min_up_time) <= status
 
       min_down_time:
         description: >-
@@ -246,7 +246,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           be true
         dims: [snapshot, generator]
         where: "snapshot > 0"
-        expression: status + sum_back(shut_down, over=snapshot, within=min_down_time) <= 1
+        expression: status + sum_back(shut_down, along=snapshot, window=min_down_time) <= 1
 
     objective:
       sense: minimize
@@ -323,7 +323,7 @@ horizon running pays for no start and is charged if it goes down.
 
 ## What it exercises
 
-`sum_back(x, over=dim, within=p)` with `p` an integer parameter: the
+`sum_back(x, along=dim, window=p)` with `p` an integer parameter: the
 per-entity window length, against a variable, inside a MILP. The `dtype: int`
 declaration is required and load-time validation says so by name: *a width
 counts positions rather than measuring a distance.*

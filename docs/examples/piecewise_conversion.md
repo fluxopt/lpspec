@@ -36,7 +36,7 @@ Least-cost heat and power from two converters whose flows are tied to one piecew
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `time` — dispatch periods |
-| $`\mathcal{C}`$ | index $`c`$ — `converter` — units converting one carrier into others |
+| $`\mathcal{C}`$ | index $`c`$ — `converter` with $`\mathrm{converter\_of}: \mathcal{F} \to \mathcal{C}`$ — units converting one carrier into others |
 | $`\mathcal{F}`$ | index $`f`$ — `flow` with $`\mathrm{converter\_of}: \mathcal{F} \to \mathcal{C}`$ — a converter's inputs and outputs, one row each |
 | $`\mathcal{B}`$ | index $`b`$ — `bp` — breakpoints, as many as the longest curve needs |
 
@@ -141,11 +141,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: breakpoints, as many as the longest curve needs
         dtype: int
 
-    lookups:
+    relations:
       converter_of:
         description: which converter a flow belongs to
-        over: flow
-        into: converter
+        columns: [flow, converter]
+        key: flow
 
     parameters:
       bp_rate:
@@ -272,7 +272,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 **The arity is a row count.** `on_the_curve` builds one row per flow, so a
 converter tying three expressions and one tying two are the same declaration.
 Nothing in the file says how many flows a converter has; the `converter_of`
-lookup does, and it is data.
+relation does, and it is data.
 
 **The mask is the variable's own.** `where: bp_present` decides which weights
 exist, and an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set is over the

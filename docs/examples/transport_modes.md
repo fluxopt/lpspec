@@ -29,7 +29,7 @@ Moving 180 tonnes of chemicals out of four depots to three recycling centres, wh
 
 | Symbol | Meaning |
 |---|---|
-| $`\mathcal{D}`$ | index $`d`$ — `depot` — depots the chemicals leave from |
+| $`\mathcal{D}`$ | index $`d`$ — `depot` with $`\mathrm{origin}: \mathcal{C} \to \mathcal{D}`$ — depots the chemicals leave from |
 | $`\mathcal{C}`$ | index $`c`$ — `connection` with $`\mathrm{origin}: \mathcal{C} \to \mathcal{D}`$ — one way of reaching one centre from one depot, by rail or by road |
 
 #### Parameters
@@ -104,11 +104,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: one way of reaching one centre from one depot, by rail or by road
         dtype: str
 
-    lookups:
+    relations:
       origin:
         description: the depot a connection leaves
-        over: connection
-        into: depot
+        columns: [connection, depot]
+        key: connection
 
     parameters:
       stock:
@@ -175,6 +175,6 @@ semi-continuous variant is
 
 ## What it exercises
 
-`sum(by=)` through a lookup whose target carries a constraint of its own, and
+`sum(by=)` through a relation whose target carries a constraint of its own, and
 per-label bounds read from data, where the *label* is a connection rather than
 a pair.

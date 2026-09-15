@@ -15,17 +15,17 @@ snapshots. A study that models 2030 hourly and 2050 in four-hour blocks wants
 the opposite.
 
 So `snapshot` is one flat dimension carrying $\mathrm{period}$ as a
-[lookup](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#lookups), as `generator`
+[relation](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#relations), as `generator`
 carries $\mathrm{bus}$ in [transport](transport.md). Ragged periods then cost
-nothing: a lookup is a per-row column, and four snapshots in 2030 beside two in
+nothing: a relation is a per-row column, and four snapshots in 2030 beside two in
 2050 is a column with four of one value and two of another.
 
 ## Both directions of one mapping
 
-Grouping reads the lookup one way:
+Grouping reads the relation one way:
 `sum(p, by=period_of)` is a per-period CO₂ budget, and
 [monthly_budget](monthly_budget.md) is the same construct on a different
-lookup.
+relation.
 
 `within_cap` reads it the other way. Capacity lives on `period` and binds at
 each `snapshot`, so a coarse quantity is pulled onto a fine one:
@@ -36,7 +36,7 @@ within_cap:
   expression: p <= at(p_nom, by=period_of)
 ```
 
-`at` and `sum(by=)` take the same argument: the lookup names one table, and
+`at` and `sum(by=)` take the same argument: the relation names one table, and
 the operator says which direction it is walked.
 
 A per-period **parameter** needs neither: join it onto the snapshot index
@@ -54,7 +54,7 @@ Least-cost investment and dispatch together: capacity is decided once per period
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{period\_of}: \mathcal{T} \to \mathcal{E}`$ — dispatch periods, each falling in one investment period |
-| $`\mathcal{E}`$ | index $`e`$ — `period` — investment periods, the grouping capacity is decided over |
+| $`\mathcal{E}`$ | index $`e`$ — `period` with $`\mathrm{period\_of}: \mathcal{T} \to \mathcal{E}`$ — investment periods, the grouping capacity is decided over |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units |
 
 #### Parameters
@@ -133,8 +133,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: generating units
         dtype: str
 
-    lookups:
-      period_of: {over: snapshot, into: period}
+    relations:
+      period_of: {columns: [snapshot, period], key: snapshot}
 
     parameters:
       load:

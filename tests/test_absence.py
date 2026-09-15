@@ -188,7 +188,7 @@ def test_a_sparse_coefficient_beside_a_constant_piece_is_still_a_zero():
 #: behind `south`'s constant side has no members at all.
 GROUPED_CONSTANT_SPEC = {
     'dimensions': {'generator': {}, 'bus': {'dtype': 'str'}},
-    'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
+    'relations': {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
     'parameters': {'capacity': {'dims': ['generator']}},
     'variables': {'imports': {'dims': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {'import_limit': {'dims': ['bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}},
@@ -270,9 +270,9 @@ def test_an_empty_group_spanning_another_dim_is_zero_at_every_coordinate():
 PLURAL_GROUPED_CONSTANT_SPEC = {
     **GROUPED_CONSTANT_SPEC,
     'dimensions': {**GROUPED_CONSTANT_SPEC['dimensions'], 'technology': {'dtype': 'str'}},
-    'lookups': {
-        'gen_bus': {'over': 'generator', 'into': 'bus'},
-        'gen_tech': {'over': 'generator', 'into': 'technology'},
+    'relations': {
+        'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'},
+        'gen_tech': {'columns': ['generator', 'technology'], 'key': 'generator'},
     },
     'variables': {'imports': {'dims': ['bus', 'technology'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {

@@ -13,14 +13,14 @@ dimensions:
       `bus2`, … columns read long, so a link of any number of output ports is one term in the balance,
       data prep'}
   load: {description: 'demands, each on one bus'}
-lookups:
-  Generator_bus: {description: the bus a generator sits on, over: generator, into: bus}
-  Link_bus0: {description: the bus a link leaves, over: link, into: bus}
-  Link_output_link: {description: the link an output port belongs to, over: link_output, into: link}
+relations:
+  Generator_bus: {description: the bus a generator sits on, columns: [generator, bus], key: generator}
+  Link_bus0: {description: the bus a link leaves, columns: [link, bus], key: link}
+  Link_output_link: {description: the link an output port belongs to, columns: [link_output, link], key: link_output}
   Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-      A link of three output ports is three labels here rather than a third lookup, so the file states
-      any number of them', over: link_output, into: bus}
-  Load_bus: {description: the bus a load sits on, over: load, into: bus}
+      A link of three output ports is three labels here rather than a third relation, so the file states
+      any number of them', columns: [link_output, bus], key: link_output}
+  Load_bus: {description: the bus a load sits on, columns: [load, bus], key: load}
 parameters:
   snapshot_weightings_objective:
     description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -142,8 +142,8 @@ expressions:
     dims: [snapshot, link_output]
     cases:
       wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
-          Link_efficiency, over=snapshot, offset=Link_output_delay, edge=''wrap'')'}
-    otherwise: shift(at(Link_p, by=Link_output_link) * Link_efficiency, over=snapshot, offset=Link_output_delay,
+          Link_efficiency, along=snapshot, offset=Link_output_delay, edge=''wrap'')'}
+    otherwise: shift(at(Link_p, by=Link_output_link) * Link_efficiency, along=snapshot, offset=Link_output_delay,
       edge=0)
 objective: {sense: minimize, description: 'operating cost, each snapshot weighted by the hours it stands
     for', expression: sum(Generator_p * Generator_marginal_cost * snapshot_weightings_objective) + sum(Link_p

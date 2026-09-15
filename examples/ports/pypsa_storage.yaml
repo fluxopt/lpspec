@@ -20,23 +20,23 @@ dimensions:
     description: storage units, each sitting on one bus
     dtype: str
 
-lookups:
+relations:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    columns: [generator, bus]
+    key: generator
   link_from:
     description: the bus a link leaves
-    over: link
-    into: bus
+    columns: [link, bus]
+    key: link
   link_to:
     description: the bus a link arrives at
-    over: link
-    into: bus
+    columns: [link, bus]
+    key: link
   storage_bus:
     description: the bus a storage unit sits on
-    over: storage
-    into: bus
+    columns: [storage, bus]
+    key: storage
 
 parameters:
   p_nom:
@@ -133,11 +133,11 @@ constraints:
 
   ramp_up:
     dims: [snapshot, generator]
-    expression: p - shift(p, over=snapshot, offset=1) <= ramp_limit_up * p_nom
+    expression: p - shift(p, along=snapshot, offset=1) <= ramp_limit_up * p_nom
 
   ramp_down:
     dims: [snapshot, generator]
-    expression: shift(p, over=snapshot, offset=1) - p <= ramp_limit_down * p_nom
+    expression: shift(p, along=snapshot, offset=1) - p <= ramp_limit_down * p_nom
 
   energy_balance_initial:
     description: >-
@@ -158,7 +158,7 @@ constraints:
       way out, so the two efficiencies enter on opposite sides of the division
     dims: [snapshot, storage]
     expression: >-
-      soc == shift(soc, over=snapshot, offset=1) * (1 - standing_loss)
+      soc == shift(soc, along=snapshot, offset=1) * (1 - standing_loss)
       + p_store * efficiency_store
       - p_dispatch / efficiency_dispatch
 

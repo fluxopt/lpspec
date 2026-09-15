@@ -1,7 +1,7 @@
 """shift: time-coupled recurrences through both backends.
 
 examples/storage.yaml is dispatch plus a cyclic battery:
-soc == shift(soc, over=snapshot, offset=1, edge='wrap') + charge * 0.9 - discharge.
+soc == shift(soc, along=snapshot, offset=1, edge='wrap') + charge * 0.9 - discharge.
 The eager backend implements `edge='wrap'` with linopy's circular .roll(); the
 relational backend lowers it to program.Translate — a pointwise ord-join remap.
 """
@@ -62,7 +62,7 @@ def _soc_trace(result):
 def _storage_variant(replacement: str) -> str:
     """``examples/storage.yaml`` with its wrap respelled as *replacement*."""
     original = STORAGE_YAML.read_text()
-    wrap = "shift(soc, over=snapshot, offset=1, edge='wrap')"
+    wrap = "shift(soc, along=snapshot, offset=1, edge='wrap')"
     assert wrap in original, 'examples/storage.yaml no longer spells the wrap this file rewrites'
     return original.replace(wrap, replacement)
 
@@ -106,7 +106,7 @@ def test_shift_drops_the_row_it_has_no_predecessor_for_on_both_lanes(storage_inp
     propagation, the relational one from the vacated coordinates leaving the
     presence set.
     """
-    acyclic = _storage_variant('shift(soc, over=snapshot, offset=1)')
+    acyclic = _storage_variant('shift(soc, along=snapshot, offset=1)')
     with differential(acyclic, _dimmed(storage_inputs)) as run:
         soc, charge, discharge = _soc_trace(run.result)
         assert np.allclose(soc[1:], soc[:-1] + 0.9 * charge[1:] - discharge[1:], atol=1e-6), (
@@ -125,7 +125,7 @@ def test_a_forward_shift_drops_the_row_at_the_far_end_on_both_lanes(storage_inpu
     shift until #837, where the typesetter turned out to abort on one. The
     engine had always been right; that is the half no test said.
     """
-    forward = _storage_variant('shift(soc, over=snapshot, offset=-1)')
+    forward = _storage_variant('shift(soc, along=snapshot, offset=-1)')
     with differential(forward, _dimmed(storage_inputs)) as run:
         soc, charge, discharge = _soc_trace(run.result)
         assert np.allclose(soc[:-1], soc[1:] + 0.9 * charge[:-1] - discharge[:-1], atol=1e-6), (
@@ -145,7 +145,7 @@ def test_a_forward_shift_with_a_zero_edge_keeps_the_far_row_on_both_lanes(storag
     the last snapshot keeps its equation, with the successor term contributing
     nothing.
     """
-    filled = _storage_variant('shift(soc, over=snapshot, offset=-1, edge=0)')
+    filled = _storage_variant('shift(soc, along=snapshot, offset=-1, edge=0)')
     with differential(filled, _dimmed(storage_inputs)) as run:
         soc, charge, discharge = _soc_trace(run.result)
         assert run.model.constraints['soc_balance'].labels.values[-1] != -1, (
@@ -159,7 +159,7 @@ def test_a_forward_shift_with_a_zero_edge_keeps_the_far_row_on_both_lanes(storag
 #: A mask that removes one interior coordinate, so the operand's own absence
 #: sits where no edge is. `edge: 0` may fill the boundary and nothing else, and
 #: the two are one call to `fillna` apart on the eager lane (#987).
-MASKED_INTERIOR = masked_operand_spec('link', 'take <= shift(level, over=t, offset=1, edge=0)')
+MASKED_INTERIOR = masked_operand_spec('link', 'take <= shift(level, along=t, offset=1, edge=0)')
 
 
 def test_a_zero_edge_fills_the_boundary_and_not_an_absence_that_was_already_there():
@@ -194,23 +194,23 @@ BY_PARAMETER = {
         'level': {'dims': ['g', 't'], 'where': 'usable > 0', 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'link': {'dims': ['g', 't'], 'expression': 'take <= shift(level, over=t, offset=lead, edge=0)'}},
+    'constraints': {'link': {'dims': ['g', 't'], 'expression': 'take <= shift(level, along=t, offset=lead, edge=0)'}},
     'objective': {
         'sense': 'maximize',
         'expression': 'sum(sum(take, over=g), over=t) - 1000 * sum(sum(level, over=g), over=t)',
     },
 }
 
-IN_GROUPS = masked_operand_spec('link', 'take <= shift(level, over=t, offset=1, edge=0, by=season_of)', grouped=True)
+IN_GROUPS = masked_operand_spec('link', 'take <= shift(level, along=t, offset=1, edge=0, by=season_of)', grouped=True)
 
 #: The same, with nothing masked at all: `level` carries no `where`, so the
 #: operand reaches the shift with no presence frame of its own. Which of the
 #: two group-less readings the lane takes used to depend on that (#1061).
 IN_GROUPS_UNMASKED = masked_operand_spec(
-    'link', 'take <= shift(level, over=t, offset=1, edge=0, by=season_of)', grouped=True, masked=False
+    'link', 'take <= shift(level, along=t, offset=1, edge=0, by=season_of)', grouped=True, masked=False
 )
 
-#: A fourth snapshot the lookup sends nowhere, for both models above.
+#: A fourth snapshot the relation sends nowhere, for both models above.
 GROUPLESS_SOURCES = {
     't': pd.DataFrame({'t': [0, 1, 2, 3]}),
     'season_of': relation('t', 'season', [0, 1, 2, 3], ['s1', 's1', 's2', None]),
@@ -258,14 +258,14 @@ def test_a_grouped_shift_fills_each_groups_edge_and_not_the_mask_under_it():
         assert run.oracle == pytest.approx(10.0), 'the snapshot whose predecessor is masked is capped by nothing'
 
 
-def test_a_coordinate_the_lookup_sends_nowhere_is_absent_rather_than_vacated():
+def test_a_coordinate_the_relation_sends_nowhere_is_absent_rather_than_vacated():
     """A snapshot in no season at all: it reaches nothing for a reason the
     shift had nothing to do with, so `edge=0` does not speak for it.
 
     The two readings of "reached nothing" are what separates this from the
     test above: off a group's start the shift vacated the slot and the edge
-    fills it, but a coordinate the lookup sends nowhere never had a
-    predecessor to lose. It is the null a partial lookup gets everywhere else
+    fills it, but a coordinate the relation sends nowhere never had a
+    predecessor to lose. It is the null a partial relation gets everywhere else
     (#969, `sum(by=)`, `at()`), and filling it asserts `take <= 0` where the
     model said nothing.
 
@@ -299,7 +299,7 @@ BY_PARAMETER_CONSTANT = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
     'parameters': {'lead': {'dims': ['g'], 'dtype': 'int'}, 'eff': {'dims': ['g', 't']}},
     'variables': {'x': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'link': {'dims': ['g', 't'], 'expression': 'x * shift(eff, over=t, offset=lead, edge=1) <= 10'}},
+    'constraints': {'link': {'dims': ['g', 't'], 'expression': 'x * shift(eff, along=t, offset=lead, edge=1) <= 10'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(sum(x, over=g), over=t)'},
 }
 
@@ -327,39 +327,41 @@ def test_a_per_entity_offset_writes_a_nonzero_edge_where_that_entity_vacates():
 #: A period's own construction lead time, on a flat snapshot axis (#1161).
 PER_GROUP_OFFSET = {
     'dimensions': {'t': {'dtype': 'int'}, 'period': {'dtype': 'int'}},
-    'lookups': {'period_of': {'over': 't', 'into': 'period'}},
+    'relations': {'period_of': {'columns': ['t', 'period'], 'key': 't'}},
     'parameters': {'lead': {'dims': ['period'], 'dtype': 'int'}, 'v': {'dims': ['t']}},
     'variables': {'p': {'dims': ['t'], 'bounds': {'lower': -100, 'upper': 100}}},
-    'constraints': {'reads': {'dims': ['t'], 'expression': 'p == shift(v, over=t, offset=lead, by=period_of, edge=0)'}},
+    'constraints': {
+        'reads': {'dims': ['t'], 'expression': 'p == shift(v, along=t, offset=lead, by=period_of, edge=0)'}
+    },
     'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
 }
 
 #: The same lag over a *variable*, where the edge is a term that is not there
-#: rather than a number written into a frame — and one snapshot the lookup
+#: rather than a number written into a frame — and one snapshot the relation
 #: sends nowhere, which no lag reaches and no edge speaks for.
 PER_GROUP_OFFSET_TERMS = {
     'dimensions': {'t': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-    'lookups': {'season_of': {'over': 't', 'into': 'season'}},
+    'relations': {'season_of': {'columns': ['t', 'season'], 'key': 't'}},
     'parameters': {'lead': {'dims': ['season'], 'dtype': 'int'}, 'cap': {'dims': ['t']}},
     'variables': {
         'level': {'dims': ['t'], 'bounds': {'lower': 'cap', 'upper': 'cap'}},
         'take': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 100}},
     },
     'constraints': {
-        'link': {'dims': ['t'], 'expression': 'take <= shift(level, over=t, offset=lead, by=season_of, edge=0)'}
+        'link': {'dims': ['t'], 'expression': 'take <= shift(level, along=t, offset=lead, by=season_of, edge=0)'}
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(take, over=t)'},
 }
 
 #: Per entity *and* per group at once: one key the frame carries and one it
-#: reaches through the lookup, in the same join.
+#: reaches through the relation, in the same join.
 PER_ENTITY_AND_PER_GROUP = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-    'lookups': {'season_of': {'over': 't', 'into': 'season'}},
+    'relations': {'season_of': {'columns': ['t', 'season'], 'key': 't'}},
     'parameters': {'lead': {'dims': ['g', 'season'], 'dtype': 'int'}, 'v': {'dims': ['g', 't']}},
     'variables': {'p': {'dims': ['g', 't'], 'bounds': {'lower': -100, 'upper': 100}}},
     'constraints': {
-        'reads': {'dims': ['g', 't'], 'expression': 'p == shift(v, over=t, offset=lead, by=season_of, edge=0)'}
+        'reads': {'dims': ['g', 't'], 'expression': 'p == shift(v, along=t, offset=lead, by=season_of, edge=0)'}
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
 }
@@ -424,7 +426,7 @@ def test_a_per_group_offset_over_a_variable_vacates_each_groups_opening_rows():
 
 def test_an_offset_may_differ_per_entity_and_per_group_at_once():
     """Two keys, one join: the entity's own column and the group's, which the
-    frame carries only as the lookup's value.
+    frame carries only as the relation's value.
 
     The second unit leads by two in the second season and by one everywhere
     else, so it alone vacates both of that season's rows.
@@ -473,7 +475,7 @@ RAMP_SPEC = override(
         'constraints.ramp_up': {
             'dims': ['snapshot', 'generator'],
             'where': 'snapshot > 0',
-            'expression': 'p - shift(p, over=snapshot, offset=1) <= ramp_max',
+            'expression': 'p - shift(p, along=snapshot, offset=1) <= ramp_max',
         },
     },
 )
@@ -521,7 +523,7 @@ variables:
 constraints:
   c:
     dims: [t]
-    expression: "x * shift(eff, over=t, offset=1, edge=1) <= 10"
+    expression: "x * shift(eff, along=t, offset=1, edge=1) <= 10"
 objective: {sense: maximize, expression: "sum(x, over=t)"}
 """
 
@@ -531,7 +533,7 @@ def test_the_fill_a_product_wants_is_one_not_zero():
 
     linopy v1 refuses to fill on the caller's behalf precisely because the right
     value is positional (``convention.rst`` §7): 0 is the identity of a sum, 1 of
-    a product. ``x * shift(eff, over=t, offset=1, edge=0)`` would force ``x`` to zero at the
+    a product. ``x * shift(eff, along=t, offset=1, edge=0)`` would force ``x`` to zero at the
     first coordinate — the pin again, wearing the coefficient's hat — where
     ``fill=1`` leaves it governed by its own bound.
 
@@ -571,7 +573,7 @@ def test_an_edge_policy_is_quoted_or_a_number(edge):
     dimension — so the one closed keyword `edge=` takes has to say it is a
     literal. Numbers need no quotes because a number is never a name.
     """
-    lps.check(_with(f'x - shift(x, over=t, offset=1, {edge}) <= 1'))
+    lps.check(_with(f'x - shift(x, along=t, offset=1, {edge}) <= 1'))
 
 
 def test_a_bare_wrap_names_a_dimension_and_is_refused():
@@ -582,7 +584,7 @@ def test_a_bare_wrap_names_a_dimension_and_is_refused():
     the two positions differently and a reader could not.
     """
     with pytest.raises(ValueError) as exc:
-        lps.check(_with('x - shift(x, over=t, offset=1, edge=wrap) <= 1'))
+        lps.check(_with('x - shift(x, along=t, offset=1, edge=wrap) <= 1'))
 
     assert 'bare name where a keyword belongs' in str(exc.value)
     assert "edge='wrap'" in str(exc.value), 'the refusal has to name the rewrite'
@@ -603,7 +605,7 @@ def test_a_quoted_keyword_outside_a_kwarg_does_not_parse():
 
 
 def _shift_over_data(where: str | None = None, edge: str | None = None) -> dict[str, object]:
-    shift = f'shift(dt, over=t, offset=1, edge={edge})' if edge else 'shift(dt, over=t, offset=1)'
+    shift = f'shift(dt, along=t, offset=1, edge={edge})' if edge else 'shift(dt, along=t, offset=1)'
     constraint: dict[str, object] = {'dims': ['t'], 'expression': f'x <= {shift}'}
     if where is not None:
         constraint['where'] = where
@@ -657,12 +659,12 @@ def test_edge_zero_alone_binds_the_vacated_row_and_a_where_frees_it():
 
 
 NESTED_SHIFTS = {
-    'same-dim': 'shift(shift(p, over=t, offset=1), over=t, offset=1)',
-    'cross-dim': 'shift(shift(p, over=t, offset=1), over=g, offset=1)',
-    'cross-dim-reversed': 'shift(shift(p, over=g, offset=1), over=t, offset=1)',
-    'triple-mixed': 'shift(shift(shift(p, over=t, offset=1), over=g, offset=1), over=t, offset=1)',
-    'inner-fill': 'shift(shift(p, over=t, offset=1, edge=0), over=t, offset=1)',
-    'outer-wrap': "shift(shift(p, over=t, offset=1), over=t, offset=1, edge='wrap')",
+    'same-dim': 'shift(shift(p, along=t, offset=1), along=t, offset=1)',
+    'cross-dim': 'shift(shift(p, along=t, offset=1), along=g, offset=1)',
+    'cross-dim-reversed': 'shift(shift(p, along=g, offset=1), along=t, offset=1)',
+    'triple-mixed': 'shift(shift(shift(p, along=t, offset=1), along=g, offset=1), along=t, offset=1)',
+    'inner-fill': 'shift(shift(p, along=t, offset=1, edge=0), along=t, offset=1)',
+    'outer-wrap': "shift(shift(p, along=t, offset=1), along=t, offset=1, edge='wrap')",
 }
 
 
@@ -722,7 +724,7 @@ def test_an_offset_may_differ_per_entity(edge: str):
         'constraints': {
             'arrive': {
                 'dims': ['g', 't'],
-                'expression': f'shift(order, over=t, offset=lead, edge={edge}) >= demand',
+                'expression': f'shift(order, along=t, offset=lead, edge={edge}) >= demand',
             }
         },
         'objective': {'sense': 'minimize', 'expression': 'sum(order * c)'},
@@ -761,7 +763,7 @@ def test_a_named_offset_must_say_what_the_vacated_positions_contribute():
         'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
         'parameters': {'lead': {'dims': ['g'], 'dtype': 'int'}},
         'variables': {'x': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 1}}},
-        'constraints': {'k': {'dims': ['g', 't'], 'expression': 'x >= shift(x, over=t, offset=lead)'}},
+        'constraints': {'k': {'dims': ['g', 't'], 'expression': 'x >= shift(x, along=t, offset=lead)'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(x * 1.0)'},
     }
     with pytest.raises(LanguageError, match='vacated positions absent'):
@@ -782,12 +784,12 @@ def _reindexed_parameter_spec(op: str) -> dict:
     ('op', 'expected'),
     [
         pytest.param(
-            "shift(dt, over=t, offset=1, edge='wrap')",
+            "shift(dt, along=t, offset=1, edge='wrap')",
             {0: 7.0, 1: 5.0, 2: 6.0},
             id='cyclic-vacates-nothing-so-t0-reads-the-last-value',
         ),
         pytest.param(
-            'shift(dt, over=t, offset=1, edge=0)',
+            'shift(dt, along=t, offset=1, edge=0)',
             {0: 0.0, 1: 5.0, 2: 6.0},
             id='the-vacated-position-contributes-zero-which-pins',
         ),
@@ -814,7 +816,7 @@ def test_roll_and_filled_shift_re_index_a_parameter_not_only_a_variable(op, expe
 def test_a_bare_shift_over_data_is_refused_rather_than_filled():
     """The pin, removed at its source (#289).
 
-    ``x <= shift(dt, over=t, offset=1)`` used to build ``x <= 0`` at the first coordinate:
+    ``x <= shift(dt, along=t, offset=1)`` used to build ``x <= 0`` at the first coordinate:
     a bound invented from a slot that has no value. Absence would be the
     consistent answer, but a parameter has no absence to propagate — a missing
     row is a zero coefficient (the absence rules) — so this follows linopy v1
@@ -824,7 +826,7 @@ def test_a_bare_shift_over_data_is_refused_rather_than_filled():
     Decidable without data, so ``lps.check()`` catches it: the operand is
     variable-free by declaration, not by what arrives in ``sources``.
     """
-    spec = _reindexed_parameter_spec('shift(dt, over=t, offset=1)')
+    spec = _reindexed_parameter_spec('shift(dt, along=t, offset=1)')
     with pytest.raises(LanguageError) as exc:
         lps.check(spec)
     assert 'edge=0' in str(exc.value), 'the refusal must name the escape hatch'

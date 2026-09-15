@@ -121,7 +121,7 @@ cannot hold both: ... Tell them apart by a suffix rather than a capital:
 ```
 
 The namespaces are the language's own: one flat namespace holding dimensions,
-lookups, parameters, variables and named expressions, and constraints beside
+relations, parameters, variables and named expressions, and constraints beside
 it. A constraint may carry a variable's name already, so a constraint `P`
 beside a variable `p` is accepted. The two are written under `dual/` and
 `primal/`, which nothing folds together.

@@ -28,7 +28,7 @@ PyPSA's delayed link: power withdrawn at one snapshot arrives at a later one, so
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\ \mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{E}`$ | index $`e`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — controllable connections, each joining two buses |
 
@@ -112,19 +112,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: controllable connections, each joining two buses
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       link_from:
         description: the bus a link leaves
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
       link_to:
         description: the bus a link arrives at
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
 
     parameters:
       p_nom:
@@ -172,7 +172,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
-          + sum(shift(g, over=snapshot, offset=delay, edge=0) * efficiency, by=link_to)
+          + sum(shift(g, along=snapshot, offset=delay, edge=0) * efficiency, by=link_to)
           - sum(g, by=link_from)
           == load
 
@@ -262,6 +262,6 @@ divided by the ship's 0.9.
 
 ## What it exercises
 
-`shift(x, over=dim, offset=p, edge=0)` with `p` an integer column, inside a
+`shift(x, along=dim, offset=p, edge=0)` with `p` an integer column, inside a
 grouped sum that lands on a *different* entity's row. The shift moves a quantity
 between two places rather than along one.
