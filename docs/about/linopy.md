@@ -71,8 +71,8 @@ no patched attributes, so nothing is lost across `pickle`, `deepcopy` or
 is the reader, and the same purity makes it take `sources` again. It values an
 expression written the way
 [`expressions:`](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions)
-writes one, a string or the mapping that carries `cases:`, on the solved model,
-and hands back linopy's native `.solution`. A name the file declares is such an
+writes one, a string or the mapping that carries `cases:`, on the solved model.
+It hands back linopy's native `.solution`. A name the file declares is such an
 expression. This is the eager half of `result.evaluate(...)`, which is what
 lets the differential suite hold the two lanes to one answer.
 
@@ -153,7 +153,7 @@ lane compiles a constant part as its own
 operand is one masked expression, so the constant is dropped wherever the term
 is, and the lane builds the file as written. All four operators that act along
 a dimension (`sum(over=)`, `sum(by=)`, `shift`, `sum_back`) reach the one wall
-and share one refusal, which names the rewrite: declare the parameter over the
+and share one refusal. It names the rewrite: declare the parameter over the
 dimension and supply it there
 ([#1137](https://github.com/fluxopt/lpspec/issues/1137)).
 
