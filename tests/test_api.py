@@ -930,6 +930,34 @@ def test_a_dataset_of_expressions_holds_every_one_this_data_evaluates():
         assert set(result.to_dataset('total', kind='expression').data_vars) == {'total'}, 'named ones only'
 
 
+@pytest.mark.parametrize(
+    'bridge',
+    [
+        pytest.param(lambda result, name: result.to_pandas(name, 'expression'), id='to_pandas'),
+        pytest.param(lambda result, name: result.to_dataarray(name, 'expression'), id='to_dataarray'),
+        pytest.param(lambda result, name: result.to_dataset(name, kind='expression'), id='to_dataset'),
+    ],
+)
+def test_a_bridge_takes_a_declared_expression_name_and_refuses_a_string(bridge):
+    """A bridge labels what it hands back by the name it was given, so it takes a declared
+    name and refuses an expression string, which `evaluate` reads and which has no name to carry."""
+    pytest.importorskip('xarray')
+    spec = {**TWO_VARIABLE_SPEC, 'expressions': {'total': 'sum(p, over=generator)'}}
+    sources = {
+        'p_max': pl.DataFrame({'generator': ['wind', 'gas'], 'value': [100.0, 200.0]}),
+        'load': pl.DataFrame({'snapshot': [0, 1], 'value': [90.0, 90.0]}),
+        'snapshot': range(2),
+        'generator': ['wind', 'gas'],
+    }
+    with lps.solve(spec, sources) as result:
+        with pytest.raises(KeyError, match=r'total.*evaluate\(\)') as caught:
+            bridge(result, 'sum(p, over=generator)')
+        assert 'declared name' in str(caught.value), 'the refusal says what a bridge takes, and lists what is declared'
+        assert result.evaluate('sum(p, over=generator)').equals(result.evaluate('total')), (
+            'the same string is what evaluate reads'
+        )
+
+
 TWO_VARIABLE_SPEC = {
     'dimensions': {'snapshot': {'dtype': 'int'}, 'generator': {'dtype': 'str'}},
     'parameters': {'p_max': {'dims': ['generator']}, 'load': {'dims': ['snapshot']}},

@@ -951,14 +951,33 @@ class Runs:
             LanguageError: A construct outside the language, or a name the model
                 does not declare.
         """
-        if isinstance(expression, str) and (
-            expression in self._expression_names() or expression in self._no_expressions
-        ):
-            frame = self._read(self._expressions, 'named expression', expression, self._no_expressions.get(expression))
-        elif self._evaluate is not None:
-            frame = self._evaluate(expression)
-        else:
+        if isinstance(expression, str) and self._declares(expression):
+            return self._expression(expression, original_index=original_index)
+        if self._evaluate is None:
             raise LpspecError(self._nothing_to_evaluate(expression))
+        return self._reindexed(self._evaluate(expression), original_index=original_index)
+
+    def _declares(self, name: str) -> bool:
+        """Whether *name* is a declared expression this sweep valued — held, spilled, or failed on every slice."""
+        return name in self._expression_names() or name in self._no_expressions
+
+    def _expression(self, name: str, *, original_index: bool) -> pl.DataFrame:
+        """Declared named expression *name* stitched across the slices — what a bridge reads for ``kind='expression'``.
+
+        A bridge takes a name, because the name labels what it hands back, so
+        only a declared expression reaches here; an expression string is
+        :meth:`evaluate`'s argument, and a bridge handed one is refused with
+        what the sweep does hold.
+
+        Raises:
+            LpspecError: No slice produced *name*, or the sweep is spilled.
+        """
+        if not self._declares(name):
+            raise LpspecError(
+                _nothing_to_read(LABELS['expression'], name, self._expression_names(), self.objective)
+                + ' A bridge takes a declared name; an expression string is read through evaluate().'
+            )
+        frame = self._read(self._expressions, 'named expression', name, self._no_expressions.get(name))
         return self._reindexed(frame, original_index=original_index)
 
     def _expression_names(self) -> Mapping[str, object]:
@@ -1008,7 +1027,7 @@ class Runs:
 
     def _frame(self, name: str, kind: str, *, original_index: bool) -> pl.DataFrame:
         """*name* through the reader *kind* names — the dispatch every bridge and :meth:`scan` share."""
-        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.evaluate}[reader_kind(kind)]
+        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self._expression}[reader_kind(kind)]
         return reader(name, original_index=original_index)
 
     def to_pandas(self, name: str, kind: str = 'primal', *, original_index: bool = False) -> pd.DataFrame:
@@ -1019,7 +1038,9 @@ class Runs:
 
         Args:
             name: A variable, a constraint or a named expression, as *kind*
-                says.
+                says. A name, never an expression string: the bridge labels
+                what it hands back by it, and a quantity worth a label is
+                declared under ``expressions:``.
             kind: ``primal``, ``dual`` or ``expression`` — the reader this
                 stands in for.
             original_index: Read over the dimension the axis sliced instead

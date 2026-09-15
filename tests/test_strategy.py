@@ -1358,6 +1358,21 @@ def test_every_bridge_takes_a_kind_on_a_sweep(priced):
         priced.to_pandas('soc', 'objective')
 
 
+@pytest.mark.parametrize(
+    'bridge',
+    [
+        pytest.param(lambda runs, name: runs.to_pandas(name, 'expression'), id='to_pandas'),
+        pytest.param(lambda runs, name: runs.to_dataarray(name, 'expression'), id='to_dataarray'),
+        pytest.param(lambda runs, name: runs.to_dataset(name, kind='expression'), id='to_dataset'),
+    ],
+)
+def test_a_sweep_bridge_takes_a_declared_expression_name_and_refuses_a_string(priced, bridge):
+    """As on `Result`: a bridge labels by name, so an expression string is refused with what the sweep holds."""
+    pytest.importorskip('xarray')
+    with pytest.raises(lps.LpspecError, match=r"'spend'.*evaluate\(\)"):
+        bridge(priced, 'sum(p, over=generator)')
+
+
 def test_save_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(priced, builds, tmp_path):
     """`save` is the spill after the fact: the same layout, all three
     kinds and the record, so `scan` reads it and the same call pointed at it

@@ -604,9 +604,28 @@ class Result:
         self._readable(self._primals, 'an expression')
         return evaluated(self._expressions or {}, self._evaluate, expression)
 
+    def _expression(self, name: str) -> pl.DataFrame:
+        """Declared named expression *name*, valued — what a bridge reads for ``kind='expression'``.
+
+        A bridge takes a name, because the name labels what it hands back, so
+        only a declared expression reaches here: an expression string has no
+        name to carry, and is :meth:`evaluate`'s argument.
+
+        Raises:
+            KeyError: No named expression is called *name*, listing what is.
+        """
+        self._readable(self._primals, f"expression '{name}'")
+        readers = self._expressions or {}
+        if name not in readers:
+            raise KeyError(
+                unknown_name_message('named expression', name, readers)
+                + ' A bridge takes a declared name; an expression string is read through evaluate().'
+            )
+        return readers[name]()
+
     def _frame(self, name: str, kind: str) -> pl.DataFrame:
         """*name* through the reader *kind* names — the dispatch every bridge shares."""
-        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.evaluate}[reader_kind(kind)]
+        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self._expression}[reader_kind(kind)]
         return reader(name)
 
     def _names(self, kind: str) -> tuple[str, ...]:
@@ -632,7 +651,9 @@ class Result:
 
         Args:
             name: A variable, a constraint or a named expression, as *kind*
-                says.
+                says. A name, never an expression string: the bridge labels
+                what it hands back by it, and a quantity worth a label is
+                declared under ``expressions:``.
             kind: ``primal``, ``dual`` or ``expression`` — the reader this
                 stands in for.
         """
