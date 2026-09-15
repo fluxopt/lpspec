@@ -133,88 +133,88 @@ parameters:
 variables:
   Generator_p:
     description: '`Generator-p` — output of a generator in a snapshot'
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
   Link_p:
     description: '`Link-p` — PyPSA''s `p0`, the flow measured at the `Link_bus0` end: a positive value
       withdraws there and injects at every bus the link''s output ports deliver to'
-    foreach: [snapshot, link]
+    dims: [snapshot, link]
   Line_s:
     description: '`Line-s` — PyPSA''s `p0`, the flow measured at the `Line_bus0` end: a positive value
       withdraws there and injects at `Line_bus1`, lossless'
-    foreach: [snapshot, line]
+    dims: [snapshot, line]
   Line_s_nom_ext:
     description: '`Line-s_nom` — nominal apparent power where it is a decision; the parameter of the same
       PyPSA name carries the fixed regime'
-    foreach: [line]
+    dims: [line]
     where: Line_s_nom_extendable
   Generator_p_nom_ext:
     description: '`Generator-p_nom` — nominal power where it is a decision; the parameter of the same
       PyPSA name carries the fixed regime'
-    foreach: [generator]
+    dims: [generator]
     where: Generator_p_nom_extendable
   Link_p_nom_ext:
     description: '`Link-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA
       name carries the fixed regime'
-    foreach: [link]
+    dims: [link]
     where: Link_p_nom_extendable
 constraints:
   Generator_ext_p_lower:
     description: '`Generator-ext-p-lower` — an extendable generator outputs at least its minimum of the
       chosen build'
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     where: Generator_p_nom_extendable AND not Generator_committable
     expression: Generator_p >= Generator_p_min_pu * Generator_p_nom_ext
   Generator_ext_p_upper:
     description: '`Generator-ext-p-upper` — an extendable generator outputs at most what is available
       of the chosen build'
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     where: Generator_p_nom_extendable AND not Generator_committable
     expression: Generator_p <= Generator_p_max_pu * Generator_p_nom_ext
   Generator_ext_p_nom_lower:
     description: '`Generator-ext-p_nom-lower` — the chosen build is at least its floor'
-    foreach: [generator]
+    dims: [generator]
     where: Generator_p_nom_extendable
     expression: Generator_p_nom_ext >= Generator_p_nom_min
   Link_ext_p_lower:
     description: '`Link-ext-p-lower` — an extendable link carries at least its minimum of the chosen build,
       negative for the other way'
-    foreach: [snapshot, link]
+    dims: [snapshot, link]
     where: Link_p_nom_extendable
     expression: Link_p >= Link_p_min_pu * Link_p_nom_ext
   Link_ext_p_upper:
     description: '`Link-ext-p-upper` — an extendable link carries at most the chosen build'
-    foreach: [snapshot, link]
+    dims: [snapshot, link]
     where: Link_p_nom_extendable
     expression: Link_p <= Link_p_max_pu * Link_p_nom_ext
   Link_ext_p_nom_lower:
     description: '`Link-ext-p_nom-lower` — the chosen build is at least its floor'
-    foreach: [link]
+    dims: [link]
     where: Link_p_nom_extendable
     expression: Link_p_nom_ext >= Link_p_nom_min
   Line_ext_s_lower:
     description: '`Line-ext-s-lower` — an extendable line carries at least the negative of its rating
       of the chosen build'
-    foreach: [snapshot, line]
+    dims: [snapshot, line]
     where: Line_s_nom_extendable
     expression: Line_s >= -Line_s_max_pu * Line_s_nom_ext
   Line_ext_s_upper:
     description: '`Line-ext-s-upper` — an extendable line carries at most its rating of the chosen build'
-    foreach: [snapshot, line]
+    dims: [snapshot, line]
     where: Line_s_nom_extendable
     expression: Line_s <= Line_s_max_pu * Line_s_nom_ext
   Line_ext_s_nom_lower:
     description: '`Line-ext-s_nom-lower` — the chosen build is at least its floor'
-    foreach: [line]
+    dims: [line]
     where: Line_s_nom_extendable
     expression: Line_s_nom_ext >= Line_s_nom_min
   Kirchhoff_Voltage_Law:
     description: '`Kirchhoff-Voltage-Law` — around every independent cycle the impedance-weighted flows
       sum to nothing, which is what makes the linear power flow physical rather than transport'
-    foreach: [snapshot, cycle]
+    dims: [snapshot, cycle]
     expression: sum(Line_s * Line_cycle_weight, over=line) == 0
   GlobalConstraint_primary_energy_ub:
     description: '`primary_energy` — its total, at most its constant'
-    foreach: [global_constraint]
+    dims: [global_constraint]
     where: GlobalConstraint_type == 'primary_energy' AND GlobalConstraint_sense == '<='
     expression: primary_energy <= GlobalConstraint_constant
   Bus_nodal_balance:
@@ -222,7 +222,7 @@ constraints:
       less what the links take away, plus what arrives over them after losses and any delay at every port
       they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
       that carries load, and this file does not yet.'
-    foreach: [snapshot, bus]
+    dims: [snapshot, bus]
     expression: sum(Generator_p, by=Generator_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
       by=Link_output_bus) - sum(Line_s, by=Line_bus0) + sum(Line_s, by=Line_bus1) == sum(Load_p_set, by=Load_bus)
 expressions:
@@ -231,7 +231,7 @@ expressions:
       delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the
       horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port
       that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
-    foreach: [snapshot, link_output]
+    dims: [snapshot, link_output]
     cases:
       wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
           Link_efficiency, over=snapshot, offset=Link_output_delay, edge=''wrap'')'}

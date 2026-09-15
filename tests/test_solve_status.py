@@ -244,8 +244,8 @@ def knapsack():
     spec = {
         'dimensions': {'i': {'dtype': 'int'}, 'one': {'dtype': 'int'}},
         'parameters': {'w': {'dims': ['i']}, 'cap': {'dims': ['one']}},
-        'variables': {'x': {'foreach': ['i'], 'domain': 'binary'}},
-        'constraints': {'budget': {'foreach': ['one'], 'expression': 'sum(x * w, over=i) <= cap'}},
+        'variables': {'x': {'dims': ['i'], 'domain': 'binary'}},
+        'constraints': {'budget': {'dims': ['one'], 'expression': 'sum(x * w, over=i) <= cap'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x * w, over=i)'},
     }
     sources = {

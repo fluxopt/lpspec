@@ -138,7 +138,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
@@ -146,7 +146,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       nodal_balance:
         description: what is generated at a bus meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(p, by=gen_bus) == load
 
       energy_cap:
@@ -154,13 +154,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           a generator with a ceiling on total energy delivers no more than it over
           the horizon — the weighting is what makes the sum an energy rather than a
           count of snapshots
-        foreach: [generator]
+        dims: [generator]
         where: e_sum_max
         expression: sum(p * weighting, over=snapshot) <= e_sum_max
 
       energy_floor:
         description: a generator that owes a total delivers at least it over the horizon
-        foreach: [generator]
+        dims: [generator]
         where: e_sum_min
         expression: sum(p * weighting, over=snapshot) >= e_sum_min
 
@@ -238,6 +238,6 @@ the port asserts the formulation, not the presentation.
 ## What it exercises
 
 A reduction over a dimension the constraint does not span: `sum(p * weighting,
-over=snapshot)` with `foreach: [generator]`. The `where:` masking a row to where
+over=snapshot)` with `dims: [generator]`. The `where:` masking a row to where
 its bound exists, on both a `<=` and a `>=`. And a parameter that multiplies
 inside a reduction and again in the objective.

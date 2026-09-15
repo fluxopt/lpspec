@@ -185,7 +185,7 @@ def test_a_plain_python_source_that_does_not_fit_is_refused(dispatch_yaml, dispa
 _TWO_DIMS = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
     'parameters': {'cap': {'dims': ['g', 't']}},
-    'variables': {'x': {'foreach': ['g', 't'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'variables': {'x': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
 }
 
@@ -217,7 +217,7 @@ def test_a_positional_source_needs_the_labels_it_is_written_against():
     spec = {
         'dimensions': {'g': {}},
         'parameters': {'cap': {'dims': ['g']}},
-        'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+        'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x, over=g)'},
     }
     with pytest.raises(lps.DataError, match='nothing else supplies an index'):
@@ -420,8 +420,8 @@ def _named(**declared) -> dict:
     spec = {
         'dimensions': {'t': {'dtype': 'int'}},
         'parameters': {'load': {'dims': ['t']}},
-        'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
-        'constraints': {'meet': {'foreach': ['t'], 'expression': 'p >= load'}},
+        'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
+        'constraints': {'meet': {'dims': ['t'], 'expression': 'p >= load'}},
         'expressions': {'spend': '2 * p'},
         'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
     }
@@ -434,7 +434,7 @@ def _named(**declared) -> dict:
     'spec',
     [
         pytest.param(
-            _named(variables={'P': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}}),
+            _named(variables={'P': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}}),
             id='two variables',
         ),
         pytest.param(_named(parameters={'P': {'dims': ['t']}}), id='a parameter beside a variable'),
@@ -442,7 +442,7 @@ def _named(**declared) -> dict:
         pytest.param(_named(expressions={'SPEND': '3 * p'}), id='two named expressions'),
         pytest.param(_named(expressions={'P': '3 * p'}), id='a named expression beside a variable'),
         pytest.param(
-            _named(constraints={'MEET': {'foreach': ['t'], 'expression': 'p >= load'}}),
+            _named(constraints={'MEET': {'dims': ['t'], 'expression': 'p >= load'}}),
             id='two constraints',
         ),
     ],
@@ -468,7 +468,7 @@ def test_a_case_pair_across_two_namespaces_is_allowed():
     under `dual/` and `primal/`, which no filesystem folds together — so the
     rule is per namespace rather than over every name in the file.
     """
-    spec = _named(constraints={'P': {'foreach': ['t'], 'expression': 'p >= load'}})
+    spec = _named(constraints={'P': {'dims': ['t'], 'expression': 'p >= load'}})
     assert 'P' in lps.check(spec).constraints, "a constraint named like a variable is the language's to allow"
 
 
@@ -480,7 +480,7 @@ def test_every_door_refuses_a_case_pair_rather_than_only_the_front_one(door, tmp
     archive out lowers without going through either, so all of them lower
     through one function that refuses.
     """
-    spec = _named(variables={'P': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}})
+    spec = _named(variables={'P': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}})
     sources = {'t': range(2), 'load': [1.0, 2.0]}
     call = {
         'check': lambda: lps.check(spec),
@@ -556,8 +556,8 @@ def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
     spec = {
         'dimensions': {'t': {'dtype': 'int'}},
         'parameters': {'load': {'dims': ['t']}, 'scale': {'dims': ['t']}},
-        'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
-        'constraints': {'meet': {'foreach': ['t'], 'expression': 'p >= load'}},
+        'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
+        'constraints': {'meet': {'dims': ['t'], 'expression': 'p >= load'}},
         'expressions': {'twice': '2 * p', 'ratio': 'p / scale'},
         'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
     }
@@ -607,8 +607,8 @@ def test_a_saved_solution_says_why_a_kind_is_absent(tmp_path):
     spec = {
         'dimensions': {'t': {'dtype': 'int'}},
         'parameters': {'load': {'dims': ['t']}, 'scale': {'dims': ['t']}},
-        'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
-        'constraints': {'meet': {'foreach': ['t'], 'expression': 'p >= load'}},
+        'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
+        'constraints': {'meet': {'dims': ['t'], 'expression': 'p >= load'}},
         'expressions': {'twice': '2 * p', 'ratio': 'p / scale'},
         'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
     }
@@ -656,8 +656,8 @@ def test_a_loaded_result_gives_the_reason_the_solve_gave(tmp_path):
     spec = {
         'dimensions': {'t': {'dtype': 'int'}},
         'parameters': {'load': {'dims': ['t']}, 'scale': {'dims': ['t']}},
-        'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
-        'constraints': {'meet': {'foreach': ['t'], 'expression': 'p >= load'}},
+        'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
+        'constraints': {'meet': {'dims': ['t'], 'expression': 'p >= load'}},
         'expressions': {'twice': '2 * p', 'ratio': 'p / scale'},
         'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
     }
@@ -934,12 +934,12 @@ TWO_VARIABLE_SPEC = {
     'dimensions': {'snapshot': {'dtype': 'int'}, 'generator': {'dtype': 'str'}},
     'parameters': {'p_max': {'dims': ['generator']}, 'load': {'dims': ['snapshot']}},
     'variables': {
-        'p': {'foreach': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
-        'shed': {'foreach': ['snapshot'], 'bounds': {'lower': 0}},
+        'p': {'dims': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
+        'shed': {'dims': ['snapshot'], 'bounds': {'lower': 0}},
     },
     'constraints': {
         'balance': {
-            'foreach': ['snapshot'],
+            'dims': ['snapshot'],
             'expression': 'sum(p, over=generator) + shed == load',
         }
     },
@@ -976,7 +976,7 @@ def test_to_dataset_defaults_to_every_variable():
         pytest.param(
             {
                 'dimensions': {'g': {'dtype': 'str'}},
-                'constraints': {'c': {'foreach': ['g'], 'expression': 'nope <= 1'}},
+                'constraints': {'c': {'dims': ['g'], 'expression': 'nope <= 1'}},
             },
             id='undeclared-name',
         ),
@@ -1039,7 +1039,7 @@ def test_check_catches_a_dim_error_with_no_sources_bound():
     """
     raw = override(
         raw_of(EXAMPLES_DIR / 'dispatch.yaml'),
-        **{'constraints.stray': {'foreach': ['snapshot'], 'expression': 'p <= p_max'}},
+        **{'constraints.stray': {'dims': ['snapshot'], 'expression': 'p <= p_max'}},
     )
     with pytest.raises(DimensionError):
         lps.check(raw)

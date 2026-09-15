@@ -231,31 +231,31 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
     variables:
       Generator_p:
         description: '`Generator-p` — output of a generator in a snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
       Link_p:
         description: '`Link-p` — PyPSA''s `p0`, the flow measured at the `Link_bus0` end: a positive value
           withdraws there and injects at every bus the link''s output ports deliver to'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
     constraints:
       Generator_fix_p_lower:
         description: '`Generator-fix-p-lower` — a fixed generator outputs at least its minimum'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom
       Generator_fix_p_upper:
         description: '`Generator-fix-p-upper` — a fixed generator outputs at most what is available'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom
       Link_fix_p_lower:
         description: '`Link-fix-p-lower` — a fixed link carries at least its minimum, negative for the other
           way'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p >= Link_p_min_pu * Link_p_nom
       Link_fix_p_upper:
         description: '`Link-fix-p-upper` — a fixed link carries at most its nominal power'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p <= Link_p_max_pu * Link_p_nom
       Bus_nodal_balance:
@@ -263,7 +263,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
           less what the links take away, plus what arrives over them after losses and any delay at every port
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(Generator_p, by=Generator_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
           by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
     expressions:
@@ -272,7 +272,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
           delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the
           horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
-        foreach: [snapshot, link_output]
+        dims: [snapshot, link_output]
         cases:
           wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
               Link_efficiency, over=snapshot, offset=Link_output_delay, edge=''wrap'')'}

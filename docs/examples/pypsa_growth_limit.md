@@ -205,12 +205,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot, zero where it does not yet stand
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: capacity built at a generator
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
           upper: p_nom_max
@@ -220,11 +220,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           a generator produces no more than the capacity built for it, and nothing in
           a period it does not stand in
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= p_nom * at(activity, by=period_of)
 
       power_balance:
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
       growth_limit:
@@ -233,7 +233,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           share of what was built in the period before. `edge=0` keeps the first
           period's row, where there is no predecessor to grow from, as the bare
           allowance — which is the row PyPSA emits there.
-        foreach: [period]
+        dims: [period]
         expression: >-
           new_capacity - shift(new_capacity, over=period, offset=1, edge=0) * max_relative_growth
           <= max_growth

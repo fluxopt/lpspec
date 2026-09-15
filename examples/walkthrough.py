@@ -52,7 +52,7 @@ _REFUSED = [
         {
             'constraints': {
                 'cumulative': {
-                    'foreach': ['snapshot'],
+                    'dims': ['snapshot'],
                     'expression': 'cumsum(total_supply) <= load',
                 }
             }

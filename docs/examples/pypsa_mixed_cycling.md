@@ -204,25 +204,25 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
       p_dispatch:
         description: power a storage unit puts onto its bus
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: storage_p_nom
       p_store:
         description: power a storage unit takes off its bus
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: storage_p_nom
       soc:
         description: energy in the store at the end of a snapshot
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: soc_max
@@ -230,7 +230,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       nodal_balance:
         description: what is generated at a bus, plus what the stores give back, meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(p_dispatch, by=storage_bus)
@@ -241,7 +241,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           a cyclic unit's level wraps at the horizon, so its first snapshot inherits
           from its last and it ends every horizon where it began
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         where: "cyclic"
         expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap') + p_store - p_dispatch
 
@@ -249,7 +249,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           a seeded unit carries from the snapshot before, and has no predecessor at
           the first — the vacated position is absent, so that row is not built here
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         where: "NOT cyclic"
         expression: soc == shift(soc, over=snapshot, offset=1) + p_store - p_dispatch
 
@@ -257,7 +257,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           and the row the vacated position left is written here instead, from the
           level the unit was handed
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         where: "NOT cyclic AND position(snapshot) == 0"
         expression: soc == soc_initial + p_store - p_dispatch
 

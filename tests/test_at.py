@@ -104,12 +104,12 @@ COMPONENT_GATE = {
     'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
     'parameters': {'cost': {'dims': ['flow']}, 'oncost': {'dims': ['component']}},
     'variables': {
-        'rate': {'foreach': ['flow', 't'], 'bounds': {'lower': 0, 'upper': 10}},
-        'on': {'foreach': ['component', 't'], 'domain': 'binary'},
+        'rate': {'dims': ['flow', 't'], 'bounds': {'lower': 0, 'upper': 10}},
+        'on': {'dims': ['component', 't'], 'domain': 'binary'},
     },
     'constraints': {
-        'gate': {'foreach': ['flow', 't'], 'expression': 'rate <= at(on, by=component_of) * 10'},
-        'need': {'foreach': ['t'], 'expression': 'sum(rate, over=flow) >= 12'},
+        'gate': {'dims': ['flow', 't'], 'expression': 'rate <= at(on, by=component_of) * 10'},
+        'need': {'dims': ['t'], 'expression': 'sum(rate, over=flow) >= 12'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(rate * cost) + sum(on * oncost)'},
 }
@@ -172,13 +172,13 @@ def test_at_agrees_with_the_oracle_through_a_reduction():
         'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
         'parameters': {'cost': {'dims': ['flow']}, 'share': {'dims': ['flow']}},
         'variables': {
-            'level': {'foreach': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
-            'take': {'foreach': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
+            'level': {'dims': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
+            'take': {'dims': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
         },
         'constraints': {
             # summed, so one `level` label lands in this row once per flow of its component
-            'draw': {'foreach': [], 'expression': 'sum(at(level, by=component_of) * share, over=flow) >= 9'},
-            'link': {'foreach': ['flow'], 'expression': 'take <= at(level, by=component_of)'},
+            'draw': {'dims': [], 'expression': 'sum(at(level, by=component_of) * share, over=flow) >= 9'},
+            'link': {'dims': ['flow'], 'expression': 'take <= at(level, by=component_of)'},
         },
         'objective': {'sense': 'minimize', 'expression': 'sum(level * 1.0) + sum(take * cost)'},
     }
@@ -209,7 +209,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
     inside it — so it is an incidence table contracted along a mirror of the
     snapshot axis, the shape `pypsa_kvl` already uses for a cycle basis. The
     plan's *shape* is fixed before any data is read; only its cardinality comes
-    from data, which is as true of `foreach: [snapshot]`.
+    from data, which is as true of `dims: [snapshot]`.
 
     The mirror needs no second commitment variable and no identity table: `tf`
     maps back to `t` single-valuedly, which is a lookup, and `at()` reads the
@@ -239,24 +239,24 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
             'idle_cost': {'dims': ['unit']},
         },
         'variables': {
-            'p': {'foreach': ['unit', 't'], 'bounds': {'lower': 0}},
-            'on': {'foreach': ['unit', 't'], 'domain': 'binary'},
-            'started': {'foreach': ['unit', 'tf'], 'domain': 'binary'},
+            'p': {'dims': ['unit', 't'], 'bounds': {'lower': 0}},
+            'on': {'dims': ['unit', 't'], 'domain': 'binary'},
+            'started': {'dims': ['unit', 'tf'], 'domain': 'binary'},
         },
         'constraints': {
             # the commitment read onto the mirror axis, where the recurrence lives
             'a_start_turns_it_on': {
-                'foreach': ['unit', 'tf'],
+                'dims': ['unit', 'tf'],
                 'expression': (
                     'started >= at(on, by=same_moment) - shift(at(on, by=same_moment), over=tf, offset=1, edge=0)'
                 ),
             },
             'stays_up_its_own_time': {
-                'foreach': ['unit', 't'],
+                'dims': ['unit', 't'],
                 'expression': 'sum(started * window, over=tf) <= on',
             },
-            'within_capacity': {'foreach': ['unit', 't'], 'expression': 'p <= on * cap'},
-            'meet_load': {'foreach': ['t'], 'expression': 'sum(p, over=unit) >= load'},
+            'within_capacity': {'dims': ['unit', 't'], 'expression': 'p <= on * cap'},
+            'meet_load': {'dims': ['t'], 'expression': 'sum(p, over=unit) >= load'},
         },
         'objective': {'sense': 'minimize', 'expression': 'sum(p * run_cost) + sum(on * idle_cost)'},
     }
@@ -299,10 +299,10 @@ DANGLING = {
     'dimensions': {'flow': {'dtype': 'str'}, 'component': {'dtype': 'str'}},
     'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
     'variables': {
-        'level': {'foreach': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
-        'take': {'foreach': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
+        'level': {'dims': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
+        'take': {'dims': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'link': {'foreach': ['flow'], 'expression': 'take <= at(level, by=component_of)'}},
+    'constraints': {'link': {'dims': ['flow'], 'expression': 'take <= at(level, by=component_of)'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(take, over=flow) - 1000 * sum(level, over=component)'},
 }
 DANGLING_MAP = ['c1', 'c1', None]
@@ -375,10 +375,10 @@ DANGLING_PAIR = {
         'kind_of': {'over': 'flow', 'into': 'kind'},
     },
     'variables': {
-        'level': {'foreach': ['component', 'kind'], 'bounds': {'lower': 0, 'upper': 10}},
-        'take': {'foreach': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
+        'level': {'dims': ['component', 'kind'], 'bounds': {'lower': 0, 'upper': 10}},
+        'take': {'dims': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'link': {'foreach': ['flow'], 'expression': 'take <= at(level, by=[component_of, kind_of])'}},
+    'constraints': {'link': {'dims': ['flow'], 'expression': 'take <= at(level, by=[component_of, kind_of])'}},
     'objective': {
         'sense': 'maximize',
         'expression': 'sum(take, over=flow) - 1000 * sum(sum(level, over=component), over=kind)',
@@ -453,12 +453,12 @@ DANGLING_SHIFTED = {
     },
     'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
     'variables': {
-        'level': {'foreach': ['component', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},
-        'take': {'foreach': ['flow', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},
+        'level': {'dims': ['component', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},
+        'take': {'dims': ['flow', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},
     },
     'constraints': {
         'link': {
-            'foreach': ['flow', 't', 'u'],
+            'dims': ['flow', 't', 'u'],
             'expression': 'take <= shift(at(level, by=component_of), over=t, offset=1, edge=0)',
         }
     },

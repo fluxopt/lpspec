@@ -125,13 +125,13 @@ def test_a_name_the_spec_does_not_declare_is_refused():
     ('decision', 'names'),
     [
         pytest.param(
-            {'variables': {'x': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 'cost'}}}},
+            {'variables': {'x': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 'cost'}}}},
             'variables (x)',
             id='a-variable',
         ),
         pytest.param(
             {
-                'variables': {'x': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 'cost'}}},
+                'variables': {'x': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 'cost'}}},
                 'objective': {'sense': 'minimize', 'expression': 'sum(x * cost)'},
             },
             'an objective',

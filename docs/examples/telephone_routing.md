@@ -127,7 +127,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           circuits carried on a path — integral because a multi-commodity flow is
           not integral by nature, even though this instance's relaxation happens to
           be
-        foreach: [path]
+        dims: [path]
         domain: integer
         bounds:
           lower: 0
@@ -135,7 +135,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       within_demand:
         description: a pair cannot be carried more than it asked for, however many paths serve it
-        foreach: [call]
+        dims: [call]
         expression: sum(flow, by=call_of) <= demand
 
       within_capacity:
@@ -143,7 +143,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           an arc carries every path that traverses it, and no more than its
           capacity. A circuit reserves both directions of every arc it crosses,
           which is why the network is undirected and the flow is not signed.
-        foreach: [arc]
+        dims: [arc]
         expression: sum(flow * uses, over=path) <= capacity
 
     objective:

@@ -582,7 +582,7 @@ class Result:
 
         *expression* is what one ``expressions:`` entry takes: a name the file
         declares, an expression string, or the mapping carrying ``cases:``
-        with ``foreach:`` and ``otherwise:``. It may use every name the model
+        with ``dims:`` and ``otherwise:``. It may use every name the model
         declares and only those. The value is aggregated to the expression's
         own dims, in declaration order, rows in label order over them —
         :meth:`primal`'s shape and order.

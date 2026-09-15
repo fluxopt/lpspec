@@ -517,104 +517,104 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
     variables:
       Generator_p:
         description: '`Generator-p` — output of a generator in a snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
       Link_p:
         description: '`Link-p` — PyPSA''s `p0`, the flow measured at the `Link_bus0` end: a positive value
           withdraws there and injects at every bus the link''s output ports deliver to'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
       Generator_n_mod:
         description: '`Generator-n_mod` — how many modules of an extendable modular build'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable AND Generator_p_nom_mod > 0
         domain: integer
         bounds: {lower: 0}
       Generator_status:
         description: '`Generator-status` — how much of a committable unit is on: an integer the rows below
           cap at one, or at the module count where the build is modular'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
       Generator_start_up:
         description: '`Generator-start_up` — how much of a committable unit turns on this snapshot, capped
           as the status is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
       Generator_shut_down:
         description: '`Generator-shut_down` — how much of a committable unit turns off this snapshot, capped
           as the status is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
       Generator_p_nom_ext:
         description: '`Generator-p_nom` — nominal power where it is a decision; the parameter of the same
           PyPSA name carries the fixed regime'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable
     constraints:
       Generator_fix_p_lower:
         description: '`Generator-fix-p-lower` — a fixed generator outputs at least its minimum'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom
       Generator_fix_p_upper:
         description: '`Generator-fix-p-upper` — a fixed generator outputs at most what is available'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom
       Link_fix_p_lower:
         description: '`Link-fix-p-lower` — a fixed link carries at least its minimum, negative for the other
           way'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p >= Link_p_min_pu * Link_p_nom
       Link_fix_p_upper:
         description: '`Link-fix-p-upper` — a fixed link carries at most its nominal power'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p <= Link_p_max_pu * Link_p_nom
       Generator_ext_p_nom_lower:
         description: '`Generator-ext-p_nom-lower` — the chosen build is at least its floor'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable
         expression: Generator_p_nom_ext >= Generator_p_nom_min
       Generator_ext_p_nom_upper:
         description: '`Generator-ext-p_nom-upper` — the chosen build is at most its cap; a cap of infinity
           is no row'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable AND Generator_p_nom_max
         expression: Generator_p_nom_ext <= Generator_p_nom_max
       Generator_com_p_lower:
         description: '`Generator-com-p-lower` — a committed unit outputs at least its minimum; off, at least
           nothing'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND not Generator_p_nom_extendable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom * Generator_status
       Generator_com_p_upper:
         description: '`Generator-com-p-upper` — a committed unit outputs at most what is available; off, at
           most nothing'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND not Generator_p_nom_extendable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom * Generator_status
       Generator_com_transition_start_up:
         description: '`Generator-com-transition-start-up` — turning on is a start, counted against the state
           the unit carried into the snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         expression: Generator_start_up >= Generator_status - Generator_previous_status
       Generator_com_transition_shut_down:
         description: '`Generator-com-transition-shut-down` — turning off is a stop, counted against the state
           the unit carried into the snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         expression: Generator_shut_down >= Generator_previous_status - Generator_status
       Generator_p_ramp_limit_up_run_big_m:
         description: '`Generator-p-ramp_limit_up-run-bigM` — a committed extendable unit raises output no
           faster than its limit of the chosen build; the big M releases the row in the snapshot it turns on'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_ramp_limit_up AND (position(snapshot)
           > 0 OR Generator_status_initial == 0)
         expression: Generator_p - Generator_previous_p <= Generator_ramp_limit_up * Generator_p_nom_ext +
@@ -623,7 +623,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
         description: '`Generator-p-ramp_limit_up-start-bigM` — in the snapshot it turns on, a committed extendable
           unit ramps no further than its start-up ramp of the chosen build; the big M releases the row everywhere
           else'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_ramp_limit_up AND (position(snapshot)
           > 0 OR Generator_status_initial == 0)
         expression: Generator_p - Generator_previous_p <= Generator_ramp_limit_start_up * Generator_p_nom_ext
@@ -631,7 +631,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
       Generator_p_ramp_limit_down_run_big_m:
         description: '`Generator-p-ramp_limit_down-run-bigM` — a committed extendable unit lowers output no
           faster than its limit of the chosen build; the big M releases the row in the snapshot it turns off'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_ramp_limit_down AND (position(snapshot)
           > 0 OR Generator_status_initial == 0)
         expression: Generator_previous_p - Generator_p <= Generator_ramp_limit_down * Generator_p_nom_ext
@@ -640,91 +640,91 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
         description: '`Generator-p-ramp_limit_down-shut-bigM` — in the snapshot it turns off, a committed
           extendable unit ramps no further than its shut-down ramp of the chosen build; the big M releases
           the row everywhere else'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_ramp_limit_down AND (position(snapshot)
           > 0 OR Generator_status_initial == 0)
         expression: Generator_previous_p - Generator_p <= Generator_ramp_limit_shut_down * Generator_p_nom_ext
           + Generator_big_m - Generator_big_m * Generator_shut_down
       Generator_p_nom_modularity:
         description: '`Generator-p_nom_modularity` — the chosen build is a whole number of modules'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable AND Generator_p_nom_mod > 0
         expression: Generator_p_nom_ext == Generator_p_nom_mod * Generator_n_mod
       Generator_com_ext_p_upper_cap:
         description: '`Generator-com-ext-p-upper-cap` — a committed extendable unit outputs at most what is
           available of the chosen build, whatever its status'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND NOT (Generator_p_nom_mod > 0)
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom_ext
       Generator_com_ext_p_upper_big_m:
         description: '`Generator-com-ext-p-upper-bigM` — off, a unit outputs nothing; on, the big M is no
           bound'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND NOT (Generator_p_nom_mod > 0)
         expression: Generator_p <= Generator_big_m * Generator_status
       Generator_com_ext_p_lower:
         description: '`Generator-com-ext-p-lower` — a committed extendable unit outputs at least its minimum
           of the chosen build; off, the big M releases the row'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND NOT (Generator_p_nom_mod > 0)
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom_ext + Generator_big_m * Generator_status
           - Generator_big_m
       Generator_com_ext_p_lower_nonneg:
         description: '`Generator-com-ext-p-lower-nonneg` — where no minimum-per-unit is negative, output is
           also plainly non-negative, a row the big-M lower cannot assert while the unit is off'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_p_min_pu_nonneg AND NOT
           (Generator_p_nom_mod > 0)
         expression: Generator_p >= 0
       Generator_com_mod_p_lower:
         description: '`Generator-com-mod-p-lower` — a committed modular unit outputs at least its minimum
           of one module, whether the build is fixed or a decision'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_mod > 0
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom_mod * Generator_status
       Generator_com_mod_p_upper:
         description: '`Generator-com-mod-p-upper` — a committed modular unit outputs at most one module''s
           share, whether the build is fixed or a decision'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_mod > 0
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom_mod * Generator_status
       Generator_status_p_fixed_upper:
         description: '`Generator-status-p-fixed-upper` — a status is at most the modules in place, an explicit
           row as PyPSA writes it: one where the build is not modular, and the fixed build''s whole count of
           modules where it is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND NOT (Generator_p_nom_extendable AND Generator_p_nom_mod > 0)
         expression: Generator_status <= Generator_modules_installed
       Generator_start_up_p_fixed_upper:
         description: '`Generator-start_up-p-fixed-upper` — a start is at most the modules in place, an explicit
           row as PyPSA writes it: one where the build is not modular, and the fixed build''s whole count of
           modules where it is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND NOT (Generator_p_nom_extendable AND Generator_p_nom_mod > 0)
         expression: Generator_start_up <= Generator_modules_installed
       Generator_shut_down_p_fixed_upper:
         description: '`Generator-shut_down-p-fixed-upper` — a stop is at most the modules in place, an explicit
           row as PyPSA writes it: one where the build is not modular, and the fixed build''s whole count of
           modules where it is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND NOT (Generator_p_nom_extendable AND Generator_p_nom_mod > 0)
         expression: Generator_shut_down <= Generator_modules_installed
       Generator_status_p_nom_variable_upper:
         description: '`Generator-status-p_nom-variable-upper` — a modular unit is on only where a module is
           built'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_p_nom_mod > 0
         expression: Generator_status <= Generator_n_mod
       Generator_start_up_p_nom_variable_upper:
         description: '`Generator-start_up-p_nom-variable-upper` — a modular unit starts only where a module
           is built'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_p_nom_mod > 0
         expression: Generator_start_up <= Generator_n_mod
       Generator_shut_down_p_nom_variable_upper:
         description: '`Generator-shut_down-p_nom-variable-upper` — a modular unit stops only where a module
           is built'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_p_nom_mod > 0
         expression: Generator_shut_down <= Generator_n_mod
       Bus_nodal_balance:
@@ -732,21 +732,21 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
           less what the links take away, plus what arrives over them after losses and any delay at every port
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(Generator_p, by=Generator_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
           by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
     expressions:
       Generator_previous_status:
         description: the commitment state a generator carries into a snapshot — the state it brought into
           the horizon at the first, the previous snapshot's after that
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: Generator_status_initial}
         otherwise: shift(Generator_status, over=snapshot, offset=1)
       Generator_previous_p:
         description: the output a generator carries into a snapshot — nothing at the start of the horizon,
           which is why a unit that came in running carries no ramp row there
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: 0}
         otherwise: shift(Generator_p, over=snapshot, offset=1)
@@ -755,7 +755,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
           delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the
           horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
-        foreach: [snapshot, link_output]
+        dims: [snapshot, link_output]
         cases:
           wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
               Link_efficiency, over=snapshot, offset=Link_output_delay, edge=''wrap'')'}

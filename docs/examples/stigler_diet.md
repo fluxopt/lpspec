@@ -103,14 +103,14 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       spend:
         description: dollars per day spent on this food
-        foreach: [food]
+        dims: [food]
         bounds:
           lower: 0
 
     constraints:
       meet_requirement:
         description: what the basket buys of a nutrient covers the daily minimum
-        foreach: [nutrient]
+        dims: [nutrient]
         expression: sum(spend * nutrient_per_dollar, over=food) >= daily_minimum
 
     objective:

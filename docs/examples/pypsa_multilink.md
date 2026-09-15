@@ -146,7 +146,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       gen:
         description: output of a generator
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
           upper: gen_p_nom
@@ -155,7 +155,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the one decision per link, PyPSA's p — what it draws at its input. Every
           other end's flow is that draw scaled by its incidence entry, so it needs
           no variable of its own.
-        foreach: [link]
+        dims: [link]
         bounds:
           lower: 0
           upper: p_nom
@@ -166,7 +166,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           what is generated at a bus plus what the links deliver there meets the
           load. The contraction lands the draw on every bus its link's incidence
           rows name — three ends or two, the expression never says.
-        foreach: [bus]
+        dims: [bus]
         expression: >-
           sum(gen, by=gen_bus)
           + sum(incidence * p, over=link)

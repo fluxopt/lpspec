@@ -177,7 +177,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       rate:
         description: what each flow runs at
-        foreach: [flow, time]
+        dims: [flow, time]
         bounds:
           lower: 0
           upper: rate_max
@@ -186,7 +186,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           how much of each breakpoint the converter's operating point is made of —
           one convex combination per converter and period, over the breakpoints its
           own curve runs to
-        foreach: [converter, time, bp]
+        dims: [converter, time, bp]
         where: bp_present
         bounds:
           lower: 0
@@ -205,19 +205,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       one_operating_point:
         description: each converter sits somewhere on its curve, in every period
-        foreach: [converter, time]
+        dims: [converter, time]
         expression: sum(weight, over=bp) == 1
       on_the_curve:
         description: every flow reads its own value off its converter's weights
-        foreach: [flow, time]
+        dims: [flow, time]
         expression: rate == sum(at(weight, by=converter_of) * bp_rate, over=bp)
       heat_balance:
         description: heat delivered meets the demand
-        foreach: [time]
+        dims: [time]
         expression: sum(rate * is_heat, over=flow) == heat_demand
       power_balance:
         description: power delivered meets the demand
-        foreach: [time]
+        dims: [time]
         expression: sum(rate * is_power, over=flow) == power_demand
 
     objective:

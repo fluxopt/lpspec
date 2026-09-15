@@ -126,18 +126,18 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_max
 
     constraints:
       balance:
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
       monthly_budget:
         description: what a generator produces across a month stays inside that month's budget
-        foreach: [month, generator]
+        dims: [month, generator]
         expression: sum(p, by=month_of) <= monthly_cap
 
     objective:
@@ -238,10 +238,10 @@ A lookup is a **function between two dimensions**, so it needs a
 codomain. `month` being one is not ceremony — three things rest on it:
 
 1. **`sum(by=)` lands terms on the dimension the lookup targets.**
-   The expression's dims are therefore `[month, generator]`, and a `foreach:`
+   The expression's dims are therefore `[month, generator]`, and a `dims:`
    can only name declared dimensions.
 2. **`monthly_cap` is indexed *by* month.** A parameter carries values *at*
-   coordinates; it cannot be the thing a `foreach` ranges over. So month could
+   coordinates; it cannot be the thing a `dims:` ranges over. So month could
    not be a parameter even if the grouping did not need it.
 3. **It is what makes a typo an error.** A value in the snapshot index that is
    not a coordinate of `month` is rejected at attach time:

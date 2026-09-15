@@ -33,8 +33,8 @@ DISPATCH_SPEC: dict[str, Any] = {
         'cost': {'dims': ['generator']},
         'load': {'dims': ['snapshot']},
     },
-    'variables': {'p': {'foreach': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
-    'constraints': {'balance': {'foreach': ['snapshot'], 'expression': 'sum(p, over=generator) == load'}},
+    'variables': {'p': {'dims': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
+    'constraints': {'balance': {'dims': ['snapshot'], 'expression': 'sum(p, over=generator) == load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost)'},
 }
 

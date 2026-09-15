@@ -36,14 +36,14 @@ variables:
     description: >-
       capacity built at a generator — the first-stage decision, which spans no
       scenario because it is taken before anyone knows which future arrived
-    foreach: [generator]
+    dims: [generator]
     bounds:
       lower: 0
   p:
     description: >-
       output of a generator in a snapshot of a future — the second-stage
       decision, one per scenario
-    foreach: [scenario, snapshot, generator]
+    dims: [scenario, snapshot, generator]
     bounds:
       lower: 0
 
@@ -52,12 +52,12 @@ constraints:
     description: >-
       a generator produces no more than the capacity built for it, in every
       snapshot of every future — one capacity spanning three scenarios of rows
-    foreach: [scenario, snapshot, generator]
+    dims: [scenario, snapshot, generator]
     expression: p <= p_nom
 
   power_balance:
     description: what runs in this snapshot of this future meets the load there
-    foreach: [scenario, snapshot]
+    dims: [scenario, snapshot]
     expression: sum(p, over=generator) == load
 
 objective:

@@ -30,19 +30,19 @@ parameters:
 
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds:
       lower: 0
       upper: p_max
   f:
-    foreach: [snapshot, line]
+    dims: [snapshot, line]
     bounds:
       lower: neg_cap
       upper: cap
 
 constraints:
   balance:
-    foreach: [snapshot, bus]
+    dims: [snapshot, bus]
     expression: sum(p, by=gen_bus) + sum(f, by=line_to) - sum(f, by=line_from) == load
 
 objective:

@@ -55,13 +55,13 @@ def _spec(
     expression: str,
     *,
     objective: str = 'sum(x)',
-    foreach: list[str] | None = None,
+    dims: list[str] | None = None,
     also: dict | None = None,
 ) -> dict:
     """The shared model, over ``t`` unless the case says otherwise."""
     return law_spec(
         expression,
-        foreach=foreach if foreach is not None else ['t'],
+        dims=dims if dims is not None else ['t'],
         objective=objective,
         also=also,
     )
@@ -70,7 +70,7 @@ def _spec(
 def _objective_of(
     expression: str,
     objective: str = 'sum(x)',
-    foreach: list[str] | None = None,
+    dims: list[str] | None = None,
     also: dict | None = None,
 ) -> float:
     """Solve *expression* on both lanes and the LP file; return the agreed value.
@@ -78,7 +78,7 @@ def _objective_of(
     ``differential`` raises if the three disagree, so a number coming back out
     of here is already a statement that the lanes concur about this spelling.
     """
-    with differential(_spec(expression, objective=objective, foreach=foreach, also=also), DATA, lp=True) as run:
+    with differential(_spec(expression, objective=objective, dims=dims, also=also), DATA, lp=True) as run:
         return float(run.result.objective)
 
 
@@ -180,12 +180,12 @@ def test_a_term_whose_variable_is_absent_is_not_a_term_worth_zero():
     *difference between the two intents* rather than the behaviour alone.
     """
     minimise_x = 'sum((-1) * x)'
-    propagated = _objective_of('x + y >= 60', objective=minimise_x, foreach=['f', 't'])
+    propagated = _objective_of('x + y >= 60', objective=minimise_x, dims=['f', 't'])
     zero_filled = _objective_of(
         'x + y >= 60',
         objective=minimise_x,
-        foreach=['f', 't'],
-        also={'c_unsized': {'foreach': ['f', 't'], 'where': 'NOT y', 'expression': 'x >= 60'}},
+        dims=['f', 't'],
+        also={'c_unsized': {'dims': ['f', 't'], 'where': 'NOT y', 'expression': 'x >= 60'}},
     )
 
     assert propagated == pytest.approx(-(10.0 + 10.0), rel=RTOL), (
@@ -209,11 +209,11 @@ def test_absence_zero_says_at_the_declaration_what_two_blocks_said_at_the_rows()
     two_blocks = _objective_of(
         'x + y >= 60',
         objective=minimise_x,
-        foreach=['f', 't'],
-        also={'c_unsized': {'foreach': ['f', 't'], 'where': 'NOT y', 'expression': 'x >= 60'}},
+        dims=['f', 't'],
+        also={'c_unsized': {'dims': ['f', 't'], 'where': 'NOT y', 'expression': 'x >= 60'}},
     )
 
-    spec = _spec('x + y >= 60', objective=minimise_x, foreach=['f', 't'])
+    spec = _spec('x + y >= 60', objective=minimise_x, dims=['f', 't'])
     spec['variables']['y']['absence'] = 'zero'
     with differential(spec, DATA, lp=True) as run:
         declared = float(run.result.objective)
@@ -283,17 +283,17 @@ WIDE_COORDS = {
 PLAIN_COORDS = {'f': pd.Index(['a', 'b', 'c', 'd'], name='f'), 't': pd.Index([0, 1], name='t')}
 
 
-def _wide_objective_of(expression: str, *, foreach: list[str]) -> float:
+def _wide_objective_of(expression: str, *, dims: list[str]) -> float:
     """The wide fixture solved through both lanes, for one expression.
 
     ``g`` and the lookup that reaches it exist only for the grouped cases:
     the plain fixture passes no ``g`` index, and a target with no index of its
     own is refused rather than carried as a dangling lookup (#488).
     """
-    grouped = 'g' in foreach
-    dims = {'g': {}, 'f': {}, 't': {'dtype': 'int'}} if grouped else {'f': {}, 't': {'dtype': 'int'}}
+    grouped = 'g' in dims
+    dimensions = {'g': {}, 'f': {}, 't': {'dtype': 'int'}} if grouped else {'f': {}, 't': {'dtype': 'int'}}
     spec = {
-        'dimensions': dims,
+        'dimensions': dimensions,
         **({'lookups': {'grp': {'over': 'f', 'into': 'g'}}} if grouped else {}),
         'parameters': {
             'gate': {'dims': ['f'], 'dtype': 'bool'},
@@ -301,11 +301,11 @@ def _wide_objective_of(expression: str, *, foreach: list[str]) -> float:
             'w': {'dims': ['f']},
         },
         'variables': {
-            'x': {'foreach': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
-            'y': {'foreach': ['f', 't'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
-            'v': {'foreach': ['f', 't'], 'where': 'gate2', 'bounds': {'lower': 0, 'upper': 50}},
+            'x': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
+            'y': {'dims': ['f', 't'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
+            'v': {'dims': ['f', 't'], 'where': 'gate2', 'bounds': {'lower': 0, 'upper': 50}},
         },
-        'constraints': {'c': {'foreach': foreach, 'expression': expression}},
+        'constraints': {'c': {'dims': dims, 'expression': expression}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     with differential(spec, WIDE_DATA | (WIDE_COORDS if grouped else PLAIN_COORDS), lp=True) as run:
@@ -320,8 +320,8 @@ def test_sum_does_not_distribute_over_addition_either():
     change was made on: the two spellings separate, and both lanes agree about
     where they land.
     """
-    together = _wide_objective_of('sum(x + y, by=grp) <= 120', foreach=['g', 't'])
-    apart = _wide_objective_of('sum(x, by=grp) + sum(y, by=grp) <= 120', foreach=['g', 't'])
+    together = _wide_objective_of('sum(x + y, by=grp) <= 120', dims=['g', 't'])
+    apart = _wide_objective_of('sum(x, by=grp) + sum(y, by=grp) <= 120', dims=['g', 't'])
 
     assert together == pytest.approx(640.0, rel=RTOL)
     assert apart == pytest.approx(480.0, rel=RTOL)
@@ -337,8 +337,8 @@ def test_two_masks_intersect_rather_than_applying_one_at_a_time():
     that stopped at the first, or that composed them pairwise down the addition
     tree, would still pass every single-mask test above.
     """
-    together = _wide_objective_of('sum(x + y + v, over=f) <= 120', foreach=['t'])
-    apart = _wide_objective_of('sum(x, over=f) + sum(y, over=f) + sum(v, over=f) <= 120', foreach=['t'])
+    together = _wide_objective_of('sum(x + y + v, over=f) <= 120', dims=['t'])
+    apart = _wide_objective_of('sum(x, over=f) + sum(y, over=f) + sum(v, over=f) <= 120', dims=['t'])
 
     assert together == pytest.approx(640.0, rel=RTOL)
     assert apart == pytest.approx(240.0, rel=RTOL)
@@ -352,8 +352,8 @@ def test_a_broadcast_coefficient_does_not_move_where_the_summand_exists():
     property of variables). The separation here must therefore come from `y`
     alone, exactly as in the un-weighted case.
     """
-    together = _wide_objective_of('sum(w * x + y, over=f) <= 120', foreach=['t'])
-    apart = _wide_objective_of('sum(w * x, over=f) + sum(y, over=f) <= 120', foreach=['t'])
+    together = _wide_objective_of('sum(w * x + y, over=f) <= 120', dims=['t'])
+    apart = _wide_objective_of('sum(w * x, over=f) + sum(y, over=f) <= 120', dims=['t'])
 
     assert together == pytest.approx(320.0, rel=RTOL)
     assert apart == pytest.approx(120.0, rel=RTOL)
@@ -372,10 +372,10 @@ def test_a_mask_on_a_dim_the_reduction_does_not_touch_still_propagates():
         'dimensions': {'f': {}, 't': {'dtype': 'int'}},
         'parameters': {'tgate': {'dims': ['t'], 'dtype': 'bool'}},
         'variables': {
-            'x': {'foreach': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
-            'y': {'foreach': ['f', 't'], 'where': 'tgate', 'bounds': {'lower': 0, 'upper': 50}},
+            'x': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
+            'y': {'dims': ['f', 't'], 'where': 'tgate', 'bounds': {'lower': 0, 'upper': 50}},
         },
-        'constraints': {'c': {'foreach': ['t'], 'expression': 'sum(x + y, over=f) <= 120'}},
+        'constraints': {'c': {'dims': ['t'], 'expression': 'sum(x + y, over=f) <= 120'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     data = {'tgate': pd.Series([True], index=pd.Index([0], name='t'))}
@@ -411,10 +411,10 @@ def test_shift_created_absence_reaches_a_reduction_like_any_other():
         'dimensions': {'f': {}, 't': {'dtype': 'int'}},
         'parameters': {},
         'variables': {
-            'x': {'foreach': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
-            'v': {'foreach': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
+            'x': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
+            'v': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
         },
-        'constraints': {'c': {'foreach': ['t'], 'expression': 'sum(x + shift(v, over=t, offset=1), over=f) <= 120'}},
+        'constraints': {'c': {'dims': ['t'], 'expression': 'sum(x + shift(v, over=t, offset=1), over=f) <= 120'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     index = {'f': pd.Index(['a', 'b'], name='f'), 't': pd.Index([0, 1], name='t')}
@@ -430,8 +430,8 @@ def test_shift_created_absence_reaches_a_reduction_like_any_other():
 DIVISOR_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'d': {'dims': ['f']}},
-    'variables': {'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'c': {'foreach': ['f'], 'expression': 'x / d <= 10'}},
+    'variables': {'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'c': {'dims': ['f'], 'expression': 'x / d <= 10'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
 }
 

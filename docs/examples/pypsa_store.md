@@ -185,7 +185,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
@@ -193,15 +193,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           power a store puts onto its bus, negative when it takes power off —
           unbounded, because a Store has no rating of its own
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
       e:
         description: energy in the store at the end of a snapshot
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         bounds:
           lower: 0
       e_nom:
         description: energy capacity built at a store
-        foreach: [store]
+        dims: [store]
         bounds:
           lower: 0
           upper: e_nom_max
@@ -209,19 +209,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       nodal_balance:
         description: what is generated at a bus, plus what the stores supply, meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(p, by=gen_bus) + sum(store_p, by=store_bus) == load
 
       within_capacity:
         description: a store holds no more energy than the capacity built for it
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         expression: e <= e_nom
 
       energy_balance_initial:
         description: >-
           the first snapshot's level starts from the initial energy, which the
           standing loss does not decay because nothing was carried into it
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         where: "position(snapshot) == 0"
         expression: e == e_initial - store_p
 
@@ -229,7 +229,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           the level carried into a snapshot, decayed by the standing loss, less what
           the store supplied to its bus
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         expression: >-
           e == shift(e, over=snapshot, offset=1) * (1 - standing_loss) - store_p
 

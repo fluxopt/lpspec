@@ -107,7 +107,7 @@ variables:
     description: >-
       output of a generator in a snapshot — the `where` drops the retired unit
       entirely, so the built model is smaller than the coordinate product
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     where: "p_max > 0"
     bounds:
       lower: 0
@@ -116,7 +116,7 @@ variables:
 constraints:
   power_balance:
     description: the fleet meets the load exactly in every snapshot
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: total_supply == load
 
 objective:

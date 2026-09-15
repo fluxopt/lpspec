@@ -191,14 +191,14 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       shipment:
         description: cases shipped from a plant to a market
-        foreach: [plant, market]
+        dims: [plant, market]
         bounds:
           lower: 0
       scaled:
         description: >-
           what the objective is charged on — the square root of the shipment, read
           off the curve rather than computed
-        foreach: [plant, market]
+        dims: [plant, market]
         bounds:
           lower: 0
 
@@ -219,10 +219,10 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     constraints:
       within_capacity:
-        foreach: [plant]
+        dims: [plant]
         expression: sum(shipment, over=market) <= capacity
       meet_demand:
-        foreach: [market]
+        dims: [market]
         expression: sum(shipment, over=plant) >= demand
 
     objective:
