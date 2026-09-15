@@ -5,9 +5,9 @@ walk had to join parameters onto to build it, since a mask reads values the
 product does not carry. The joins happen *during* the walk: the condition is
 built first and the frame read after.
 
-A closed vocabulary of its own — comparisons against a parameter, a dimension
-label, a position along a dimension, a lookup, a comparison of two
-variable-free expressions, and the three connectives. It takes the
+A closed vocabulary of its own — comparisons against a parameter, of two
+parameters, against a dimension label, a position along a dimension, a
+lookup, of two variable-free expressions, and the three connectives. It takes the
 :class:`~lpspec.relational.engines.polars.compiler.PolarsCompiler` as an
 argument and holds nothing.
 
@@ -182,6 +182,8 @@ def compile_predicate(
             return _COLUMN_COMPARISONS[p.op](pl.col(join_side(p.left)), pl.col(join_side(p.right)))
         if isinstance(p, program.ParameterComparisonNode):
             return _compare(pl.col(join_param(p.name)), p.op, p.value)
+        if isinstance(p, program.ParameterPairComparisonNode):
+            return _COLUMN_COMPARISONS[p.op](pl.col(join_param(p.name)), pl.col(join_param(p.other)))
         if isinstance(p, program.DimensionComparisonNode):
             refuse_outside_frame(f"dimension '{p.name}'", p.name)
             return _compare(_dimension_column(p.name, p.value), p.op, p.value)
@@ -239,8 +241,15 @@ def _certain_names(mask: program.Mask) -> frozenset[str]:
     ``NOT`` an absent value can still leave the mask true, and dropping the
     row there is a wrong model rather than a slow one.
     """
-    atoms = (program.ParameterComparisonNode, program.ParameterDefinedNode, program.VariableDefinedNode)
-    return frozenset(a.name for a in mask.conjuncts if isinstance(a, atoms))
+    atoms = (
+        program.ParameterComparisonNode,
+        program.ParameterPairComparisonNode,
+        program.ParameterDefinedNode,
+        program.VariableDefinedNode,
+    )
+    names = {a.name for a in mask.conjuncts if isinstance(a, atoms)}
+    names |= {a.other for a in mask.conjuncts if isinstance(a, program.ParameterPairComparisonNode)}
+    return frozenset(names)
 
 
 def _refuse_short_groups(p: program.DimensionPositionNode, table: pl.LazyFrame) -> None:

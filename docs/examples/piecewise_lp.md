@@ -116,6 +116,26 @@ p_{t,g} \le \mathrm{bp\_x}_{g,b} \qquad \forall\, t \in \mathcal{T},\ g \in \mat
 \mathit{op\_cost}_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
 ```
 
+#### Assumptions
+
+**`cost_curve increasing`**
+
+```math
+\mathrm{bp\_x}_{g,b - 1} < \mathrm{bp\_x}_{g,b} \qquad \forall\, g \in \mathcal{G},\ b \in \mathcal{B}
+```
+
+**`cost_curve curvature`**
+
+```math
+\mathrm{bp\_y}_{g,b} \text{ is a convex function of } \mathrm{bp\_x}_{g,b} \text{ along } b \qquad \forall\, g \in \mathcal{G}
+```
+
+**`cost_curve breakpoints`**
+
+```math
+\lvert \mathcal{B} \rvert \ge 2
+```
+
 </details>
 <!-- math:end -->
 

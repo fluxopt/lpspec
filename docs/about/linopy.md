@@ -114,6 +114,7 @@ in `linopy/builder.py`, one section per group below.
 | on a declaration | the `mask=` argument; a mask that excludes nothing is passed as `None` |
 | `defined(x)` | `Model.variables['x'].labels != -1`, linopy's own marker for an absent slot |
 | a comparison | the Python comparison operators element-wise, absence reading as false |
+| `p <= q`, two parameters | the two arrays compared element-wise, false where either has no row |
 | a comparison of expressions | each side evaluated as a constant position is, and compared element-wise; a side with no value at a coordinate reads as false there, and under a sum, a window or a `+` an absent term is one fewer |
 
 Absence has no single row. It is positional: a missing parameter row is zero in a coefficient, an error in `bounds:`, and false in a `where` operand.
