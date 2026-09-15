@@ -8,10 +8,8 @@ The [multi-period](multi_period.md) model has no build years, no lifetimes, no
 discounting, and no asset that exists in one period and not the next. This
 model is those four, as PyPSA writes them.
 
-Three generators, one of each case. `coal` is built in 2030 with a lifetime of
-5 and has retired by 2040; `gas` is built in 2030 and lives through both;
-`wind` is built in 2040 and exists in no row before it. All three are built and
-all three run, so none is decoration.
+Three generators, one of each case. All three are built and all three run, so
+none is decoration.
 
 | | build year | lifetime | exists in | capacity built |
 |---|---|---|---|---|

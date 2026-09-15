@@ -16,8 +16,8 @@ min      CAPEX + (1-omega) * E[OPEX] + omega * CVaR
 ```
 
 That is Rockafellar–Uryasev. The average of the worst `1-alpha` of the
-distribution is a quantile average and sounds nonlinear, but it is an epigraph
-over a level `theta` the model is free to place. The objective's weight on it
+distribution is a quantile average and sounds nonlinear. It is an epigraph over
+a level `theta` the model is free to place. The objective's weight on it
 pulls it down onto the true value at risk.
 
 Two things the source settles. **The tail is the operating cost only**: capital
@@ -329,9 +329,9 @@ number changed rather than two models:
 | `omega = 0` | 160 | 50 | 33940.0 |
 
 Both fleets total 210 MW, which the severe future needs whatever the planner's
-appetite for risk. What risk aversion buys is the *mix*: 10 MW moves from the
-cheap-to-build peaker to the cheap-to-run base plant, because the severe future's
-operating cost is what the tail term prices. The risk-neutral row is the optimum
+appetite for risk. What risk aversion buys is the *mix*. Ten MW moves from the
+cheap-to-build peaker to the cheap-to-run base plant, because the tail term
+prices the severe future's operating cost. The risk-neutral row is the optimum
 of [`pypsa_stochastic`](pypsa_stochastic.md): the same instance and the same
 number, reached twice.
 
@@ -355,7 +355,7 @@ that plus `omega * p_s/(1-alpha)`, which for `severe` is `0.05 + 0.333`.
 
 `cold` straddles the boundary: a third of its probability is inside the tail, so
 it prices at 0.3166… of a marginal cost rather than 0.15. `severe` snapshot 1 is
-the large one because it prices the peaker's 70 at 0.3833 *and* carries the 120
+the large one. It prices the peaker's 70 at 0.3833 *and* carries the 120
 scarcity rent of the capacity it is running out of. All nine are asserted against
 PyPSA to `rtol=1e-09`.
 

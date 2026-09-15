@@ -349,7 +349,7 @@ and writing the model as expressions substitutes them. **Both reach
 ## What this port does not carry
 
 **Storage.** UTOPIA declares a reservoir and OSeMOSYS carries fifteen
-constraints for it, but the instance builds none: `NewStorageCapacity` is empty
+constraints for it, but the instance builds none. `NewStorageCapacity` is empty
 in the reference solution, as is `Trade`. Their constraints are satisfied at
 zero, so the port omits them. The optimum agreeing to ten digits says the
 omission was safe.

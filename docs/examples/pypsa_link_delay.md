@@ -9,8 +9,8 @@ a state of charge. Here it relates two buses' balances. What `port_a` gives up
 in snapshot 0 is what `port_b` receives in snapshot 2, times the link's
 efficiency.
 
-Two links serve the same demand, and the delay is a column, not a constant:
-`ship` takes two snapshots and loses 10%, `wire` arrives at once and loses
+Two links serve the same demand, and the delay is a column, not a constant.
+`ship` takes two snapshots and loses 10%. `wire` arrives at once and loses
 nothing. The first two snapshots at `port_b` have nothing shipped to them yet,
 so the expensive unit beside the load serves them. That is what makes the delay
 cost something.

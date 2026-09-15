@@ -168,6 +168,6 @@ A coordinate and an incidence parameter side by side, each carrying the relation
 it fits, in a model from outside the project. `reserves` proves both idioms on a
 model built to prove them. This is the outside witness.
 
-Integrality is the source's: a multi-commodity flow is not integral by nature,
+Integrality is the source's. A multi-commodity flow is not integral by nature,
 and the book says so before observing that this instance's relaxation happens to
 be. A MILP has no dual solution, so the entry records none.

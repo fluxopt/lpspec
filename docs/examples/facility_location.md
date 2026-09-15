@@ -146,11 +146,11 @@ is free to take fractional values and comes out integral anyway, because the
 linking constraint is written **per (warehouse, customer) pair**.
 
 The aggregated form, `sum(serve, over=customer) <= 50 * is_open`, is one row per
-warehouse instead of 800. It is equally *valid* and much *weaker*: its LP
+warehouse instead of 800. It is equally *valid* and much *weaker*. Its LP
 relaxation lets a warehouse open a fiftieth of the way and serve one customer
 for a fiftieth of its fixed cost. The per-pair form makes the LP bound tight
 enough for the instance to solve at once. The language does not make that choice
-for you, and the objective does not show it: with the weak form the answer is
+for you, and the objective does not show it. With the weak form the answer is
 still 932615.750, reached much more slowly.
 
 ## What it finds

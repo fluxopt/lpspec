@@ -292,7 +292,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **The standing loss is visible in the price vector, so the reference reads it.**
-The nodal prices run `68.79, 72.41, 76.23, 85.50, 90.00, 10.00`: each earlier
+The nodal prices run `68.79, 72.41, 76.23, 85.50, 90.00, 10.00`. Each earlier
 snapshot's price is the next one's divided by 0.95, because a unit stored now is
 worth 0.95 of a unit later. A port that dropped the decay would still solve and
 still look sensible. It would hold more energy than it should, buy less gas, and

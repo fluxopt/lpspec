@@ -538,15 +538,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 ## What the port had to decide
 
 **A piecewise fuel curve is a floor per piece.** GenX gives the gas plant two
-segments, 6.0 MMBtu/MWh above a 0.4 no-load intercept and 7.2 above 0.208, and
-requires fuel use to be at least each of them. At the optimum it rests on
+segments: 6.0 MMBtu/MWh above a 0.4 no-load intercept, and 7.2 above 0.208.
+Fuel use must be at least each of them. At the optimum it rests on
 whichever binds, so the curve needs no binaries and no `piecewise:` block: it is
 one constraint over a `segment` axis. The intercept is charged per *committed
 unit*, which is why commitment has to be a variable even though nothing here is
 integral.
 
 **Commitment is continuous, and the day wraps.** `UCommit=2` relaxes the
-commitment variables, and the 24 hours are a representative period that repeats,
+commitment variables. The 24 hours are a representative period that repeats,
 so `shift(edge='wrap')` fits: hour 1 follows hour 24. The six-hour minimum up
 and down times are the same for both plants, so they expand as six shifted
 terms. Where they differ by plant, `sum_back(within=)` reads the width off the

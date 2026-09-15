@@ -7,8 +7,8 @@ A minimum output that is a share of a capacity still being decided: two variable
 [Unit commitment](pypsa_unit_commitment.md) holds capacity fixed, so
 `p >= p_min_pu * p_nom * status` is a parameter against a variable and stays
 degree 1. Make the capacity a decision and the same row is a product of two
-variables, the one shape in PyPSA's committable machinery that cannot be written
-as it reads.
+variables. That is the one shape in PyPSA's committable machinery that cannot
+be written as it reads.
 
 PyPSA's answer is three rows and a constant *M* (`constraints.py:304`):
 
@@ -261,14 +261,14 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **The commitment binds, and the relaxation says by how much.** `flex` builds 75
-and runs 75, 30, 75, 0: at snapshot 1 it sits exactly on its floor
-(`0.4 × 75 = 30`), and at snapshot 3 the load of 20 is below that floor, so it
+and runs 75, 30, 75, 0. At snapshot 1 it sits exactly on its floor
+(`0.4 × 75 = 30`). At snapshot 3 the load of 20 is below that floor, so it
 shuts off and `peak` covers. Relax the status to `[0, 1]` on the same rows and
 the answer drops to **18200.0**, with a third of a power station committed. That
 gap is what the integrality is worth here.
 
 **The big-M is written, not inferred.** `big_m` is a parameter like any other,
-and its *presence* marks a unit as committed: the `status` variable and the two
+and its *presence* marks a unit as committed. The `status` variable and the two
 commitment rows carry `where: big_m`. Nothing checks that the number is large
 enough. Too small an *M* silently cuts the feasible set, as it would in PyPSA.
 [#220](https://github.com/fluxopt/lpspec/issues/220) asks for a big-M derived

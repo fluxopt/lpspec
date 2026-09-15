@@ -5,7 +5,7 @@ A cap on new capacity per investment period, which grows with the period before 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **47110.0**, matched to `rtol=1e-09`.
 
 `Carrier.max_growth` caps how much of a technology may be *newly built* in one
-period; `max_relative_growth` adds a share of the previous period's new build to
+period. `max_relative_growth` adds a share of the previous period's new build to
 that allowance, which turns a flat cap into a growth rate
 (`global_constraints.py:184`):
 
@@ -19,7 +19,7 @@ the period it first exists and never again. And the first period has no
 predecessor, so its row is the bare allowance.
 
 The three wind units are one per period, which is how a build year becomes a
-column: each is extendable and each first stands in its own period, so
+column. Each is extendable and each first stands in its own period, so
 `new[period]` is that unit's capacity.
 
 ## The model
@@ -313,8 +313,8 @@ and the same instance builds 30, 40 and 50 of wind, 30 of gas, and costs
 −120.
 
 **`edge=0` keeps the first period's row.** Without it the shifted term is absent
-in the first period and the *row* goes with it, because a masked variable term
-deletes the row rather than zeroing it. PyPSA emits the bare allowance there:
+in the first period and the *row* goes with it. A masked variable term deletes
+the row rather than zeroing it. PyPSA emits the bare allowance there:
 
 ```
 [wind, 2030]: +1 Generator-p_nom[wind_2030]                                  ≤ 15.0

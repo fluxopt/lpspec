@@ -5,12 +5,12 @@ Moving 180 tonnes of chemicals out of four depots, where a depot may reach a cen
 > **✔ Verified against the published optimum** — **1715**, from Guéret, Prins, Sevaux & Heipcke, *Applications of Optimization with Xpress-MP* §10.2.3.
 
 **The connection has a name, so two of them may join the same depot and centre**
-and keep their own cost, their own minimum and their own capacity. That is the
-whole model. On p. 142 the book observes that its data *"cannot be coded as a
-(two-dimensional) matrix: for instance the element COST\(_{ij}\) of a cost
-matrix can only define a single cost"*. It works around that with **a fictitious
-node per mode per connection**, six of them, turning each parallel pair into two
-paths through distinct intermediates.
+and keep their own cost, minimum and capacity. That is the whole model. On
+p. 142 the book observes that its data *"cannot be coded as a (two-dimensional)
+matrix: for instance the element COST\(_{ij}\) of a cost matrix can only define a
+single cost"*. It works around that with **a fictitious node per mode per
+connection**, six of them, turning each parallel pair into two paths through
+distinct intermediates.
 
 Here the connection is the axis, so the six nodes are not needed. `d2_c2_rail`
 and `d2_c2_road` are two rows that disagree on cost (12 against 14) and on band
@@ -168,7 +168,7 @@ needs both legs. §12.3 of the same book is one, and is a port of its own.
 carries *"at least 10 tonnes and at most 50 tonnes for any single delivery"*,
 which reads as semi-continuous: either nothing or at least ten. The book's own
 Mosel model writes `flow(a) >= MINCAP(a)` unconditionally, so every rail
-connection carries at least 10 t whether it is wanted or not, and the published
+connection carries at least 10 t whether it is wanted or not. The published
 1715 is that reading. The port matches the model that produced the number. The
 semi-continuous variant is
 [#383](https://github.com/fluxopt/lpspec/issues/383).

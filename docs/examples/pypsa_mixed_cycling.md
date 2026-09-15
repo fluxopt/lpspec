@@ -27,8 +27,8 @@ and the masks are the flag itself:
 | `energy_balance_seed` | `NOT cyclic AND position(snapshot) == 0` | `soc_initial` |
 
 `NOT` is a real complement over a boolean column, so every unit falls in exactly
-one regime, including a unit whose flag row is missing, which reads as not
-cyclic. `energy_balance_carry` builds no row at a seeded unit's first snapshot,
+one regime. A unit whose flag row is missing reads as not cyclic.
+`energy_balance_carry` builds no row at a seeded unit's first snapshot,
 and that is reported: `diagnostics().omissions` gives 1. `energy_balance_seed`
 writes the row instead.
 

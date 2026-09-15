@@ -306,8 +306,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **Spilling is forced, not chosen.** Snapshot 1 opens with a full 60 MWh
-reservoir and 50 MWh more arriving against a 30 MW turbine, so at least 20 MWh
-has to go. Total gas burn is then pinned at `20 + spill` = 40 MWh, which is the
+reservoir and 50 MWh more arriving against a 30 MW turbine. At least 20 MWh has
+to go. Total gas burn is then pinned at `20 + spill` = 40 MWh, which is the
 entire objective. A port that dropped the spill variable would be **infeasible**
 rather than wrong.
 
@@ -317,7 +317,7 @@ only for units whose inflow is positive somewhere. The port matches that with
 
 The mask is safe only because of the line beside it. A constraint mentioning a
 masked variable loses its **row**, not only the term. On its own the mask would
-delete the battery's whole energy balance, its stored energy would come from
+delete the battery's whole energy balance. Its stored energy would come from
 nowhere, and the model would report **0.0** instead of 3200. `absence: zero`
 says the missing coordinates hold a spill of zero rather than a quantity with no
 value, so the row stands without the term.
@@ -326,8 +326,8 @@ value, so the row stands without the term.
 would be a **no-op** here: a `where:` on a bare parameter reads *defined and
 finite*, and the padded `0.0` is both. Nor can the zeros be dropped from the
 table. `inflow` is a term on the energy balance's constant side, and a sparse
-parameter there is refused at load, because a missing row read as zero would be
-a bound rather than an absence. The sparsity that matters is in the *value*, and
+parameter there is refused at load. A missing row read as zero would be a bound
+rather than an absence. The sparsity that matters is in the *value*, and
 `!= 0` is how the model asks for it.
 
 ## What it exercises
@@ -335,5 +335,5 @@ a bound rather than an absence. The sparsity that matters is in the *value*, and
 `absence: zero` on a masked variable, the declaration that keeps a row whose
 term has gone, against an energy balance carrying two independent sinks. Also
 the asymmetry underneath it: a masked **variable** takes its row, while a sparse
-**parameter** on a constant side is refused, so the two halves of this model's
+**parameter** on a constant side is refused. The two halves of this model's
 sparsity are spelled in two different ways.
