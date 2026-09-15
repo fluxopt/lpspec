@@ -1,8 +1,9 @@
 """The runner: attach data to a YAML spec and execute it. Not a modeling API.
 
 Math is defined in YAML only — there is no Python API for constructing specs,
-and the logical plan is internal. Four verbs run a model: ``check``, ``build``
-(YAML + sources → a :class:`Model`), ``solve`` and ``write``. ``load_result`` reads back an
+and the logical plan is internal. Five verbs run a model: ``check``, ``build``
+(YAML + sources → a :class:`Model`), ``solve``, ``write``, and ``evaluate`` for a
+spec with no variables. ``load_result`` reads back an
 answer :meth:`Result.save` wrote and ``scan_result`` leaves it on disk; the
 question and the answer as one archive is :class:`lpspec.archive.SolveArchive`.
 
@@ -52,7 +53,7 @@ from lpspec.relational.parquet import (
     read_reasons,
     write_whole,
 )
-from lpspec.relational.result import Evaluation, Result
+from lpspec.relational.result import Result, evaluated
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
 from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
@@ -154,13 +155,14 @@ def _refuse_a_model(program: Program) -> None:
     )
 
 
-def evaluate(spec: Buildable, sources: Mapping[str, Source]) -> Evaluation:
-    """Evaluate a spec's named expressions as arithmetic — no variables, no solver.
+def evaluate(spec: Buildable, sources: Mapping[str, Source], expression: str | Mapping[str, Any]) -> pl.DataFrame:
+    """The value of *expression* over a spec with no variables — arithmetic, no solver.
 
     A spec that declares no variables is a calculation, not an optimisation:
     dimensions, parameters, lookups and ``expressions:``. Each expression reads
     only the attached data, so it has a value with no solve and no chosen point.
-    This attaches *sources* and hands back a reader per named expression. The
+    This attaches *sources* and values one expression, the way
+    :meth:`~lpspec.relational.result.Result.evaluate` does at a solution. The
     language it is read through — what loads, what is refused, how a construct
     prints and lowers — is the one a spec that solves is read through; only the
     variables are absent.
@@ -172,25 +174,30 @@ def evaluate(spec: Buildable, sources: Mapping[str, Source]) -> Evaluation:
         spec: As :func:`check` takes it — a YAML path, a mapping, or a ``Spec``.
         sources: As :func:`build` takes them: parameter names to tables or
             parquet paths, and dimension names to their labels.
+        expression: What one ``expressions:`` entry takes — a name the spec
+            declares, an expression string, or the mapping carrying ``cases:``
+            with ``foreach:`` and ``otherwise:``.
 
     Returns:
-        The evaluation. Its reads are deferred — ``ev.expression(name)`` and
-        ``ev.evaluate(expr)`` compile on the call — so a spec whose expressions
-        go unread costs nothing beyond attaching the data.
+        The value, ``(dims…, value)`` over the expression's own dims. Only
+        this expression is compiled: a declared one nothing asks for costs
+        nothing.
 
     Raises:
-        LanguageError: A construct outside the streaming language.
+        LanguageError: A construct outside the streaming language, or a name
+            the spec does not declare.
         LpspecError: A spec that declares variables, constraints or an
             objective — a model to solve, not a calculation to evaluate.
-        DataError: A source that is missing, unreadable, or the wrong shape.
+        DataError: A source that is missing, unreadable, or the wrong shape,
+            or a divisor with no value where the expression divides.
     """
     document = declared(spec)
     program = lowered(document)
     _refuse_a_model(program)
-    readers = expression_readers(
+    readers, evaluator = expression_readers(
         program, tidy_sources(program, sources), lambda written: expressions.lower(document, written)
     )
-    return Evaluation(*readers)
+    return evaluated(readers, evaluator, expression)
 
 
 class Model:
@@ -668,7 +675,7 @@ def _answer_under(out: Path, read: Reading) -> Result:
 
 
 def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
-    """*answer* with :meth:`~lpspec.relational.result.Evaluation.evaluate` wired, over *spec* and *sources* rebuilt.
+    """*answer* with an undeclared expression readable through :meth:`~lpspec.relational.result.Result.evaluate`, over *spec* and *sources* rebuilt.
 
     Reading a quantity the file never named lowers the model as written, so the
     model is rebuilt (a build, never a solve) and the saved primal and dual put
@@ -676,8 +683,8 @@ def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source
     only an expression outside them reaches the rebuilt evaluator. *answer* is
     returned unchanged where the solve left no values.
 
-    The rebuild is deferred to the first ``answer.evaluation.evaluate`` call and
-    cached.
+    The rebuild is deferred to the first undeclared ``answer.evaluate`` call
+    and cached.
 
     Args:
         answer: A saved solve, as :func:`load_result` or :func:`scan_result`

@@ -441,7 +441,7 @@ PUBLIC_API = {
         'scan_result',
         'scan_runs',
     },
-    'name what came back': {'Model', 'Result', 'Runs', 'Evaluation', 'SweptEvaluation'},
+    'name what came back': {'Model', 'Result', 'Runs'},
     'catch it': {
         'LpspecError',
         'LanguageError',

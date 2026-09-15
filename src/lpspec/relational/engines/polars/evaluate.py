@@ -29,7 +29,7 @@ def expression_readers(
     sources: Mapping[str, pl.LazyFrame],
     lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
 ) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, Any]], pl.DataFrame] | None]:
-    """Attach *sources* and defer the reads an :class:`~lpspec.relational.result.Evaluation` is built from.
+    """Attach *sources* and defer the reads :func:`lpspec.evaluate` values one expression through.
 
     Args:
         program: A lowered program with no variables — a calculation.

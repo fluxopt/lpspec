@@ -615,7 +615,7 @@ def test_a_stitched_expression_prices_only_the_rows_a_window_owns(priced):
     exceed it — the overlap is in the keyed frames, which is the double-count
     the stitched read exists to drop.
     """
-    stitched = priced.evaluation.expression('spend', original_index=True)
+    stitched = priced.evaluate('spend', original_index=True)
     assert stitched.columns == ['snapshot', 'value']
     assert stitched['snapshot'].to_list() == list(range(12)), 'one value per coordinate, like a stitched primal'
 
@@ -627,18 +627,18 @@ def test_a_stitched_expression_prices_only_the_rows_a_window_owns(priced):
         .sort('snapshot')
     )
     assert stitched['value'].to_list() == pytest.approx(by_hand['value'].to_list())
-    assert priced.evaluation.expression('spend')['value'].sum() > stitched['value'].sum(), (
+    assert priced.evaluate('spend')['value'].sum() > stitched['value'].sum(), (
         'the keyed frames still carry the lookahead rows, so their sum double-counts'
     )
 
 
 def test_a_quantity_reduced_over_the_sliced_dimension_has_no_way_back(priced):
     """Per window it reads; over the original index the refusal says why not."""
-    keyed = priced.evaluation.expression('window_spend')
+    keyed = priced.evaluate('window_spend')
     assert keyed.columns == ['snapshot_start', 'value']
     assert keyed.height == len(priced), 'one total per window, keyed like objective'
     with pytest.raises(lps.LpspecError, match='reduced over the sliced dimension'):
-        priced.evaluation.expression('window_spend', original_index=True)
+        priced.evaluate('window_spend', original_index=True)
 
 
 def test_each_slice_expression_matches_solving_that_slice_alone():
@@ -650,8 +650,8 @@ def test_each_slice_expression_matches_solving_that_slice_alone():
         one = scenario_sources()
         one['load'] = _draw(one, scenario)
         with lps.solve(spec, one) as result:
-            alone = result.evaluation.expression('spend')
-            folded = runs.evaluation.expression('spend').filter(pl.col('scenario') == scenario).drop('scenario')
+            alone = result.evaluate('spend')
+            folded = runs.evaluate('spend').filter(pl.col('scenario') == scenario).drop('scenario')
             assert folded['value'].to_list() == pytest.approx(alone['value'].to_list()), (
                 'a slice read out of the sweep is the slice solved alone'
             )
@@ -659,7 +659,7 @@ def test_each_slice_expression_matches_solving_that_slice_alone():
 
 def test_an_expression_the_sweep_does_not_hold_says_what_it_does_hold(priced):
     with pytest.raises(lps.LpspecError, match="no named expression 'nope' in this sweep"):
-        priced.evaluation.expression('nope')
+        priced.evaluate('nope')
 
 
 def test_an_expression_no_slice_could_evaluate_carries_its_reason():
@@ -678,9 +678,9 @@ def test_an_expression_no_slice_could_evaluate_carries_its_reason():
         runs = lps.solve_over(spec, sources, lps.EachWindow('snapshot', steps=6, lookahead=0, into='t'))
 
     assert runs.primal('p').height > 0, 'the failing expression must not fail the sweep'
-    assert runs.evaluation.expression('spend').height > 0, 'nor take the healthy expression with it'
+    assert runs.evaluate('spend').height > 0, 'nor take the healthy expression with it'
     with pytest.raises(lps.LpspecError, match='scale'):
-        runs.evaluation.expression('ratio')
+        runs.evaluate('ratio')
 
 
 #: Six coordinates, three windows of two, whatever the coordinates *are*.
@@ -1185,7 +1185,7 @@ def test_every_executor_carries_expressions_the_same(make_executor):
     with _entered(make_executor()) as live:
         parallel = lps.solve_over(spec, sources, lps.EachCoordinate('scenario'), executor=live)
 
-    assert parallel.evaluation.expression('spend').equals(sequential.evaluation.expression('spend')), (
+    assert parallel.evaluate('spend').equals(sequential.evaluate('spend')), (
         'a sweep reads the same named expression under any executor'
     )
 
@@ -1351,7 +1351,7 @@ def test_every_bridge_takes_a_kind_on_a_sweep(priced):
     price = priced.to_dataarray('balance', 'dual', original_index=True)
     assert price.dims == ('snapshot',), 'the stitched price is over the dimension the axis sliced'
     assert price.name == 'balance'
-    spent = priced.evaluation.to_dataset()
+    spent = priced.to_dataset(kind='expression')
     assert set(spent.data_vars) == {'spend', 'window_spend'}, 'every expression the slices evaluated'
     assert spent['spend'].dims == ('snapshot_start', 't'), 'keyed by slice, as every bulk export is'
     with pytest.raises(lps.LpspecError, match='primal, dual, expression'):
@@ -1384,7 +1384,7 @@ def test_save_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(pri
     assert reopened.objective.equals(priced.objective)
     assert reopened.scan('soc').collect().equals(priced.primal('soc'))
     assert reopened.scan('balance', 'dual').collect().equals(priced.dual('balance'))
-    assert reopened.evaluation.scan('spend').collect().equals(priced.evaluation.expression('spend'))
+    assert reopened.scan('spend', 'expression').collect().equals(priced.evaluate('spend'))
 
 
 def test_a_sweep_keys_every_file_it_writes_with_one_type(priced, tmp_path):
@@ -2024,7 +2024,7 @@ def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_
     assert not runs._primals and not runs._duals and not runs._expressions, 'a spilled sweep holds no frame'
     assert runs.scan('soc').collect().equals(priced.primal('soc'))
     assert runs.scan('balance', 'dual').collect().equals(priced.dual('balance'))
-    assert runs.evaluation.scan('spend').collect().equals(priced.evaluation.expression('spend'))
+    assert runs.scan('spend', 'expression').collect().equals(priced.evaluate('spend'))
     assert runs.scan('soc', original_index=True).collect().equals(priced.primal('soc', original_index=True))
     assert not list(tmp_path.rglob('*.part')), 'every file landed under its final name'
 
@@ -2034,7 +2034,7 @@ def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_
     [
         pytest.param(lambda runs: runs.primal('soc'), id='primal'),
         pytest.param(lambda runs: runs.dual('balance'), id='dual'),
-        pytest.param(lambda runs: runs.evaluation.expression('spend'), id='expression'),
+        pytest.param(lambda runs: runs.evaluate('spend'), id='expression'),
         pytest.param(lambda runs: runs.save('elsewhere'), id='save'),
         pytest.param(lambda runs: runs.to_dataset(), id='to_dataset'),
     ],
@@ -2202,9 +2202,9 @@ def test_a_sweep_archive_evaluates_a_quantity_the_file_never_named_per_slice(tmp
     lps.solve_over(DISPATCH, scenario_sources(), axis, archive=tmp_path / 'study.zip')
     sweep = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'out')
     expr = 'sum(p * cost, over=generator)'
-    swept = sweep.answer.evaluation.evaluate(expr)
+    swept = sweep.answer.evaluate(expr)
     for key, slice_sources in axis.slices(scenario_sources()):
-        live = lps.solve(DISPATCH, slice_sources).evaluation.evaluate(expr)
+        live = lps.solve(DISPATCH, slice_sources).evaluate(expr)
         got = swept.filter(pl.col(sweep.answer.key_name) == key).drop(sweep.answer.key_name)
         columns = live.columns[:-1]
         assert got.sort(columns).equals(live.sort(columns)), f'slice {key!r} evaluates at its own primal, no re-solve'
@@ -2214,34 +2214,36 @@ def test_a_scanned_sweep_archive_evaluates_the_same(tmp_path):
     """A sweep left on disk (`scan_archive`) evaluates against those frames, the same values held reads."""
     lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), archive=tmp_path / 'study.zip')
     expr = 'sum(p * cost, over=generator)'
-    whole = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'whole').answer.evaluation.evaluate(expr)
-    scanned = lps.scan_archive(tmp_path / 'study.zip', tmp_path / 'scan').answer.evaluation.evaluate(expr)
+    whole = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'whole').answer.evaluate(expr)
+    scanned = lps.scan_archive(tmp_path / 'study.zip', tmp_path / 'scan').answer.evaluate(expr)
     assert scanned.equals(whole), 'a scanned sweep evaluates against the frames on disk, the same answer'
 
 
 def test_a_live_sweep_has_no_model_to_evaluate_against():
-    """A Runs a live solve returned retains no model, so evaluate says why — the archive is what carries one."""
-    runs = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'))
+    """A Runs a live solve returned retains no model, so an undeclared expression says why — the archive is what carries one — while a declared name is stitched from what the sweep holds."""
+    spec = override(DISPATCH, **{'expressions.spend': 'sum(p * cost, over=generator)'})
+    runs = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'))
     with pytest.raises(lps.LpspecError, match='no model behind it'):
-        runs.evaluation.evaluate('sum(p, over=generator)')
+        runs.evaluate('sum(p, over=generator)')
+    assert runs.evaluate('spend')['scenario'].n_unique() == len(runs), (
+        'the declared name answers without a model, stitched from every slice'
+    )
 
 
 def test_evaluate_across_a_sweep_refuses_an_expression_that_reads_a_carried_parameter(tmp_path):
     """The narrow gap: a carried value is a previous slice's answer, not stored data, so evaluate refuses it."""
     lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll.zip')
     sweep = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll')
-    assert sweep.answer.evaluation.evaluate('sum(p * cost)').height, (
-        'an expression over static data evaluates per slice'
-    )
+    assert sweep.answer.evaluate('sum(p * cost)').height, 'an expression over static data evaluates per slice'
     with pytest.raises(lps.LpspecError, match='carried'):
-        sweep.answer.evaluation.evaluate('sum(soc_initial)')
+        sweep.answer.evaluate('sum(soc_initial)')
 
 
 def test_evaluate_over_the_original_index_reindexes_like_primal(tmp_path):
     """`evaluate(original_index=True)` reuses the reindex `primal` does — the sliced dim back, the slice key gone."""
     lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'roll.zip')
     answer = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
-    reindexed = answer.evaluation.evaluate('sum(p, over=generator)', original_index=True)
+    reindexed = answer.evaluate('sum(p, over=generator)', original_index=True)
     assert reindexed.columns == ['snapshot', 'value'], 'the sliced dim is restored and the slice key dropped'
     by_hand = answer.primal('p', original_index=True).group_by('snapshot').agg(pl.col('value').sum()).sort('snapshot')
     assert reindexed.sort('snapshot').equals(by_hand.select('snapshot', 'value')), (
@@ -2254,4 +2256,4 @@ def test_evaluate_over_the_original_index_refuses_a_quantity_reduced_over_the_sl
     lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'roll.zip')
     answer = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
     with pytest.raises(lps.LpspecError, match="over 'snapshot'"):
-        answer.evaluation.evaluate('sum(p * cost)', original_index=True)
+        answer.evaluate('sum(p * cost)', original_index=True)

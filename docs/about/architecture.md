@@ -90,7 +90,7 @@ flowchart TB
         DIRECT --> SOL["result.py<br/>label join, never dense"]
     end
 
-    SOL --> ANS["<b>Result</b> — the lane runs to the answer<br/>objective · primal · dual · activity · evaluation<br/>polars tables you can join"]
+    SOL --> ANS["<b>Result</b> — the lane runs to the answer<br/>objective · primal · dual · activity · evaluate<br/>polars tables you can join"]
 
     subgraph LIN["linopy/ — the peer lane"]
         direction TB
@@ -195,15 +195,15 @@ protects: a new consumer is free, a new primitive is taxed.
 
 ### The Python surface
 
-**Thirty-one names, and the count is the feature.** The model is the YAML
+**Twenty-nine names, and the count is the feature.** The model is the YAML
 file, and Python is how you *run* it, so nothing on the surface constructs
 math or reaches the plan. The names, by role: the five verbs `check`, `build`,
 `evaluate`, `solve`, `write`; the fold `solve_over` with its two axes; the two archives
 that carry a spec, its data and its answer, `SolveArchive` and
 `SweepArchive`, with `load_archive`, `load_result` and `load_runs` to read one
 back whole and `scan_archive`, `scan_result` and `scan_runs` to read it off
-the directory it lies in; the five types a verb hands back, `Model`,
-`Result`, `Runs`, `Evaluation` and `SweptEvaluation`; the error tree under `LpspecError`, `NoSolutionError` and
+the directory it lies in; the three types a verb hands back, `Model`,
+`Result` and `Runs`; the error tree under `LpspecError`, `NoSolutionError` and
 `LpspecWarning`. What
 each one takes and returns is [the Python API](../reference/api.md). A verb
 that answers with no data (`check`) needs nothing but the file, and one that
@@ -226,10 +226,10 @@ typesetting it, is `math_spec`'s side of the line.
 
 **What a verb hands back is part of its signature.** A caller that *wraps*
 this package writes the type down, and a type it cannot import is a type it
-cannot write. So `Model`, `Result`, `Runs`, `Evaluation` and `SweptEvaluation` are named here, as are
+cannot write. So `Model`, `Result` and `Runs` are named here, as are
 `NoSolutionError`, what every reader on a `Result` raises, and
 `LpspecWarning`, what `check` emits. A sweep that records an infeasible
-scenario rather than dying on it needs both by name. None of the seven
+scenario rather than dying on it needs both by name. None of the five
 constructs math or reaches the plan.
 
 **The namespace is flat, and a namespace marks a lane rather than a topic.**
@@ -240,7 +240,7 @@ submodules (`not inspect.ismodule`), so moving names under `lpspec.something`
 moves them out from under the list a reviewer reads.
 
 **A return type is not a name.** `build` returns a `Model`, `solve` a `Result`,
-`solve_over` a `Runs`, `evaluate` an `Evaluation` and `runs.evaluation` a `SweptEvaluation`, and none is exported. You reach them by calling,
+`solve_over` a `Runs`, and none is exported. You reach them by calling,
 and import them from their module only to annotate. What the objects carry
 (`Result` alone has twelve readers) is [the Python API](../reference/api.md)'s
 to list. **A handle's methods answer "what do I do with this", never "what is
@@ -563,7 +563,7 @@ is structure.
 | `relational/engines/polars/readback.py` | a built row, a solve's tables and a named expression, spelled back out in the model's own labels |
 | `relational/engines/polars/evaluate.py` | a spec of parameters and expressions, no variables: the named expressions read straight off the data as arithmetic, with no solver |
 | `relational/engines/polars/engine.py` | the lifecycle: build, hand to a sink, read back; the counters and clocks `diagnostics()` reports |
-| `relational/result.py` | what a solve returned (status, objective, the label joins that read values back) and what an evaluation returned (the deferred expression readers) |
+| `relational/result.py` | what a solve returned: status, objective, the label joins that read values back, and the deferred expression readers |
 | `expressions.py` | expressions spliced into the model as written and lowered with it — what a reader values when the file never named the quantity |
 | `relational/parquet.py` | answers on disk: the `<kind>/<name>` layout a result and a sweep both write, and the writer that lands a file whole |
 | `relational/sinks/tables.py` | what every sink reads and no more: the five tables, the batching scalars, and their projection onto the solver's column index |

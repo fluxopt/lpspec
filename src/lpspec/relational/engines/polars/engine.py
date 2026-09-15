@@ -168,12 +168,12 @@ class PolarsEngine:
                 happened. ``nothing`` is held to structurally, the held solver
                 being closed before the load decision.
             lower: How an expression the caller *writes* becomes a plan node,
-                for :meth:`~lpspec.relational.result.Evaluation.evaluate`. Passed
+                for :meth:`~lpspec.relational.result.Result.evaluate`. Passed
                 in because lowering reads the model as written, which nothing
                 under ``relational/`` sees (docs/about/architecture.md, hard
                 rule 2). ``None`` for a build from an already-lowered
-                ``Program``, and the evaluation then says so rather than
-                evaluating an ad-hoc expression.
+                ``Program``, and the result then says so rather than
+                evaluating an undeclared expression.
 
         Returns:
             The solution, holding this engine and the build it answered.
@@ -336,7 +336,7 @@ class PolarsEngine:
         dict[str, Callable[[], pl.DataFrame]],
         Callable[[str | Mapping[str, Any]], pl.DataFrame] | None,
     ]:
-        """What an :class:`~lpspec.relational.result.Evaluation` reads through: a reader per declared name, and the ad-hoc evaluator.
+        """What :meth:`~lpspec.relational.result.Result.evaluate` reads through: a reader per declared name, and the ad-hoc evaluator.
 
         Both close over the same snapshot the result *owns* — the program, the
         attached data, a copy of this build's variable-frame registry and the

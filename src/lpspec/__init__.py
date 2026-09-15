@@ -36,15 +36,14 @@ from lpspec.errors import (
     PiecewiseExpansionError,
     SchemaError,
 )
-from lpspec.relational.result import Evaluation, Result
-from lpspec.strategy import EachCoordinate, EachWindow, Runs, SweptEvaluation, load_runs, scan_runs, solve_over
+from lpspec.relational.result import Result
+from lpspec.strategy import EachCoordinate, EachWindow, Runs, load_runs, scan_runs, solve_over
 
 __all__ = [
     'DataError',
     'DimensionError',
     'EachCoordinate',
     'EachWindow',
-    'Evaluation',
     'LaneError',
     'LanguageError',
     'LayoutError',
@@ -58,7 +57,6 @@ __all__ = [
     'SchemaError',
     'SolveArchive',
     'SweepArchive',
-    'SweptEvaluation',
     'build',
     'check',
     'evaluate',

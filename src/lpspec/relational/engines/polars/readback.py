@@ -265,11 +265,11 @@ def evaluation_readers(
     named: Mapping[str, program.ExpressionDeclaration],
     lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
 ) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, Any]], pl.DataFrame] | None]:
-    """The reads an :class:`~lpspec.relational.result.Evaluation` is built from, over one compiler.
+    """The reads :meth:`~lpspec.relational.result.Result.evaluate` is built from, over one compiler.
 
-    Shared by every producer of an evaluation — a live solve, a rebuilt archive,
-    and the variable-free arithmetic path — so the two reads a declared name and
-    an ad-hoc expression get are defined once, and differ only in the compiler.
+    Shared by every producer of them — a live solve, a rebuilt archive, and the
+    variable-free arithmetic path — so the two reads a declared name and an
+    ad-hoc expression get are defined once, and differ only in the compiler.
 
     Args:
         compiler: The compiler each read compiles through — carrying a solution,

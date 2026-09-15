@@ -109,7 +109,7 @@ def cost_of(runs: lps.Runs) -> float:
     keeps only the rows a window owns — the same quantity the objective
     minimises, never restated in a second language.
     """
-    return float(runs.evaluation.expression('spend', original_index=True)['value'].sum())
+    return float(runs.evaluate('spend', original_index=True)['value'].sum())
 
 
 def main() -> None:
