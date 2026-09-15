@@ -915,7 +915,7 @@ class Runs:
         :meth:`~lpspec.relational.result.Result.evaluate` one dimension wider,
         and :meth:`primal`'s shape and arguments. *expression* is what one
         ``expressions:`` entry takes: a name the file declares, an expression
-        string, or the mapping carrying ``cases:`` with ``foreach:`` and
+        string, or the mapping carrying ``cases:`` with ``dims:`` and
         ``otherwise:``.
 
         A declared name was valued at each slice's solution when the fold read

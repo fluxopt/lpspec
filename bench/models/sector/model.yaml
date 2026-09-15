@@ -37,7 +37,7 @@ parameters:
 
 variables:
   p:
-    foreach: [snapshot, node, tech]
+    dims: [snapshot, node, tech]
     where: "installed > 0"
     bounds:
       lower: 0
@@ -45,7 +45,7 @@ variables:
 
 constraints:
   balance:
-    foreach: [snapshot, node, carrier]
+    dims: [snapshot, node, carrier]
     where: "demand"
     expression: sum(p * produces, over=tech) == demand
 

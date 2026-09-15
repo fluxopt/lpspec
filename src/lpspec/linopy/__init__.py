@@ -112,7 +112,7 @@ def evaluate(
         spec: The model the expression is written against, as :func:`build`
             takes it — but not a lowered ``Program``.
         expression: What ``expressions:`` takes — a string, or the mapping
-            carrying ``cases:`` with ``foreach:`` and ``otherwise:``. A name
+            carrying ``cases:`` with ``dims:`` and ``otherwise:``. A name
             *spec* declares works too.
         sources: As :func:`build` takes them.
 

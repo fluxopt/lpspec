@@ -176,7 +176,7 @@ def evaluate(spec: Buildable, sources: Mapping[str, Source], expression: str | M
             parquet paths, and dimension names to their labels.
         expression: What one ``expressions:`` entry takes — a name the spec
             declares, an expression string, or the mapping carrying ``cases:``
-            with ``foreach:`` and ``otherwise:``.
+            with ``dims:`` and ``otherwise:``.
 
     Returns:
         The value, ``(dims…, value)`` over the expression's own dims. Only

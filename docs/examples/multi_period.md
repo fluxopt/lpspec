@@ -32,7 +32,7 @@ each `snapshot`, so a coarse quantity is pulled onto a fine one:
 
 ```yaml
 within_cap:
-  foreach: [snapshot, generator]
+  dims: [snapshot, generator]
   expression: p <= at(p_nom, by=period_of)
 ```
 
@@ -157,12 +157,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: capacity a generator holds for the whole of a period
-        foreach: [period, generator]
+        dims: [period, generator]
         bounds:
           lower: 0
           upper: 100
@@ -170,10 +170,10 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       within_cap:
         description: output in a snapshot is capped by the capacity of the period it falls in
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= at(p_nom, by=period_of)
       balance:
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
     objective:

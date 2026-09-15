@@ -134,7 +134,7 @@ def templated(name: str) -> re.Pattern | None:
 
 
 def template_dims(declared, model) -> dict[str, str]:
-    """Block name -> the dimension PyPSA spells into the constraint's name — the one foreach dim its constraint has no axis for (a component dim rides its ``name`` axis)."""
+    """Block name -> the dimension PyPSA spells into the constraint's name — the one declared dim its constraint has no axis for (a component dim rides its ``name`` axis)."""
     out = {}
     for name, block in declared.constraints.items():
         pattern = templated(stands_for(block.description))
@@ -143,13 +143,13 @@ def template_dims(declared, model) -> dict[str, str]:
             continue
         axes = set(model.constraints[their].coords.dims)
         component = {*prep.DIM.values(), 'bus'} if 'name' in axes else set()
-        (out[name],) = [d for d in block.foreach if d not in axes and d not in component]
+        (out[name],) = [d for d in block.dims if d not in axes and d not in component]
     return out
 
 
 def template_axis(block, dim: str) -> int:
     """Where *dim* sits in a row key — keys are ordered snapshot first, then by name."""
-    dims = sorted(block.foreach, key=lambda d: (d != 'snapshot', d))
+    dims = sorted(block.dims, key=lambda d: (d != 'snapshot', d))
     return dims.index(dim)
 
 
@@ -830,7 +830,7 @@ def coverage(stamped: dict[str, dict]) -> list[str]:
                 if not sum(counts):
                     gaps.append(f'{name}: no rung builds {block_name}')
                 elif block.where and not any(
-                    0 < c < math.prod(stamp['dims'][d] for d in block.foreach)
+                    0 < c < math.prod(stamp['dims'][d] for d in block.dims)
                     for c, stamp in zip(counts, stamps, strict=True)
                 ):
                     gaps.append(f'{name}: {block_name} is always all-or-nothing, so its mask is untested')

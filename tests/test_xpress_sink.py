@@ -178,8 +178,8 @@ def test_a_set_reaches_the_solver_natively() -> None:
 SLACK = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'cap': {'dims': ['t']}, 'price': {'dims': ['t']}},
-    'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'lim': {'foreach': ['t'], 'expression': 'p <= cap'}},
+    'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'lim': {'dims': ['t'], 'expression': 'p <= cap'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p * price, over=t) + 0'},
 }
 

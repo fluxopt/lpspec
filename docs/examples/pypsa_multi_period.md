@@ -152,12 +152,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           output of a generator in a snapshot, held at zero in the snapshots whose
           period the generator does not exist in
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: capacity built at a generator
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
           upper: p_nom_max
@@ -168,12 +168,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           a generator produces no more than the capacity built for it, and nothing at
           all in a period it does not exist in — the activity is read down onto the
           snapshot through the period lookup
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= p_nom * at(activity, by=period_of)
 
       power_balance:
         description: what exists in this snapshot meets the load
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
     objective:

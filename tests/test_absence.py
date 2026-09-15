@@ -39,10 +39,10 @@ BROADCAST_MASK_SPEC = {
         'installed': {'dims': ['node', 'tech']},
     },
     'variables': {
-        'p': {'foreach': ['node', 'tech'], 'where': 'installed > 0', 'bounds': {'lower': 0, 'upper': 'installed'}},
+        'p': {'dims': ['node', 'tech'], 'where': 'installed > 0', 'bounds': {'lower': 0, 'upper': 'installed'}},
     },
     'constraints': {
-        'balance': {'foreach': ['node', 'carrier'], 'expression': 'sum(p * produces, over=tech) == demand'},
+        'balance': {'dims': ['node', 'carrier'], 'expression': 'sum(p * produces, over=tech) == demand'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost)'},
 }
@@ -57,8 +57,8 @@ def _grid(dims, labels, values):
 SPARSE_COEFFICIENT_SPEC = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'c': {'dims': ['t']}, 'w': {'dims': ['t']}},
-    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'cap': {'foreach': ['t'], 'expression': 'w * x <= c'}},
+    'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {'cap': {'dims': ['t'], 'expression': 'w * x <= c'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x, over=t)'},
 }
 
@@ -106,9 +106,9 @@ def test_a_sparse_constant_side_is_refused_on_both_lanes():
 @pytest.mark.parametrize(
     'constraint',
     [
-        pytest.param({'foreach': ['t'], 'expression': 'w * x <= c'}, id='at the row key'),
-        pytest.param({'foreach': [], 'expression': 'sum(w * x, over=t) <= sum(c, over=t)'}, id='under a sum'),
-        pytest.param({'foreach': ['t'], 'expression': 'w * x <= c + sum(c, over=t)'}, id='beside a sum of itself'),
+        pytest.param({'dims': ['t'], 'expression': 'w * x <= c'}, id='at the row key'),
+        pytest.param({'dims': [], 'expression': 'sum(w * x, over=t) <= sum(c, over=t)'}, id='under a sum'),
+        pytest.param({'dims': ['t'], 'expression': 'w * x <= c + sum(c, over=t)'}, id='beside a sum of itself'),
     ],
 )
 def test_the_same_hole_is_refused_however_far_it_stands_from_the_row(constraint):
@@ -163,7 +163,7 @@ def test_a_constant_piece_beside_a_term_is_refused_through_a_reduction():
     """
     spec = override(
         SPARSE_COEFFICIENT_SPEC,
-        **{'constraints.cap': {'foreach': [], 'expression': 'sum(w * x, over=t) + sum(c, over=t) <= 100'}},
+        **{'constraints.cap': {'dims': [], 'expression': 'sum(w * x, over=t) + sum(c, over=t) <= 100'}},
     )
     both_lanes_refuse(spec, SPARSE_CONSTANT_DATA, match="parameter 'c' covers 1 fewer")
 
@@ -190,8 +190,8 @@ GROUPED_CONSTANT_SPEC = {
     'dimensions': {'generator': {}, 'bus': {'dtype': 'str'}},
     'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
     'parameters': {'capacity': {'dims': ['generator']}},
-    'variables': {'imports': {'foreach': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'import_limit': {'foreach': ['bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}},
+    'variables': {'imports': {'dims': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'import_limit': {'dims': ['bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(imports, over=bus)'},
 }
 
@@ -231,9 +231,9 @@ SPANNED_GROUPED_CONSTANT_SPEC = {
     **GROUPED_CONSTANT_SPEC,
     'dimensions': {**GROUPED_CONSTANT_SPEC['dimensions'], 'snapshot': {'dtype': 'int'}},
     'parameters': {'capacity': {'dims': ['snapshot', 'generator']}},
-    'variables': {'imports': {'foreach': ['snapshot', 'bus'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'variables': {'imports': {'dims': ['snapshot', 'bus'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {
-        'import_limit': {'foreach': ['snapshot', 'bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}
+        'import_limit': {'dims': ['snapshot', 'bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(sum(imports, over=bus), over=snapshot)'},
 }
@@ -274,10 +274,10 @@ PLURAL_GROUPED_CONSTANT_SPEC = {
         'gen_bus': {'over': 'generator', 'into': 'bus'},
         'gen_tech': {'over': 'generator', 'into': 'technology'},
     },
-    'variables': {'imports': {'foreach': ['bus', 'technology'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'variables': {'imports': {'dims': ['bus', 'technology'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {
         'import_limit': {
-            'foreach': ['bus', 'technology'],
+            'dims': ['bus', 'technology'],
             'expression': 'imports <= sum(capacity, by=[gen_bus, gen_tech])',
         }
     },
@@ -330,10 +330,10 @@ ABSENT_VARIABLE_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'gate': {'dims': ['f'], 'dtype': 'bool'}, 'relmax': {'dims': ['f']}, 'cost': {'dims': ['f']}},
     'variables': {
-        'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
-        'size': {'foreach': ['f'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
+        'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
+        'size': {'dims': ['f'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
     },
-    'constraints': {'envelope': {'foreach': ['f'], 'expression': 'x - relmax * size <= 0'}},
+    'constraints': {'envelope': {'dims': ['f'], 'expression': 'x - relmax * size <= 0'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost, over=f)'},
 }
 
@@ -369,12 +369,12 @@ DEFINED_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'gate': {'dims': ['f'], 'dtype': 'bool'}, 'relmax': {'dims': ['f']}, 'cost': {'dims': ['f']}},
     'variables': {
-        'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
-        'size': {'foreach': ['f'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
+        'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
+        'size': {'dims': ['f'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
     },
     'constraints': {
-        'envelope_sized': {'foreach': ['f'], 'where': 'size', 'expression': 'x - relmax * size <= 0'},
-        'envelope_unsized': {'foreach': ['f'], 'where': 'NOT size', 'expression': 'x <= 0'},
+        'envelope_sized': {'dims': ['f'], 'where': 'size', 'expression': 'x - relmax * size <= 0'},
+        'envelope_unsized': {'dims': ['f'], 'where': 'NOT size', 'expression': 'x <= 0'},
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost, over=f)'},
 }
@@ -408,10 +408,10 @@ ABSENT_COEFFICIENT_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'relmax': {'dims': ['f']}, 'cost': {'dims': ['f']}},
     'variables': {
-        'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
-        'size': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 50}},
+        'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
+        'size': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 50}},
     },
-    'constraints': {'envelope': {'foreach': ['f'], 'expression': 'x - relmax * size <= 0'}},
+    'constraints': {'envelope': {'dims': ['f'], 'expression': 'x - relmax * size <= 0'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost, over=f)'},
 }
 
@@ -448,10 +448,10 @@ SCALAR_MASKED_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'cost': {'dims': ['f']}, 'budget': {'dims': []}},
     'variables': {
-        'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
-        'slack': {'foreach': [], 'where': 'budget > 1000', 'bounds': {'lower': 0, 'upper': 10}},
+        'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
+        'slack': {'dims': [], 'where': 'budget > 1000', 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'cap': {'foreach': [], 'expression': 'sum(x, over=f) - slack <= budget'}},
+    'constraints': {'cap': {'dims': [], 'expression': 'sum(x, over=f) - slack <= budget'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost)'},
 }
 

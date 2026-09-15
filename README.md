@@ -77,12 +77,12 @@ parameters:
   cost:  {dims: [generator]}
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     where: "p_max > 0"
     bounds: {lower: 0, upper: p_max}
 constraints:
   power_balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) == load
 objective:
   sense: minimize
@@ -186,7 +186,7 @@ polars, pandas or xarray objects, Arrow tables, or parquet paths. MIT licensed.
 
 ## Prior art
 
-The surface — YAML math, a block per component, `foreach:`, a `where:` string —
+The surface — YAML math, a block per component, `dims:`, a `where:` string —
 comes from [Calliope](https://github.com/calliope-project/calliope);
 [linopy](https://github.com/PyPSA/linopy) supplies the shared vocabulary, the
 oracle and every benchmark denominator. What was taken from each, and how to

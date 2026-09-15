@@ -144,18 +144,18 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: capacity built at a generator
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
           upper: p_nom_max
       n_mod:
         description: how many whole modules are built
-        foreach: [generator]
+        dims: [generator]
         domain: integer
         bounds:
           lower: 0
@@ -163,19 +163,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       within_capacity:
         description: a generator produces no more than the capacity built for it
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= p_nom
 
       modularity:
         description: >-
           capacity is the module count times the module size, which is what makes
           the count rather than the capacity the decision
-        foreach: [generator]
+        dims: [generator]
         expression: p_nom == n_mod * p_nom_mod
 
       nodal_balance:
         description: what is generated at a bus meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(p, by=gen_bus) == load
 
     objective:

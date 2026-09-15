@@ -972,172 +972,172 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
     variables:
       Generator_p:
         description: '`Generator-p` — output of a generator in a snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
       Link_p:
         description: '`Link-p` — PyPSA''s `p0`, the flow measured at the `Link_bus0` end: a positive value
           withdraws there and injects at every bus the link''s output ports deliver to'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
       StorageUnit_p_dispatch:
         description: '`StorageUnit-p_dispatch` — power delivered to the bus'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
       StorageUnit_p_store:
         description: '`StorageUnit-p_store` — power drawn from the bus into charge'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
       StorageUnit_state_of_charge:
         description: '`StorageUnit-state_of_charge` — energy held at the end of a snapshot'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
       Store_e:
         description: '`Store-e` — energy held at the end of a snapshot'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
       Store_p:
         description: '`Store-p` — power delivered to the bus; charging is negative'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
       Generator_p_nom_ext:
         description: '`Generator-p_nom` — nominal power where it is a decision; the parameter of the same
           PyPSA name carries the fixed regime'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable
       Link_p_nom_ext:
         description: '`Link-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA
           name carries the fixed regime'
-        foreach: [link]
+        dims: [link]
         where: Link_p_nom_extendable
       StorageUnit_p_nom_ext:
         description: '`StorageUnit-p_nom` — nominal power where it is a decision; the parameter of the same
           PyPSA name carries the fixed regime'
-        foreach: [storage_unit]
+        dims: [storage_unit]
         where: StorageUnit_p_nom_extendable
       Store_e_nom_ext:
         description: '`Store-e_nom` — nominal capacity where it is a decision; the parameter of the same PyPSA
           name carries the fixed regime'
-        foreach: [store]
+        dims: [store]
         where: Store_e_nom_extendable
       Generator_status:
         description: '`Generator-status` — how much of a committable unit is on: an integer the rows below
           cap at one, or at the module count where the build is modular'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
     constraints:
       Generator_fix_p_lower:
         description: '`Generator-fix-p-lower` — a fixed generator outputs at least its minimum'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom
       Generator_fix_p_upper:
         description: '`Generator-fix-p-upper` — a fixed generator outputs at most what is available'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom
       Link_fix_p_lower:
         description: '`Link-fix-p-lower` — a fixed link carries at least its minimum, negative for the other
           way'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p >= Link_p_min_pu * Link_p_nom
       Link_fix_p_upper:
         description: '`Link-fix-p-upper` — a fixed link carries at most its nominal power'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p <= Link_p_max_pu * Link_p_nom
       Generator_ext_p_lower:
         description: '`Generator-ext-p-lower` — an extendable generator outputs at least its minimum of the
           chosen build'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom_ext
       Generator_ext_p_upper:
         description: '`Generator-ext-p-upper` — an extendable generator outputs at most what is available
           of the chosen build'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom_ext
       Generator_ext_p_nom_lower:
         description: '`Generator-ext-p_nom-lower` — the chosen build is at least its floor'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable
         expression: Generator_p_nom_ext >= Generator_p_nom_min
       Generator_ext_p_nom_upper:
         description: '`Generator-ext-p_nom-upper` — the chosen build is at most its cap; a cap of infinity
           is no row'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable AND Generator_p_nom_max
         expression: Generator_p_nom_ext <= Generator_p_nom_max
       Generator_p_nom_set:
         description: '`Generator-p_nom_set` — the chosen build pinned, wherever a value is given'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable AND Generator_p_nom_set
         expression: Generator_p_nom_ext == Generator_p_nom_set
       Generator_e_sum_min:
         description: '`Generator-e_sum_min` — energy over the horizon is at least its floor; a floor of minus
           infinity is no row'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_e_sum_min
         expression: sum(Generator_p * snapshot_weightings_generators, over=snapshot) >= Generator_e_sum_min
       Generator_e_sum_max:
         description: '`Generator-e_sum_max` — energy over the horizon is at most its budget; a budget of infinity
           is no row'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_e_sum_max
         expression: sum(Generator_p * snapshot_weightings_generators, over=snapshot) <= Generator_e_sum_max
       Link_ext_p_lower:
         description: '`Link-ext-p-lower` — an extendable link carries at least its minimum of the chosen build,
           negative for the other way'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: Link_p_nom_extendable
         expression: Link_p >= Link_p_min_pu * Link_p_nom_ext
       Link_ext_p_upper:
         description: '`Link-ext-p-upper` — an extendable link carries at most the chosen build'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: Link_p_nom_extendable
         expression: Link_p <= Link_p_max_pu * Link_p_nom_ext
       Link_ext_p_nom_lower:
         description: '`Link-ext-p_nom-lower` — the chosen build is at least its floor'
-        foreach: [link]
+        dims: [link]
         where: Link_p_nom_extendable
         expression: Link_p_nom_ext >= Link_p_nom_min
       Link_ext_p_nom_upper:
         description: '`Link-ext-p_nom-upper` — the chosen build is at most its cap; a cap of infinity is no
           row'
-        foreach: [link]
+        dims: [link]
         where: Link_p_nom_extendable AND Link_p_nom_max
         expression: Link_p_nom_ext <= Link_p_nom_max
       Link_p_nom_set:
         description: '`Link-p_nom_set` — the chosen build pinned, wherever a value is given'
-        foreach: [link]
+        dims: [link]
         where: Link_p_nom_extendable AND Link_p_nom_set
         expression: Link_p_nom_ext == Link_p_nom_set
       StorageUnit_fix_p_dispatch_lower:
         description: '`StorageUnit-fix-p_dispatch-lower` — dispatch is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_p_dispatch >= 0
       StorageUnit_fix_p_dispatch_upper:
         description: '`StorageUnit-fix-p_dispatch-upper` — a fixed unit dispatches at most its nominal power'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_p_dispatch <= StorageUnit_p_max_pu * StorageUnit_p_nom
       StorageUnit_fix_p_store_lower:
         description: '`StorageUnit-fix-p_store-lower` — storing is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_p_store >= 0
       StorageUnit_fix_p_store_upper:
         description: '`StorageUnit-fix-p_store-upper` — a fixed unit stores at most its nominal power, the
           minimum-per-unit column carrying that cap negated'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_p_store <= -StorageUnit_p_min_pu * StorageUnit_p_nom
       StorageUnit_fix_state_of_charge_lower:
         description: '`StorageUnit-fix-state_of_charge-lower` — charge is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_state_of_charge >= 0
       StorageUnit_fix_state_of_charge_upper:
         description: '`StorageUnit-fix-state_of_charge-upper` — a fixed unit holds at most its hours at nominal
           power'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: not StorageUnit_p_nom_extendable
         expression: StorageUnit_state_of_charge <= StorageUnit_max_hours * StorageUnit_p_nom
       Generator_p_ramp_limit_up:
@@ -1145,7 +1145,7 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
           of the build, and a committed one no further than its start-up ramp in the snapshot it turns on.
           A unit that came into the horizon running brought an unknown output, so it carries no row at the
           first snapshot — nor does any unit a big M releases instead'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_ramp_limit_up AND NOT (Generator_committable AND Generator_p_nom_extendable) AND
           (position(snapshot) > 0 OR (Generator_committable AND Generator_status_initial == 0))
         expression: Generator_p - Generator_previous_p <= Generator_ramp_up_allowance
@@ -1154,148 +1154,148 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
           of the build, and a committed one no further than its shut-down ramp in the snapshot it turns off.
           A unit that came into the horizon running brought an unknown output, so it carries no row at the
           first snapshot — nor does any unit a big M releases instead'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_ramp_limit_down AND NOT (Generator_committable AND Generator_p_nom_extendable) AND
           (position(snapshot) > 0 OR (Generator_committable AND Generator_status_initial == 0))
         expression: Generator_previous_p - Generator_p <= Generator_ramp_down_allowance
       Link_p_ramp_limit_up:
         description: '`Link-p-ramp_limit_up` — a link raises flow no faster than its limit of the build. The
           translated term vacates the first snapshot, where a plain optimize builds no row either'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: Link_ramp_limit_up
         expression: Link_p - shift(Link_p, over=snapshot, offset=1) <= Link_ramp_limit_up * Link_p_nom_effective
       Link_p_ramp_limit_down:
         description: '`Link-p-ramp_limit_down` — a link lowers flow no faster than its limit of the build'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: Link_ramp_limit_down
         expression: shift(Link_p, over=snapshot, offset=1) - Link_p <= Link_ramp_limit_down * Link_p_nom_effective
       StorageUnit_ext_p_dispatch_lower:
         description: '`StorageUnit-ext-p_dispatch-lower` — dispatch is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_p_dispatch >= 0
       StorageUnit_ext_p_dispatch_upper:
         description: '`StorageUnit-ext-p_dispatch-upper` — an extendable unit dispatches at most the chosen
           build'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_p_dispatch <= StorageUnit_p_max_pu * StorageUnit_p_nom_ext
       StorageUnit_ext_p_store_lower:
         description: '`StorageUnit-ext-p_store-lower` — storing is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_p_store >= 0
       StorageUnit_ext_p_store_upper:
         description: '`StorageUnit-ext-p_store-upper` — an extendable unit stores at most the chosen build,
           the minimum-per-unit column carrying that cap negated'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_p_store <= -StorageUnit_p_min_pu * StorageUnit_p_nom_ext
       StorageUnit_ext_state_of_charge_lower:
         description: '`StorageUnit-ext-state_of_charge-lower` — charge is non-negative'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_state_of_charge >= 0
       StorageUnit_ext_state_of_charge_upper:
         description: '`StorageUnit-ext-state_of_charge-upper` — an extendable unit holds at most its hours
           at the chosen build'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_state_of_charge <= StorageUnit_max_hours * StorageUnit_p_nom_ext
       StorageUnit_ext_p_nom_lower:
         description: '`StorageUnit-ext-p_nom-lower` — the chosen build is at least its floor'
-        foreach: [storage_unit]
+        dims: [storage_unit]
         where: StorageUnit_p_nom_extendable
         expression: StorageUnit_p_nom_ext >= StorageUnit_p_nom_min
       StorageUnit_ext_p_nom_upper:
         description: '`StorageUnit-ext-p_nom-upper` — the chosen build is at most its cap; a cap of infinity
           is no row'
-        foreach: [storage_unit]
+        dims: [storage_unit]
         where: StorageUnit_p_nom_extendable AND StorageUnit_p_nom_max
         expression: StorageUnit_p_nom_ext <= StorageUnit_p_nom_max
       StorageUnit_p_nom_set:
         description: '`StorageUnit-p_nom_set` — the chosen build pinned, wherever a value is given'
-        foreach: [storage_unit]
+        dims: [storage_unit]
         where: StorageUnit_p_nom_extendable AND StorageUnit_p_nom_set
         expression: StorageUnit_p_nom_ext == StorageUnit_p_nom_set
       StorageUnit_energy_balance:
         description: '`StorageUnit-energy_balance` — the charge carried in, plus what is stored after its
           efficiency, less what dispatch draws down before its own, plus inflow not spilled'
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         expression: StorageUnit_state_of_charge == StorageUnit_charge_carried_in + StorageUnit_efficiency_store
           * StorageUnit_p_store * snapshot_weightings_stores - StorageUnit_p_dispatch * snapshot_weightings_stores
           / StorageUnit_efficiency_dispatch
       Store_fix_e_lower:
         description: '`Store-fix-e-lower` — a fixed store holds at least its floor'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         where: not Store_e_nom_extendable
         expression: Store_e >= Store_e_min_pu * Store_e_nom
       Store_fix_e_upper:
         description: '`Store-fix-e-upper` — a fixed store holds at most its nominal capacity'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         where: not Store_e_nom_extendable
         expression: Store_e <= Store_e_max_pu * Store_e_nom
       Store_ext_e_lower:
         description: '`Store-ext-e-lower` — an extendable store holds at least its floor of the chosen build'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         where: Store_e_nom_extendable
         expression: Store_e >= Store_e_min_pu * Store_e_nom_ext
       Store_ext_e_upper:
         description: '`Store-ext-e-upper` — an extendable store holds at most the chosen build'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         where: Store_e_nom_extendable
         expression: Store_e <= Store_e_max_pu * Store_e_nom_ext
       Store_ext_e_nom_lower:
         description: '`Store-ext-e_nom-lower` — the chosen build is at least its floor'
-        foreach: [store]
+        dims: [store]
         where: Store_e_nom_extendable
         expression: Store_e_nom_ext >= Store_e_nom_min
       Store_ext_e_nom_upper:
         description: '`Store-ext-e_nom-upper` — the chosen build is at most its cap; a cap of infinity is
           no row'
-        foreach: [store]
+        dims: [store]
         where: Store_e_nom_extendable AND Store_e_nom_max
         expression: Store_e_nom_ext <= Store_e_nom_max
       Store_e_nom_set:
         description: '`Store-e_nom_set` — the chosen build pinned, wherever a value is given'
-        foreach: [store]
+        dims: [store]
         where: Store_e_nom_extendable AND Store_e_nom_set
         expression: Store_e_nom_ext == Store_e_nom_set
       Store_energy_balance:
         description: '`Store-energy_balance` — the energy carried in, less what is delivered to the bus'
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         expression: Store_e == Store_energy_carried_in - Store_p * snapshot_weightings_stores
       GlobalConstraint_transmission_volume_expansion_limit_ub:
         description: '`transmission_volume_expansion_limit` — its total, at most its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'transmission_volume_expansion_limit' AND GlobalConstraint_sense ==
           '<='
         expression: transmission_volume_expansion <= GlobalConstraint_constant
       GlobalConstraint_transmission_expansion_cost_limit_lb:
         description: '`transmission_expansion_cost_limit` — its total, at least its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'transmission_expansion_cost_limit' AND GlobalConstraint_sense ==
           '>='
         expression: transmission_expansion_cost >= GlobalConstraint_constant
       GlobalConstraint_transmission_expansion_cost_limit_eq:
         description: '`transmission_expansion_cost_limit` — its total, at its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'transmission_expansion_cost_limit' AND GlobalConstraint_sense ==
           '=='
         expression: transmission_expansion_cost == GlobalConstraint_constant
       GlobalConstraint_tech_capacity_expansion_limit_ub:
         description: '`tech_capacity_expansion_limit` — its total, at most its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'tech_capacity_expansion_limit' AND GlobalConstraint_sense == '<='
         expression: tech_capacity_expansion <= GlobalConstraint_constant
       GlobalConstraint_tech_capacity_expansion_limit_lb:
         description: '`tech_capacity_expansion_limit` — its total, at least its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'tech_capacity_expansion_limit' AND GlobalConstraint_sense == '>='
         expression: tech_capacity_expansion >= GlobalConstraint_constant
       GlobalConstraint_tech_capacity_expansion_limit_eq:
         description: '`tech_capacity_expansion_limit` — its total, at its constant'
-        foreach: [global_constraint]
+        dims: [global_constraint]
         where: GlobalConstraint_type == 'tech_capacity_expansion_limit' AND GlobalConstraint_sense == '=='
         expression: tech_capacity_expansion == GlobalConstraint_constant
       Bus_nodal_balance:
@@ -1303,7 +1303,7 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
           less what the links take away, plus what arrives over them after losses and any delay at every port
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(Generator_p, by=Generator_bus) + sum(StorageUnit_p_dispatch - StorageUnit_p_store,
           by=StorageUnit_bus) + sum(Store_p, by=Store_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
           by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
@@ -1311,14 +1311,14 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
       Generator_previous_p:
         description: the output a generator carries into a snapshot — nothing at the start of the horizon,
           which is why a unit that came in running carries no ramp row there
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: 0}
         otherwise: shift(Generator_p, over=snapshot, offset=1)
       Generator_ramp_up_allowance:
         description: how far a generator may raise output between two snapshots — its ramp limit of the build
           while it stays on, plus its start-up ramp in the snapshot it turns on
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           committed: {when: Generator_committable, expression: Generator_ramp_limit_up * Generator_p_nom *
               Generator_previous_status + Generator_ramp_limit_start_up * Generator_p_nom * (Generator_status
@@ -1327,7 +1327,7 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
       Generator_ramp_down_allowance:
         description: how far a generator may lower output between two snapshots — its ramp limit of the build
           while it stays on, plus its shut-down ramp in the snapshot it turns off
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           committed: {when: Generator_committable, expression: Generator_ramp_limit_down * Generator_p_nom
               * Generator_status + Generator_ramp_limit_shut_down * Generator_p_nom * (Generator_previous_status
@@ -1336,7 +1336,7 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
       Link_p_nom_effective:
         description: the build a link's limits are taken against — the chosen one where it is extendable,
           the given one otherwise
-        foreach: [link]
+        dims: [link]
         cases:
           extendable: {when: Link_p_nom_extendable, expression: Link_p_nom_ext}
         otherwise: Link_p_nom
@@ -1344,7 +1344,7 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
         description: the charge a unit opens a snapshot with — its last snapshot's less standing loss where
           it is cyclic, the given initial charge at the start of the horizon, which no standing loss has touched
           yet, and the previous snapshot's less standing loss otherwise
-        foreach: [snapshot, storage_unit]
+        dims: [snapshot, storage_unit]
         cases:
           cyclic: {when: StorageUnit_cyclic_state_of_charge, expression: 'StorageUnit_retention * shift(StorageUnit_state_of_charge,
               over=snapshot, offset=1, edge=''wrap'')'}
@@ -1354,7 +1354,7 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
         description: the energy a store opens a snapshot with — its last snapshot's less standing loss where
           it is cyclic, the given initial energy at the start of the horizon, which no standing loss has touched
           yet, and the previous snapshot's less standing loss otherwise
-        foreach: [snapshot, store]
+        dims: [snapshot, store]
         cases:
           cyclic: {when: Store_e_cyclic, expression: 'Store_retention * shift(Store_e, over=snapshot, offset=1,
               edge=''wrap'')'}
@@ -1365,7 +1365,7 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
           delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the
           horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
-        foreach: [snapshot, link_output]
+        dims: [snapshot, link_output]
         cases:
           wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
               Link_efficiency, over=snapshot, offset=Link_output_delay, edge=''wrap'')'}
@@ -1385,14 +1385,14 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
       Generator_previous_status:
         description: the commitment state a generator carries into a snapshot — the state it brought into
           the horizon at the first, the previous snapshot's after that
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: Generator_status_initial}
         otherwise: shift(Generator_status, over=snapshot, offset=1)
       Generator_p_nom_effective:
         description: the build a generator's limits are taken against — the chosen one where it is extendable,
           the given one otherwise
-        foreach: [generator]
+        dims: [generator]
         cases:
           extendable: {when: Generator_p_nom_extendable, expression: Generator_p_nom_ext}
         otherwise: Generator_p_nom

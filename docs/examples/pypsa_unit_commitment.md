@@ -172,25 +172,25 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       status:
         description: is this unit committed in this snapshot?
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         domain: binary
       start_up:
         description: does this unit come up entering this snapshot?
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         domain: binary
       shut_down:
         description: does this unit go down entering this snapshot?
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         domain: binary
 
     constraints:
       power_balance:
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
       commitment_max:
@@ -198,12 +198,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           a committed unit runs at no more than its capacity and an uncommitted one
           is pinned to zero — capacity times status is a parameter against a
           variable, so the product stays degree 1
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p - p_nom * status <= 0
 
       commitment_min:
         description: a committed unit runs at no less than its minimum, an uncommitted one at zero
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p - p_min_pu * p_nom * status >= 0
 
       start_up_initial:
@@ -211,7 +211,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the first snapshot has no predecessor, and PyPSA's default is that the
           unit was already up before the horizon — so the start-up row is slackened
           here and never binds
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: "position(snapshot) == 0"
         expression: start_up - status >= -1
 
@@ -221,7 +221,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           start-up and shut-down variables are implied by these transitions, but
           PyPSA declares them binary rather than leaving it to the status, and the
           port matches that.
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: start_up - status + shift(status, over=snapshot, offset=1) >= 0
 
       shut_down_initial:
@@ -229,13 +229,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the mirror of the start-up row, and not slackened: a unit that begins the
           horizon off is charged for the shut-down, which is PyPSA's asymmetry and
           worth 50 on this instance
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: "position(snapshot) == 0"
         expression: shut_down + status >= 1
 
       shut_down:
         description: a unit whose status falls entering this snapshot pays for a stop
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: shut_down + status - shift(status, over=snapshot, offset=1) >= 0
 
     objective:

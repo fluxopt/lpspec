@@ -41,12 +41,12 @@ def up_time_spec(edge: str | None) -> dict:
             'cost': {'dims': ['g']},
         },
         'variables': {
-            'started': {'foreach': ['g', 't'], 'domain': 'binary'},
-            'on': {'foreach': ['g', 't'], 'domain': 'binary'},
+            'started': {'dims': ['g', 't'], 'domain': 'binary'},
+            'on': {'dims': ['g', 't'], 'domain': 'binary'},
         },
         'constraints': {
-            'starts_when_told': {'foreach': ['g', 't'], 'expression': 'started >= must_start'},
-            'stays_up_its_own_time': {'foreach': ['g', 't'], 'expression': f'{window} <= on'},
+            'starts_when_told': {'dims': ['g', 't'], 'expression': 'started >= must_start'},
+            'stays_up_its_own_time': {'dims': ['g', 't'], 'expression': f'{window} <= on'},
         },
         'objective': {'sense': 'minimize', 'expression': 'sum(on * cost)'},
     }
@@ -113,8 +113,8 @@ def test_an_operand_carrying_a_constant_owes_the_window_of_constants():
     spec = {
         'dimensions': {'t': {'dtype': 'int'}},
         'parameters': {'p': {'dims': ['t']}},
-        'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
-        'constraints': {'w': {'foreach': ['t'], 'expression': 'sum_back(x - p, over=t, within=2) >= 0'}},
+        'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
+        'constraints': {'w': {'dims': ['t'], 'expression': 'sum_back(x - p, over=t, within=2) >= 0'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(x, over=t)'},
     }
     data = {'t': [0, 1, 2, 3], 'p': pd.DataFrame({'t': [0, 1, 2, 3], 'value': [1.0, 2.0, 3.0, 4.0]})}
@@ -162,10 +162,10 @@ def test_a_window_that_reaches_nothing_builds_no_row():
 ZERO_WIDTH = {
     'dimensions': {'t': {'dtype': 'int'}, 'u': {'dtype': 'str'}},
     'parameters': {'w': {'dims': ['u'], 'dtype': 'int'}, 'need': {'dims': ['t']}},
-    'variables': {'x': {'foreach': ['t', 'u'], 'bounds': {'lower': 0}}},
+    'variables': {'x': {'dims': ['t', 'u'], 'bounds': {'lower': 0}}},
     'constraints': {
-        'meet': {'foreach': ['t'], 'expression': 'sum(x, over=u) >= need'},
-        'window': {'foreach': ['t', 'u'], 'expression': 'sum_back(x, over=t, within=w) >= 0'},
+        'meet': {'dims': ['t'], 'expression': 'sum(x, over=u) >= need'},
+        'window': {'dims': ['t', 'u'], 'expression': 'sum_back(x, over=t, within=w) >= 0'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(x)'},
 }
@@ -196,8 +196,8 @@ UNMAPPED_WIDTH = {
     'dimensions': {'t': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
     'lookups': {'season_of': {'over': 't', 'into': 'season'}},
     'parameters': {'w': {'dims': ['season'], 'dtype': 'int'}, 'price': {'dims': ['t']}},
-    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
-    'constraints': {'rolling': {'foreach': ['t'], 'expression': 'sum_back(x, over=t, within=w, by=season_of) <= 4'}},
+    'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
+    'constraints': {'rolling': {'dims': ['t'], 'expression': 'sum_back(x, over=t, within=w, by=season_of) <= 4'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * price, over=t)'},
 }
 
@@ -248,10 +248,10 @@ PER_ENTITY_WINDOW = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
     'parameters': {'width': {'dims': ['g'], 'dtype': 'int'}, 'usable': {'dims': ['t']}},
     'variables': {
-        'level': {'foreach': ['g', 't'], 'where': 'usable > 0', 'bounds': {'lower': 0, 'upper': 10}},
-        'take': {'foreach': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}},
+        'level': {'dims': ['g', 't'], 'where': 'usable > 0', 'bounds': {'lower': 0, 'upper': 10}},
+        'take': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'held': {'foreach': ['g', 't'], 'expression': 'take <= sum_back(level, over=t, within=width)'}},
+    'constraints': {'held': {'dims': ['g', 't'], 'expression': 'take <= sum_back(level, over=t, within=width)'}},
     'objective': {
         'sense': 'maximize',
         'expression': 'sum(sum(take, over=g), over=t) - 1000 * sum(sum(level, over=g), over=t)',
@@ -289,12 +289,12 @@ DAY_WINDOW = {
     'lookups': {'day_of': {'over': 't', 'into': 'day'}},
     'parameters': {'must_start': {'dims': ['t']}},
     'variables': {
-        'started': {'foreach': ['t'], 'domain': 'binary'},
-        'on': {'foreach': ['t'], 'domain': 'binary'},
+        'started': {'dims': ['t'], 'domain': 'binary'},
+        'on': {'dims': ['t'], 'domain': 'binary'},
     },
     'constraints': {
-        'starts_when_told': {'foreach': ['t'], 'expression': 'started >= must_start'},
-        'stays_up_inside_its_day': {'foreach': ['t'], 'expression': 'WINDOW <= on'},
+        'starts_when_told': {'dims': ['t'], 'expression': 'started >= must_start'},
+        'stays_up_inside_its_day': {'dims': ['t'], 'expression': 'WINDOW <= on'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(on)'},
 }

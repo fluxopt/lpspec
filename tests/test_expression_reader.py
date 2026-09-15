@@ -34,7 +34,7 @@ SPEC = {
         'load': {'dims': ['snapshot']},
     },
     'variables': {
-        'p': {'foreach': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
+        'p': {'dims': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
     },
     'expressions': {
         'total_gen': 'sum(p, over=generator)',
@@ -47,7 +47,7 @@ SPEC = {
         'rational': '1 / (1 + total_gen)',
     },
     'constraints': {
-        'balance': {'foreach': ['snapshot'], 'expression': 'total_gen == load'},
+        'balance': {'dims': ['snapshot'], 'expression': 'total_gen == load'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(sum(p * cost, over=generator), over=snapshot)'},
 }
@@ -133,13 +133,13 @@ def test_a_masked_coordinate_has_no_row():
         **SPEC,
         'variables': {
             'p': {
-                'foreach': ['snapshot', 'generator'],
+                'dims': ['snapshot', 'generator'],
                 'bounds': {'lower': 0, 'upper': 'p_max'},
                 'where': 'p_max > 0',
             }
         },
         'expressions': {'scaled': 'p * cost'},
-        'constraints': {'balance': {'foreach': ['snapshot'], 'expression': 'sum(p, over=generator) == load'}},
+        'constraints': {'balance': {'dims': ['snapshot'], 'expression': 'sum(p, over=generator) == load'}},
     }
     data = sources() | {
         'p_max': pl.DataFrame({'generator': ['g1', 'g2'], 'value': [200.0, 0.0]}),
@@ -225,7 +225,7 @@ def test_a_product_is_absent_where_either_factor_is(crossed):
             'parameters.r_max': {'dims': ['generator']},
             'parameters.bonus': {'dims': ['snapshot', 'generator']},
             'variables.r': {
-                'foreach': ['snapshot', 'generator'],
+                'dims': ['snapshot', 'generator'],
                 'bounds': {'lower': 1, 'upper': 1},
                 'where': 'r_max > 0',
             },
@@ -342,7 +342,7 @@ def test_a_mapping_carries_the_cases_a_string_cannot_say():
     data = sources() | {'peak': pl.DataFrame({'snapshot': [0, 1, 2], 'value': [False, True, False]})}
     frame = lps.solve(spec, data).evaluate(
         {
-            'foreach': ['snapshot'],
+            'dims': ['snapshot'],
             'cases': {'busy': {'when': 'peak', 'expression': 'total_gen'}},
             'otherwise': 0,
         }

@@ -162,7 +162,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
@@ -170,7 +170,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           flow on a line, signed towards its `line_to` bus — not chosen, but whatever
           the voltage law leaves
-        foreach: [snapshot, line]
+        dims: [snapshot, line]
         bounds:
           lower: neg_s_nom
           upper: s_nom
@@ -178,7 +178,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       nodal_balance:
         description: what is generated at a bus plus what arrives over the lines meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(f, by=line_to)
@@ -192,7 +192,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           way round they run, so this is one equation rather than a case analysis
           over the topology — and a coordinate could not hold it, being
           single-valued per label.
-        foreach: [snapshot, cycle]
+        dims: [snapshot, cycle]
         expression: sum(f * cycle_incidence, over=line) == 0
 
     objective:
