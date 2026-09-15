@@ -35,8 +35,8 @@ PyPSA's carrier growth limit: how much of a technology may be built in one inves
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{period\_of}: \mathcal{T} \to \mathcal{E}`$ — dispatch periods, each falling in one investment period |
-| $`\mathcal{E}`$ | index $`e`$ — `period` — investment periods, the axis capacity is built along |
-| $`\mathcal{C}`$ | index $`c`$ — `carrier` — what a generator burns, and what a growth limit is a property of |
+| $`\mathcal{E}`$ | index $`e`$ — `period` with $`\mathrm{build\_period}: \mathcal{G} \to \mathcal{E},\ \mathrm{period\_of}: \mathcal{T} \to \mathcal{E}`$ — investment periods, the axis capacity is built along |
+| $`\mathcal{C}`$ | index $`c`$ — `carrier` with $`\mathrm{gen\_carrier}: \mathcal{G} \to \mathcal{C}`$ — what a generator burns, and what a growth limit is a property of |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_carrier}: \mathcal{G} \to \mathcal{C},\ \mathrm{build\_period}: \mathcal{G} \to \mathcal{E}`$ — generating units, each built in one period and standing from then on |
 
 #### Parameters
@@ -147,19 +147,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: generating units, each built in one period and standing from then on
         dtype: str
 
-    lookups:
+    relations:
       gen_carrier:
         description: the carrier a generator burns
-        over: generator
-        into: carrier
+        columns: [generator, carrier]
+        key: generator
       build_period:
         description: the period a generator is first built in, and so counted as new in
-        over: generator
-        into: period
+        columns: [generator, period]
+        key: generator
       period_of:
         description: the investment period a snapshot falls in
-        over: snapshot
-        into: period
+        columns: [snapshot, period]
+        key: snapshot
 
     parameters:
       load:
@@ -234,7 +234,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           allowance — which is the row PyPSA emits there.
         dims: [period]
         expression: >-
-          new_capacity - shift(new_capacity, over=period, offset=1, edge=0) * max_relative_growth
+          new_capacity - shift(new_capacity, along=period, offset=1, edge=0) * max_relative_growth
           <= max_growth
 
     objective:
@@ -265,7 +265,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         ``tables`` is the same mapping the lpspec call attaches as ``sources``.
 
         ``growth_limit=False`` drops the two carrier attributes, which is how
-        ``main`` measures what the limit is worth. The port's ``build_period`` lookup
+        ``main`` measures what the limit is worth. The port's ``build_period`` relation
         is PyPSA's ``build_year``; its ``activity`` table is what ``build_year`` and
         ``lifetime`` derive.
         """
@@ -330,4 +330,4 @@ write it differently.
 
 `shift` over an investment-period axis rather than a snapshot one, a named
 expression used twice in one row, and a capacity grouped onto the period it is
-built in through a `build_period` lookup.
+built in through a `build_period` relation.

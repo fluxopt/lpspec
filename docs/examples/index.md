@@ -265,7 +265,7 @@ macro, primitive, formulation, or refused.
 | Travelling salesman | subtour cuts **generated lazily** inside branch-and-cut, which is how every serious TSP code works | [MTZ](tsp_mtz.md), O(n²) and static | **refused, and correctly**: a solve loop is an algorithm, not a model |
 
 [Minimum up and down times](pypsa_min_up_down.md) says `min_up_time` as
-`sum_back(start_up, over=snapshot, within=min_up_time)`, each generator's own
+`sum_back(start_up, along=snapshot, window=min_up_time)`, each generator's own
 width read off the column.
 
 Two rows from 33 ports is the current rate.

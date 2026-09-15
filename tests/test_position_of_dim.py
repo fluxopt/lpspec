@@ -60,7 +60,7 @@ constraints:
   soc_carry:
     dims: [snapshot]
     where: "position(snapshot) != 0"
-    expression: soc == shift(soc, over=snapshot, offset=1) + inflow - out
+    expression: soc == shift(soc, along=snapshot, offset=1) + inflow - out
     description: every later period carries the previous one's level
 
 objective:
@@ -222,7 +222,7 @@ def test_a_position_along_a_dimension_the_frame_lacks_is_refused():
 
 
 # ---------------------------------------------------------------------------
-# by=lookup — the boundary of each group
+# by=relation — the boundary of each group
 # ---------------------------------------------------------------------------
 
 #: Irregular on purpose: two snapshots in the first period, three in the second,
@@ -236,8 +236,8 @@ dimensions:
   snapshot: {dtype: int}
   period: {dtype: int}
 
-lookups:
-  period_of: {over: snapshot, into: period}
+relations:
+  period_of: {columns: [snapshot, period], key: snapshot}
 
 parameters:
   price: {dims: [snapshot]}
@@ -258,9 +258,9 @@ objective:
 
 
 def _grouped_sources():
-    """One mapping both lanes take, the lookup arriving as a column of the index.
+    """One mapping both lanes take, the relation arriving as a column of the index.
 
-    Arrow tables rather than pandas: a partial lookup read out of a pandas frame
+    Arrow tables rather than pandas: a partial relation read out of a pandas frame
     arrives as ``float64`` beside an ``i64`` target, which is a binding question
     of its own and not the one under test here.
     """
@@ -327,7 +327,7 @@ def test_a_comparator_reads_the_same_grouped_as_ungrouped():
 def test_a_coordinate_in_no_group_has_no_boundary(where):
     """Snapshot 99 maps nowhere, so no group's boundary is its own.
 
-    The same reading a null lookup value gets everywhere else — it belongs to
+    The same reading a null relation value gets everywhere else — it belongs to
     no group, so `sum(by=)` places its terms nowhere and this places no row.
     """
     assert 99 not in _masked(where), f'{where} claimed a coordinate that is in no group'
@@ -362,28 +362,28 @@ def test_a_group_shorter_than_the_position_is_an_error_at_bind(tmp_path):
         pytest.param('nowhere', r"groups by 'nowhere', which is not declared", id='by-nothing'),
     ],
 )
-def test_by_takes_a_lookup(by, match):
+def test_by_takes_a_relation(by, match):
     """`by=` is the same word it is in `sum(by=)` and `at(by=)`, or it is nothing."""
     spec = MASK.replace('WHERE', f'position(snapshot, by={by}) == 0')
     with pytest.raises(LanguageError, match=match):
         schema_of(spec)
 
 
-def test_a_lookup_over_another_dimension_carries_no_position():
-    """Grouping needs a lookup over the dimension being counted.
+def test_a_relation_over_another_dimension_carries_no_position():
+    """Grouping needs a relation over the dimension being counted.
 
-    A lookup over something else names groups no row of this dimension is in,
+    A relation over something else names groups no row of this dimension is in,
     so there is no position within a group for the clause to be about.
     """
     spec = (
         MASK.replace('WHERE', 'position(snapshot, by=plant_period) == 0')
         .replace('  period: {dtype: int}', '  period: {dtype: int}\n  plant: {dtype: str}')
         .replace(
-            '  period_of: {over: snapshot, into: period}',
-            '  period_of: {over: snapshot, into: period}\n  plant_period: {over: plant, into: period}',
+            '  period_of: {columns: [snapshot, period], key: snapshot}',
+            '  period_of: {columns: [snapshot, period], key: snapshot}\n  plant_period: {columns: [plant, period], key: plant}',
         )
     )
-    with pytest.raises(LanguageError, match=r"counts positions along 'snapshot' but groups by a lookup over 'plant'"):
+    with pytest.raises(LanguageError, match=r"'plant_period' has no key column over 'snapshot'"):
         schema_of(spec)
 
 
@@ -440,8 +440,8 @@ dimensions:
   snapshot: {dtype: int}
   season: {dtype: str}
 
-lookups:
-  season_of: {over: snapshot, into: season}
+relations:
+  season_of: {columns: [snapshot, season], key: snapshot}
 
 parameters:
   inflow: {dims: [snapshot]}
@@ -454,7 +454,7 @@ variables:
 constraints:
   season_balance:
     dims: [snapshot]
-    expression: soc == shift(soc, over=snapshot, offset=1, EDGE) + inflow - release
+    expression: soc == shift(soc, along=snapshot, offset=1, EDGE) + inflow - release
 
 objective:
   sense: maximize
@@ -514,7 +514,7 @@ def test_the_axis_wrap_is_a_different_model():
     ],
 )
 def test_coordinates_in_no_group_translate_from_nothing(edge, omissions):
-    """Snapshots the lookup sends nowhere are in no group, so they reach nothing.
+    """Snapshots the relation sends nowhere are in no group, so they reach nothing.
 
     **Two** of them, which is the case that separates "in no group" from "in a
     group of its own": a lane that let the nulls fall together would give the
@@ -544,15 +544,15 @@ def test_coordinates_in_no_group_translate_from_nothing(edge, omissions):
     assert held[99] == pytest.approx(0.0), f'{edge}: neither reads the other'
 
 
-def test_a_lookup_over_another_dimension_cannot_partition_a_translation():
+def test_a_relation_over_another_dimension_cannot_partition_a_translation():
     """`by=` groups the axis being walked, or no coordinate has a neighbour in one."""
     spec = (
         _partitioned("edge='wrap', by=plant_season")
         .replace(
-            'lookups:\n  season_of:',
-            'lookups:\n  plant_season: {over: plant, into: season}\n  season_of:',
+            'relations:\n  season_of:',
+            'relations:\n  plant_season: {columns: [plant, season], key: plant}\n  season_of:',
         )
         .replace('  season: {dtype: str}', '  season: {dtype: str}\n  plant: {dtype: str}')
     )
-    with pytest.raises(LpspecError, match=r"walks 'snapshot' but groups by a lookup over 'plant'"):
+    with pytest.raises(LpspecError, match=r"'plant_season' has no key column over 'snapshot'"):
         schema_of(spec)

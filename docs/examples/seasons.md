@@ -10,7 +10,7 @@ A store that must come back to where it started needs its first position to read
 its last. `edge='wrap'` says that about **the axis**:
 
 ```yaml
-soc == shift(soc, over=snapshot, offset=1, edge='wrap') + inflow - release
+soc == shift(soc, along=snapshot, offset=1, edge='wrap') + inflow - release
 ```
 
 On this instance that links snapshot 7 to snapshot 1 and makes the whole
@@ -21,12 +21,12 @@ is *higher*.
 The cycle a multi-period model means is per period, and `by=` says which:
 
 ```yaml
-soc == shift(soc, over=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
+soc == shift(soc, along=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
 ```
 
 $$\mathit{soc}_{t} = \mathit{soc}_{t \ominus_{\mathrm{season\_of}(t)} 1} + \mathit{inflow}_{t} - \mathit{release}_{t}$$
 
-The translation walks inside the group the lookup makes, so a season's first
+The translation walks inside the group the relation makes, so a season's first
 snapshot reads that season's last, whatever the season's length. Winter has
 four snapshots and summer three here, and nothing in the file says so.
 
@@ -43,7 +43,7 @@ A store that cycles inside each season rather than across the horizon, with seas
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{season\_of}: \mathcal{T} \to \mathcal{S}`$ — dispatch periods in order |
-| $`\mathcal{S}`$ | index $`s`$ — `season` — the blocks the store cycles over |
+| $`\mathcal{S}`$ | index $`s`$ — `season` with $`\mathrm{season\_of}: \mathcal{T} \to \mathcal{S}`$ — the blocks the store cycles over |
 
 #### Parameters
 
@@ -63,7 +63,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{inflow}`$, 
 
 $`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
-$`t \ominus^{\mathrm{lookup}(t)} k`$ denotes a translation counted inside the group a lookup puts $`t`$ in (`shift(by=lookup)`), so a term never crosses out of its own group.
+$`t \ominus^{\mathrm{relation}(t)} k`$ denotes a translation counted inside the group a relation puts $`t`$ in (`shift(by=relation)`), so a term never crosses out of its own group.
 
 #### Objective
 
@@ -114,11 +114,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: the blocks the store cycles over
         dtype: str
 
-    lookups:
+    relations:
       season_of:
         description: the season a snapshot falls in
-        over: snapshot
-        into: season
+        columns: [snapshot, season]
+        key: snapshot
 
     parameters:
       inflow:
@@ -148,7 +148,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           season's first snapshot carries from that season's own last — so each
           season ends where it began and hands the next one nothing
         dims: [snapshot]
-        expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
+        expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
 
     objective:
       sense: maximize
@@ -225,4 +225,4 @@ and its row is not built. Absence reads the same way in
 
 Compare [monthly budget](monthly_budget.md), where such a column groups a *sum*,
 and [multi-period](multi_period.md), where it carries a capacity decision down
-onto the snapshots it covers. One lookup, three jobs.
+onto the snapshots it covers. One relation, three jobs.

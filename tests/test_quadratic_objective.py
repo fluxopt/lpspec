@@ -245,7 +245,7 @@ def test_a_shape_operator_moves_a_quadratic_term_like_any_other():
         'constraints': {'meet': {'dims': [], 'expression': 'sum(sum(p, over=g), over=t) >= need'}},
         'objective': {
             'sense': 'minimize',
-            'expression': "sum(sum(p * shift(p, over=t, offset=1, edge='wrap'), over=g), over=t) + "
+            'expression': "sum(sum(p * shift(p, along=t, offset=1, edge='wrap'), over=g), over=t) + "
             'sum(sum(p * p, over=g), over=t)',
         },
     }

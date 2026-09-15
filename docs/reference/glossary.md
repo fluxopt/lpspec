@@ -118,7 +118,7 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
   `xpress`) or a file writer (`.lp`, `.mps`). `linopy` is a lane, not a sink.
 
 **Sources**
-: The data you attach: parameter, dimension and lookup names to tables, and
+: The data you attach: parameter, dimension and relation names to tables, and
   dimension names to their labels.
 
 **attach**

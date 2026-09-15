@@ -45,7 +45,7 @@ PyPSA's `cyclic_state_of_charge` is a column of the StorageUnit frame, so one ne
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{S}`$ | index $`s`$ — `storage` with $`\mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — storage units, each sitting on one bus |
 
@@ -163,15 +163,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: storage units, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       storage_bus:
         description: the bus a storage unit sits on
-        over: storage
-        into: bus
+        columns: [storage, bus]
+        key: storage
 
     parameters:
       cyclic:
@@ -243,7 +243,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           from its last and it ends every horizon where it began
         dims: [snapshot, storage]
         where: "cyclic"
-        expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap') + p_store - p_dispatch
+        expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap') + p_store - p_dispatch
 
       energy_balance_carry:
         description: >-
@@ -251,7 +251,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the first — the vacated position is absent, so that row is not built here
         dims: [snapshot, storage]
         where: "NOT cyclic"
-        expression: soc == shift(soc, over=snapshot, offset=1) + p_store - p_dispatch
+        expression: soc == shift(soc, along=snapshot, offset=1) + p_store - p_dispatch
 
       energy_balance_seed:
         description: >-

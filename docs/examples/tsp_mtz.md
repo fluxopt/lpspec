@@ -51,8 +51,8 @@ The travelling salesman problem in the Miller-Tucker-Zemlin formulation: visit e
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{C}`$ | index $`c`$ — `city` with $`\mathrm{as\_from}: \mathcal{C} \to \mathcal{F},\ \mathrm{as\_to}: \mathcal{C} \to \mathcal{T}`$ — the cities of the tour, each also read as an arc endpoint |
-| $`\mathcal{F}`$ | index $`f`$ — `from_city` — the city an arc leaves |
-| $`\mathcal{T}`$ | index $`t`$ — `to_city` — the city an arc arrives at |
+| $`\mathcal{F}`$ | index $`f`$ — `from_city` with $`\mathrm{as\_from}: \mathcal{C} \to \mathcal{F}`$ — the city an arc leaves |
+| $`\mathcal{T}`$ | index $`t`$ — `to_city` with $`\mathrm{as\_to}: \mathcal{C} \to \mathcal{T}`$ — the city an arc arrives at |
 
 #### Parameters
 
@@ -130,9 +130,9 @@ dimensions:
     description: the city an arc arrives at
     dtype: str
 
-lookups:
-  as_from: {over: city, into: from_city}
-  as_to: {over: city, into: to_city}
+relations:
+  as_from: {columns: [city, from_city], key: city}
+  as_to: {columns: [city, to_city], key: city}
 
 parameters:
   distance:
@@ -196,16 +196,17 @@ it should need a primitive.
 It does not. Declare the identity map from `city` onto each end of the pair:
 
 ```yaml
-lookups:
-  as_from: {over: city, into: from_city}
-  as_to: {over: city, into: to_city}
+relations:
+  as_from: {columns: [city, from_city], key: city}
+  as_to: {columns: [city, to_city], key: city}
 ```
 
-and `sum(u, by=as_from)` becomes a **relabel** rather than a reduction. The map
-is one-to-one, so nothing is added up: `u` moves from the `city` axis onto the
-`from_city` axis. Doing it twice with different lookups puts the same variable
-at both ends of one row. A lookup is a join, and a join does not care whether it
-is many-to-one or one-to-one ([topology is data](pypsa_transport.md)).
+and `sum(u, by=as_from)` becomes a **relabel** rather than a reduction. Each
+city keys one row and each `from_city` is named once, so nothing is added up:
+`u` moves from the `city` axis onto the `from_city` axis. Doing it twice with
+different relations puts the same variable at both ends of one row. A relation
+is a join, and a join does not care how many rows a group holds
+([topology is data](pypsa_transport.md)).
 
 **The diagonal takes care of itself.** `distance` has no row where a city meets
 itself, `travel`'s `where` is that parameter, and absence spreads, so no row
@@ -232,7 +233,7 @@ the price of a small formulation and why nobody solves large instances this way.
 
 ## What it exercises
 
-`sum(by=)` as a relabel through a one-to-one lookup, a `where`
+`sum(by=)` as a relabel through a relation that names each label once, a `where`
 comparing a dimension against a string label, sparsity standing in for an
 `i ≠ j` guard, and `binary` over a two-dimensional index.
 

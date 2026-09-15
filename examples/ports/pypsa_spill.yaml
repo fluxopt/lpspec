@@ -18,15 +18,15 @@ dimensions:
     description: storage units, each sitting on one bus
     dtype: str
 
-lookups:
+relations:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    columns: [generator, bus]
+    key: generator
   storage_bus:
     description: the bus a storage unit sits on
-    over: storage
-    into: bus
+    columns: [storage, bus]
+    key: storage
 
 parameters:
   p_nom:
@@ -115,7 +115,7 @@ constraints:
       less what was taken and what was let go
     dims: [snapshot, storage]
     expression: >-
-      soc == shift(soc, over=snapshot, offset=1)
+      soc == shift(soc, along=snapshot, offset=1)
       + p_store - p_dispatch + inflow - spill
 
 objective:

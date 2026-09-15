@@ -62,7 +62,7 @@ def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: s
     spec, unpacked = _question(lps.load_archive(archive, tmp_path / 'out'))
 
     assert set(unpacked) == set(attachable(program)), (
-        'the archive holds one member per attachable key — every declared parameter, dimension and lookup, '
+        'the archive holds one member per attachable key — every declared parameter, dimension and relation, '
         'and nothing a piecewise block derives'
     )
     before = tidy_sources(program, sources)

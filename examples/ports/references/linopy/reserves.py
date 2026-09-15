@@ -12,7 +12,7 @@ formulation, not a published figure — see ``dispatch.py`` next door.
 
 This is the model the gallery uses to show every many-to-many shape at once,
 so the script deliberately builds **every** mapping the YAML states as a
-lookup or a weighted table — generator/line incidence onto buses, the
+relation or a weighted table — generator/line incidence onto buses, the
 three-legged offer set onto generators, markets and tranches, and the
 overlapping zone weights — as dense matrices multiplied through by hand. The
 YAML says each one as a relation; this says the identical algebra with no

@@ -22,23 +22,23 @@ dimensions:
     description: controllable connections, each joining two buses
     dtype: str
 
-lookups:
+relations:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    columns: [generator, bus]
+    key: generator
   gen_carrier:
     description: the carrier a generator burns
-    over: generator
-    into: carrier
+    columns: [generator, carrier]
+    key: generator
   link_from:
     description: the bus a link leaves
-    over: link
-    into: bus
+    columns: [link, bus]
+    key: link
   link_to:
     description: the bus a link arrives at
-    over: link
-    into: bus
+    columns: [link, bus]
+    key: link
 
 parameters:
   load:

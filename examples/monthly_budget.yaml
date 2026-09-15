@@ -13,11 +13,11 @@ dimensions:
     description: generating units
     dtype: str
 
-lookups:
+relations:
   month_of:
     description: the month a snapshot falls in
-    over: snapshot
-    into: month
+    columns: [snapshot, month]
+    key: snapshot
 
 parameters:
   p_max:

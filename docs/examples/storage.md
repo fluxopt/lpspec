@@ -162,7 +162,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           stored, minus what was taken — and it wraps at the horizon, so the first
           snapshot inherits from the last
         dims: [snapshot]
-        expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap') + charge * 0.9 - discharge
+        expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap') + charge * 0.9 - discharge
 
     objective:
       sense: minimize
@@ -206,7 +206,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 ## What it exercises
 
-`shift(soc, over=snapshot, offset=1, edge='wrap')` is the whole of it. One
+`shift(soc, along=snapshot, offset=1, edge='wrap')` is the whole of it. One
 term reaches one position back along `snapshot`. With `edge='wrap'` the first
 snapshot reads the last, which makes the storage cyclic without a boundary
 condition written out by hand. Without `edge=` the same node does not wrap,

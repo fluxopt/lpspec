@@ -8,8 +8,8 @@ A network: generators sit on buses, lines connect buses, and power balances at e
 
 $$\sum_{g \thinspace:\thinspace \mathrm{bus}(g) = b} p_{s,g} \quad+\quad \sum_{\ell \thinspace:\thinspace \mathrm{to}(\ell) = b} f_{s,\ell} \quad-\quad \sum_{\ell \thinspace:\thinspace \mathrm{from}(\ell) = b} f_{s,\ell} \quad=\quad d_{s,b}$$
 
-Each sum runs over the generators or lines a lookup sends to bus $b$.
-$\mathrm{bus}$, $\mathrm{to}$ and $\mathrm{from}$ are lookups the dimensions
+Each sum runs over the generators or lines a relation sends to bus $b$.
+$\mathrm{bus}$, $\mathrm{to}$ and $\mathrm{from}$ are relations the dimensions
 declare, not sets in their own right. Load is $d$ here, because $\ell$ is
 already the line index.
 
@@ -27,7 +27,7 @@ Least-cost dispatch over a network, where a generator sits on a bus, a line join
 |---|---|
 | $`\mathcal{S}`$ | index $`s`$ — `snapshot` — dispatch periods |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{L}`$ | index $`\ell`$ — `line` with $`\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — transmission lines, each joining two buses |
 
 #### Parameters
@@ -123,19 +123,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: transmission lines, each joining two buses
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       line_from:
         description: the bus a line leaves
-        over: line
-        into: bus
+        columns: [line, bus]
+        key: line
       line_to:
         description: the bus a line arrives at
-        over: line
-        into: bus
+        columns: [line, bus]
+        key: line
 
     parameters:
       p_max:
@@ -236,10 +236,10 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 ## What it exercises
 
 Three `sum(by=)` calls are what a network *is* in this language. The model
-declares three **lookups**: `gen_bus` maps `generator` onto `bus`, and
+declares three **relations**: `gen_bus` maps `generator` onto `bus`, and
 `line_from` and `line_to` map `line` onto `bus`. `sum(f, by=line_to)` sums
 each line's flow onto its `line_to` bus, so the result lands on `bus`. The
-same `f` is summed twice through two lookups, once as an inflow and once as an
+same `f` is summed twice through two relations, once as an inflow and once as an
 outflow.
 
 There is no adjacency matrix and no hand-written join: the topology is data on

@@ -148,7 +148,7 @@ def _refuse_a_model(program: Program) -> None:
     if not declared:
         return
     raise LpspecError(
-        f'evaluate takes a spec with no variables — dimensions, parameters, lookups and expressions, '
+        f'evaluate takes a spec with no variables — dimensions, parameters, relations and expressions, '
         f'evaluated as arithmetic. This one declares {", ".join(declared)}, which makes it a model: a '
         f'variable has no value until a solver picks one. Solve it with lps.solve(spec, sources), or '
         f'drop the decision to evaluate the arithmetic that remains.'
@@ -159,7 +159,7 @@ def evaluate(spec: Buildable, sources: Mapping[str, Source], expression: str | M
     """The value of *expression* over a spec with no variables — arithmetic, no solver.
 
     A spec that declares no variables is a calculation, not an optimisation:
-    dimensions, parameters, lookups and ``expressions:``. Each expression reads
+    dimensions, parameters, relations and ``expressions:``. Each expression reads
     only the attached data, so it has a value with no solve and no chosen point.
     This attaches *sources* and values one expression, the way
     :meth:`~lpspec.relational.result.Result.evaluate` does at a solution. The

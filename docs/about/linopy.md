@@ -102,10 +102,10 @@ in `linopy/builder.py`, one section per group below.
 | `p` — a parameter | its `xr.DataArray`, `.fillna(0.0)` where it stands as a coefficient |
 | `+` `-` `*` `/` | the Python operators linopy overloads |
 | `sum(x, over=t)` | `.sum('t')` |
-| `sum(x, by=lk)` | the lookup attached as a coordinate, then `.groupby()`, reindexed onto the target dimension's declared labels; `by=[lk1, lk2]` groups by both at once |
-| `at(p, by=lk)` | `.sel({into: lookup})`, xarray's vectorised selection; one entry per lookup reads a tuple of labels at once |
-| `shift(x, over=t, offset=n)` | `.shift({t: n})`; `.roll({t: n})` under `edge: wrap`; a `.sel()` gather where the offset differs per entity or `by=` groups it |
-| `sum_back(x, over=t, within=w)` | a sum of `w` scalar gathers, each unreachable position contributing zero; under `by=` each gather reads inside the group, so the window stops at its edge |
+| `sum(x, by=r)` | the relation attached as a coordinate, then `.groupby()`, reindexed onto the value dimension's declared labels; `by=[r1, r2]` groups by both at once |
+| `at(p, by=r)` | `.sel({into: relation})`, xarray's vectorised selection; one entry per relation reads a tuple of labels at once |
+| `shift(x, along=t, offset=n)` | `.shift({t: n})`; `.roll({t: n})` under `edge: wrap`; a `.sel()` gather where the offset differs per entity or `by=` groups it |
+| `sum_back(x, along=t, window=w)` | a sum of `w` scalar gathers, each unreachable position contributing zero; under `by=` each gather reads inside the group, so the window stops at its edge |
 | `dual(c)` | `Model.constraints['c'].dual`, at a read only; the language keeps a dual out of the math, and a solve that stored none refuses the read |
 
 | A `where:` | linopy |

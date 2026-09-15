@@ -1,7 +1,7 @@
 """Evaluate a spec as arithmetic: its named expressions, read straight off the data.
 
 A spec that declares no variables is a calculation rather than an optimisation —
-every expression reads only parameters and lookups, so each has a value with no
+every expression reads only parameters and relations, so each has a value with no
 solver and no chosen point. This attaches the data and hands back the same
 deferred readers a solve does (:func:`~lpspec.relational.engines.polars.readback.deferred_readers`),
 over a compiler carrying no solution: a variable never reached, every leaf a

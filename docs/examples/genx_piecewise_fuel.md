@@ -6,7 +6,7 @@ A day of dispatch for two carbon-capture plants and a wind farm under a net-zero
 
 **A plant burns one fuel, and that fuel's price moves hour by hour.** The price
 a plant pays is a `(fuel, hour)` table read through the plant's own fuel, a
-lookup whose target keeps a dimension after the read. Every other reach-through
+relation whose target keeps a dimension after the read. Every other reach-through
 in this corpus lands on a single value. This one lands on a row.
 
 The instance folds that read into `fuel_price[plant, hour]`, because the mapping
@@ -29,8 +29,8 @@ GenX's piecewise-fuel case: a day of dispatch for two carbon-capture plants and 
 | $`\mathcal{H}`$ | index $`h`$ — `hour` — hours of a representative day that repeats |
 | $`\mathcal{S}`$ | index $`s`$ — `segment` — a piece of the fuel curve |
 | $`\mathcal{T}`$ | index $`t`$ — `step` — a block of demand that may be shed, each dearer than the last |
-| $`\mathcal{C}`$ | index $`c`$ — `commitment_mode` — the ways a plant may be committed |
-| $`\mathcal{F}`$ | index $`f`$ — `fuel_use_mode` — the ways a plant's fuel use may be read |
+| $`\mathcal{C}`$ | index $`c`$ — `commitment_mode` with $`\mathrm{commitment}: \mathcal{P} \to \mathcal{C}`$ — the ways a plant may be committed |
+| $`\mathcal{F}`$ | index $`f`$ — `fuel_use_mode` with $`\mathrm{fuel\_use}: \mathcal{P} \to \mathcal{F}`$ — the ways a plant's fuel use may be read |
 
 #### Parameters
 
@@ -281,15 +281,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: the ways a plant's fuel use may be read
         dtype: str
 
-    lookups:
+    relations:
       commitment:
         description: whether a plant is committed unit by unit or dispatched freely
-        over: plant
-        into: commitment_mode
+        columns: [plant, commitment_mode]
+        key: plant
       fuel_use:
         description: whether a plant's fuel use is read off the piecewise curve or a flat heat rate
-        over: plant
-        into: fuel_use_mode
+        columns: [plant, fuel_use_mode]
+        key: plant
 
     parameters:
       unit_size:
@@ -410,17 +410,17 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     expressions:
       started_recently:
         expression: >-
-          starting + shift(starting, over=hour, offset=1, edge='wrap')
-          + shift(starting, over=hour, offset=2, edge='wrap') + shift(starting, over=hour, offset=3, edge='wrap')
-          + shift(starting, over=hour, offset=4, edge='wrap') + shift(starting, over=hour, offset=5, edge='wrap')
+          starting + shift(starting, along=hour, offset=1, edge='wrap')
+          + shift(starting, along=hour, offset=2, edge='wrap') + shift(starting, along=hour, offset=3, edge='wrap')
+          + shift(starting, along=hour, offset=4, edge='wrap') + shift(starting, along=hour, offset=5, edge='wrap')
         description: >-
           units started in this hour or the five before it — the day is a
           representative period that repeats, so the first hour follows the last
       shut_recently:
         expression: >-
-          shutting + shift(shutting, over=hour, offset=1, edge='wrap')
-          + shift(shutting, over=hour, offset=2, edge='wrap') + shift(shutting, over=hour, offset=3, edge='wrap')
-          + shift(shutting, over=hour, offset=4, edge='wrap') + shift(shutting, over=hour, offset=5, edge='wrap')
+          shutting + shift(shutting, along=hour, offset=1, edge='wrap')
+          + shift(shutting, along=hour, offset=2, edge='wrap') + shift(shutting, along=hour, offset=3, edge='wrap')
+          + shift(shutting, along=hour, offset=4, edge='wrap') + shift(shutting, along=hour, offset=5, edge='wrap')
         description: units shut in this hour or the five before it
 
     constraints:
@@ -461,7 +461,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: what is committed changes only by what starts and what shuts
         dims: [plant, hour]
         where: "commitment == unit"
-        expression: committed - shift(committed, over=hour, offset=1, edge='wrap') == starting - shutting
+        expression: committed - shift(committed, along=hour, offset=1, edge='wrap') == starting - shutting
 
       stay_up_once_started:
         description: a unit that started within the last six hours is still committed
@@ -480,7 +480,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dims: [plant, hour]
         where: "commitment == unit"
         expression: >-
-          output - shift(output, over=hour, offset=1, edge='wrap')
+          output - shift(output, along=hour, offset=1, edge='wrap')
           <= ramp * unit_size * (committed - starting)
           + start_headroom * unit_size * starting
           - min_output * unit_size * shutting
@@ -489,7 +489,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dims: [plant, hour]
         where: "commitment == unit"
         expression: >-
-          shift(output, over=hour, offset=1, edge='wrap') - output
+          shift(output, along=hour, offset=1, edge='wrap') - output
           <= ramp * unit_size * (committed - starting)
           - min_output * unit_size * starting
           + start_headroom * unit_size * shutting
@@ -549,7 +549,7 @@ integral.
 commitment variables. The 24 hours are a representative period that repeats,
 so `shift(edge='wrap')` fits: hour 1 follows hour 24. The six-hour minimum up
 and down times are the same for both plants, so they expand as six shifted
-terms. Where they differ by plant, `sum_back(within=)` reads the width off the
+terms. Where they differ by plant, `sum_back(window=)` reads the width off the
 column, as in [minimum up and down times](pypsa_min_up_down.md).
 
 **Negative emissions are a coefficient, not a special case.** The biomass plant

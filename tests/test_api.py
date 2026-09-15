@@ -89,7 +89,7 @@ def test_a_points_parameter_supplied_as_a_parquet_path_keeps_its_own_curve_lengt
 
 def test_a_string_is_a_parquet_path_at_every_door(tmp_path):
     """One fact with one home: `as_frame` is what every reader of a source goes
-    through, so a path attaches the same at a parameter, an index, a lookup,
+    through, so a path attaches the same at a parameter, an index, a relation,
     a curve and a sweep's axis — the `points:` curve that was refused from a
     path while accepted from a frame was the fifth reader lacking it."""
     from lpspec.frames import as_frame

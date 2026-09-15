@@ -1,10 +1,10 @@
 """`lps.evaluate(spec, sources, expression)`: a spec's arithmetic, with no solver.
 
 A spec with no variables is a calculation, not an optimisation — dimensions,
-parameters, lookups and ``expressions:`` — so each expression has a value with
+parameters, relations and ``expressions:`` — so each expression has a value with
 no solver and no chosen point. What is pinned here: the value is the arithmetic
 the data implies, the frame's dims are the ones the expression survives over, a
-grouped sum relabels through a lookup, a declared name and an expression the
+grouped sum relabels through a relation, a declared name and an expression the
 file never named read through the one verb, laziness (only the expression
 asked for compiles), the unknown-name refusal, and the refusal that names
 `solve` for a spec that declares a decision.
@@ -33,7 +33,7 @@ SPEC = {
         'dispatch': {'dims': ['snapshot', 'generator']},
         'cost': {'dims': ['generator']},
     },
-    'lookups': {'bus': {'over': 'generator', 'into': 'node'}},
+    'relations': {'bus': {'columns': ['generator', 'node'], 'key': 'generator'}},
     'expressions': {
         'cost_by_gen': 'dispatch * cost',
         'total_cost': 'sum(dispatch * cost)',
@@ -79,7 +79,7 @@ def test_a_sum_over_one_of_two_dims_is_the_per_coordinate_total():
     )
 
 
-def test_a_grouped_sum_relabels_through_a_lookup():
+def test_a_grouped_sum_relabels_through_a_relation():
     frame = evaluate('by_node').sort('snapshot', 'node')
     assert frame.columns == ['snapshot', 'node', 'value'], 'sum(by=bus) replaces generator with the node it maps to'
     got = {(s, n): v for s, n, v in frame.iter_rows()}

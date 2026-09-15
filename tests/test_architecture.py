@@ -857,6 +857,12 @@ def test_every_piecewise_fact_the_language_carries_is_read_by_the_curve_guard():
     )
 
 
+def _gen_bus_walk(program: Any) -> Any:
+    """One map walked one way — the shape every operator below takes a `by=` in."""
+    gen_bus = program.RelationDeclaration('gen_bus', (('g', 'g'), ('bus', 'bus')), ('g',))
+    return program.Walk(gen_bus, ('g',), ('bus',), ())
+
+
 def test_every_shape_operator_declares_its_fan_in():
     """The absence pass asks the language, so the language has to answer for each.
 
@@ -873,8 +879,8 @@ def test_every_shape_operator_declares_its_fan_in():
         type(node).__name__: program.fan_in(node)
         for node in (
             program.Sum(x, ('t',)),
-            program.GroupSum(x, 'g', ('bus',), ('b',)),
-            program.At(x, 'g', ('bus',), ('b',)),
+            program.GroupSum(x, (_gen_bus_walk(program),)),
+            program.At(x, (_gen_bus_walk(program),)),
             program.Translate(x, 't', 1, wrap=False),
             program.Window(x, 't', 3, wrap=False),
         )

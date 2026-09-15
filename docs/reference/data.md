@@ -62,7 +62,7 @@ parameters. Which labels an axis has is data's to say, and that rule is
 [the language's](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/).
 
 **A map goes under
-[the lookup's own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#how-the-map-is-supplied)**,
+[the relation's own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#how-the-map-is-supplied)**,
 as a table of the rows it has. Attach reads it against the labels the index
 supplied: a label no row mentions is unmapped, and a key matching no label is
 refused as a typo.
@@ -85,24 +85,24 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | a dict or a sequence for a parameter over more than one dimension | each runs along one dimension |
 | a sequence whose length is not the dimension's | positional, so one entry per label |
 | a sequence for a dimension nothing else supplies labels for | names the three ways to supply them |
-| a key naming neither a parameter, a dimension nor a lookup | names the near miss |
-| a lookup relation short of either column | names the pair, and what each is |
-| a lookup relation with a null in its value column | a map is partial by omitting a row |
-| a lookup relation mapping one label twice | a lookup is single-valued |
+| a key naming neither a parameter, a dimension nor a relation | names the near miss |
+| a relation table short of a column it declares | names them, and what each is |
+| a relation table with a null in its value column | a map is partial by omitting a row |
+| a relation table mapping one key label twice | a keyed relation holds one row per key |
 | a map with both authors, or neither | names them, and says which way out |
-| an index carrying a column named after a lookup over it | names the key it belongs under |
+| an index carrying a column named after a relation keyed over it | names the key it belongs under |
 | a table missing a declared dimension column, or `value` | names the columns needed |
 | a `value` column carrying a null or a NaN | names the parameter and the coordinates |
 | a label outside the dimension's index | names the parameter and the strays |
 | two rows for one coordinate | |
-| a lookup with two values for one label | |
-| a lookup value that is not a label of its target | one wording, checked once for both lanes |
-| a dimension carrying lookups with no index | |
+| a relation with two values for one key label | |
+| a relation value that is not a label of its own dimension | one wording, checked once for both lanes |
+| a dimension carrying relations with no index | |
 | a dimension nothing can supply labels for | names both ways to fix it |
 | a dimension the spec declares and the caller also supplies | names the declaration and the colliding key |
-| a lookup whose map the spec declares and the caller also supplies | names the map and the colliding column |
+| a relation whose map the spec declares and the caller also supplies | names the map and the colliding column |
 | a declared map whose labels nothing supplies | names the map, and asks only for the labels |
-| a declared map keyed by something the labels do not carry | names the lookup and the strays |
+| a declared map keyed by something the labels do not carry | names the relation and the strays |
 | a column that is not the declared `dtype` | names both, and the declaration the data would satisfy |
 | a divisor with no value where the model divides by it | names the parameter and how many rows ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/)) |
 | a comparison's whole constant side with no value where the row is built | the same, naming the constraint |

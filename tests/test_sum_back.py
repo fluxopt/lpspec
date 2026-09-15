@@ -32,7 +32,7 @@ def up_time_spec(edge: str | None) -> dict:
     that period is held on, while under ``wrap`` it reaches around into the
     first two.
     """
-    window = 'sum_back(started, over=t, within=min_up' + (f", edge='{edge}'" if edge else '') + ')'
+    window = 'sum_back(started, along=t, window=min_up' + (f", edge='{edge}'" if edge else '') + ')'
     return {
         'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
         'parameters': {
@@ -75,7 +75,7 @@ UP_TIME_DATA = {
     ],
 )
 def test_a_window_width_may_differ_per_entity(edge: str | None, expected: set):
-    """`within=` names a parameter: each entity gets a window of its own length.
+    """`window=` names a parameter: each entity gets a window of its own length.
 
     The instance discriminates twice over. The two units carry different
     widths, so a width read once for both would hold the wrong one on; and the
@@ -93,7 +93,7 @@ def test_a_window_width_may_differ_per_entity(edge: str | None, expected: set):
 def test_a_literal_width_is_the_last_n_positions():
     """A number where the width is the same everywhere, and 1 is the operand."""
     spec = up_time_spec(None)
-    spec['constraints']['stays_up_its_own_time']['expression'] = 'sum_back(started, over=t, within=2) <= on'
+    spec['constraints']['stays_up_its_own_time']['expression'] = 'sum_back(started, along=t, window=2) <= on'
     with differential(spec, UP_TIME_DATA) as run:
         held = run.result.primal('on').filter(pl.col('value') > 0.5)
         assert set(zip(held['g'].to_list(), held['t'].to_list(), strict=True)) == {('slow', 4), ('fast', 4)}, (
@@ -114,7 +114,7 @@ def test_an_operand_carrying_a_constant_owes_the_window_of_constants():
         'dimensions': {'t': {'dtype': 'int'}},
         'parameters': {'p': {'dims': ['t']}},
         'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
-        'constraints': {'w': {'dims': ['t'], 'expression': 'sum_back(x - p, over=t, within=2) >= 0'}},
+        'constraints': {'w': {'dims': ['t'], 'expression': 'sum_back(x - p, along=t, window=2) >= 0'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(x, over=t)'},
     }
     data = {'t': [0, 1, 2, 3], 'p': pd.DataFrame({'t': [0, 1, 2, 3], 'value': [1.0, 2.0, 3.0, 4.0]})}
@@ -128,7 +128,7 @@ def test_an_operand_carrying_a_constant_owes_the_window_of_constants():
 #: A window over an operand that is masked away at one interior position. The
 #: width decides what the mask means: a wider window reaches it *and* live
 #: positions, a width of 1 reaches nothing else at all (#1059, #1060).
-MASKED_WINDOW = masked_operand_spec('held', 'take <= sum_back(level, over=t, within=1)')
+MASKED_WINDOW = masked_operand_spec('held', 'take <= sum_back(level, along=t, window=1)')
 
 MASKED_WINDOW_SOURCES = {
     't': pd.Index([0, 1, 2, 3], name='t'),
@@ -139,7 +139,7 @@ MASKED_WINDOW_SOURCES = {
 def masked_window_spec(window: str) -> dict:
     """`MASKED_WINDOW` with the window respelled, the rest of it fixed."""
     spec = deepcopy(MASKED_WINDOW)
-    spec['constraints']['held']['expression'] = f'take <= sum_back(level, over=t, {window})'
+    spec['constraints']['held']['expression'] = f'take <= sum_back(level, along=t, {window})'
     return spec
 
 
@@ -165,7 +165,7 @@ ZERO_WIDTH = {
     'variables': {'x': {'dims': ['t', 'u'], 'bounds': {'lower': 0}}},
     'constraints': {
         'meet': {'dims': ['t'], 'expression': 'sum(x, over=u) >= need'},
-        'window': {'dims': ['t', 'u'], 'expression': 'sum_back(x, over=t, within=w) >= 0'},
+        'window': {'dims': ['t', 'u'], 'expression': 'sum_back(x, along=t, window=w) >= 0'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(x)'},
 }
@@ -190,14 +190,14 @@ def test_a_window_whose_every_width_is_zero_builds_no_row():
 
 
 #: A width declared over the group's own dimension, and one coordinate the
-#: lookup sends nowhere: the width is read through the lookup, so the unmapped
+#: relation sends nowhere: the width is read through the relation, so the unmapped
 #: snapshot carries no width at all.
 UNMAPPED_WIDTH = {
     'dimensions': {'t': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-    'lookups': {'season_of': {'over': 't', 'into': 'season'}},
+    'relations': {'season_of': {'columns': ['t', 'season'], 'key': 't'}},
     'parameters': {'w': {'dims': ['season'], 'dtype': 'int'}, 'price': {'dims': ['t']}},
     'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
-    'constraints': {'rolling': {'dims': ['t'], 'expression': 'sum_back(x, over=t, within=w, by=season_of) <= 4'}},
+    'constraints': {'rolling': {'dims': ['t'], 'expression': 'sum_back(x, along=t, window=w, by=season_of) <= 4'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * price, over=t)'},
 }
 
@@ -210,12 +210,12 @@ UNMAPPED_WIDTH_SOURCES = {
 }
 
 
-def test_a_width_read_through_a_lookup_that_maps_nothing_there_builds_no_row():
+def test_a_width_read_through_a_relation_that_maps_nothing_there_builds_no_row():
     """A coordinate in no group has no width, which is a window of nothing.
 
     Was: the eager lane bounded its lag count with `int(np.max(...))` over the
-    widths, and a width read through the lookup carries the operand's own
-    absence where the lookup mapped nothing — so the bound was `NaN` and the
+    widths, and a width read through the relation carries the operand's own
+    absence where the relation mapped nothing — so the bound was `NaN` and the
     build died on `cannot convert float NaN to integer` while the relational
     lane solved the file (#1535). A bare width parameter never showed it: the
     holes are filled with the coefficient zero before the operator sees them,
@@ -228,7 +228,7 @@ def test_a_width_read_through_a_lookup_that_maps_nothing_there_builds_no_row():
         )
 
 
-@pytest.mark.parametrize('window', ['within=2', "within=2, edge='wrap'"], ids=['acyclic', 'wrap'])
+@pytest.mark.parametrize('window', ['window=2', "window=2, edge='wrap'"], ids=['acyclic', 'wrap'])
 def test_a_masked_slot_the_window_reaches_is_a_zero_not_an_absence(window: str):
     """The masked slot contributes nothing and takes nothing with it.
 
@@ -251,7 +251,7 @@ PER_ENTITY_WINDOW = {
         'level': {'dims': ['g', 't'], 'where': 'usable > 0', 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'held': {'dims': ['g', 't'], 'expression': 'take <= sum_back(level, over=t, within=width)'}},
+    'constraints': {'held': {'dims': ['g', 't'], 'expression': 'take <= sum_back(level, along=t, window=width)'}},
     'objective': {
         'sense': 'maximize',
         'expression': 'sum(sum(take, over=g), over=t) - 1000 * sum(sum(level, over=g), over=t)',
@@ -286,7 +286,7 @@ def test_a_per_entity_window_reaching_nothing_is_that_entitys_row_alone():
 DAY_WINDOW = {
     'description': 'A minimum up time that stops at each representative day.',
     'dimensions': {'t': {'dtype': 'int'}, 'day': {'dtype': 'str'}},
-    'lookups': {'day_of': {'over': 't', 'into': 'day'}},
+    'relations': {'day_of': {'columns': ['t', 'day'], 'key': 't'}},
     'parameters': {'must_start': {'dims': ['t']}},
     'variables': {
         'started': {'dims': ['t'], 'domain': 'binary'},
@@ -329,7 +329,7 @@ def test_a_window_stops_at_the_edge_of_the_group_it_is_partitioned_by():
     its own group the window reaches back over positions that are its
     neighbours, and only that hour is held.
     """
-    spec, sources = day_window('sum_back(started, over=t, within=3, by=day_of)', starts=[0, 0, 1, 0, 0, 0])
+    spec, sources = day_window('sum_back(started, along=t, window=3, by=day_of)', starts=[0, 0, 1, 0, 0, 0])
     with differential(spec, sources) as run:
         assert _on(run.result) == [0.0, 0.0, 1.0, 0.0, 0.0, 0.0], (
             'the start holds its own hour on, and no hour of the day after it'
@@ -345,7 +345,9 @@ def test_a_partitioned_window_wraps_inside_its_own_group():
     group and a width of three is every hour of it, which is what makes the
     contrast with the acyclic run above visible in one number.
     """
-    spec, sources = day_window("sum_back(started, over=t, within=3, by=day_of, edge='wrap')", starts=[0, 0, 1, 0, 0, 0])
+    spec, sources = day_window(
+        "sum_back(started, along=t, window=3, by=day_of, edge='wrap')", starts=[0, 0, 1, 0, 0, 0]
+    )
     with differential(spec, sources) as run:
         assert _on(run.result) == [1.0, 1.0, 1.0, 0.0, 0.0, 0.0], (
             "the start reaches every hour of its own day and none of the other day's"
@@ -354,14 +356,14 @@ def test_a_partitioned_window_wraps_inside_its_own_group():
 
 
 def test_a_window_width_may_be_read_per_group():
-    """``within=`` over the dimension the partition groups into.
+    """``window=`` over the dimension the partition groups into.
 
     No frame carries a column of `day`: what travels with an hour is the
-    lookup's own value, so the width is read under the lookup's name and each
+    relation's own value, so the width is read under the relation's name and each
     group is reached by its own. The two days differ, which is what a single
     width cannot reproduce.
     """
-    spec, sources = day_window('sum_back(started, over=t, within=up, by=day_of)', starts=[0, 1, 0, 1, 0, 0])
+    spec, sources = day_window('sum_back(started, along=t, window=up, by=day_of)', starts=[0, 1, 0, 1, 0, 0])
     spec['parameters']['up'] = {'dims': ['day'], 'dtype': 'int'}
     sources['up'] = pd.Series([1, 3], index=pd.Index(['early', 'late'], name='day'))
     with differential(spec, sources) as run:
@@ -371,17 +373,17 @@ def test_a_window_width_may_be_read_per_group():
         assert run.oracle == pytest.approx(4.0), 'one hour held for the early day and three for the late one'
 
 
-def test_an_hour_the_lookup_places_in_no_day_reaches_nothing():
+def test_an_hour_the_relation_places_in_no_day_reaches_nothing():
     """A coordinate in no group is the one way a window loses a row.
 
     Unpartitioned a window always contains the position it sits at, so every
     row is built. A partitioned one reaches inside a group, and an hour that
     belongs to none reaches nothing at all — not even itself — so its row has
-    no terms and is not built, the reading a partial lookup gets everywhere
+    no terms and is not built, the reading a partial relation gets everywhere
     else.
     """
     spec, sources = day_window(
-        'sum_back(started, over=t, within=3, by=day_of)',
+        'sum_back(started, along=t, window=3, by=day_of)',
         starts=[0, 0, 1, 0, 0, 0],
         days=[*DAYS[:5], None],
     )
@@ -400,7 +402,7 @@ def test_a_literal_width_is_a_whole_number_of_positions(width: str):
     at lowering as the one node kind it has no case for (math-spec#222).
     """
     spec = up_time_spec(None)
-    spec['constraints']['stays_up_its_own_time']['expression'] = f'sum_back(started, over=t, within={width}) <= on'
+    spec['constraints']['stays_up_its_own_time']['expression'] = f'sum_back(started, along=t, window={width}) <= on'
     with pytest.raises(LanguageError, match='whole number of positions of at least 1'):
         lps.check(spec)
 
@@ -409,7 +411,7 @@ def test_a_window_refuses_a_numeric_edge():
     """A window has no vacated slot to fill — a short window is simply short."""
     spec = up_time_spec(None)
     spec['constraints']['stays_up_its_own_time']['expression'] = (
-        'sum_back(started, over=t, within=min_up, edge=0) <= on'
+        'sum_back(started, along=t, window=min_up, edge=0) <= on'
     )
     with pytest.raises(LanguageError, match="takes 'wrap' or nothing"):
         lps.check(spec)
@@ -419,9 +421,9 @@ def test_a_window_needs_the_dimension_it_sums_over():
     """Summing back along an axis the operand does not carry says nothing."""
     spec = up_time_spec(None)
     spec['constraints']['stays_up_its_own_time']['expression'] = (
-        'sum_back(sum(started, over=t), over=t, within=min_up) <= on'
+        'sum_back(sum(started, over=t), along=t, window=min_up) <= on'
     )
-    with pytest.raises(DimensionError, match='sum_back\\(over=t\\)'):
+    with pytest.raises(DimensionError, match='sum_back\\(along=t\\)'):
         lps.check(spec)
 
 

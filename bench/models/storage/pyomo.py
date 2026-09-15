@@ -1,6 +1,6 @@
 """`storage` as a pyomo user writes it.
 
-The cyclic state of charge is an index lookup — `snapshots[i - 1]` with Python's
+The cyclic state of charge is an index relation — `snapshots[i - 1]` with Python's
 negative indexing closing the ring at the first snapshot, which is the shortest
 honest spelling of a wrap in a rule and what a pyomo modeller writes.
 """

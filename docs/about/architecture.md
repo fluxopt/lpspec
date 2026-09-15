@@ -366,10 +366,10 @@ absence has to be pushed into the operand before the rewrite consumes it
 | `Divide` | `x / p` | one-to-one | a **left** join, so a divisor with no value leaves a null to report |
 | `Power` | `p ** q` | one-to-one | an inner join and `pow` |
 | `Sum` | `sum(x)`, `sum(x, over=d)` | many-to-one | the summed dims projected away — no aggregate |
-| `GroupSum` | `sum(x, by=lk)` | many-to-one | one inner join with the lookup's table, the grouped dim traded for its targets |
+| `GroupSum` | `sum(x, by=r)` | many-to-one | one inner join with the relation's table, the grouped dim traded for its targets |
 | `At` | `at(x, by=lk)` | one-to-one | the same table joined the other way, fanning out |
-| `Translate` | `shift(x, over=d, offset=n)` | one-to-one | a remap through the dimension's `ord`, modulo its size under `wrap` |
-| `Window` | `sum_back(x, over=d, within=w)` | one-to-many | a row lands at every position whose window reaches it — no aggregate |
+| `Translate` | `shift(x, along=d, offset=n)` | one-to-one | a remap through the dimension's `ord`, modulo its size under `wrap` |
+| `Window` | `sum_back(x, along=d, window=w)` | one-to-many | a row lands at every position whose window reaches it — no aggregate |
 | `Cases` | a named expression's `cases:` block | one-to-one | each region's value cut to its own mask and the fragment lists concatenated |
 
 A `Cases` is the one node carrying a **mask in a value position**. It is also
@@ -430,7 +430,7 @@ declarations build, and lands as CSR at assembly. CSR is `(col, coeff)` in
 row-major order plus a `row_starts` offset array: the same three arrays a solver
 takes, at 12 bytes per entry. Masks are **row absence**: no NaN sentinels, no
 `-1` labels. Broadcasting is a join. `sum` drops coordinate columns, and
-`sum(by=)` joins the dim table and projects a declared lookup in place of the
+`sum(by=)` joins the dim table and projects a declared relation in place of the
 grouped dim ([above](#the-plan-node-for-node)).
 
 **The label contract is the one place order is load-bearing.** Everything else
@@ -541,6 +541,7 @@ is structure.
 | `relational/collect.py` | which polars engine materialises a frame: the streaming one where this polars has it, asked once; a build without it, the browser's, gets the in-memory one |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
 | `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |
+| `relations.py` | the one reader of a declared relation: which shape of it either lane builds — two columns, one of them the key — and the four accessors that are well-defined once a wider one has been refused |
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `lps.`; a wording lives here only where two modules raise it |
 | `strategy.py` | the driver above the runner: one plan per slice, folded — scenarios, rolling horizon, myopic pathways |

@@ -818,7 +818,7 @@ _BARE_SHIFT = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'eff': {'dims': ['t']}},
     'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
-    'constraints': {'c': {'dims': ['t'], 'expression': 'x <= shift(eff, over=t, offset=1)'}},
+    'constraints': {'c': {'dims': ['t'], 'expression': 'x <= shift(eff, along=t, offset=1)'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
 }
 

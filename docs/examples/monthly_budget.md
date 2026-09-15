@@ -14,9 +14,9 @@ $\mathrm{month}$ is a **coordinate the snapshot dimension declares**, not a
 calendar the language understands. Its values arrive as a column in the
 snapshot index.
 
-Compare [transport](transport.md): there, $\mathrm{gen\_bus}$ is a lookup over
+Compare [transport](transport.md): there, $\mathrm{gen\_bus}$ is a relation over
 `generator` and the sum is over generators at a bus. Here $\mathrm{month\_of}$ is a
-lookup over `snapshot` and the sum is over snapshots in a month. **It is the
+relation over `snapshot` and the sum is over snapshots in a month. **It is the
 same construct** — `sum(by=)` — and time is not a special axis.
 
 ## The model
@@ -32,7 +32,7 @@ A cap on what each technology may generate per calendar month — an aggregate o
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{month\_of}: \mathcal{T} \to \mathcal{M}`$ — dispatch periods, each falling in one month |
-| $`\mathcal{M}`$ | index $`m`$ — `month` — the grouping the budget is stated over |
+| $`\mathcal{M}`$ | index $`m`$ — `month` with $`\mathrm{month\_of}: \mathcal{T} \to \mathcal{M}`$ — the grouping the budget is stated over |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units |
 
 #### Parameters
@@ -101,11 +101,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: generating units
         dtype: str
 
-    lookups:
+    relations:
       month_of:
         description: the month a snapshot falls in
-        over: snapshot
-        into: month
+        columns: [snapshot, month]
+        key: snapshot
 
     parameters:
       p_max:
@@ -177,7 +177,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 ## The grouping is data
 
-You produce the `month_of` lookup before the model, by whatever rule you want:
+You produce the `month_of` relation before the model, by whatever rule you want:
 
 ```python
 month_of = pl.DataFrame({'snapshot': hours}).with_columns(pl.col('snapshot').dt.strftime('%Y-%m').alias('month'))
@@ -206,9 +206,9 @@ Three snapshots in January, one in February, two in March: `sum(by=)` needs a
 partition, not equal groups.
 
 That one expression is the only place a calendar appears. Swap it for
-`dt.quarter()`, a fiscal-year lookup, a hand-built table of representative
+`dt.quarter()`, a fiscal-year relation, a hand-built table of representative
 periods or peak/off-peak blocks, and the model is unchanged. The language has
-no `resample:` or `reduce_to_monthly()`: a lookup covers all of those cases.
+no `resample:` or `reduce_to_monthly()`: a relation covers all of those cases.
 
 ## Reading it back
 
@@ -231,10 +231,10 @@ sol.primal('p').join(index, on='snapshot').group_by('month').agg(pl.col('value')
 
 ## Why `month` is a dimension
 
-A lookup is a **function between two dimensions**, so it needs a codomain.
-Three things rest on `month` being one:
+A keyed relation is a **function between two dimensions**, so it needs a
+codomain. Three things rest on `month` being one:
 
-1. **`sum(by=)` lands terms on the dimension the lookup targets.**
+1. **`sum(by=)` lands terms on the dimension the relation's value column is over.**
    The expression's dims are therefore `[month, generator]`, and a `dims:`
    can only name declared dimensions.
 2. **`monthly_cap` is indexed *by* month.** A parameter carries values *at*

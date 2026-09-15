@@ -589,7 +589,7 @@ class EachWindow:
 
         Raises:
             LpspecError: ``into`` names no dimension the spec declares, the
-                program ties the axis together, a reach turns on a lookup, which
+                program ties the axis together, a reach turns on a relation, which
                 this driver does not resolve, or the window looks ahead by
                 less than its rows read.
             DataError: A parameter deciding a reach has no data.
@@ -611,10 +611,10 @@ class EachWindow:
         if verdict.undecided:
             raise LpspecError(
                 f"EachWindow('{self.dim}', …, into='{self.into}') slices '{self.into}', which the model reaches "
-                f'along through a lookup whose groups a window may split, and this driver does not resolve a '
-                f'reach the lookup decides:\n'
-                f'{_listed({r.label: f"through the lookup {r.name!r}" for r in verdict.undecided})}\n'
-                f'Cut a dimension the lookup does not group.'
+                f'along through a relation whose groups a window may split, and this driver does not resolve a '
+                f'reach the relation decides:\n'
+                f'{_listed({r.label: f"through the relation {r.name!r}" for r in verdict.undecided})}\n'
+                f'Cut a dimension the relation does not group.'
             )
         if self.lookahead < verdict.ahead:
             raise LpspecError(
