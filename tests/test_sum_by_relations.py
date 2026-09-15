@@ -251,11 +251,11 @@ def test_two_relations_lower_to_one_node_and_not_to_a_composition():
 def test_a_hand_built_walk_onto_two_columns_is_refused():
     """`math_spec.program` is a public IR, so a node can arrive without the front door.
 
-    The compiler pairs one relation with one dimension it lands on, so a walk
-    onto two columns at once would leave the second unpaired and group by one
-    map too few. No file reaches this: `lpspec.relations.refusal` turns away
-    a relation of three columns before either lane sees it, so a hand-built
-    node is the shortest path to the guard.
+    The engine reads one value column per relation, so a walk onto two at once
+    would land the second nowhere and group by one map too few. No file reaches
+    this: `lpspec.relations.refusal` turns away a relation whose key determines
+    two columns before either lane sees it, so a hand-built node is the
+    shortest path to the guard.
     """
     gen_bt = RelationDeclaration(
         'gen_bt',
@@ -263,7 +263,7 @@ def test_a_hand_built_walk_onto_two_columns_is_refused():
         ('generator',),
     )
     node = GroupSum(Variable('p'), (Walk(gen_bt, ('generator',), ('bus', 'technology'), ()),))
-    with pytest.raises(ValueError, match='zip'):
+    with pytest.raises(AssertionError, match='it has 2 columns its key does not determine'):
         compiler().expression(node, 'a hand-built plan')
 
 

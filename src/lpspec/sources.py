@@ -23,7 +23,7 @@ from lpspec.curves import derive_curve_sources, validate_curve_extent, validate_
 from lpspec.errors import DataError, did_you_mean
 from lpspec.frames import as_frame, is_dense_array, is_multi_indexed
 from lpspec.relational.collect import polars_engine
-from lpspec.relations import key_dim, key_role, maps_out_of, value_dim, value_role
+from lpspec.relations import key_dims, key_roles, maps_out_of, value_dim, value_role
 
 if TYPE_CHECKING:
     from math_spec.program import DimensionDeclaration, ParameterDeclaration, Program, RelationDeclaration
@@ -121,7 +121,8 @@ def supplied(program: Program, frames: Mapping[str, pl.LazyFrame]) -> dict[str, 
         if relation is None:
             out[name] = frame
             continue
-        out[name] = frame.rename({key_dim(relation): key_role(relation), name: value_role(relation)})
+        back = dict(zip(key_dims(relation), key_roles(relation), strict=True))
+        out[name] = frame.rename({**back, name: value_role(relation)})
     return out
 
 
@@ -247,8 +248,8 @@ def _unsupplied_relation_message(name: str, relation: RelationDeclaration) -> st
     """A relation nothing gives a table for — the counterpart of a parameter with no data."""
     return (
         f"no data provided for relation '{name}'. Pass it under key '{name}' as a table with "
-        f"columns {list(relation.roles)} — one row per '{key_role(relation)}' it maps, and no row "
-        f'for a label it does not.'
+        f'columns {list(relation.roles)} — one row per {list(relation.key)} it maps, and no row '
+        f'for a key it does not.'
     )
 
 
@@ -280,9 +281,10 @@ def _relation_tables(
     """
     tables: dict[str, pl.LazyFrame] = {}
     for name, relation in program.relations.items():
-        over, target = key_dim(relation), value_dim(relation)
+        target = value_dim(relation)
         rows = _read_relation(data[name], name, relation)
-        _check_keys_are_labels(rows, name, over, _labels_of(over, indices[over]))
+        for over in key_dims(relation):
+            _check_keys_are_labels(rows, name, over, _labels_of(over, indices[over]))
         if target not in indices:
             raise DataError(
                 f"relation '{name}' has a '{value_role(relation)}' column over '{target}', which "
@@ -290,12 +292,12 @@ def _relation_tables(
                 f"values have no label set to be checked against. Pass an index for '{target}' under "
                 f'that key in sources, or remove the relation.'
             )
-        _check_values_are_labels(rows, over, name, target, _labels_of(target, indices[target]))
+        _check_values_are_labels(rows, name, target, _labels_of(target, indices[target]))
         tables[name] = rows
     return tables
 
 
-def _check_values_are_labels(rows: pl.LazyFrame, over: str, name: str, target: str, labels: pl.Series) -> None:
+def _check_values_are_labels(rows: pl.LazyFrame, name: str, target: str, labels: pl.Series) -> None:
     """Refuse a map holding a value *target* does not have as a label.
 
     Offenders keep their own type — a python native off polars, never a numpy
@@ -338,11 +340,17 @@ def _check_keys_are_labels(rows: pl.LazyFrame, name: str, over: str, labels: pl.
 
 
 def _read_relation(source: Source, name: str, relation: RelationDeclaration) -> pl.LazyFrame:
-    """One supplied relation, read under its roles and held to the rules a map has."""
+    """One supplied relation, read under its roles and held to the rules a map has.
+
+    The frame comes back keyed by *dimension* rather than by role, one column
+    per key column and the values under the relation's own name, which is the
+    shape every reader downstream takes — and what a self-map needs, where two
+    roles sit over one dimension.
+    """
     roles = list(relation.roles)
-    key, value = key_role(relation), value_role(relation)
-    over = key_dim(relation)
-    table = as_frame(source, (key, value))
+    keys, value = list(relation.key), value_role(relation)
+    over = list(key_dims(relation))
+    table = as_frame(source, (*keys, value))
     if table is None:
         raise DataError(
             f"relation '{name}': cannot adapt {type(source).__name__} to a table — pass any "
@@ -353,29 +361,30 @@ def _read_relation(source: Source, name: str, relation: RelationDeclaration) -> 
     if any(c not in available for c in roles):
         raise DataError(
             f"relation '{name}' must carry a column per column it declares, {roles} (has "
-            f"{list(available)}). '{key}' is the key it is single-valued per and '{value}' is what "
+            f"{list(available)}). {keys} is the key it is single-valued per and '{value}' is what "
             f'it maps each key to.'
         )
-    rows = table.select(pl.col(key).alias(over), pl.col(value).alias(name)).collect()
+    columns = [pl.col(role).alias(dim) for role, dim in zip(keys, over, strict=True)]
+    rows = table.select(*columns, pl.col(value).alias(name)).collect()
 
-    holes = rows.filter(pl.col(over).is_null() | pl.col(name).is_null())
+    null = pl.any_horizontal(pl.col(c).is_null() for c in (*over, name))
+    holes = rows.filter(null)
     if holes.height:
-        shown = coordinates_shown([over], holes.select(over).head(5).rows())
+        shown = coordinates_shown(over, holes.select(over).head(5).rows())
         at = f': {shown}' if shown else ''
         raise DataError(
             f"relation '{name}' carries {holes.height} row(s) with a null in '{value}'{at}. A map is "
-            f'partial by leaving a label out, not by mapping it to nothing — drop the row and the '
-            f'label is unmapped, which is what every operator reading the relation already means by '
+            f'partial by leaving a key out, not by mapping it to nothing — drop the row and the '
+            f'key is unmapped, which is what every operator reading the relation already means by '
             f'it.'
         )
 
     twice = rows.group_by(over).len().filter(pl.col('len') > 1).sort(over)
     if twice.height:
-        offenders = [str(x) for x in twice[over]]
-        shown = ', '.join(offenders[:5]) + (' …' if len(offenders) > 5 else '')
+        shown = coordinates_shown(over, twice.select(over).head(5).rows())
         raise DataError(
-            f"relation '{name}' maps {len(offenders)} '{key}' label(s) more than once: {shown}. "
-            f"'{key}' is the declared key, so each label it maps takes exactly one row."
+            f'relation {name!r} maps {twice.height} key(s) more than once: {shown}. '
+            f'{keys} is the declared key, so each key it maps takes exactly one row.'
         )
 
     return rows.lazy()

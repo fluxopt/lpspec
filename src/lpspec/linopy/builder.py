@@ -44,7 +44,7 @@ def build_model(
     program: program.Program,
     dataset: xr.Dataset,
     master_coords: dict[str, pd.Index],
-    dim_coords: dict[str, dict[str, xr.DataArray]],
+    relations: dict[str, xr.DataArray],
 ) -> None:
     """Populate a linopy Model from a lowered program and loaded parameters.
 
@@ -53,7 +53,7 @@ def build_model(
     is trusted by construction, ``to_program`` having decided every rule the
     language can decide without data.
     """
-    ctx = EvaluationContext(dataset, master_coords, model, dim_coords, program)
+    ctx = EvaluationContext(dataset, master_coords, model, relations, program)
     _build_variables(ctx)
     _build_sos(ctx)
     _build_constraints(ctx)
@@ -289,15 +289,14 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
     if isinstance(node, program.GroupSum):
         return operator_grouped_sum(
             _eval(node.operand, ctx),
-            _relation_arrays(node.over[0], node.coordinate, ctx),
+            _relation_arrays(node.coordinate, ctx),
             into=node.into,
+            joined=_joined_dims(node),
             labels=ctx.master_coords,
         )
 
     if isinstance(node, program.At):
-        return operator_at(
-            _eval(node.operand, ctx), _relation_arrays(node.over[0], node.coordinate, ctx), into=node.into
-        )
+        return operator_at(_eval(node.operand, ctx), _relation_arrays(node.coordinate, ctx), into=node.into)
 
     if isinstance(node, program.Translate):
         return operator_shift(
@@ -395,10 +394,20 @@ def _partition(node: program.Translate | program.Window, ctx: EvaluationContext)
     by = partition_of(node)
     if by is None:
         return None
-    array = bound_relation(by, node.dimension, ctx.dim_coords)
+    array = bound_relation(by, ctx.relations)
     return array.rename(maps_out_of(ctx.program, node.dimension)[by])
 
 
-def _relation_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The declared maps *names* as arrays over *over*, in the order the plan wrote them."""
-    return tuple(bound_relation(name, over, ctx.dim_coords) for name in names)
+def _joined_dims(node: program.GroupSum | program.At) -> tuple[str, ...]:
+    """The dimensions a node's walks join on — the key columns they neither consume nor produce.
+
+    Empty for a map keyed by the one column it is walked out of. A conditioned
+    map names the rest of its key here, and the operand carries those dims
+    already, so they are the condition a group is read under.
+    """
+    return tuple(dict.fromkeys(d for walk in node.walks for d in walk.joined_dims))
+
+
+def _relation_arrays(names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
+    """The declared maps *names* as arrays over the dimensions their keys name, in the order the plan wrote them."""
+    return tuple(bound_relation(name, ctx.relations) for name in names)

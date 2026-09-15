@@ -45,15 +45,15 @@ _PREDICATE_OPS: dict[str, Callable[[Any, Any], Any]] = {
 class EvaluationContext:
     """Everything evaluating a plan needs beyond the node: the data, the axes, the model, the relations, the program.
 
-    ``dim_coords`` carries the attached relation columns, which a predicate on
-    a relation and a grouped operator both read instead of the parameter
-    dataset.
+    ``relations`` carries one array per declared map, over the dimensions its
+    key names — what a predicate on a relation and a grouped operator both read
+    instead of the parameter dataset.
     """
 
     dataset: xr.Dataset
     master_coords: Mapping[str, pd.Index]
     model: linopy.Model
-    dim_coords: Mapping[str, Mapping[str, xr.DataArray]]
+    relations: Mapping[str, xr.DataArray]
     program: program.Program
     #: Whether *model* is solved and the plan is read at its solution — a
     #: variable is then its ``.solution`` and ``dual(c)`` the constraint's
@@ -115,7 +115,7 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
     if isinstance(node, program.DimensionPositionNode):
         labels = master_coords[node.name]
         if (by := partition_of(node)) is not None:
-            arr = _group_offsets(node, by, bound_relation(by, node.name, ctx.dim_coords), np.asarray(labels))
+            arr = _group_offsets(node, by, bound_relation(by, ctx.relations), np.asarray(labels))
             return (_PREDICATE_OPS[node.op](arr, 0) & arr.notnull()).fillna(value=False).astype(bool)
         at = node.position + len(labels) if node.position < 0 else node.position
         if not 0 <= at < len(labels):
@@ -124,17 +124,17 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
         return _PREDICATE_OPS[node.op](arr, at).astype(bool)
 
     if isinstance(node, program.RelationComparisonNode):
-        arr = bound_relation(node.name, node.dims[0], ctx.dim_coords)
+        arr = bound_relation(node.name, ctx.relations)
         return (_PREDICATE_OPS[node.op](arr, node.value) & arr.notnull()).fillna(value=False).astype(bool)
 
     if isinstance(node, program.RelationPairComparisonNode):
-        left = bound_relation(node.name, node.dims[0], ctx.dim_coords)
-        right = bound_relation(node.other, node.dims[0], ctx.dim_coords)
+        left = bound_relation(node.name, ctx.relations)
+        right = bound_relation(node.other, ctx.relations)
         defined = left.notnull() & right.notnull()
         return (_PREDICATE_OPS[node.op](left, right) & defined).fillna(value=False).astype(bool)
 
     if isinstance(node, program.RelationDefinedNode):
-        return bound_relation(node.name, node.dims[0], ctx.dim_coords).notnull()
+        return bound_relation(node.name, ctx.relations).notnull()
 
     if isinstance(node, program.NotNode):
         return ~evaluate(node.operand)
@@ -184,20 +184,17 @@ def _group_offsets(
     return partition.within.where(partition.grouped) - target
 
 
-def unbound_relation_message(name: str, over: str) -> str:
+def unbound_relation_message(name: str) -> str:
     """A declared relation read with no attached map."""
-    return (
-        f"relation '{name}' keyed over dimension '{over}' has no attached values. "
-        f"Pass it under key '{name}' as a table of the rows it holds."
-    )
+    return f"relation '{name}' has no attached values. Pass it under key '{name}' as a table of the rows it holds."
 
 
-def bound_relation(name: str, over: str, dim_coords: Mapping[str, Mapping[str, xr.DataArray]]) -> xr.DataArray:
-    """A map's attached values as an array over the dimension it is keyed by."""
+def bound_relation(name: str, relations: Mapping[str, xr.DataArray]) -> xr.DataArray:
+    """A map's attached values as an array over the dimensions its key names."""
     try:
-        return dim_coords[over][name]
+        return relations[name]
     except KeyError:
-        raise DataError(unbound_relation_message(name, over)) from None
+        raise DataError(unbound_relation_message(name)) from None
 
 
 def as_linopy_mask(mask: xr.DataArray) -> xr.DataArray | None:

@@ -87,11 +87,11 @@ def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
         program = lowered(spec)
 
         tidy = tidy_sources(program, sources)
-        master_coords, dim_coords = dimension_coords(program, tidy)
+        master_coords, relations = dimension_coords(program, tidy)
         dataset = load_parameters(program, tidy, master_coords)
 
         built = linopy.Model()
-        build_model(built, program, dataset, master_coords, dim_coords)
+        build_model(built, program, dataset, master_coords, relations)
 
     return built
 
@@ -132,9 +132,9 @@ def evaluate(
         node = expressions.lower(written, expression)
         program = lowered(written)
         tidy = tidy_sources(program, sources)
-        master_coords, dim_coords = dimension_coords(program, tidy)
+        master_coords, relations = dimension_coords(program, tidy)
         dataset = load_parameters(program, tidy, master_coords)
-        context = EvaluationContext(dataset, master_coords, built, dim_coords, program, solved=True)
+        context = EvaluationContext(dataset, master_coords, built, relations, program, solved=True)
         value = _eval(node, context)
         if isinstance(value, xarray.DataArray):
             return value

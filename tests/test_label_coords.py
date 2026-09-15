@@ -594,7 +594,7 @@ def test_a_where_reads_a_map_that_leaves_a_label_out():
         ),
         pytest.param(
             pl.DataFrame({'generator': ['g1', 'g1'], 'bus': ['north', 'south']}),
-            r"maps 1 'generator' label\(s\) more than once: g1",
+            r"maps 1 key\(s\) more than once: generator='g1'",
             id='mapped-twice',
         ),
         pytest.param(
@@ -643,7 +643,7 @@ def test_a_supplied_relation_is_refused_the_same_way_on_both_lanes(lane):
     from tests.oracle import lpspec_linopy
 
     build = lps.solve if lane == 'relational' else lpspec_linopy.build
-    with pytest.raises(DataError, match=r"maps 1 'generator' label\(s\) more than once"):
+    with pytest.raises(DataError, match=r'maps 1 key\(s\) more than once'):
         build(
             SUPPLIED,
             {**_SUPPLIED_SOURCES, 'gen_bus': pl.DataFrame({'generator': ['g1', 'g1'], 'bus': ['north', 'south']})},
@@ -757,12 +757,6 @@ def _walked(relations: dict, expression: str) -> dict:
             'sum(p, by=gen_bus, over=generator, into=bus) >= load',
             r"'gen_bus' declares no key.*Declare key: on it",
             id='a-bare-relation-is-a-set-per-label-and-not-a-map',
-        ),
-        pytest.param(
-            {'zone_of': {'columns': ['generator', 'period', 'bus'], 'key': ['generator', 'period']}},
-            'sum(p, by=zone_of, over=generator, into=bus) >= load',
-            r"'zone_of' has 3 columns keyed by 2.*Split it into one relation per pair",
-            id='a-key-of-two-columns-joins-on-one-the-walk-does-not-trade',
         ),
     ],
 )

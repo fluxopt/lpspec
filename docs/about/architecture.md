@@ -541,7 +541,7 @@ is structure.
 | `relational/collect.py` | which polars engine materialises a frame: the streaming one where this polars has it, asked once; a build without it, the browser's, gets the in-memory one |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
 | `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |
-| `relations.py` | the one reader of a declared relation: which shape of it either lane builds — two columns, one of them the key — and the four accessors that are well-defined once a wider one has been refused |
+| `relations.py` | the one reader of a declared relation: which shape of it either lane builds — one value column per key, whatever the key names — and the accessors that are well-defined once a wider one has been refused |
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `lps.`; a wording lives here only where two modules raise it |
 | `strategy.py` | the driver above the runner: one plan per slice, folded — scenarios, rolling horizon, myopic pathways |

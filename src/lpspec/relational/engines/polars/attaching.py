@@ -68,8 +68,8 @@ def attach(program: program.Program, sources: Mapping[str, pl.LazyFrame]) -> Att
     for d, enum in enums.items():
         dimensions[d] = dimensions[d].with_columns(pl.col('val').cast(enum))
     for name, relation in program.relations.items():
-        over, target = _map_dims(relation)
-        casts = [pl.col(over).cast(enums[over])] if over in enums else []
+        keys, target = _map_dims(relation)
+        casts = [pl.col(d).cast(enums[d]) for d in keys if d in enums]
         casts += [pl.col(name).cast(enums[target])] if target in enums else []
         if casts:
             relations[name] = relations[name].with_columns(casts)
@@ -87,14 +87,15 @@ def attach(program: program.Program, sources: Mapping[str, pl.LazyFrame]) -> Att
     )
 
 
-def _map_dims(relation: program.RelationDeclaration) -> tuple[str, str]:
-    """The two dimensions a relation frame's two columns are over, key first.
+def _map_dims(relation: program.RelationDeclaration) -> tuple[tuple[str, ...], str]:
+    """The dimensions a relation frame's columns are over — the key's, then the value's.
 
     Well-defined because ``lpspec.relations.refusal`` has already turned away
-    every relation wider than the single-valued map, which is what makes the
-    frame two columns rather than a table of them.
+    every relation the key does not determine a single column of, which is what
+    makes the frame one value column beside its key rather than a table of
+    them.
     """
-    return relation.dim(relation.key[0]), relation.dim(relation.values[0])
+    return tuple(relation.dim(role) for role in relation.key), relation.dim(relation.values[0])
 
 
 def _ordinal_frame(d: str, index: pl.LazyFrame) -> pl.LazyFrame:

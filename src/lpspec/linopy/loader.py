@@ -8,7 +8,7 @@ import pandas as pd
 import xarray as xr
 
 from lpspec.frames import to_pandas
-from lpspec.relations import maps_out_of
+from lpspec.relations import key_dims
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -20,16 +20,15 @@ if TYPE_CHECKING:
 def dimension_coords(
     program: program.Program,
     tidy: Mapping[str, pl.LazyFrame],
-) -> tuple[dict[str, pd.Index], dict[str, dict[str, xr.DataArray]]]:
-    """Every dimension's labels, and each declared relation as an array over the dimension it is keyed by.
+) -> tuple[dict[str, pd.Index], dict[str, xr.DataArray]]:
+    """Every dimension's labels, and each declared relation as an array over the dimensions it is keyed by.
 
     *tidy* is :func:`~lpspec.sources.tidy_sources`' output, so every index and
     map has been read and checked; what happens here is the conversion.
 
     Returns:
-        The master coordinates by dimension, and by dimension the array each
-        map keyed over it carries. A dimension no map runs out of is absent
-        from the second.
+        The master coordinates by dimension, and one array per declared
+        relation, by name.
     """
     master = {d: pd.Index(pd.unique(to_pandas(tidy[d].select(d).collect())[d]), name=d) for d in program.dimensions}
     return master, _relation_arrays(program, tidy, master)
@@ -39,21 +38,25 @@ def _relation_arrays(
     program: program.Program,
     tidy: Mapping[str, pl.LazyFrame],
     master: Mapping[str, pd.Index],
-) -> dict[str, dict[str, xr.DataArray]]:
-    """Each map as an array over the dimension it is keyed by.
+) -> dict[str, xr.DataArray]:
+    """Each map as an array over the dimensions its key names.
 
-    A map arrives as its own ``(key dim, relation)`` table holding rows only
+    A map arrives as its own ``(key dims…, relation)`` table holding rows only
     where it is defined. **The padding happens here**: an array is dense by
     construction, and linopy's ``groupby`` wants one aligned to the
-    dimension's coordinates — so a label the relation leaves out becomes a
-    null, which every reader on this lane treats as "in no group".
+    dimensions' coordinates — so a key the relation leaves out becomes a
+    null, which every reader on this lane treats as "in no group". A key of
+    several columns pads to their product the same way.
     """
-    out: dict[str, dict[str, xr.DataArray]] = {}
-    for dim in program.dimensions:
-        labels = master[dim]
-        for name in maps_out_of(program, dim):
-            series = to_pandas(tidy[name].collect()).set_index(dim)[name].reindex(labels)
-            out.setdefault(dim, {})[name] = xr.DataArray(series.to_numpy(), dims=[dim], coords={dim: labels}, name=name)
+    out: dict[str, xr.DataArray] = {}
+    for name, relation in program.relations.items():
+        dims = list(key_dims(relation))
+        frame = to_pandas(tidy[name].collect()).set_index(dims)[name]
+        index = pd.MultiIndex.from_product([master[d] for d in dims], names=dims) if len(dims) > 1 else master[dims[0]]
+        padded = frame.reindex(index)
+        shape = tuple(len(master[d]) for d in dims)
+        coords = {d: master[d] for d in dims}
+        out[name] = xr.DataArray(padded.to_numpy().reshape(shape), dims=dims, coords=coords, name=name)
     return out
 
 

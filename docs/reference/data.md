@@ -64,8 +64,10 @@ parameters. Which labels an axis has is data's to say, and that rule is
 **A map goes under
 [the relation's own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#how-the-map-is-supplied)**,
 as a table of the rows it has. Attach reads it against the labels the index
-supplied: a label no row mentions is unmapped, and a key matching no label is
-refused as a typo.
+supplied: a key no row mentions is unmapped, and a key matching no label is
+refused as a typo. A relation keyed by several columns is read the same way,
+one row per key *tuple* — a generator's zone by period rather than a
+generator's zone.
 
 ## What attaching refuses and accepts
 
@@ -88,14 +90,14 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | a key naming neither a parameter, a dimension nor a relation | names the near miss |
 | a relation table short of a column it declares | names them, and what each is |
 | a relation table with a null in its value column | a map is partial by omitting a row |
-| a relation table mapping one key label twice | a keyed relation holds one row per key |
+| a relation table mapping one key twice | a keyed relation holds one row per key, however many columns the key names |
 | a map with both authors, or neither | names them, and says which way out |
 | an index carrying a column named after a relation keyed over it | names the key it belongs under |
 | a table missing a declared dimension column, or `value` | names the columns needed |
 | a `value` column carrying a null or a NaN | names the parameter and the coordinates |
 | a label outside the dimension's index | names the parameter and the strays |
 | two rows for one coordinate | |
-| a relation with two values for one key label | |
+| a relation with two values for one key | |
 | a relation value that is not a label of its own dimension | one wording, checked once for both lanes |
 | a dimension carrying relations with no index | |
 | a dimension nothing can supply labels for | names both ways to fix it |

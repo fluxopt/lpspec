@@ -140,8 +140,9 @@ def lowered(spec: Buildable) -> Program:
     Raises:
         LanguageError: A construct outside the streaming language.
         LpspecError: Two declarations of one namespace whose names differ only
-            by case, or a relation wider than the single-valued map either lane
-            builds.
+            by case, a relation the key does not determine a single column of,
+            or a partition grouped by a map keyed on more than the dimension it
+            walks.
     """
     program = to_program(spec)
     for refused in (_case_collision(program), _relation_refusal(program)):

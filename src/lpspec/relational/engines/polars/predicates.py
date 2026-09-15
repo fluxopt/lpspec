@@ -145,13 +145,16 @@ def compile_predicate(
             ),
         )
 
-    def join_relation(relation: str, over: str) -> str:
-        refuse_outside_frame(f"relation '{relation}' reading dimension '{over}'", over)
+    def join_relation(relation: str, over: tuple[str, ...]) -> str:
+        """The relation's value at each row, read at every dimension its key names."""
+        for dim in over:
+            refuse_outside_frame(f"relation '{relation}' reading dimension '{dim}'", dim)
+        keys = [pl.col(d) for d in over]
         return carrier.once(
             f'__where relation {relation}__',
             lambda f, alias: f.join(
-                compiler.data.relations[relation].select(pl.col(over), pl.col(relation).alias(alias)),
-                on=over,
+                compiler.data.relations[relation].select(*keys, pl.col(relation).alias(alias)),
+                on=list(over),
                 how='left',
             ),
         )
@@ -168,16 +171,16 @@ def compile_predicate(
             at = _position_ordinal(p, compiler.data.cardinality[p.name])
             return _COLUMN_COMPARISONS[p.op](pl.col(join_ordinal(p.name)), pl.lit(at))
         if isinstance(p, program.RelationComparisonNode):
-            column = pl.col(join_relation(p.name, p.dims[0]))
+            column = pl.col(join_relation(p.name, p.dims))
             if isinstance(p.value, str):
                 column = column.cast(pl.String)
             return _compare(column, p.op, p.value)
         if isinstance(p, program.RelationPairComparisonNode):
-            left = pl.col(join_relation(p.name, p.dims[0]))
-            right = pl.col(join_relation(p.other, p.dims[0]))
+            left = pl.col(join_relation(p.name, p.dims))
+            right = pl.col(join_relation(p.other, p.dims))
             return _COLUMN_COMPARISONS[p.op](left, right)
         if isinstance(p, program.RelationDefinedNode):
-            return pl.col(join_relation(p.name, p.dims[0])).is_not_null()
+            return pl.col(join_relation(p.name, p.dims)).is_not_null()
         if isinstance(p, program.ParameterDefinedNode):
             return _defined(pl.col(join_param(p.name)), compiler.program.parameter(p.name).dtype)
         if isinstance(p, program.VariableDefinedNode):
