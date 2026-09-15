@@ -56,7 +56,7 @@ from lpspec.relational.parquet import (
 from lpspec.relational.result import Result, evaluated
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
-from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
+from lpspec.sources import attachable, supplied, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -327,7 +327,9 @@ class Model:
             LayoutError: An *archive* directory that already holds something,
                 refused before the solve rather than after it.
         """
-        out = None if archive is None else _the_archive_target(Path(archive))
+        out = None if archive is None else Path(archive)
+        if out is not None:
+            check_the_target(out)
         answered = replace(
             self._engine.solve(
                 solver_name,
@@ -343,27 +345,18 @@ class Model:
         return answered
 
     def _archive(self, out: Path, answered: Result) -> None:
-        """Pack this model, what is attached to it now, and *answered* into one zip.
+        """Write this model, what is attached to it now, and *answered* to *out*.
 
-        The answer is laid out in a scratch directory beside *out* first, in
-        the layout an archive's ``answer/`` holds. The metrics row is written
-        after the answer rather than through :meth:`Result.save`, which cannot
-        write it: a result is one solve, and the diagnostics the metrics come
-        from span the model's whole life.
+        The metrics row is written beside the answer here rather than by
+        :meth:`Result.save`: a result is one solve, and the diagnostics the
+        metrics come from span the model's whole life.
         """
         with beside(out) as scratch:
             answer = answered.save(scratch)
             taken = self._engine.diagnostics().metrics()
             write_whole(pl.DataFrame([taken._asdict()], schema_overrides=METRICS_SCHEMA), answer / METRICS_FILE)
-            write_archive(
-                out,
-                self._spec,
-                self._sources,
-                checked=self._sources,
-                whole={},
-                axis=None,
-                answer=answer,
-            )
+            tables = supplied(self._program, tidy_sources(self._program, self._sources))
+            write_archive(out, self._spec, self._sources, tables=tables, axis=None, answer=answer)
 
     def write(self, path: str | Path) -> None:
         """Stream the built model to *path*, in the format its suffix names.
@@ -437,15 +430,6 @@ def _refuse_unknown(given: Mapping[str, Any], declared: Mapping[str, Any]) -> No
     """Refuse an update naming anything *declared* does not hold."""
     if unknown := set(given) - set(declared):
         raise DataError(unknown_source_keys_message(unknown, declared))
-
-
-def _the_archive_target(out: Path) -> Path:
-    """*out*, once it is somewhere an archive can be written.
-
-    Checked before the solve, not after.
-    """
-    check_the_target(out)
-    return out
 
 
 def build(spec: Buildable, sources: Mapping[str, Source]) -> Model:

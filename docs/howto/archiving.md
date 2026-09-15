@@ -96,11 +96,9 @@ the same pair one level down, for an answer `result.save` or `runs.save` wrote.
 
 ## Read what a solve cost
 
-`metrics` is a `Metrics`: how big the model was, what the last solve's sink
-added to that, how many solves the archive covers, and wall-clock seconds in
-each phase — thirteen attributes as one value
-([the whole list](../reference/api.md#diagnostics)). Every clock says its unit
-in its name.
+`metrics` is a `Metrics`: how big the model was, how many solves the clocks
+cover, and wall-clock seconds in each phase, as one value
+([the attributes](../reference/api.md#diagnostics)).
 
 ```python
 case = lps.load_archive('case/')
@@ -110,26 +108,12 @@ case.metrics.solves  # how many solves the clocks cover
 case.metrics.build_seconds  # turning declarations into frames
 ```
 
-This is the one part of an archive that re-solving cannot give back. The
-clocks are of the machine that ran them, so nothing recovers them later.
-
-**Each clock is a phase of the build**: `attach_seconds` reads your sources
-onto the plan, `build_seconds` turns the declarations into the model frames,
-`handoff_seconds` hands the built model to a solver, `solve_seconds` is the
-solver's own run, and `write_seconds` is `model.write('model.lp')` — the built
-model streamed to a file. `write_seconds` reads `0.0` in an archive unless you
-also asked for a file; it is not what writing the archive cost.
-
-**A phase the build never entered writes zero**, so cases that ran different
-phases still concatenate into one table.
-
-**What writing the archive cost is in no column.** Time the call if you want
-it.
+This is the one part of an archive that re-solving cannot give back: the
+clocks are of the machine that ran them.
 
 **The row covers the model's whole life, and `solves` says how long that is.**
-`lps.solve` builds the model it solves, so its archive reads `solves` of 1 and
-the clocks are that answer's own. A model solved more than once before it was
-archived carries the sum:
+`lps.solve` builds the model it solves, so its archive reads `solves` of 1. A
+model solved more than once before it was archived carries the sum:
 
 ```python
 with lps.build('dispatch.yaml', sources) as model:
@@ -137,12 +121,8 @@ with lps.build('dispatch.yaml', sources) as model:
     model.solve(archive='second/')  # solves: 2, and the clocks cover both
 ```
 
-**A sweep records its own metrics per slice, in its own columns.** `runs.metrics`
-carries `loaded` — whether that slice's model went to the solver from scratch —
-and drops what a slice has no share of: `added_columns`, `added_rows`, `solves`,
-`loads` and `write_seconds`. Its clocks are that slice's own seconds, where a
-solve's cover the model's whole life. A fold knows where one slice's share begins; a
-single `Result` does not, being one solve of a model that may have had many.
+A sweep records each slice's own metrics as `runs.metrics` instead
+([sweeps](../reference/sweeps.md)).
 
 ## Keep the answer an update produced
 
