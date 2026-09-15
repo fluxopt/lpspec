@@ -1,33 +1,28 @@
 """Model builder: logical plan + data → linopy Model.
 
-**One section per kind of translation**, in the order a build performs them:
-the four declarations (``Variables``, ``Special-ordered sets``,
-``Constraints``, ``Objectives``) each ending in the ``model.add_*`` call they
-exist to make, then ``Plan evaluation`` for what an expression is worth.
+**One section per kind of declaration**, in the order a build performs them:
+``Variables``, ``Special-ordered sets``, ``Constraints``, ``Objectives``, each
+ending in the ``model.add_*`` call it exists to make.
 
-Two questions a build asks are answered beside it: ``operators.py`` evaluates
-a built-in once its operands are values, and ``where.py`` turns a predicate
-into the boolean array a declaration is masked by. The positions an absent
-value is spelled differently in are ``absence.py``. *Which* linopy call each
-construct becomes is the table in ``docs/about/linopy.md``.
+What an expression is worth and where a declaration exists are
+``evaluation.py``'s two walks, ``operators.py`` evaluates a built-in once its
+operands are values, and the positions an absent value is spelled differently
+in are ``absence.py``. *Which* linopy call each construct becomes is the table
+in ``docs/about/linopy.md``.
 """
 
 from __future__ import annotations
 
-import functools
-import operator
-from typing import TYPE_CHECKING, Any, assert_never
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from math_spec import program
 
-from lpspec.errors import DataError, LaneError, LpspecError, null_bounds_message
+from lpspec.errors import DataError, LaneError, null_bounds_message
 from lpspec.lanes import LANES
-from lpspec.linopy import absence
 from lpspec.linopy._notes import note
 from lpspec.linopy.coverage import check_constant_side_covers, check_divisors_cover, gaps_under
-from lpspec.linopy.operators import operator_at, operator_grouped_sum, operator_shift, operator_sum, operator_sum_back
-from lpspec.linopy.where import EvaluationContext, as_linopy_mask, bound_lookup, evaluate_where
+from lpspec.linopy.evaluation import EvaluationContext, as_linopy_mask, evaluate_expression, evaluate_where
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
 
 if TYPE_CHECKING:
@@ -149,8 +144,8 @@ def _build_constraints(ctx: EvaluationContext) -> None:
             check_divisors_cover(context, (row.lhs, row.rhs), ctx, mask)
             check_constant_side_covers(context, row, ctx, mask)
 
-            lhs = _eval(row.lhs, ctx)
-            rhs = _eval(row.rhs, ctx)
+            lhs = evaluate_expression(row.lhs, ctx)
+            rhs = evaluate_expression(row.rhs, ctx)
             if _term_free(lhs) and _term_free(rhs):
                 continue
 
@@ -212,7 +207,7 @@ def _build_objective(ctx: EvaluationContext) -> None:
     with note('while building the objective'):
         check_divisors_cover('the objective', (odef.expression,), ctx, None)
 
-        expr = _eval(odef.expression, ctx)
+        expr = evaluate_expression(odef.expression, ctx)
         _refuse_an_objective_constant(expr)
 
         ctx.model.add_objective(expr, overwrite=True, sense=_LINOPY_SENSE[odef.sense])
@@ -236,165 +231,3 @@ def _refuse_an_objective_constant(expr: Any) -> None:
     const = getattr(expr, 'const', None)
     if const is not None and bool(np.any(np.asarray(const) != 0)):
         raise LaneError(OBJECTIVE_CONSTANT_IS_A_LANE_GAP)
-
-
-# ---------------------------------------------------------------------------
-# Plan evaluation
-# ---------------------------------------------------------------------------
-
-
-def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
-    """One plan node as a linopy term, an array, or a number.
-
-    One node kind per branch: a variable is its linopy term, a parameter its
-    filled array, arithmetic the Python operator linopy overloads, and an
-    operator its function in ``operators.py``.
-    """
-    if isinstance(node, program.Constant):
-        return node.value
-
-    if isinstance(node, program.Variable):
-        variable, declared = ctx.model.variables[node.name], ctx.program.variable(node.name).absence
-        return absence.variable_value(variable, declared) if ctx.solved else absence.variable_term(variable, declared)
-
-    if isinstance(node, program.Dual):
-        assert ctx.solved, 'a dual reached a build — the language keeps one out of the math'
-        return _dual(node.constraint, ctx)
-
-    if isinstance(node, program.Parameter):
-        return absence.coefficient(ctx.dataset[node.name])
-
-    if isinstance(node, program.Negate):
-        return -_eval(node.operand, ctx)
-
-    if isinstance(node, program.Add):
-        return _eval(node.left, ctx) + _eval(node.right, ctx)
-
-    if isinstance(node, program.Multiply):
-        return _eval(node.left, ctx) * _eval(node.right, ctx)
-
-    if isinstance(node, program.Divide):
-        return _eval(node.numerator, ctx) / _eval(node.divisor, ctx)
-
-    if isinstance(node, program.Power):
-        return _eval(node.base, ctx) ** _eval(node.exponent, ctx)
-
-    if isinstance(node, program.Sum):
-        summed = _eval(node.operand, ctx)
-        for dimension in node.over:
-            summed = operator_sum(summed, dimension)
-        return summed
-
-    if isinstance(node, program.GroupSum):
-        return operator_grouped_sum(
-            _eval(node.operand, ctx),
-            _lookup_arrays(node.over, node.coordinate, ctx),
-            into=node.into,
-            labels=ctx.master_coords,
-        )
-
-    if isinstance(node, program.At):
-        return operator_at(_eval(node.operand, ctx), _lookup_arrays(node.over, node.coordinate, ctx), into=node.into)
-
-    if isinstance(node, program.Translate):
-        return operator_shift(
-            _eval(node.operand, ctx),
-            over=node.dimension,
-            offset=_amount(node.offset, ctx),
-            wrap=node.wrap,
-            fill=node.fill,
-            by=_partition(node, ctx),
-        )
-
-    if isinstance(node, program.Window):
-        return operator_sum_back(
-            _eval(node.operand, ctx),
-            over=node.dimension,
-            within=_amount(node.width, ctx),
-            wrap=node.wrap,
-            by=_partition(node, ctx),
-        )
-
-    if isinstance(node, program.Cases):
-        return _cases(node, ctx)
-
-    assert_never(node)
-
-
-def _dual(name: str, ctx: EvaluationContext) -> xr.DataArray:
-    """``dual(name)`` at the solve — linopy's own ``.dual`` on the constraint.
-
-    Refused on a model declaring integrality before linopy is asked: HiGHS
-    hands a MIP back with a dual of zero on every row, and linopy stores it,
-    so the number would be read rather than the absence the other lane
-    reports.
-
-    Raises:
-        LpspecError: A variable declares integrality, so the duals are
-            undefined; or the solver stored none.
-    """
-    discrete = sorted(n for n, v in ctx.program.variables.items() if v.domain != 'continuous')
-    if discrete:
-        raise LpspecError(
-            f'named expression reads dual({name}), and duals are undefined for a mixed-integer model: '
-            f'{", ".join(discrete)} declare integrality. Read it off a continuous model.'
-        )
-    try:
-        return ctx.model.constraints[name].dual
-    except AttributeError:
-        raise LpspecError(
-            f'named expression reads dual({name}), and this solve stored no duals — the solver returned none.'
-        ) from None
-
-
-def _in_region(value: Any, mask: xr.DataArray) -> Any:
-    """*value* where the region holds, and a hard zero everywhere else.
-
-    A **fill**, not a multiplication: inside the mask absence still stands, and
-    outside it the value is a hard zero. A bare number has no absence to
-    protect, so there the mask multiplies.
-    """
-    if hasattr(value, 'to_linexpr'):
-        value = value.to_linexpr()
-    if hasattr(value, 'where'):
-        return value.where(mask, 0)
-    return mask * value
-
-
-def _cases(node: program.Cases, ctx: EvaluationContext) -> Any:
-    """A value defined by region, as the regions added.
-
-    The regions are disjoint and total — the language proved that before any
-    data attached — so each one filled with zero outside itself and the lot
-    added gives every coordinate exactly one region's value.
-    """
-    filled = (_in_region(_eval(region.value, ctx), evaluate_where(region.when, ctx)) for region in node.regions)
-    return functools.reduce(operator.add, filled)
-
-
-def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
-    """An offset or a width: the number, or the integer parameter naming it.
-
-    Read through :func:`absence.coefficient` like any other parameter — a step
-    nobody supplied is a step of nothing, which is what a zero offset means.
-    """
-    return absence.coefficient(ctx.dataset[amount]) if isinstance(amount, str) else amount
-
-
-def _partition(node: program.Translate | program.Window, ctx: EvaluationContext) -> Any:
-    """The lookup a windowed operator may not reach across, as its values.
-
-    **Named for the dimension its values are labels of**, not for itself: an
-    amount declared over the group's own dim is read through this array by
-    :func:`~lpspec.linopy.operators._per_group`, which pairs the two by that
-    name.
-    """
-    if node.partition is None:
-        return None
-    array = bound_lookup(node.partition, node.dimension, ctx.dim_coords)
-    return array.rename(ctx.program.dimension(node.dimension).targets[node.partition])
-
-
-def _lookup_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The declared lookups *names* as arrays over *over*, in the order the plan wrote them."""
-    return tuple(bound_lookup(name, over, ctx.dim_coords) for name in names)

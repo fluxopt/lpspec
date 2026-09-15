@@ -19,12 +19,12 @@ from math_spec import program
 
 from lpspec.errors import DataError, sparse_divisor_message, uncovered_constant_message
 from lpspec.linopy import absence
-from lpspec.linopy.where import evaluate_where
+from lpspec.linopy.evaluation import evaluate_where
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from lpspec.linopy.where import EvaluationContext
+    from lpspec.linopy.evaluation import EvaluationContext
 
 
 def gaps_under(array: Any, mask: Any) -> int:
@@ -129,7 +129,7 @@ def check_divisors_cover(
     enough, so the requirement is their conjunction, narrowed at a ``cases:``
     region like the constant side is.
 
-    Reached before :func:`~lpspec.linopy.builder._eval`, the last moment the
+    Reached before :func:`~lpspec.linopy.evaluation.evaluate_expression`, the last moment the
     gap is visible: :func:`absence.coefficient` fills an uncovered slot with
     0.0 at the parameter leaf, and from there the division yields an infinity
     and the row is masked out silently.
