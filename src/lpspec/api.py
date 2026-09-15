@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import polars as pl
 from math_spec import advice
 
+from lpspec import expressions
 from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source, declared, lowered
 from lpspec.layout import beside, check_the_target, write_archive
@@ -58,7 +59,7 @@ from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from math_spec.program import Program
+    from math_spec.program import ExpressionNode, Program
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep
 
@@ -146,6 +147,21 @@ class Model:
         self._sources = dict(sources)
         self._engine = PolarsEngine()
         self._fill()
+
+    def _lower(self, written: str | Mapping[str, Any]) -> ExpressionNode:
+        """One unnamed expression as a plan node, for a result reading a quantity the file never named.
+
+        Held here rather than passed to the engine at build, because the model
+        *as written* is what lowering reads and the engine may not see it
+        (docs/about/architecture.md, hard rule 2).
+        """
+        return expressions.lower(self._spec, written)
+
+    def _lower_all(
+        self, carried: Mapping[str, Any], added: Mapping[str, Any]
+    ) -> tuple[dict[str, ExpressionNode], dict[str, Any]]:
+        """A whole ``expressions:`` block as plan nodes, held here for :meth:`_lower`'s reason."""
+        return expressions.lower_all(self._spec, carried, added)
 
     def _fill(self) -> None:
         """Build the frames from whatever is attached now.
@@ -243,7 +259,13 @@ class Model:
         """
         out = None if archive is None else _the_archive_target(Path(archive))
         answered = replace(
-            self._engine.solve(solver_name, solver_options=solver_options, keep=keep),
+            self._engine.solve(
+                solver_name,
+                solver_options=solver_options,
+                keep=keep,
+                lower=self._lower,
+                lower_all=self._lower_all,
+            ),
             _spec_digest=self._digest,
             _solved_at=datetime.now(UTC),
         )
@@ -578,6 +600,52 @@ def _answer_under(out: Path, read: Reading) -> Result:
         _saved_frames(out / 'activity', read),
         'nothing',
         expressions,
-        no_duals,
+        _no_duals=no_duals,
         **carried,
     )
+
+
+def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
+    """*answer* with :meth:`~lpspec.relational.result.Result.evaluate` and :meth:`~...Result.extend` wired, over *spec* and *sources* rebuilt.
+
+    Reading or adding a quantity the file never named lowers the model as
+    written, so the model is rebuilt (a build, never a solve) and the saved
+    primal and dual put back in order against it. The declared readers a save
+    wrote are untouched; only an expression outside them reaches the rebuilt
+    readers. *answer* is returned unchanged where the solve left no values.
+
+    The rebuild is deferred to the first :meth:`~...Result.evaluate` or
+    :meth:`~...Result.extend` call and cached.
+
+    Args:
+        answer: A saved solve, as :func:`load_result` or :func:`scan_result`
+            read it back.
+        spec: The model the answer solved, as :func:`build` takes it.
+        sources: What it was solved with, as :func:`build` takes them.
+    """
+    if not answer._primals:
+        return answer
+    frames = answer._primals
+    dual_frames = answer._duals
+    no_duals = answer._no_duals
+    built: list[tuple[Any, Any]] = []
+
+    def readers() -> tuple[Any, Any]:
+        if not built:
+            primals = {name: frame.collect() for name, frame in frames.items()}
+            duals = (
+                {name: frame.collect() for name, frame in dual_frames.items()}
+                if no_duals is None and dual_frames
+                else None
+            )
+            model = build(spec, sources)
+            built.append(model._engine.reconstruct(primals, duals, no_duals, model._lower, model._lower_all))
+        return built[0]
+
+    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
+        return readers()[0](written)
+
+    def extend(carried: Mapping[str, Any], added: Mapping[str, Any]) -> tuple[Any, Any]:
+        return readers()[1](carried, added)
+
+    return replace(answer, _evaluate=evaluate, _extend=extend)

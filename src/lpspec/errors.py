@@ -117,6 +117,35 @@ def null_bounds_message(name: str, rows: int) -> str:
     )
 
 
+def already_readable_message(clash: list[str]) -> str:
+    """An expression named after a quantity a result already reads."""
+    return (
+        f'{clash} are already readable here; extend adds, it does not replace. Rename them, or read '
+        f'what is there — expression() takes any name this result carries, declared or added by an '
+        f'earlier extend.'
+    )
+
+
+def carried_parameter_message(carried: list[str]) -> str:
+    """An expression to evaluate across a sweep that reads a carried parameter."""
+    return (
+        f'this expression reads {carried}, which the sweep carried from one slice into the next, and a '
+        f"carried value is a previous slice's answer rather than stored data — so it cannot be put back "
+        f'per slice from the archive. Re-run the sweep with lps.solve_over(spec, sources, axis, carry=...) '
+        f'and evaluate on what comes back, or read a quantity over the sweep that reads no carried parameter.'
+    )
+
+
+def no_model_behind_this_answer_message() -> str:
+    """An expression to read in an answer that has no model behind it."""
+    return (
+        'this answer has no model behind it, so a quantity the file never named cannot be read from '
+        'it: an answer read back off disk carries the values without the model to splice the '
+        'expression into. Re-ask with lps.solve(archive.spec, archive.sources), which reads any '
+        'expression; a name the model declares is readable either way.'
+    )
+
+
 def position_out_of_range_message(name: str, op: str, position: int, at: int, cardinality: int) -> str:
     """A ``position(dim)`` boundary naming no coordinate of the dimension."""
     return (

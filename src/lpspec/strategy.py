@@ -35,9 +35,20 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 
 import polars as pl
+from math_spec.program import parameters_of
 
+from lpspec import expressions
 from lpspec.api import build, check
-from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning, did_you_mean
+from lpspec.errors import (
+    DataError,
+    LayoutError,
+    LpspecError,
+    LpspecWarning,
+    already_readable_message,
+    carried_parameter_message,
+    did_you_mean,
+    no_model_behind_this_answer_message,
+)
 from lpspec.frames import as_frame
 from lpspec.lanes import declared
 from lpspec.layout import beside, check_the_target, write_archive
@@ -62,12 +73,12 @@ from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to
 from lpspec.sources import least_value
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
 
     import pandas as pd
     import xarray as xr
     from math_spec import Spec
-    from math_spec.program import Program
+    from math_spec.program import ExpressionNode, Program
 
     from lpspec.api import Model
     from lpspec.lanes import Buildable, Label, Source
@@ -737,6 +748,17 @@ class Runs:
     _hand_built: bool = field(repr=False, default=False)
     #: Where the frames are instead, for a sweep solved with ``spill_to=``.
     _spill: _Spill | None = field(repr=False, default=None)
+    #: :meth:`evaluate`'s implementation, wired by a sweep archive over the
+    #: spec, sources, axis and carry it carries. ``None`` on a Runs a live solve
+    #: returned, which retains no model to lower an expression against.
+    _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = field(repr=False, default=None)
+    #: :meth:`extend`'s implementation, wired beside :attr:`_evaluate`. Takes the
+    #: current sweep and a block, returns the sweep with the block's entries also
+    #: readable. ``None`` for the same reason.
+    _extend: Callable[[Runs, Mapping[str, Any]], Runs] | None = field(repr=False, default=None)
+    #: What an :meth:`extend` carried out of the last block, for a later one to
+    #: read this one's entries. Empty on a sweep no extend has been through.
+    _added: Mapping[str, Any] = field(repr=False, default_factory=dict)
 
     @classmethod
     def _folded(
@@ -915,6 +937,68 @@ class Runs:
             self._read(self._expressions, 'named expression', name, self._no_expressions.get(name)),
             original_index=original_index,
         )
+
+    def evaluate(self, expression: str | Mapping[str, Any], *, original_index: bool = False) -> pl.DataFrame:
+        """One expression the file never named, valued at every slice's solution — the slice key prepended.
+
+        :meth:`~lpspec.relational.result.Result.evaluate` across a sweep: a
+        quantity written the way ``expressions:`` writes one, evaluated at each
+        slice's own solution and stitched keyed by slice, no re-solve. Each
+        slice's model is rebuilt from the archive's spec and that slice's cut of
+        the sources, and the slice's saved primal put back against it.
+
+        Available on the sweep :func:`~lpspec.archive.load_archive` hands back,
+        which carries the spec, sources and axis; a Runs a live solve returned
+        retains no model and says so. It reads only what an archive can put back:
+        an expression over a parameter the sweep **carried** is refused, that
+        value being a previous slice's answer rather than stored data.
+
+        Args:
+            expression: What one ``expressions:`` entry takes — a string, or the
+                mapping carrying ``cases:`` with ``foreach:`` and ``otherwise:``.
+            original_index: Read over the dimension the axis sliced instead of
+                over the slice key, exactly as :meth:`primal` does — the same
+                reindex, the overlapping windows' recomputed rows dropped.
+
+        Raises:
+            LpspecError: A Runs with no model behind it — a live solve's — an
+                expression that reads a parameter the sweep carried, or
+                ``original_index`` on a hand-built axis or a quantity reduced
+                over the sliced dimension.
+            LanguageError: A construct outside the language, or a name the model
+                does not declare.
+        """
+        if self._evaluate is None:
+            raise LpspecError(no_model_behind_this_answer_message())
+        return self._reindexed(self._evaluate(expression), original_index=original_index)
+
+    def extend(self, added: Mapping[str, Any]) -> Runs:
+        """This sweep, with the expressions *added* declares also readable at every slice.
+
+        :meth:`~lpspec.relational.result.Result.extend` across a sweep: *added*
+        is a model fragment carrying ``expressions:`` and nothing else, each
+        entry evaluated at every slice's own solution and kept, so the added
+        names read through :meth:`expression`, ride every bridge, and are written
+        by :meth:`save` beside the declared ones. The sweep it extended is left
+        alone; a later block reads an earlier one's entries.
+
+        Available on the sweep :func:`~lpspec.archive.load_archive` hands back. A
+        Runs a live solve returned retains no model and says so; a spilled sweep
+        is refused, its frames being on disk where an added one cannot join them.
+        An expression over a parameter the sweep carried is refused, as it is for
+        :meth:`evaluate`.
+
+        Raises:
+            LpspecError: A Runs with no model behind it — a live solve's — a
+                spilled sweep, a name already readable, or an expression that
+                reads a parameter the sweep carried.
+            LanguageError: A construct outside the language, or a name the model
+                does not declare.
+            SchemaError: A fragment carrying any section but ``expressions:``.
+        """
+        if self._extend is None:
+            raise LpspecError(no_model_behind_this_answer_message())
+        return self._extend(self, added)
 
     def _reindexed(self, frame: _Frame, *, original_index: bool) -> _Frame:
         """*frame* over the dimension the axis sliced, rather than over its slices.
@@ -1324,7 +1408,7 @@ def solve_over(
     if spill is not None:
         write_reasons(spill.directory, folded._no_duals, folded._no_expressions)
     if archiving is not None:
-        _archive_the_sweep(*archiving, sources, folded, slices[0].sources)
+        _archive_the_sweep(*archiving, dict(carry or {}), sources, folded, slices[0].sources)
     return folded
 
 
@@ -1332,6 +1416,7 @@ def _archive_the_sweep(
     out: Path,
     spec: Spec,
     axis: EachCoordinate | EachWindow,
+    carry: Mapping[str, str],
     sources: Mapping[str, Source],
     folded: Runs,
     one_slice: Mapping[str, Source],
@@ -1348,12 +1433,141 @@ def _archive_the_sweep(
     on included.
     """
     manifest = axis_manifest(axis)
+    if carry:
+        manifest['carry'] = dict(carry)
     whole = carries(sources, axis.dim)
     if folded._spill is not None:
         write_archive(out, spec, sources, checked=one_slice, whole=whole, axis=manifest, answer=folded._spill.directory)
         return
     with beside(out) as scratch:
         write_archive(out, spec, sources, checked=one_slice, whole=whole, axis=manifest, answer=folded.save(scratch))
+
+
+def attach_sweep_readers(
+    runs: Runs,
+    spec: Spec,
+    sources: Mapping[str, Source],
+    axis: EachCoordinate | EachWindow,
+    carry: Mapping[str, str],
+) -> Runs:
+    """*runs* with :meth:`Runs.evaluate` and :meth:`Runs.extend` wired, over a sweep archive's own inputs.
+
+    A sweep archive carries the spec, the uncut sources, the axis that cut them
+    and the carry that chained them. The frames a save wrote supply each slice's
+    primal, so nothing is re-solved.
+    """
+    return replace(
+        runs,
+        _evaluate=_sweep_evaluator(runs, spec, sources, axis, carry),
+        _extend=_sweep_extender(spec, sources, axis, carry),
+    )
+
+
+def _per_slice(
+    runs: Runs, spec: Spec, sources: Mapping[str, Source], axis: EachCoordinate | EachWindow
+) -> Iterator[tuple[Label, Any, Any]]:
+    """``(key, evaluate, extend)`` for each slice that produced a solution, its model rebuilt once.
+
+    The one place a slice is put back together: its stored frames become a
+    :class:`~...compiler.Solution` against the model rebuilt from that slice's
+    cut of the sources, and the engine hands back the readers a live solve
+    would. A slice that reached no solution is skipped.
+    """
+    primal, dual = _slice_index(runs, 'primal'), _slice_index(runs, 'dual')
+    for key, slice_sources in axis.slices(sources):
+        slice_primals = {name: by_key[key] for name, by_key in primal.items() if key in by_key}
+        if not slice_primals:
+            continue
+        slice_duals = {name: by_key[key] for name, by_key in dual.items() if key in by_key} or None
+        model = build(spec, slice_sources)
+        evaluate, extend = model._engine.reconstruct(
+            slice_primals, slice_duals, runs._no_duals, model._lower, model._lower_all
+        )
+        assert evaluate is not None and extend is not None
+        yield key, evaluate, extend
+
+
+def _refuse_carried(carried: set[str], nodes: Iterable[ExpressionNode]) -> None:
+    """Refuse a block that reads a parameter the sweep carried — its value is not stored per slice."""
+    if touched := sorted({name for node in nodes for name in parameters_of(node)} & carried):
+        raise LpspecError(carried_parameter_message(touched))
+
+
+def _sweep_extender(
+    spec: Spec,
+    sources: Mapping[str, Source],
+    axis: EachCoordinate | EachWindow,
+    carry: Mapping[str, str],
+) -> Callable[[Runs, Mapping[str, Any]], Runs]:
+    """A block of expressions valued at every slice's solution and kept, one frame list per entry.
+
+    The entries join the sweep's ``_expressions`` so :meth:`Runs.expression`
+    reads them. A spilled sweep is refused, its frames being on disk where an
+    added one, held in memory, cannot join them.
+    """
+    carried = set(carry)
+
+    def extend(runs: Runs, added: Mapping[str, Any]) -> Runs:
+        if runs._spill is not None:
+            raise LpspecError(
+                f'this sweep is on disk (spilled to {str(runs._spill.directory)!r}), and extend keeps its '
+                f'result in memory, which cannot join those frames. Read it whole with lps.load_archive to '
+                f'extend it.'
+            )
+        nodes, merged = expressions.lower_all(spec, runs._added, added)
+        _refuse_carried(carried, nodes.values())
+        if clash := sorted(set(nodes) & set(runs._expressions)):
+            raise LpspecError(already_readable_message(clash))
+        key_dtype = runs.objective.schema[runs.key_name]
+        grown: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
+        for key, _, extend_one in _per_slice(runs, spec, sources, axis):
+            for name, reader in extend_one(runs._added, added)[0].items():
+                grown[name].append(_keyed(reader(), runs.key_name, key, key_dtype))
+        return replace(runs, _expressions={**runs._expressions, **grown}, _added=merged)
+
+    return extend
+
+
+def _sweep_evaluator(
+    runs: Runs,
+    spec: Spec,
+    sources: Mapping[str, Source],
+    axis: EachCoordinate | EachWindow,
+    carry: Mapping[str, str],
+) -> Callable[[str | Mapping[str, Any]], pl.DataFrame]:
+    """One expression at every slice's solution, stitched by key.
+
+    An expression that reads a carried parameter is refused: a carried value is
+    a previous slice's answer rather than stored data, so the archive cannot put
+    it back per slice.
+    """
+    carried = set(carry)
+    key_dtype = runs.objective.schema[runs.key_name]
+
+    def evaluate(expression: str | Mapping[str, Any]) -> pl.DataFrame:
+        _refuse_carried(carried, [expressions.lower(spec, expression)])
+        pieces = [
+            _keyed(evaluate_one(expression), runs.key_name, key, key_dtype)
+            for key, evaluate_one, _ in _per_slice(runs, spec, sources, axis)
+        ]
+        if not pieces:
+            raise LpspecError('no slice of this sweep produced a solution, so an expression has nothing to read at.')
+        return pl.concat(pieces)
+
+    return evaluate
+
+
+def _slice_index(runs: Runs, kind: str) -> dict[str, dict[Label, pl.DataFrame]]:
+    """``{name: {slice key: frame}}`` for *kind*, whether the sweep is held or spilled."""
+    if runs._spill is None:
+        held = runs._primals if kind == 'primal' else runs._duals
+        return {name: _by_key(frames, runs.key_name) for name, frames in held.items()}
+    index: dict[str, dict[Label, pl.DataFrame]] = {}
+    for name in runs._spill.held(kind):
+        frame = runs._spill.scan(kind, name)
+        if frame is not None:
+            index[name] = _by_key(frame.collect().partition_by(runs.key_name), runs.key_name)
+    return index
 
 
 def _check_the_carry(
