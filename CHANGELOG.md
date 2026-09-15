@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.330](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.329...v0.0.1-alpha.330) (2026-09-15)
+
+
+### Documentation
+
+* the language closes its own gaps instead of offering an escape hatch ([#1631](https://github.com/fluxopt/lpspec/issues/1631)) ([72928bd](https://github.com/fluxopt/lpspec/commit/72928bd8f8367320b6e3ca9367ea5e9ea76bb899))
+
 ## [0.0.1-alpha.329](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.328...v0.0.1-alpha.329) (2026-09-14)
 
 
