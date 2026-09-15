@@ -72,12 +72,8 @@ to_spec(spec).to_yaml()  # the review copy — a dict-built spec still gets a fi
 ```
 
 **Keep the `Spec`, not the `Program`.** `lps.check` hands back a lowered
-`Program` for reading the plan, and no verb takes one: lowering has no
-inverse, so an answer built from one could not name the document it came from
-and nothing built from one could be archived. Keeping the `Spec` is also the
-faster half — reading a file costs about ten times what lowering it does, and
-a `Spec` handed back to a verb is not read again
-([#1579](https://github.com/fluxopt/lpspec/pull/1579)).
+`Program` for reading the plan, and no verb takes one. A `Spec` handed back
+to a verb is not read again.
 
 **A framework emits data, not YAML text, and never merges files.** A generated
 spec must be able to show you a file. Hand-written math still starts as one.
@@ -114,13 +110,9 @@ its rows off.
 ### Names that differ only by case
 
 **Two declarations of one namespace whose names differ only by case are
-refused**, whichever verb lowers the spec. The language takes them and the
-mathematics wants them: `p` beside `P` is power beside rated power. An answer
-on disk cannot hold both. Every declaration is written as a file named after
-it, and a case-insensitive filesystem folds the two into one. A stock macOS
-volume is one, and so is a stock Windows one. The second overwrites the first
-and keeps its name, so the surviving name reads back carrying the other's
-values.
+refused**, whichever verb lowers the spec. Every declaration is written to
+disk as a file named after it, and a case-insensitive filesystem, which a
+stock macOS or Windows volume is, folds `p` and `P` into one file.
 
 ```
 variable 'P' and variable 'p' differ only by case, and one answer on disk
@@ -133,10 +125,6 @@ lookups, parameters, variables and named expressions, and constraints beside
 it. A constraint may carry a variable's name already, so a constraint `P`
 beside a variable `p` is accepted. The two are written under `dual/` and
 `primal/`, which nothing folds together.
-
-Refused at every door and not only where the archive is written, so a solve
-worth archiving is not found to be unarchivable after it has run. Both lanes lower through the
-same function, so neither accepts a file the other refuses.
 
 ### Checking against a sink
 
@@ -276,7 +264,7 @@ coefficients are the transpose of `row`, which nothing exposes.
 
 ```python
 result.status, result.termination_condition, result.objective
-result.spec_digest  # a digest of the spec this answered — None off a lowered Program
+result.spec_digest  # a digest of the spec this answered
 result.is_ok  # rolled-up verdict: not an error, abort or refusal
 result.has_primal  # narrower: are there values to read
 result.kept  # how much of the session this solve kept: 'nothing', 'solver' or 'progress'
@@ -424,87 +412,45 @@ lps.solve(case.spec, case.sources)  # the same question, asked again
 **An archive is the spec, its data and its answer**: `model.yaml`,
 `sources/<key>.parquet` for every key the file declares, `sources.parquet`
 digesting those members, `answer/` holding what `result.save` or `runs.save`
-writes, and `axis.json` for a sweep. Beside the answer is
-`answer/metrics.parquet`, one row saying what the build and its solves
-spent, which the verb writes rather than `save`.
+writes plus `answer/metrics.parquet`, and `axis.json` for a sweep.
 
-**The suffix decides the container**, as `lps.write`'s does. `.zip` packs those
-members into one file, to send or to store; anything else lays them out in a
-directory. The two hold the same thing, and only reading them differs:
+**The suffix decides the container**, as `lps.write`'s does. `.zip` packs the
+members into one file; anything else lays them out in a directory, which is
+read where it lies:
 
 ```python
 lps.solve('spec.yaml', sources, archive='case/')  # a directory
 lps.load_archive('case/')  # read where it lies — no into=
 ```
 
-**A directory archive needs no `into`, and passing one is refused by name.** It
-is read where it lies. A zip is unpacked first: `load_archive` reads it whole
-and unpacks to a scratch directory when you name none, and `scan_archive` reads
-it as you ask for it and requires an `into=` that will still be there.
+**`lps.solve`, `model.solve` and `lps.solve_over` take `archive=`, and nothing
+else writes one.** Each writes the spec, the data and the answer it holds at
+that moment, so the three cannot be paired up wrongly.
 
-**Every verb that solves takes `archive=`, and nothing else writes one.**
-`lps.solve`, `model.solve` and `lps.solve_over` each hold the spec, the data
-and the answer at the moment they are asked for, so the three are written
-together and cannot be paired up wrongly. There is no way to assemble them
-afterwards: an answer records the spec it came back from and not the data it
-was solved over, so nothing in a hand-assembled archive could show that its
-answer is the one those sources produce. The digests say which data an archive
-*holds*, which is a different claim.
+**The sources go in through the door that reads them**, so what `build`
+refuses is refused here and nothing is written. A parquet path is copied as
+its own bytes; a table, a bare label range, a `{label: value}` map or a single
+number is written as the tidy parquet table it stands for. Members are stored
+uncompressed.
 
-**A sweep's archive carries its axis**, as `axis.json`, because its sources
-are cut: they hold the column the axis slices on, which the model does not
-declare. `spill_to=` and `archive=` are different destinations and compose —
-the spill is what the archive packs.
-
-The recipes are [archiving a solve](../howto/archiving.md): keeping the answer
-an update produced, and archiving a sweep too large to hold. Reading many of
-them at once — comparing cases solved apart, finding the input that moved, and
-querying the tree from a database — is
+The recipes are [archiving a solve](../howto/archiving.md) and
 [reading a directory of runs](../howto/warehouse.md).
-
-The sources go in through the same door that reads them, so what is refused
-there is refused here and nothing is written: `build`'s for one solve, and for
-a sweep the door `solve_over` uses, which is one slice of them. A parquet path is copied as its
-own bytes; a table, a bare label range, a `{label: value}` map or a single
-number is written as the tidy parquet table it stands for. Parquet keeps the
-dtypes [the contract](data.md) checks. Members are stored uncompressed.
-
-**`load_archive` reads it whole and `scan_archive` reads it as it is asked
-for**, which shows in the two places an archive holds data: a `sources` entry
-is the table the member holds or the path to it — `Path` being a source like
-any other, so attaching streams it from disk — and the answer's frames are in
-memory or still on disk. Anything outside the layout is refused, and a zip is
-refused before it is unpacked.
-
-**An archive is a parquet tree.** Every frame is tidy: the model's own
-dimension columns, and a `value` column. An answer therefore joins to the
-sources it was solved from, on the coordinates both carry.
-
-```sql
--- generation priced by the load it met, answer joined to source
-select p.scenario, p.snapshot, p.generator, p.value, load.value as load
-from 'sweep/answer/primal/p/*.parquet' p
-join 'sweep/sources/load.parquet' load using (scenario, snapshot);
-```
-
-A sweep keys every file it writes with one column of one type. The files under
-a kind are one table, and the kinds join to each other on that key. What a file
-holds is named by its path, not by a column. Read a kind with a glob, and add
-the engine's own filename column where the declaration has to travel with the
-rows.
 
 | Rule | |
 |---|---|
-| **the spec is held as written** | `model.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in. A lowered `Program` is refused: it has no file to write |
-| **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving and counting from `1` the day it settles. Nothing reads an older layout back, so the stamp turns a missing column into a sentence: solve the model again and save it. An archive still holds the spec and the data to do that with |
-| **`spec_digest` says whether a comparison compares like with like** | a digest of the spec every answer carries, written into the record and checked when an archive is read back. Concatenate the records of cases solved apart and one distinct `spec_digest` is the claim that they answered the same document; an archive whose answer names another model is refused rather than read. A solve run off a lowered `Program` has no document and carries `None`, which counts as its own value — so one null among real digests breaks the comparison, and a table where *every* digest is null counts one distinct value while having checked nothing. Ask for the digests to be present as well as to agree: `n_unique() == 1 and null_count() == 0` |
-| **the sources are digested, one row each** | `archive.source_digests` is `(run, source, digest)` for every member of `sources/`, held as `sources.parquet` beside that directory — inside it, a table about the sources would be read as one of them. It answers what `spec_digest` cannot: two archives of one document over different numbers agree on the spec digest and differ here, and the rows that differ name the input that moved. The digest is of the bytes the archive holds, so a reader can recompute it from the archive alone; two archives of the same data written by different polars versions can still differ, parquet being what is hashed rather than the table's meaning. Reading an archive does not verify them — that is a pass over every byte it holds, and it is the caller's to ask for. `run` is the archive's own name, stamped as it is on the record and the metrics beside it, so a warehouse of them reads as one table without any reader parsing paths |
-| **the metrics are written by the solve, not by `save`** | `archive.metrics` is a `Metrics` — `model.diagnostics()`'s sizes, counters and clocks as one value ([the attributes](#diagnostics)) — and `answer/metrics.parquet` is where it sits. A `Result` is one solve and those counters are the model's whole life, so a result has no share of them to carry and `result.save` writes none; the verb that archives holds the model and can. `solves` says how many solves the clocks cover — `1` for `lps.solve`, which builds the model it solves. A phase that never ran reads zero, so cases that entered different phases write one table. A sweep's is `archive.answer.metrics` instead, a `SliceMetrics` per slice in its own columns, a fold knowing each slice's share. The archive stamps `run` onto the row as it does onto the record, so a warehouse attributes what a run cost as readily as what it answered |
-| **the two are separate types because the axis is not optional** | a sweep's sources carry the column the axis cuts on, which the model does not declare, so they are legible only beside it. A `SweepArchive` has it and a `SolveArchive` has no such field, so nothing downstream meets `Result \| Runs`. `load_archive` returns whichever the archive holds |
-| **a sliced source is archived whole** | one copy carrying every slice's rows, not one copy per slice. What the check sees is one slice of them, which is what the model is built from |
-| **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice, which are unrelated questions. Archive one solve each. Refused before the first slice is taken, as a lowered `Program` is |
-| **the model's own fitness for slicing stays `solve_over`'s** | whether a window can carry this model's coupling and reach is asked when the sweep is run, not when it is archived |
-| **a sweep's answer is held or spilled, as the reader says** | `load_archive` reads every slice's frames in, so it is the value a sweep solved without spilling is and `runs.primal(name)` answers. `scan_archive` leaves them in the extracted directory for `runs.scan(name)`, which is what `solve_over(spill_to=)` already produces. `original_index` works on both: the dimension a window sliced and the coordinates each owns are in the manifest |
+| **the spec is held as written** | `model.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in |
+| **anything outside the layout is refused** | a member the layout does not name, or no `model.yaml`. A zip is refused before it is unpacked |
+| **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving. Nothing reads an older layout back: the stamp turns a missing column into a sentence naming the way out, which is to solve the model again and save it |
+| **`spec_digest` says whether a comparison compares like with like** | a digest of the spec, written into every answer's record and checked when an archive is read back: an archive whose answer names another model is refused. Across the records of cases solved apart, one distinct non-null `spec_digest` is the claim that every row answered the same document |
+| **the sources are digested, one row each** | `archive.source_digests` is `(run, source, digest)` for every member of `sources/`, held as `sources.parquet`. Two archives of one document over different numbers agree on `spec_digest` and differ here, and the rows that differ name the input that moved. The digest is of the parquet bytes the archive holds, so two polars versions can write one table to different digests. Reading an archive does not verify them |
+| **the metrics are the solve's, not `save`'s** | `archive.metrics` is a `Metrics` ([the attributes](#diagnostics)), held as `answer/metrics.parquet`. `result.save` writes none: the counters cover the model's whole life, and `solves` says how many solves that is. A sweep's are `archive.answer.metrics`, a `SliceMetrics` per slice |
+| **every row is stamped with `run`** | the archive's own name, on the record, the metrics and the digest table, so a directory of archives reads as one table without parsing paths |
+| **a sweep's archive carries its axis** | as `axis.json`, with the `carry` that chained its slices. `load_archive` returns a `SweepArchive` where the archive carries one and a `SolveArchive` where it does not; `sweep.answer` is a `Runs` and `case.answer` a `Result` |
+| **a sliced source is archived whole** | one copy carrying every slice's rows, the column the axis cuts on included |
+| **`spill_to=` and `archive=` compose** | the spill is what the archive packs, so a sweep too large to hold is archived without being held |
+| **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice. Archive one solve each. Refused before the first slice is solved |
+| **whether a model can be sliced stays `solve_over`'s question** | asked when the sweep is run, not when it is archived |
+| **a sweep's answer is held or spilled, as the reader says** | `load_archive` reads every slice's frames in, so `runs.primal(name)` answers; `scan_archive` leaves them in the extracted directory for `runs.scan(name)`. `original_index` works on both |
 
 ## Loading or scanning
 

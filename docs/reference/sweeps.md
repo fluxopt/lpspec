@@ -173,7 +173,7 @@ runs.scan('balance', 'dual', original_index=True).collect()  # the same readers,
 | Rule | |
 |---|---|
 | **`scan` is the reader** | `runs.scan(name, kind='primal')` returns `primal`, `dual` or `expression` as a `LazyFrame` over the files, `original_index=` included. On a held sweep it is the same reader made lazy. The frame readers and the exports refuse a spilled sweep and name `scan`. |
-| **one file per slice and name** | `<kind>/<name>/<position>.parquet`, with the slice key a column of each, one type across every file a sweep writes. `objective/` and `metrics/` hold the record, one row per slice; `runs.objective` and `runs.metrics` stay in memory. An **archive** consolidates those two into `objective.parquet` and `metrics.parquet`, because the per-slice shape is there to mark a slice done and an archive has no resume to serve. |
+| **one file per slice and name** | `<kind>/<name>/<position>.parquet`, with the slice key a column of each, one type across every file a sweep writes. `objective/` and `metrics/` hold the record, one row per slice; `runs.objective` and `runs.metrics` stay in memory. An **archive** holds those two as one file each, `objective.parquet` and `metrics.parquet`. |
 | **every file lands whole** | A file is written beside its final name and renamed into place. The objective file is written last and marks a slice done, so a slice interrupted part way is solved again rather than read back short. |
 | **an interrupted sweep resumes** | Run the same call at the same directory. A slice already there is read back, and under a `carry` its state is read off its file. Only the unfinished slices are built. |
 | **a directory holds one sweep** | `sweep.json` records the key name and the keys, and a different sweep pointed at the directory is refused. Changed data or a changed model is not detected, so delete the directory to solve again. |
@@ -195,8 +195,7 @@ runs = lps.solve_over(
 
 **You name no coordinate.** The two declarations say which dimension is
 collapsed. The row handed on is the last one the slice owns: label 23 of a window
-keeping 24, not label 47 of the 48 it solved. That is the only row meeting the
-next slice at the seam, so there was never anything to choose.
+keeping 24, not label 47 of the 48 it solved.
 
 | Rule | |
 |---|---|
