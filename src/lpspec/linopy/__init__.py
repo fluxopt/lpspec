@@ -49,9 +49,9 @@ except ModuleNotFoundError as exc:
 from lpspec import expressions
 from lpspec.lanes import declared, lowered
 from lpspec.linopy._notes import note
-from lpspec.linopy.builder import _eval, build_model
+from lpspec.linopy.builder import build_model
+from lpspec.linopy.evaluation import EvaluationContext, evaluate_expression
 from lpspec.linopy.loader import dimension_coords, load_parameters
-from lpspec.linopy.where import EvaluationContext
 from lpspec.sources import tidy_sources
 
 if TYPE_CHECKING:
@@ -135,7 +135,7 @@ def evaluate(
         master_coords, dim_coords = dimension_coords(program, tidy)
         dataset = load_parameters(program, tidy, master_coords)
         context = EvaluationContext(dataset, master_coords, built, dim_coords, program, solved=True)
-        value = _eval(node, context)
+        value = evaluate_expression(node, context)
         if isinstance(value, xarray.DataArray):
             return value
         return xarray.DataArray(float(value))

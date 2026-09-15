@@ -6,8 +6,8 @@ product does not carry. The joins happen *during* the walk: the condition is
 built first and the frame read after.
 
 A closed vocabulary of its own — comparisons against a parameter, a dimension
-label, a position along a dimension, a relation, and the three connectives. It
-takes the
+label, a position along a dimension, a relation, a comparison of two
+variable-free expressions, and the three connectives. It takes the
 :class:`~lpspec.relational.engines.polars.compiler.PolarsCompiler` as an
 argument and holds nothing.
 
@@ -18,6 +18,7 @@ they go.
 
 from __future__ import annotations
 
+import itertools
 from typing import TYPE_CHECKING, assert_never
 
 import polars as pl
@@ -98,6 +99,7 @@ def compile_predicate(
     """
     certain = _certain_names(mask)
     carrier = Carrier(frame)
+    sides = itertools.count()
 
     def join_param(param: str) -> str:
         how: JoinStrategy = 'inner' if param in certain else 'left'
@@ -156,7 +158,30 @@ def compile_predicate(
             ),
         )
 
+    def join_side(expression: program.ExpressionNode) -> str:
+        """One side of a comparison of expressions, its value per coordinate joined on.
+
+        The side is compiled as any constant position is and its pieces added
+        per coordinate (:meth:`PolarsCompiler.added`), *null* where no piece
+        has a value: a side with no value compares false, as a null does in
+        every other comparison, and under a piece that adds an absent term is
+        one fewer. Each side is its own column, so the alias counts.
+        """
+        compiled = compiler.expression(expression, 'a where comparing expressions')
+        assert not (compiled.terms or compiled.quads), 'a where compares variable-free expressions'
+        on = compiler.spanned(compiled.consts)
+        assert set(on) <= set(dims), f'where-comparison over {list(on)} is outside the frame dims {list(dims)}'
+
+        def attach(f: pl.LazyFrame, alias: str) -> pl.LazyFrame:
+            values = compiler.added(compiled.consts, compiler.frame(on, None), fill=False)
+            values = values.select(*on, pl.col('cval').alias(alias))
+            return f.join(values, on=list(on), how='left') if on else f.join(values, how='cross')
+
+        return carrier.once(f'__where side {next(sides)}__', attach)
+
     def walk(p: program.WhereNode) -> pl.Expr:
+        if isinstance(p, program.ExpressionComparisonNode):
+            return _COLUMN_COMPARISONS[p.op](pl.col(join_side(p.left)), pl.col(join_side(p.right)))
         if isinstance(p, program.ParameterComparisonNode):
             return _compare(pl.col(join_param(p.name)), p.op, p.value)
         if isinstance(p, program.DimensionComparisonNode):
@@ -201,6 +226,7 @@ def compile_predicate(
             return walk(p.left) | walk(p.right)
         if isinstance(p, program.NotNode):
             return ~falsy_if_null(walk(p.operand))
+        assert not isinstance(p, program.ArithmeticComparisonNode), 'lowering rebuilds every mask a program carries'
         assert_never(p)
 
     condition = walk(mask.root)

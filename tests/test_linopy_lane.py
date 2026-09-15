@@ -25,7 +25,7 @@ from lpspec.errors import DataError, LaneError, LanguageError, LpspecError
 from lpspec.sources import tidy_sources
 from tests.conftest import EXAMPLES_DIR, schema_of
 from tests.differential import differential
-from tests.oracle import builder, linopy, loader, lpspec_linopy, pd, where, xr
+from tests.oracle import builder, evaluation, linopy, loader, lpspec_linopy, pd, xr
 from tests.piecewise_models import curve_frame
 
 if TYPE_CHECKING:
@@ -251,7 +251,7 @@ class TestLoadParameters:
 
 
 # ---------------------------------------------------------------------------
-# where.evaluate_where: the eager reading of a lowered predicate
+# evaluation.evaluate_where: the eager reading of a lowered predicate
 # ---------------------------------------------------------------------------
 
 
@@ -282,30 +282,30 @@ def _lowered(text, parameters=('p_max',), dimensions=('g',)):
 
 
 def _context(program, dataset, master_coords):
-    return where.EvaluationContext(dataset, master_coords, linopy.Model(), {}, program)
+    return evaluation.EvaluationContext(dataset, master_coords, linopy.Model(), {}, program)
 
 
 def test_no_where_is_a_scalar_true(gens):
     program, _ = _lowered('p_max')
-    mask = where.evaluate_where(None, _context(program, *gens))
+    mask = evaluation.evaluate_where(None, _context(program, *gens))
     assert mask.ndim == 0
     assert bool(mask) is True
 
 
 def test_a_bare_parameter_name_is_an_existence_check(gens):
     program, node = _lowered('p_max')
-    assert where.evaluate_where(node, _context(program, *gens)).all()
+    assert evaluation.evaluate_where(node, _context(program, *gens)).all()
 
 
 def test_a_comparison_masks_per_coordinate(gens):
     program, node = _lowered('p_max > 0')
-    mask = where.evaluate_where(node, _context(program, *gens))
+    mask = evaluation.evaluate_where(node, _context(program, *gens))
     assert [bool(mask.sel(g=g)) for g in ('wind', 'solar', 'gas')] == [True, False, True]
 
 
 def test_a_dimension_comparison_masks_on_the_coordinate_itself():
     program, node = _lowered('t > 0', parameters=(), dimensions=('t',))
-    mask = where.evaluate_where(node, _context(program, xr.Dataset(), {'t': pd.Index([0, 1, 2], name='t')}))
+    mask = evaluation.evaluate_where(node, _context(program, xr.Dataset(), {'t': pd.Index([0, 1, 2], name='t')}))
     assert [bool(mask.sel(t=t)) for t in (0, 1, 2)] == [False, True, True]
 
 

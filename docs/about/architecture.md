@@ -93,7 +93,7 @@ flowchart TB
 
     subgraph LIN["linopy/ — the peer lane"]
         direction TB
-        LOAD["loader.py<br/>the tidy tables → xr.Dataset"] --> BUILD["builder.py<br/>evaluate the plan"]
+        LOAD["loader.py<br/>the tidy tables → xr.Dataset"] --> BUILD["evaluation.py + builder.py<br/>evaluate the plan into the model"]
     end
 
     BUILD --> MODEL["<b>a linopy.Model</b> — the lane stops here<br/>yours to solve, and to read back, with linopy"]
@@ -567,9 +567,9 @@ is structure.
 | `linopy/loader.py` | the crossing into pandas and xarray: `tidy_sources`' tables as master coords and an `xr.Dataset` |
 | `linopy/coverage.py` | the two positions an absent row has no reading for: a divisor and a constant side |
 | `linopy/absence.py` | the four positions an absent value is spelled differently in; absence is positional in this lane |
-| `linopy/builder.py` | eager backend: core AST → `linopy.Model` |
+| `linopy/builder.py` | eager backend: each declaration of the plan as the `linopy.Model` call it becomes |
 | `linopy/operators.py` | the eager evaluation of every built-in, on xarray and linopy |
-| `linopy/where.py` | a resolved `where:` as a boolean array, in the shape linopy's `mask=` takes |
+| `linopy/evaluation.py` | the plan evaluated: an expression as its linopy term or array, and a resolved `where:` as a boolean array in the shape linopy's `mask=` takes — one module, because a cased expression holds masks and a mask may compare expressions |
 | `linopy/_notes.py` | attach context to an exception on the way out; no package imports, no opinions |
 
 **Two subpackages, and the directory *is* the rule in both cases.** Everything
