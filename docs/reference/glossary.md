@@ -52,16 +52,15 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
   only what changed. A change that moves a mask rebuilds and solves cold.
 
 **load** · **scan**
-: The two ways a saved answer is read back, differing in when the bytes move.
-  `load_result`, `load_runs` and `load_archive` read **whole**: the frames are
-  in memory when the call returns, and the directory is free afterwards.
+: The two ways a saved answer is read back. `load_result`, `load_runs` and
+  `load_archive` read **whole**, so the directory is free afterwards.
   `scan_result`, `scan_runs` and `scan_archive` read each frame at the call
-  that asks for it, and the files have to outlive what was read off them
-  ([loading or scanning](api.md#loading-or-scanning)). Each pair takes the same
-  arguments and hands back the same type. Never "open".
+  that asks for it, so the files have to outlive the value
+  ([loading or scanning](api.md#loading-or-scanning)). Never "open".
 
 **Buildable**
-: The type alias for a spec argument: `str | Path | dict | Spec | Program`.
+: The type alias for a spec argument: `str | Path | dict | Spec`. The lowered
+  `Program` that `check` returns is not one.
 
 **Source**
 : The type alias for one value of `sources`. The shapes it covers are
