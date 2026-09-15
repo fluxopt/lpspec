@@ -257,7 +257,7 @@ coordinates on one dimension. Each page says what it shows.
 
 Each row feeds [the roadmap](../about/roadmap.md) with the verdict
 [AGENTS.md](https://github.com/fluxopt/lpspec/blob/main/AGENTS.md) asks for:
-macro, primitive, or escape.
+macro, primitive, formulation, or refused.
 
 | Port | What could not be said | Worked around by | Verdict |
 |---|---|---|---|
