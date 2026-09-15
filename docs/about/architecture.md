@@ -485,9 +485,8 @@ ceiling](https://math-spec.readthedocs.io/en/latest/about/limits/#solver-capabil
 So a solver **declares** how it satisfies one, `native` or `reformulated`, and
 the *family* acts on the answer (`solvers.ingestible`). A sink that cannot take
 a set is handed the same feasible region as binaries and linking rows
-(`sinks/sos.py`, whose README carries the per-sink table). That is the first two
-entries of what [Track 3](https://github.com/fluxopt/lpspec/issues/472) asked
-for. What the rewrite adds goes **after** the model, the label contract spent
+(`sinks/sos.py`, whose README carries the per-sink table).
+What the rewrite adds goes **after** the model, the label contract spent
 rather than bent. An appended column moves none of the model's own, and an
 appended row renumbers none of its rows. A solve reads its answer back by the
 same slice either way.

@@ -2,11 +2,8 @@
 
 This page says why lpspec exists, where it is going and what it will not
 become, for anyone about to propose a feature. **No work items live here.** The
-work is issues, grouped under three parents:
-
-- [Track 1 — primitives](https://github.com/fluxopt/lpspec/issues/470)
-- [Track 2 — the operational surface](https://github.com/fluxopt/lpspec/issues/471)
-- [Track 3 — capabilities, and the degree line](https://github.com/fluxopt/lpspec/issues/472)
+work is [the issues](https://github.com/fluxopt/lpspec/issues), grouped by
+milestone and by sub-issue parentage.
 
 A hand-maintained index beside an issue tracker is a second copy that drifts.
 The issues are the list, and this page is the argument for what the list is
