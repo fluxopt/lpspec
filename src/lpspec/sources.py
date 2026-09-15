@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from lpspec.assumptions import validate_assumptions
 from lpspec.curves import derive_curve_sources, validate_curve_extent, validate_piecewise_data
 from lpspec.errors import DataError, did_you_mean
 from lpspec.frames import as_frame, is_dense_array, is_multi_indexed
@@ -67,7 +68,8 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
             dimension, relation or parameter with no data; a source no reader
             accepts or short of the columns its declaration needs; a parameter
             with two rows for one coordinate, a label its dimension lacks, a
-            null or NaN value, or a column of another type than it declares.
+            null or NaN value, or a column of another type than it declares;
+            an ``assumptions:`` entry the data fails.
     """
     known = attachable(program)
     if unknown := set(data) - set(known):
@@ -99,6 +101,7 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
     for dname in program.dimensions:
         if dname not in sources:
             raise DataError(no_index_source_message(dname))
+    validate_assumptions(program, sources)
     return sources
 
 

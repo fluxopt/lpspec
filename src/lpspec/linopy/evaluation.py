@@ -149,6 +149,11 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
     if isinstance(node, program.RelationDefinedNode):
         return bound_relation(node.name, node.dims[0], ctx.dim_coords).notnull()
 
+    if isinstance(node, program.ParameterPairComparisonNode):
+        left, right = dataset[node.name], dataset[node.other]
+        compared = _PREDICATE_OPS[node.op](left, right) & left.notnull() & right.notnull()
+        return compared.fillna(value=False).astype(bool)
+
     if isinstance(node, program.ExpressionComparisonNode):
         (left, left_defined), (right, right_defined) = constant_side(node.left, ctx), constant_side(node.right, ctx)
         compared = _PREDICATE_OPS[node.op](left, right) & left_defined & right_defined

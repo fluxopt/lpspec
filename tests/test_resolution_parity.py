@@ -25,7 +25,6 @@ from tests.oracle import lpspec_linopy, pd  # skips the module without the [lino
     ('where', 'match'),
     [
         pytest.param('typo_name > 0', "'typo_name' not found", id='a-name-nothing-declares'),
-        pytest.param('p_max > cost', 'compares two parameters', id='two-parameters-compared'),
         pytest.param('generator == snapshot', 'compares against dimension', id='a-dimension-on-the-right'),
         pytest.param('nonexistent', "'nonexistent' not found", id='a-bare-name-nothing-declares'),
         pytest.param('snapshot', 'bare dimension name is true at every coordinate', id='a-bare-dimension-name'),
@@ -86,6 +85,10 @@ ACCEPTED = [
     '2 * cost + 50 <= p_max',
     'sum(p_max, over=generator) > load',
     'load - shift(load, along=snapshot, offset=1, edge=0) >= 0',
+    #: Two parameters, coordinate by coordinate; the second pair is read over the
+    #: product of their dims, the narrower at every coordinate of the wider.
+    'p_max >= cost',
+    'p_max > load',
 ]
 
 #: Predicates this sweep cannot host, with where they are checked instead. The

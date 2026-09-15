@@ -100,6 +100,20 @@ p_{t,g} = \sum_{k \in \mathcal{K}} \lambda_{t,g,k} \cdot x_{g,k} \qquad \forall\
 0 \le \lambda_{t,g,k} \le 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G},\ k \in \mathcal{K}
 ```
 
+#### Assumptions
+
+**`cost_curve increasing`**
+
+```math
+x_{g,k - 1} < x_{g,k} \qquad \forall\, g \in \mathcal{G},\ k \in \mathcal{K}
+```
+
+**`cost_curve curvature`**
+
+```math
+y_{g,k} \text{ is a convex or concave function of } x_{g,k} \text{ along } k \qquad \forall\, g \in \mathcal{G}
+```
+
 </details>
 <!-- math:end -->
 
