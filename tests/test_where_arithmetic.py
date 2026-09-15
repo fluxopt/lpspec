@@ -48,6 +48,11 @@ def inputs():
         pytest.param('extra * 2 != 1', [(t, GAS) for t in range(4)], id='an-absent-side-is-false-even-under-not-equal'),
         pytest.param('load / extra > 50', [(t, GAS) for t in range(4)], id='an-absent-divisor-compares-false'),
         pytest.param('p_max ** 2 > 20000', [(t, GAS) for t in range(4)], id='a-power'),
+        pytest.param(
+            'extra != cost',
+            [(t, GAS) for t in range(4)],
+            id='a-parameter-pair-with-a-missing-row-is-false-even-under-not-equal',
+        ),
         pytest.param('sum(extra, over=generator) > 0', EVERYWHERE, id='an-absent-term-under-a-sum-is-one-fewer'),
         pytest.param(
             'sum(p_max, over=generator) - 250 > load', [], id='a-reduction-beside-a-parameter-over-another-dim'
