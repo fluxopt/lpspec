@@ -4,16 +4,16 @@ A shipment is the input shifted along time: withdrawn at one snapshot, delivered
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **4311.111111111111**, matched to `rtol=1e-09`.
 
-Every `shift` in the corpus so far relates a variable to *itself* — a ramp
-limit, a state of charge. Here it relates two buses' balances: what `port_a`
-gives up in snapshot 0 is what `port_b` receives in snapshot 2, times the link's
+Every other `shift` in the corpus relates a variable to *itself*: a ramp limit,
+a state of charge. Here it relates two buses' balances. What `port_a` gives up
+in snapshot 0 is what `port_b` receives in snapshot 2, times the link's
 efficiency.
 
 Two links serve the same demand, and the delay is a column, not a constant:
 `ship` takes two snapshots and loses 10%, `wire` arrives at once and loses
-nothing. So the first two snapshots at `port_b` have nothing shipped to them yet
-and are served by the expensive unit standing beside the load — which is what
-makes the delay cost something.
+nothing. The first two snapshots at `port_b` have nothing shipped to them yet,
+so the expensive unit beside the load serves them. That is what makes the delay
+cost something.
 
 ## The model
 
@@ -237,11 +237,10 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 **`cyclic_delay=False` is `edge=0`, one for one.** PyPSA's own attribute table
 says of the non-cyclic case that *energy is lost at the tail and first snapshots
-receive nothing from delayed links*. That is exactly what `edge=0` states: the
-vacated positions contribute zero. The cyclic case is `edge='wrap'`, which
-[cyclic storage](pypsa_cyclic_storage.md) already ports on a different
-component, so this model takes the non-cyclic one — the case with a boundary to say something
-about.
+receive nothing from delayed links*. That is what `edge=0` states: the vacated
+positions contribute zero. The cyclic case is `edge='wrap'`, which
+[cyclic storage](pypsa_cyclic_storage.md) ports on a different component, so
+this model takes the non-cyclic one.
 
 The language **refuses** a per-entity shift with no `edge=` at all:
 
@@ -252,17 +251,17 @@ Add edge='wrap' for a cyclic translation, or edge=<number> for what the vacated
 positions contribute.
 ```
 
-Which is the right refusal here: PyPSA does not leave those positions absent, it
-zeroes them, and the two readings build different models.
+The refusal is right here. PyPSA zeroes those positions rather than leaving them
+absent, and the two readings build different models.
 
 **Both ends of the horizon show.** Shipments of 44.44 leave in snapshots 0 and 1
-and arrive as 40 in snapshots 2 and 3; nothing is shipped in snapshots 4 and 5,
+and arrive as 40 in snapshots 2 and 3. Nothing is shipped in snapshots 4 and 5,
 because it would arrive after the horizon ends and be lost. The prices say the
-same thing: `port_b` pays 100 while it waits, then 11.11 — the cheap unit's 10
+same thing: `port_b` pays 100 while it waits, then 11.11, the cheap unit's 10
 divided by the ship's 0.9.
 
 ## What it exercises
 
-`shift(x, over=dim, offset=p, edge=0)` with `p` an integer column, inside a grouped
-sum that lands on a *different* entity's row — the first model in the corpus
-where a shift moves a quantity between two places rather than along one.
+`shift(x, over=dim, offset=p, edge=0)` with `p` an integer column, inside a
+grouped sum that lands on a *different* entity's row. The shift moves a quantity
+between two places rather than along one.

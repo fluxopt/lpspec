@@ -5,8 +5,8 @@ The same three futures as [the stochastic model](pypsa_stochastic.md), planned a
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **35410.0**, matched to `rtol=1e-09`.
 
 `n.set_risk_preference(alpha, omega)` turns on `define_cvar_variables`
-(`variables.py:291`) — `CVaR-a` over the scenarios, and the two scalars
-`CVaR-theta` and `CVaR` — and `define_objective` adds the rows that link them
+(`variables.py:291`), which declares `CVaR-a` over the scenarios and the two
+scalars `CVaR-theta` and `CVaR`. `define_objective` adds the rows that link them
 (`optimize.py:377-419`):
 
 ```
@@ -15,16 +15,15 @@ theta + 1/(1-alpha) * sum_s p_s a_s  <= CVaR  one, over all of them
 min      CAPEX + (1-omega) * E[OPEX] + omega * CVaR
 ```
 
-That is Rockafellar–Uryasev: the average of the worst `1-alpha` of the
-distribution, which is a quantile average and sounds nonlinear, is an epigraph
-over a level `theta` the model is free to place. The objective's weight on it is
-what pulls it down onto the true value at risk.
+That is Rockafellar–Uryasev. The average of the worst `1-alpha` of the
+distribution is a quantile average and sounds nonlinear, but it is an epigraph
+over a level `theta` the model is free to place. The objective's weight on it
+pulls it down onto the true value at risk.
 
-Two things worth reading off the source rather than the phrase "risk aversion".
-**The tail is the operating cost only** — capital cost sits outside the blend, so
-`omega` prices what a future costs to *run*. And **`alpha` and `omega` are
-independent**: `alpha` says where the tail starts, `omega` how much of the
-objective it is.
+Two things the source settles. **The tail is the operating cost only**: capital
+cost sits outside the blend, so `omega` prices what a future costs to *run*. And
+**`alpha` and `omega` are independent**: `alpha` says where the tail starts,
+`omega` how much of the objective it is.
 
 ## The model
 
@@ -333,20 +332,20 @@ Both fleets total 210 MW, which the severe future needs whatever the planner's
 appetite for risk. What risk aversion buys is the *mix*: 10 MW moves from the
 cheap-to-build peaker to the cheap-to-run base plant, because the severe future's
 operating cost is what the tail term prices. The risk-neutral row is the optimum
-of [`pypsa_stochastic`](pypsa_stochastic.md) — the same instance, the same
+of [`pypsa_stochastic`](pypsa_stochastic.md): the same instance and the same
 number, reached twice.
 
 **The tail is found, not declared.** With `alpha = 0.85` the tail holds the worst
 15% of the probability mass, which is all of `severe` (10%) and a third of `cold`
-(30%). The model places `tail_start` at 4000.0 — `cold`'s operating cost exactly,
-the 85th percentile — and `excess` comes out `[0, 0, 3600]`, so `tail_average` is
-`4000 + (1/0.15) × 0.1 × 3600 = 6400`. Nothing in the file names a quantile; two
+(30%). The model places `tail_start` at 4000.0, `cold`'s operating cost and the
+85th percentile. `excess` comes out `[0, 0, 3600]`, so `tail_average` is
+`4000 + (1/0.15) × 0.1 × 3600 = 6400`. Nothing in the file names a quantile. Two
 inequalities and a minimisation find it.
 
 **Prices stop being round.** The nodal price under a risk preference is no longer
-the scenario weight times a marginal cost. A future outside the tail is priced by
-`(1-omega) * p_s` of its costs — `mild` at 0.3 — and one inside it by that plus
-`omega * p_s/(1-alpha)`, which for `severe` is `0.05 + 0.333`.
+the scenario weight times a marginal cost. A future outside the tail is priced at
+`(1-omega) * p_s` of its costs, `mild` at 0.3. A future inside it is priced at
+that plus `omega * p_s/(1-alpha)`, which for `severe` is `0.05 + 0.333`.
 
 | | snapshot 0 | 1 | 2 |
 |---|---|---|---|
@@ -361,22 +360,21 @@ scarcity rent of the capacity it is running out of. All nine are asserted agains
 PyPSA to `rtol=1e-09`.
 
 **One rewrite, and it is the divisor rule.** PyPSA writes the epigraph with
-`1/(1-alpha)` on the sum; a divisor here must be a single variable-free factor
+`1/(1-alpha)` on the sum. A divisor here must be a single variable-free factor
 rather than a sum, so the port multiplies through by `1 - alpha` instead:
 
 ```yaml
 (1 - alpha) * (tail_average - tail_start) >= sum(probability * excess, over=scenario)
 ```
 
-The same halfspace with the same solutions — `1 - alpha` is positive by
-construction — scaled by a constant. It is worth knowing that the row's own dual
-carries that scale; the nodal prices, which is what a PyPSA user reads, do not.
+The same halfspace with the same solutions, scaled by a constant, since
+`1 - alpha` is positive. The row's own dual carries that scale. The nodal prices,
+which are what a PyPSA user reads, do not.
 
 ## What it exercises
 
-Scalar variables and a scalar row (`dims: []`) beside dimensioned ones, a
-named expression reused in two places — the epigraph rows and the objective — and
-an auxiliary variable bounded below by an expression over *other* variables,
-which is the shape every linearised risk, regret or minimax measure takes. The
-model is degree 1 throughout: a quantile average is not a nonlinear thing here,
-it is two more rows.
+Scalar variables and a scalar row (`dims: []`) beside dimensioned ones, a named
+expression reused in the epigraph rows and the objective, and an auxiliary
+variable bounded below by an expression over *other* variables, which is the
+shape every linearised risk, regret or minimax measure takes. The model is
+degree 1 throughout: a quantile average is two more rows.

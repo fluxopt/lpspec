@@ -8,13 +8,13 @@ OR-Library instance `cap71`: 16 candidate warehouses, 50 customers. The optimum
 is [published by Beasley](http://people.brunel.ac.uk/~mastjjb/jeb/orlib/uncapinfo.html)
 in the file `uncapopt`, alongside the instance itself.
 
-**No reference script.** This is the corpus's strongest provenance tier: the
-number comes from the literature, and there is nothing of ours in the loop that
-produced it. [Dantzig transport](transport_dantzig.md) is the other one.
+**No reference script.** The number comes from the literature, and nothing of
+ours is in the loop that produced it.
+[Dantzig transport](transport_dantzig.md) is verified the same way.
 
-It also brings a structure nothing else in the corpus has: **fixed charge**.
-Every other verified model prices what flows; this one prices a *decision* —
-opening a warehouse costs money whether or not it ends up busy.
+It also brings **fixed charge**. Every other verified model prices what flows.
+This one prices a *decision*: opening a warehouse costs money whether or not it
+ends up busy.
 
 ## The model
 
@@ -141,30 +141,25 @@ objective:
   expression: sum(is_open * fixed_cost) + sum(serve * serve_cost)
 ```
 
-**`serve` is not declared binary, and that is the interesting part.** Only
-`is_open` carries integrality. `serve` is free to take fractional values and
-comes out integral anyway, because the linking constraint is written **per
-(warehouse, customer) pair**.
+**`serve` is not declared binary.** Only `is_open` carries integrality. `serve`
+is free to take fractional values and comes out integral anyway, because the
+linking constraint is written **per (warehouse, customer) pair**.
 
-The aggregated alternative — `sum(serve, over=customer) <= 50 * is_open`, one
-row per warehouse instead of 800 — is equally *valid* and much *weaker*: its LP
+The aggregated form, `sum(serve, over=customer) <= 50 * is_open`, is one row per
+warehouse instead of 800. It is equally *valid* and much *weaker*: its LP
 relaxation lets a warehouse open a fiftieth of the way and serve one customer
-for a fiftieth of its fixed cost. The strong formulation is what makes the LP
-bound tight enough for the instance to solve immediately.
-
-That choice is not something the language makes for you, and it is invisible in
-the objective. It is a modelling decision that the corpus happens to pin: get
-it wrong and the answer is still 932615.750, just much slower to reach.
+for a fiftieth of its fixed cost. The per-pair form makes the LP bound tight
+enough for the instance to solve at once. The language does not make that choice
+for you, and the objective does not show it: with the weak form the answer is
+still 932615.750, reached much more slowly.
 
 ## What it finds
 
-Eleven of the sixteen warehouses open — `w01`–`w04`, `w06`–`w09`, `w11`–`w13` —
+Eleven of the sixteen warehouses open (`w01`–`w04`, `w06`–`w09`, `w11`–`w13`)
 for a total of **932615.75**.
 
 Ten of them cost 7500 to open. **`w11` costs nothing**: `cap71` gives it a fixed
-cost of 0, so it is free and opening it is never a trade-off at all. Worth
-noticing, because it is the one warehouse whose presence in the answer says
-nothing about the instance being hard — and a reader checking the arithmetic
+cost of 0, so opening it is never a trade-off. A reader checking the arithmetic
 against "7500 apiece" would come up 7500 short.
 
 ## What it exercises

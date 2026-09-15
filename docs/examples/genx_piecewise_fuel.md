@@ -4,15 +4,14 @@ A day of dispatch for two carbon-capture plants and a wind farm under a net-zero
 
 > **✔ Verified against GenX** — objective **2341.8230753008093**, matched to `rtol=1e-09`. Asserted upstream in `test/test_piecewisefuel.jl`, and re-run here on GenX itself.
 
-**A plant burns one fuel, and that fuel's price moves hour by hour.** So the
-price a plant pays is a `(fuel, hour)` table read through the plant's own fuel —
-a lookup whose target keeps a dimension after the read. Every other reach-through
-in this corpus lands on a single value; this one lands on a row.
+**A plant burns one fuel, and that fuel's price moves hour by hour.** The price
+a plant pays is a `(fuel, hour)` table read through the plant's own fuel, a
+lookup whose target keeps a dimension after the read. Every other reach-through
+in this corpus lands on a single value. This one lands on a row.
 
-The instance folds that read into `fuel_price[plant, hour]` because the
-mapping is one-to-one here, and the page says so rather than pretending
-otherwise: what the model needs is the *joined* price, and where a plant's fuel
-is a declared map the join is the language's to do.
+The instance folds that read into `fuel_price[plant, hour]`, because the mapping
+is one-to-one here. What the model needs is the *joined* price, and where a
+plant's fuel is a declared map the join is the language's to do.
 
 ## The model
 
@@ -539,8 +538,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 ## What the port had to decide
 
 **A piecewise fuel curve is a floor per piece.** GenX gives the gas plant two
-segments — 6.0 MMBtu/MWh above a 0.4 no-load intercept, then 7.2 above 0.208 —
-and requires fuel use to be at least each of them. At the optimum it rests on
+segments, 6.0 MMBtu/MWh above a 0.4 no-load intercept and 7.2 above 0.208, and
+requires fuel use to be at least each of them. At the optimum it rests on
 whichever binds, so the curve needs no binaries and no `piecewise:` block: it is
 one constraint over a `segment` axis. The intercept is charged per *committed
 unit*, which is why commitment has to be a variable even though nothing here is
@@ -548,10 +547,10 @@ integral.
 
 **Commitment is continuous, and the day wraps.** `UCommit=2` relaxes the
 commitment variables, and the 24 hours are a representative period that repeats,
-so `shift(edge='wrap')` is exactly right: hour 1 follows hour 24. The six-hour
-minimum up and down times are the same for both plants, so they expand as six
-shifted terms. Where they differ by plant, `sum_back(within=)` reads the width
-off the column — [minimum up and down times](pypsa_min_up_down.md).
+so `shift(edge='wrap')` fits: hour 1 follows hour 24. The six-hour minimum up
+and down times are the same for both plants, so they expand as six shifted
+terms. Where they differ by plant, `sum_back(within=)` reads the width off the
+column, as in [minimum up and down times](pypsa_min_up_down.md).
 
 **Negative emissions are a coefficient, not a special case.** The biomass plant
 captures 90% of its carbon and the fuel counts its own uptake, so a burned
@@ -581,5 +580,5 @@ happened to preserve the total would still move one of these.
 
 `shift(edge='wrap')` on a representative day, a piecewise curve as a floor per
 piece rather than a formulation, and a carbon budget whose coefficients carry
-capture and uptake. No new construct — the interest is that a framework's
-dispatch model, settings and all, is a page of declarations.
+capture and uptake. No new construct: a framework's dispatch model, settings
+and all, is a page of declarations.
