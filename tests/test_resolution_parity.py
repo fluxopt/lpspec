@@ -79,6 +79,13 @@ ACCEPTED = [
     #: The one position a literal survives to: alone, and false. `True` alone
     #: is no mask at all and arrives as `None`.
     'False',
+    #: A comparison of expressions, each side read as an expression is: a
+    #: reduction, a shift with the edge a predicate has to name, arithmetic.
+    #: Both true everywhere on the dispatch data; the absence rules for a side
+    #: with a hole in it are `test_where_arithmetic.py`.
+    '2 * cost + 50 <= p_max',
+    'sum(p_max, over=generator) > load',
+    'load - shift(load, over=snapshot, offset=1, edge=0) >= 0',
 ]
 
 #: Predicates this sweep cannot host, with where they are checked instead. The
@@ -137,6 +144,7 @@ def test_every_resolved_predicate_is_parity_tested():
     from math_spec import program, to_program
 
     expected = set(get_args(program.WhereNode))  # resolved-only: the Unresolved* nodes left the union with the parser
+    expected -= {program.ArithmeticComparisonNode}  # the spec-side comparison: lowering rebuilds every mask without one
     covered: set[type] = set()
 
     def walk(node):

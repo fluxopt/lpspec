@@ -718,9 +718,9 @@ def test_every_plan_node_is_handled_by_the_compiler():
     engine_dir = PKG / 'relational' / 'engines' / 'polars'
     walkers = [
         ('program', program.ExpressionNode, engine_dir / 'compiler.py'),
-        ('program', program.ExpressionNode, PKG / 'linopy' / 'builder.py'),
+        ('program', program.ExpressionNode, PKG / 'linopy' / 'evaluation.py'),
         ('program', program.WhereNode, engine_dir / 'predicates.py'),
-        ('program', program.WhereNode, PKG / 'linopy' / 'where.py'),
+        ('program', program.WhereNode, PKG / 'linopy' / 'evaluation.py'),
     ]
     for qualifier, union, module in walkers:
         source = module.read_text()
