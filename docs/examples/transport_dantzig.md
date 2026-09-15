@@ -164,17 +164,16 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         return m
     ```
 
-The YAML is 38 lines and names the maths; the linopy version is ~20 lines
-of Python and names the *data structures* the maths is carried in — a pivot, a
-reindex, two `.sum()` calls over named axes. Neither is obviously better and
-that is the honest read: what the declarative form buys here is not brevity but
-that the file is the model, with no host language between the reader and it.
+The YAML names the maths. The linopy version names the *data structures* the
+maths is carried in: a pivot, a reindex, two `.sum()` calls over named axes.
+What the declarative form buys is not brevity but a file that is the model,
+with no host language between the reader and it.
 
 ## What it exercises
 
-The freight rate is kept as arithmetic — `distance * freight / 1000` — rather
-than precomputed into a cost table, so the file states the model and not a
-derived table. `freight` is declared with `dims: []`: a scalar is a parameter
+The freight rate stays as arithmetic, `distance * freight / 1000`, rather
+than a precomputed cost table, so the file states the model and not a derived
+table. `freight` is declared with `dims: []`: a scalar is a parameter
 with no dimensions, not a special case.
 
 The objective is checked, never the primal. This model reaches 153.675 at a

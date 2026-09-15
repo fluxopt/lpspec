@@ -16,15 +16,14 @@ $$p = \sum_k \lambda_k x_k, \quad
 \sum_k \lambda_k = 1, \quad
 \lambda \in \mathrm{SOS2}$$
 
-There are two ways to say the last line, and `method:` names them.
-`adjacency`, the default, *builds* it: a binary per segment, an adjacency row
-per breakpoint, and one more row picking a segment. `sos2` *declares* it: the
-expansion emits an [`sos:` block](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) over
-the same weights and leaves the
-formulation to the sink — which is the point, because a solver that knows what
-SOS2 means branches on the set directly rather than searching the binaries
-someone wrote for it. The raw `sos:` block stays in the language for a set
-that is not a curve — pick at most one of these build sizes, say — where there
+`method:` names two ways to say the last line. `adjacency`, the default,
+*builds* it: a binary per segment, an adjacency row per breakpoint, and one
+more row picking a segment. `sos2` *declares* it: the expansion emits an
+[`sos:` block](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) over
+the same weights and leaves the formulation to the sink. A solver that knows
+what SOS2 means branches on the set directly rather than searching binaries
+written for it. The raw `sos:` block stays in the language for a set that is
+not a curve, such as picking at most one of several build sizes, where there
 is no `piecewise:` declaration to emit it.
 
 ## The model
@@ -192,14 +191,12 @@ objective:
 ## What it exercises
 
 `method: sos2` expands into the same weights, convexity row and link rows as
-the default — plus a set instead of the segment binaries. That set is the one
-declaration that adds neither a column nor a row: it names columns the
-expansion already made and says which of them may be nonzero together, so it
-leaves the engine as a **fifth stream** beside `cols`, `obj`, `rows` and the
-matrix.
+the default, plus a set instead of the segment binaries. That set adds neither
+a column nor a row: it names columns the expansion already made and says which
+of them may be nonzero together. It leaves the engine as a **fifth stream**
+beside `cols`, `obj`, `rows` and the matrix.
 
-That stream is also the one a sink may not be able to take, which is what makes
-this model worth reading beside `piecewise`:
+Not every sink can take that stream:
 
 | | what it does with this model |
 |---|---|
@@ -207,18 +204,17 @@ this model worth reading beside `piecewise`:
 | `lp_file` | an `sos` section, read by any solver whose parser has one |
 | `highs` | **no SOS concept** — the set arrives reformulated, as a binary per segment and a linking row per member |
 
-So the same file runs everywhere, and what differs is the *search*, not the
-answer. On HiGHS the reformulation is very nearly what `method: adjacency`
-would have emitted, which is the honest summary of what a capability gap costs
-here: a worse relaxation, never a refusal. Two conditions come with it — every
-member needs a finite upper bound (the emitted weights carry one), and the
-result is mixed-integer, so an otherwise-continuous model gives up its duals.
+The same file runs everywhere, and what differs is the *search*, not the
+answer. On HiGHS the reformulation is close to what `method: adjacency` would
+have emitted, so the capability gap costs a worse relaxation, never a refusal.
+Two conditions come with it. Every member needs a finite upper bound, which
+the emitted weights carry. The result is mixed-integer, so an otherwise
+continuous model gives up its duals.
 
-Compare [piecewise](piecewise.md) — the same file to the word, except
-`method: convex`. Both expand before the plan exists, and nothing called
-*piecewise* survives into it; what differs is what the expansion leaves
-behind: a pure LP there, and here a set that is still a set right up to the
-sink that takes it.
+Compare [piecewise](piecewise.md), the same file except for `method: convex`.
+Both expand before the plan exists, and nothing called *piecewise* survives
+into it. What differs is what the expansion leaves behind: a pure LP there,
+and here a set that stays a set up to the sink that takes it.
 
 ---
 

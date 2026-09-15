@@ -9,9 +9,9 @@ in one instance, each one load-bearing.
 
 ## The problem
 
-A relation either **is an axis** — the pair set reified as a dimension whose
-legs are lookups — or **is data** weighting one aggregation. Both appear here.
-The offer set is the first kind, three-legged:
+A relation either **is an axis**, a pair set reified as a dimension whose legs
+are lookups, or **is data** weighting one aggregation. Both appear here. The
+offer set is the first kind, three-legged:
 
 $$r_o \;\le\; \phi_{\mathrm{tranche\_of}(o)} \cdot \bar p_{\mathrm{gen\_of}(o)} \qquad \forall\, o$$
 
@@ -22,9 +22,8 @@ contraction
 
 $$\sum_{g} \sigma_{g,z} \cdot \Big( \sum_{o \,:\, \mathrm{gen\_of}(o) = g} r_o \Big) \;\ge\; \underline{R}_z \qquad \forall\, z$$
 
-— multiply by the incidence table, sum the dimension away. A generator may
-back several zones at different weights, which is exactly what no lookup can
-say and no lookup needs to.
+Multiply by the incidence table and sum the dimension away. A generator may
+back several zones at different weights, which no lookup can say.
 
 ## The model
 
@@ -374,9 +373,9 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 ## What it proves
 
 Present is not proven, so each shape carries the one data mutation that must
-move the optimum — held by `tests/test_reserves.py`, alongside the three-way
-agreement (both lanes, the written LP file, and the incidence-matrix reference
-above; the balance duals are checked too).
+move the optimum. `tests/test_reserves.py` holds them, beside the three-way
+agreement of both lanes, the written LP file and the incidence-matrix
+reference above, and checks the balance duals too.
 
 | Shape | Where | Idiom | Mutation that moves the optimum |
 |---|---|---|---|
@@ -395,10 +394,10 @@ double-loading one constraint.
 
 ## The optimum, by hand
 
-Energy: b2's cheap surplus exports over `l1` (pinned at 15 by `bus_cap`, not
-its own 20) and `l2` (its own 8), so `g3` runs 40 local + 23 export = 63 and
-`g1` covers the rest of b1, 47 — cost 785. Reserves: `m1`'s 55 takes both
-parallel `g1` offers at their 25 caps (`o2` first at cost 1, then `o1` at 2)
-plus 5 of `o3`, whose seat on `g2` is also what closes zone `z2` at exactly
-25; `m2`'s 20 is `o4` at its tranche cap — cost 130. Total **915**, nodal
-prices 10 at b1 and 5 at b2.
+Energy: b2's cheap surplus exports over `l1`, pinned at 15 by `bus_cap` rather
+than its own 20, and over `l2` at its own 8. So `g3` runs 40 local plus 23
+export, 63 in all, and `g1` covers the remaining 47 at b1. Energy costs 785.
+Reserves: `m1`'s 55 takes both parallel `g1` offers at their 25 caps, `o2`
+first at cost 1 and then `o1` at 2, plus 5 of `o3`. That seat on `g2` is also
+what closes zone `z2` at exactly 25. `m2`'s 20 is `o4` at its tranche cap.
+Reserve costs 130. Total **915**, nodal prices 10 at b1 and 5 at b2.
