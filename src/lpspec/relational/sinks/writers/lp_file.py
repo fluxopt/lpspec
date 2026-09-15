@@ -6,7 +6,7 @@ stream and no byte is written twice.
 
 **Every section is written in label order.** A solver does not care, but a
 reader diffing two LP files does, and so does anyone checking that a model
-builds the same bytes twice (#109).
+builds the same bytes twice.
 """
 
 from __future__ import annotations
@@ -28,9 +28,7 @@ if TYPE_CHECKING:
 #: A section is text, so this format excludes no combination and curvature
 #: costs it nothing — and every construct the language can reach is a section
 #: this writer emits, quadratic rows included. What a descriptor declares is
-#: what :func:`write_lp_file` **emits**, on the rule the gurobi sink's states:
-#: an entry for a section nothing writes would hand back a file missing the
-#: rows that make the model what it is, which is why `.mps` declares none.
+#: what :func:`write_lp_file` **emits**.
 #:
 #: What no descriptor promises is that the solver reading the file back parses
 #: what was written — that is a property of a *reader*, and HiGHS's refuses two
@@ -52,17 +50,15 @@ LP_FILE_CAPABILITIES = Capabilities(
 _LP_SENSE = {sense: '=' if sense == '==' else sense for sense in SENSE_CODES}
 
 #: The section each non-continuous domain is listed under, read off the
-#: language's vocabulary so a domain added there raises here at import rather
-#: than being left out of the file.
+#: language's vocabulary so a domain added there raises here at import.
 _LP_DOMAIN_SECTION = {
     domain: {'binary': 'binary', 'integer': 'general'}[domain]
-    for domain in get_args(program.VariableType)
+    for domain in get_args(program.VariableDomain)
     if domain != 'continuous'
 }
 
 #: Nonzeros per constraint chunk. A chunk's rendered lines live in memory until
-#: it is sunk, so this bounds the writer's peak rather than its speed; narrower
-#: pays per-chunk overhead on every range (#189).
+#: it is sunk, so this bounds the writer's peak rather than its speed.
 EMIT_BUDGET = 2_000_000
 
 
@@ -108,8 +104,8 @@ def write_lp_file(tables: Tables, path: str | Path) -> None:
         f.write(b'\nbounds\n')
         sink(bounds, f)
 
-        for variable_type, keyword in _LP_DOMAIN_SECTION.items():
-            chosen = tables.cols.lazy().with_row_index('col').filter(pl.col('vtype') == variable_type)
+        for domain, keyword in _LP_DOMAIN_SECTION.items():
+            chosen = tables.cols.lazy().with_row_index('col').filter(pl.col('vtype') == domain)
             if chosen.select(pl.len()).collect().item() == 0:
                 continue
             f.write(f'\n{keyword}\n'.encode())
@@ -126,12 +122,10 @@ def _quadratic_row_lines(tables: Tables, row: int, pairs: pl.DataFrame) -> pl.La
     r"""One quadratic constraint, linear part then bracketed quadratic part.
 
     ``c7: +1 x0 + [ 2 x0 * x1 ] >= 4``. **Not** halved, unlike the objective's
-    section: the format divides only that one by two, an asymmetry of the
-    format rather than of ours.
+    section: the format divides only that one by two.
 
     Written a row at a time, after the linear rows and still in label order —
-    the quadratic rows *are* the tail. Gathering one row's lines is the ``sos``
-    section's trade, and it leaves the linear path's streamed interleave alone.
+    the quadratic rows *are* the tail.
     """
     entries = tables.matrix_block(row, row + 1)
     header = pl.LazyFrame({'line': [f'c{row}:']})
@@ -151,14 +145,12 @@ def _quadratic_terms(tables: Tables) -> pl.LazyFrame:
     The format writes :math:`[\;\cdot\;] / 2`, which is the Hessian convention
     wearing text: a term the model states as :math:`q\,x_i x_j` is written
     ``2q``, on the diagonal and off it alike, and the reader halves it back.
-    The uniformity is worth stating because it is *not* the Hessian's own rule
-    — there the diagonal doubles and the off-diagonal does not, since a
-    symmetric matrix holds an off-diagonal pair twice.
+    This is uniform, unlike the Hessian's own rule, where the diagonal doubles
+    and the off-diagonal does not.
 
     A pair arrives ordered, summed and deduplicated
     (:meth:`~lpspec.relational.engines.polars.engine.PolarsEngine._objective_quadratic`),
-    so nothing here sorts — the same contract the ``sos`` section reads its
-    groups off.
+    so nothing here sorts.
     """
     return tables.quad.lazy().select(_pair(pl.col('coeff') * 2))
 
@@ -167,8 +159,7 @@ def _pair(coeff: pl.Expr) -> pl.Expr:
     """One quadratic pair as ``+2 x3 * x7`` — or ``x3 ^ 2`` for a squared column.
 
     ``^ 2`` is the format's spelling and no parser accepts ``x3 * x3``. The
-    objective section doubles *coeff* and the constraint section does not,
-    which is the one asymmetry between its two callers.
+    objective section doubles *coeff* and the constraint section does not.
     """
     return pl.concat_str(
         *_signed(coeff),
@@ -186,16 +177,12 @@ def _set_lines(tables: Tables) -> pl.LazyFrame:
     linopy's spelling of the section, so a file this writes and a file the
     eager lane writes are read by the same parsers.
 
-    **The one section gathered rather than interleaved.** A set's members have
-    to reach one line, where the constraint section sorts one row per output
-    line instead; what makes that affordable is that a set is a handful of
-    members and a model declares far fewer sets than rows. Order is the
-    stream's own, and ``maintain_order`` is what keeps a group's line the same
-    bytes twice.
+    **The one section gathered rather than interleaved**: a set's members have
+    to reach one line. Order is the stream's own, and ``maintain_order`` is what
+    keeps a group's line the same bytes twice.
 
     Written even where the reader may refuse it: HiGHS has no SOS concept and
-    its parser says so, which is the honest outcome for a solver that cannot
-    answer the question.
+    its parser says so.
     """
     return (
         tables.sos.lazy()
@@ -223,21 +210,17 @@ def _constraint_lines(tables: Tables, lo: int, hi: int, entries: pl.DataFrame) -
     """Every constraint line for rows ``[lo, hi)``, one sorted stream.
 
     One row per *output line*, interleaved by sorting, so nothing gathers a
-    row's terms into a string list first — a ``group_by('row')`` into a list
-    column and an explode measured 3x this on ``sector/m`` emit (#520). *entries*
-    is the
-    chunk's slice of the matrix from :meth:`Tables.matrix_block`, and the
-    anti-join gives a termless row the line a solver still needs to parse.
+    row's terms into a string list first. *entries* is the chunk's slice of the
+    matrix from :meth:`Tables.matrix_block`, and the anti-join gives a termless
+    row the line a solver still needs to parse.
 
     **The order is one integer, and the only other column.** A row's lines
     occupy ``slots`` consecutive keys — header, placeholder, each term at its
     column index, sense — so one sort settles both the row order and the order
-    within a row, which is what #109 pins.
+    within a row.
 
-    The terms are sorted although they arrive sorted: the union subsumes the
-    order and the bytes are identical without it, but the union sort merges
-    pre-ordered runs rather than permuting them, and dropping it costs emit on
-    every case measured (#520).
+    The terms are sorted although they arrive sorted: the union sort merges
+    pre-ordered runs rather than permuting them.
     """
     slots = tables.cols.height + 3
 
@@ -272,22 +255,15 @@ def _footer() -> pl.Expr:
 
 
 def _term(coeff: pl.Expr, col: pl.Expr) -> pl.Expr:
-    """One ``+1.5 x7`` term, allocated once.
-
-    Chaining ``+`` would make each of the four pieces its own pass over a
-    full-width string column.
-    """
+    """One ``+1.5 x7`` term."""
     return pl.concat_str(*_signed(coeff), pl.lit(' x'), digits(col))
 
 
 def _signed(value: pl.Expr) -> tuple[pl.Expr, pl.Expr]:
     """A coefficient, sign always explicit — the LP format needs the ``+``.
 
-    Two pieces rather than one finished string: the cast already carries the
-    ``-``, so only a non-negative value needs a sign glued on and the sign
-    column stays one character wide. Rendering ``abs()`` under a ``when``
-    instead would render the magnitude at full width in both arms to discard
-    one.
+    Two pieces: the cast already carries the ``-``, so only a non-negative
+    value needs a sign glued on.
 
     Zero is spelled out rather than cast because ``-0.0`` is ``>= 0``: it takes
     the ``+`` arm while the cast renders ``-0.0``, giving ``+-0.0``, which no LP

@@ -57,17 +57,17 @@ parameters:
 
 variables:
   p:
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0, upper: .inf}
     description: output of a generator
 
 constraints:
   technology_at_bus:
-    foreach: [bus, technology]
+    dims: [bus, technology]
     expression: sum(p, by=[gen_bus, gen_tech]) <= limit
     description: output of one technology at one bus stays under its limit
   meet_demand:
-    foreach: []
+    dims: []
     expression: sum(p, over=generator) >= demand
     description: the system meets its demand
 
@@ -165,7 +165,7 @@ def test_an_empty_combination_does_not_take_its_row_with_it():
         raw_of(SPEC),
         **{
             'variables.headroom': {
-                'foreach': ['bus', 'technology'],
+                'dims': ['bus', 'technology'],
                 'bounds': {'lower': 0, 'upper': 100},
                 'description': 'capacity left unused at one bus in one technology',
             },
@@ -272,7 +272,7 @@ def test_a_partition_is_one_lookup_and_says_so():
     than a lane quietly walking the first.
     """
     patch = {
-        'constraints.technology_at_bus.foreach': ['generator'],
+        'constraints.technology_at_bus.dims': ['generator'],
         'constraints.technology_at_bus.expression': 'shift(p, over=generator, offset=1, by=[gen_bus, gen_tech]) <= 1',
     }
     with pytest.raises(DimensionError, match=r'by=\[gen_bus, gen_tech\]\) partitions by several lookups'):

@@ -5,10 +5,10 @@ every source; this gives each the shape the query is written against, and
 encodes the string dimensions. Everything downstream reads
 :class:`AttachedSources` and nothing else.
 
-**It is frozen, and that is the point.** Written once by the passes below,
-then read to construct the compiler and the labeller — unlike the one registry
-that is deliberately *live*, the variable frames, which appear as declarations
-build and which a constraint compiled afterwards has to see.
+**It is frozen.** Written once by the passes below, then read to construct the
+compiler and the labeller — unlike the one registry that is *live*, the
+variable frames, which appear as declarations build and which a constraint
+compiled afterwards has to see.
 """
 
 from __future__ import annotations
@@ -39,8 +39,7 @@ class AttachedSources:
     row that is not there and every operator reading one inherits that from
     its join.
 
-    ``cardinality`` and ``parameter_rows`` are frame heights, cached because
-    deriving them later means collecting the frame again.
+    ``cardinality`` and ``parameter_rows`` are cached frame heights.
     """
 
     parameters: Mapping[str, pl.LazyFrame]
@@ -50,7 +49,7 @@ class AttachedSources:
     parameter_rows: Mapping[str, int]
 
     def is_enum_encoded(self, dim: str) -> bool:
-        """Whether *dim* was given an ``Enum`` — answered where the encoding is decided."""
+        """Whether *dim* was given an ``Enum``."""
         return self.dimensions[dim].collect_schema()['val'] == pl.Enum
 
 
@@ -62,17 +61,15 @@ def attach(program: program.Program, sources: Mapping[str, pl.LazyFrame]) -> Att
     carries the dimension is re-encoded against it.
     """
     dimensions = {d: _ordinal_frame(d, sources[d]).collect() for d in program.dimensions}
-    lookups = {name: sources[name].collect() for d in program.dimensions for name in program.dimension(d).maps}
+    lookups = {name: sources[name].collect() for d in program.dimensions for name in program.dimension(d).targets}
     parameters = {name: sources[name].collect() for name in program.parameters}
 
     enums = {d: pl.Enum(f['val']) for d, f in dimensions.items() if f.schema['val'] == pl.String}
     for d, enum in enums.items():
         dimensions[d] = dimensions[d].with_columns(pl.col('val').cast(enum))
     for d in program.dimensions:
-        targets = program.dimension(d).targets
-        for name in program.dimension(d).maps:
+        for name, target in program.dimension(d).targets.items():
             casts = [pl.col(d).cast(enums[d])] if d in enums else []
-            target = targets.get(name)
             casts += [pl.col(name).cast(enums[target])] if target in enums else []
             if casts:
                 lookups[name] = lookups[name].with_columns(casts)

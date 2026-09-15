@@ -26,7 +26,7 @@ import pytest
 from bench import conftest as harness
 from bench import floor, plot, profile_build, profile_phases, report, results, tidy, warm_payoff
 from bench import results as bench_results
-from bench.arms import ARMS, solved
+from bench.arms import ARMS, solved, unmeasurable
 from bench.arms.lpspec import _tables, checked_sources
 from bench.cases import CASES, Shape, _declaration_sweep, _declarations_spec
 from bench.conftest import (
@@ -488,17 +488,26 @@ def test_the_lock_freezes_the_branch_linopy_moves_on() -> None:
     )
 
 
-def _same_install(measured: str, locked: str) -> bool:
-    """Whether two version strings name the same build of the same library.
+def _locked_commit(package: dict[str, Any]) -> str:
+    """The commit a locked git install resolves to, empty for one from an index."""
+    return str(package.get('source', {}).get('git', '')).partition('#')[2]
+
+
+def _same_install(measured: str, locked: str, commit: str = '') -> bool:
+    """Whether the lock installs the build a published number was measured on.
 
     A git install carries its commit in the local segment and its release
     number from whatever tag it happens to follow, so one commit reads
     `0.0.1.dev1+g2e05dd5df` where it was measured and `0.0.1a293.dev4+g2e05dd5df`
-    in the lock. The commit is the half that identifies the code.
+    in the lock. The commit is the half that identifies the code, and a commit
+    that *is* a release tag has no local segment in the lock at all: `uv` reads
+    the tag and writes `0.0.1a320`. So *commit* is the locked source's, which
+    answers for a version that cannot.
     """
-    if '+' in measured:
-        return measured.partition('+')[2] == locked.partition('+')[2]
-    return measured == locked
+    if '+' not in measured:
+        return measured == locked
+    short = measured.partition('+')[2].partition('.')[0].removeprefix('g')
+    return commit.startswith(short) or locked.partition('+')[2].startswith(f'g{short}')
 
 
 def test_the_lock_installs_what_the_published_numbers_were_taken_on() -> None:
@@ -524,7 +533,7 @@ def test_the_lock_installs_what_the_published_numbers_were_taken_on() -> None:
     """
     root = Path(__file__).resolve().parents[1]
     lock = tomllib.loads((root / 'bench/reproduce.py.lock').read_text())
-    locked = {package['name']: package.get('version', '') for package in lock['package']}
+    locked = {package['name']: (package.get('version', ''), _locked_commit(package)) for package in lock['package']}
 
     published = [
         path for path in _committed('bench/results') if path.endswith('.json') and not path.endswith('.ceilings.json')
@@ -538,8 +547,10 @@ def test_the_lock_installs_what_the_published_numbers_were_taken_on() -> None:
         measured = json.loads(blob)['machine_info']['versions']
         for name, version in measured.items():
             assert name in locked, f'{path} was measured on {name}, which the lock does not install at all'
-            assert _same_install(version, locked[name]), (
-                f'{path} was measured on {name} {version} and the lock installs {locked[name]}, '
+            pinned, commit = locked[name]
+            installs = f'{pinned} at {commit[:9]}' if commit else pinned
+            assert _same_install(version, pinned, commit), (
+                f'{path} was measured on {name} {version} and the lock installs {installs}, '
                 f'so the documented reproduction does not re-take these numbers — '
                 f're-run `uv lock --script bench/reproduce.py`'
             )
@@ -771,7 +782,7 @@ def test_no_budget_measures_everything() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize('case_name', ['dispatch', 'transport', 'storage', 'fleet'])
+@pytest.mark.parametrize('case_name', ['dispatch', 'transport', 'storage', 'fleet', 'nodal'])
 @pytest.mark.parametrize('dialect', [a for a in sorted(ARMS) if a != 'lpspec'])
 def test_a_hand_written_arm_builds_the_same_model(case_name: str, dialect: str) -> None:
     """Every arm but `lpspec` is a model somebody typed twice.
@@ -783,10 +794,16 @@ def test_a_hand_written_arm_builds_the_same_model(case_name: str, dialect: str) 
     it is the more likely someone quotes it.
 
     So the smallest rung of each case is solved both ways and the objectives
-    compared. It is slow for a test — four LPs — and it is the whole reason to
-    believe any number these arms produce.
+    compared. It is slow for a test — one LP per cell — and it is the whole
+    reason to believe any number these arms produce.
+
+    `unmeasurable` decides which cells there are, rather than an import check
+    beside it: a case only one dialect has been written in is the shape
+    `nodal` arrives as, and that reason is already written down once.
     """
-    pytest.importorskip('gurobipy' if dialect.startswith('gurobipy') else dialect)
+    reason = unmeasurable(dialect, case_name, ARMS[dialect].SINKS[0])
+    if reason:
+        pytest.skip(reason)
     case = CASES[case_name]
     smallest = case.ladder[0].label
     paths = case.data(case.shape(smallest))
@@ -1432,7 +1449,7 @@ def test_a_static_case_still_reads_its_committed_model(name: str) -> None:
     )
 
 
-def test_the_milp_case_lowers_with_both_variable_types() -> None:
+def test_the_milp_case_lowers_with_both_domains() -> None:
     """`commitment` only measures the vtype stream if the plan actually carries it.
 
     The ladder's other cases are all-continuous, so a YAML edit that dropped
@@ -1443,8 +1460,8 @@ def test_the_milp_case_lowers_with_both_variable_types() -> None:
     from math_spec import to_program, to_spec
 
     program = to_program(to_spec(str(CASES['commitment'].spec)))
-    types = {n: v.variable_type for n, v in program.variables.items()}
-    assert types == {'u': 'binary', 'p': 'continuous'}, (
+    domains = {n: v.domain for n, v in program.variables.items()}
+    assert domains == {'u': 'binary', 'p': 'continuous'}, (
         'the MILP case must declare one binary and one continuous variable, or vtype streaming goes unmeasured'
     )
 

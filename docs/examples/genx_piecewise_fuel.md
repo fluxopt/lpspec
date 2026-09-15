@@ -26,171 +26,225 @@ GenX's piecewise-fuel case: a day of dispatch for two carbon-capture plants and 
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{P}$ | index $p$ — `plant` carrying labels $\mathrm{commitment},\enspace \mathrm{fuel\_use}$ — the units dispatched over the day |
-| $\mathcal{H}$ | index $h$ — `hour` — hours of a representative day that repeats |
-| $\mathcal{S}$ | index $s$ — `segment` — a piece of the fuel curve |
-| $\mathcal{T}$ | index $t$ — `step` — a block of demand that may be shed, each dearer than the last |
+| $`\mathcal{P}`$ | index $`p`$ — `plant` with $`\mathrm{commitment}: \mathcal{P} \to \mathcal{C},\ \mathrm{fuel\_use}: \mathcal{P} \to \mathcal{F}`$ — the units dispatched over the day |
+| $`\mathcal{H}`$ | index $`h`$ — `hour` — hours of a representative day that repeats |
+| $`\mathcal{S}`$ | index $`s`$ — `segment` — a piece of the fuel curve |
+| $`\mathcal{T}`$ | index $`t`$ — `step` — a block of demand that may be shed, each dearer than the last |
+| $`\mathcal{C}`$ | index $`c`$ — `commitment_mode` — the ways a plant may be committed |
+| $`\mathcal{F}`$ | index $`f`$ — `fuel_use_mode` — the ways a plant's fuel use may be read |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{unit\_size}$ | `unit_size` over $\mathcal{P}$ — capacity of one unit of a plant |
-| $\mathrm{units}^{\mathrm{available}}$ | `units_available` over $\mathcal{P}$ — how many units of a plant may be committed |
-| $\mathrm{availability}$ | `availability` over $\mathcal{P} \times \mathcal{H}$ — share of its capacity a plant can offer in an hour |
-| $\mathrm{min\_output}$ | `min_output` over $\mathcal{P}$ — share of unit size a committed unit must produce |
-| $\mathrm{ramp}$ | `ramp` over $\mathcal{P}$ — share of unit size output may change by from one hour to the next |
-| $\mathrm{start\_headroom}$ | `start_headroom` over $\mathcal{P} \times \mathcal{H}$ — share of unit size a unit may reach in the hour it starts |
-| $\mathrm{fuel\_slope}$ | `fuel_slope` over $\mathcal{P} \times \mathcal{S}$ — fuel per unit of output on one piece of the curve |
-| $\mathrm{fuel\_intercept}$ | `fuel_intercept` over $\mathcal{P} \times \mathcal{S}$ — no-load fuel of one piece, charged per committed unit |
-| $\mathrm{heat\_rate}$ | `heat_rate` over $\mathcal{P}$ — fuel per unit of output for a plant with no curve |
-| $\mathrm{start\_fuel}$ | `start_fuel` over $\mathcal{P}$ — fuel burned per unit of capacity started |
-| $\mathrm{fuel\_price}$ | `fuel_price` over $\mathcal{P} \times \mathcal{H}$ — what a unit of the plant's fuel costs in that hour |
-| $\mathrm{run\_cost}$ | `run_cost` over $\mathcal{P}$ — variable cost of one unit of output, fuel aside |
-| $\mathrm{start\_cost}$ | `start_cost` over $\mathcal{P}$ — what starting one unit of capacity costs |
-| $\mathrm{weight}$ | `weight` over $\mathcal{H}$ — how many real hours an hour of the representative day stands for |
-| $\mathrm{emitted}$ | `emitted` over $\mathcal{P}$ — net CO2 per unit of fuel burned after capture, negative where the fuel took it up |
-| $\mathrm{emitted}^{\mathrm{start}}$ | `emitted_start` over $\mathcal{P}$ — net CO2 per unit of start-up fuel burned |
-| $\mathrm{captured}$ | `captured` over $\mathcal{P}$ — what capturing the CO2 from a unit of fuel costs |
-| $\mathrm{captured}^{\mathrm{start}}$ | `captured_start` over $\mathcal{P}$ — what capturing the CO2 from a unit of start-up fuel costs |
-| $\mathrm{carbon\_cap}$ | `carbon_cap` (scalar) — emissions the day is allowed, net of uptake |
-| $\mathrm{demand}$ | `demand` over $\mathcal{H}$ — demand to be met in an hour |
-| $\mathrm{shed}^{\mathrm{cost}}$ | `shed_cost` over $\mathcal{T}$ — what shedding a unit of demand in this block costs |
-| $\mathrm{shed}^{\mathrm{limit}}$ | `shed_limit` over $\mathcal{T}$ — share of the hour's demand this block may shed |
+| $`\mathrm{unit\_size}`$ | `unit_size` over $`\mathcal{P}`$ — capacity of one unit of a plant |
+| $`\mathrm{units}^{\mathrm{available}}`$ | `units_available` over $`\mathcal{P}`$ — how many units of a plant may be committed |
+| $`\mathrm{availability}`$ | `availability` over $`\mathcal{P} \times \mathcal{H}`$ — share of its capacity a plant can offer in an hour |
+| $`\mathrm{min\_output}`$ | `min_output` over $`\mathcal{P}`$ — share of unit size a committed unit must produce |
+| $`\mathrm{ramp}`$ | `ramp` over $`\mathcal{P}`$ — share of unit size output may change by from one hour to the next |
+| $`\mathrm{start\_headroom}`$ | `start_headroom` over $`\mathcal{P} \times \mathcal{H}`$ — share of unit size a unit may reach in the hour it starts |
+| $`\mathrm{fuel\_slope}`$ | `fuel_slope` over $`\mathcal{P} \times \mathcal{S}`$ — fuel per unit of output on one piece of the curve |
+| $`\mathrm{fuel\_intercept}`$ | `fuel_intercept` over $`\mathcal{P} \times \mathcal{S}`$ — no-load fuel of one piece, charged per committed unit |
+| $`\mathrm{heat\_rate}`$ | `heat_rate` over $`\mathcal{P}`$ — fuel per unit of output for a plant with no curve |
+| $`\mathrm{start\_fuel}`$ | `start_fuel` over $`\mathcal{P}`$ — fuel burned per unit of capacity started |
+| $`\mathrm{fuel\_price}`$ | `fuel_price` over $`\mathcal{P} \times \mathcal{H}`$ — what a unit of the plant's fuel costs in that hour |
+| $`\mathrm{run\_cost}`$ | `run_cost` over $`\mathcal{P}`$ — variable cost of one unit of output, fuel aside |
+| $`\mathrm{start\_cost}`$ | `start_cost` over $`\mathcal{P}`$ — what starting one unit of capacity costs |
+| $`\mathrm{weight}`$ | `weight` over $`\mathcal{H}`$ — how many real hours an hour of the representative day stands for |
+| $`\mathrm{emitted}`$ | `emitted` over $`\mathcal{P}`$ — net CO2 per unit of fuel burned after capture, negative where the fuel took it up |
+| $`\mathrm{emitted}^{\mathrm{start}}`$ | `emitted_start` over $`\mathcal{P}`$ — net CO2 per unit of start-up fuel burned |
+| $`\mathrm{captured}`$ | `captured` over $`\mathcal{P}`$ — what capturing the CO2 from a unit of fuel costs |
+| $`\mathrm{captured}^{\mathrm{start}}`$ | `captured_start` over $`\mathcal{P}`$ — what capturing the CO2 from a unit of start-up fuel costs |
+| $`\mathrm{carbon\_cap}`$ | `carbon_cap` (scalar) — emissions the day is allowed, net of uptake |
+| $`\mathrm{demand}`$ | `demand` over $`\mathcal{H}`$ — demand to be met in an hour |
+| $`\mathrm{shed}^{\mathrm{cost}}`$ | `shed_cost` over $`\mathcal{T}`$ — what shedding a unit of demand in this block costs |
+| $`\mathrm{shed}^{\mathrm{limit}}`$ | `shed_limit` over $`\mathcal{T}`$ — share of the hour's demand this block may shed |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{output}$ | `output` over $\mathcal{P} \times \mathcal{H}$ — what a plant produces in an hour |
-| $\mathit{burned}$ | `burned` over $\mathcal{P} \times \mathcal{H}$ — fuel a plant burns running in an hour |
-| $\mathit{burned}^{\mathrm{starting}}$ | `burned_starting` over $\mathcal{P} \times \mathcal{H}$ — fuel a plant burns starting units in an hour |
-| $\mathit{committed}$ | `committed` over $\mathcal{P} \times \mathcal{H}$ — how many units of a plant are committed in an hour — counted in units and relaxed to a continuous variable, which is what GenX's UCommit=2 does |
-| $\mathit{starting}$ | `starting` over $\mathcal{P} \times \mathcal{H}$ — units of a plant brought up entering an hour |
-| $\mathit{shutting}$ | `shutting` over $\mathcal{P} \times \mathcal{H}$ — units of a plant taken down entering an hour |
-| $\mathit{shed}$ | `shed` over $\mathcal{T} \times \mathcal{H}$ — demand shed out of a block in an hour |
-| $\mathit{units}$ | `units` over $\mathcal{P}$ — how many units of a plant stand available all day |
+| $`\mathit{output}`$ | `output` over $`\mathcal{P} \times \mathcal{H}`$ — what a plant produces in an hour |
+| $`\mathit{burned}`$ | `burned` over $`\mathcal{P} \times \mathcal{H}`$ — fuel a plant burns running in an hour |
+| $`\mathit{burned}^{\mathrm{starting}}`$ | `burned_starting` over $`\mathcal{P} \times \mathcal{H}`$ — fuel a plant burns starting units in an hour |
+| $`\mathit{committed}`$ | `committed` over $`\mathcal{P} \times \mathcal{H}`$ — how many units of a plant are committed in an hour — counted in units and relaxed to a continuous variable, which is what GenX's UCommit=2 does |
+| $`\mathit{starting}`$ | `starting` over $`\mathcal{P} \times \mathcal{H}`$ — units of a plant brought up entering an hour |
+| $`\mathit{shutting}`$ | `shutting` over $`\mathcal{P} \times \mathcal{H}`$ — units of a plant taken down entering an hour |
+| $`\mathit{shed}`$ | `shed` over $`\mathcal{T} \times \mathcal{H}`$ — demand shed out of a block in an hour |
+| $`\mathit{units}`$ | `units` over $`\mathcal{P}`$ — how many units of a plant stand available all day |
 
 #### Definitions
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{started\_recently}$ | `started_recently` over $\mathcal{P} \times \mathcal{H}$ — units started in this hour or the five before it — the day is a representative period that repeats, so the first hour follows the last |
-| $\mathit{shut\_recently}$ | `shut_recently` over $\mathcal{P} \times \mathcal{H}$ — units shut in this hour or the five before it |
+| $`\mathit{started\_recently}`$ | `started_recently` over $`\mathcal{P} \times \mathcal{H}`$ — units started in this hour or the five before it — the day is a representative period that repeats, so the first hour follows the last |
+| $`\mathit{shut\_recently}`$ | `shut_recently` over $`\mathcal{P} \times \mathcal{H}`$ — units shut in this hour or the five before it |
 
-Upright is what the model is given — a parameter such as $\mathrm{unit\_size}$, a coordinate map, a label — and italic is what the solver chooses, such as $\mathit{output}$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{unit\_size}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{output}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
-$t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
+$`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
 #### Objective
 
-$$\min \sum_{p \in \mathcal{P},\enspace h \in \mathcal{H}} \mathit{output}_{p,h} \cdot \mathrm{run\_cost}_{p} \cdot \mathrm{weight}_{h} + \sum_{p \in \mathcal{P},\enspace h \in \mathcal{H}} \mathit{burned}_{p,h} \cdot \mathrm{fuel\_price}_{p,h} \cdot \mathrm{weight}_{h} + \sum_{p \in \mathcal{P},\enspace h \in \mathcal{H}} \mathit{burned}^{\mathrm{starting}}_{p,h} \cdot \mathrm{fuel\_price}_{p,h} \cdot \mathrm{weight}_{h} + \sum_{p \in \mathcal{P},\enspace h \in \mathcal{H}} \mathit{starting}_{p,h} \cdot \mathrm{start\_cost}_{p} \cdot \mathrm{weight}_{h} + \sum_{h \in \mathcal{H},\enspace t \in \mathcal{T}} \mathit{shed}_{t,h} \cdot \mathrm{shed}^{\mathrm{cost}}_{t} \cdot \mathrm{weight}_{h} + \sum_{p \in \mathcal{P},\enspace h \in \mathcal{H}} \mathit{burned}_{p,h} \cdot \mathrm{captured}_{p} \cdot \mathrm{weight}_{h} + \sum_{p \in \mathcal{P},\enspace h \in \mathcal{H}} \mathit{burned}^{\mathrm{starting}}_{p,h} \cdot \mathrm{captured}^{\mathrm{start}}_{p} \cdot \mathrm{weight}_{h}$$
+```math
+\min \sum_{p \in \mathcal{P},\ h \in \mathcal{H}} \mathit{output}_{p,h} \cdot \mathrm{run\_cost}_{p} \cdot \mathrm{weight}_{h} + \sum_{p \in \mathcal{P},\ h \in \mathcal{H}} \mathit{burned}_{p,h} \cdot \mathrm{fuel\_price}_{p,h} \cdot \mathrm{weight}_{h} + \sum_{p \in \mathcal{P},\ h \in \mathcal{H}} \mathit{burned}^{\mathrm{starting}}_{p,h} \cdot \mathrm{fuel\_price}_{p,h} \cdot \mathrm{weight}_{h} + \sum_{p \in \mathcal{P},\ h \in \mathcal{H}} \mathit{starting}_{p,h} \cdot \mathrm{start\_cost}_{p} \cdot \mathrm{weight}_{h} + \sum_{h \in \mathcal{H},\ t \in \mathcal{T}} \mathit{shed}_{t,h} \cdot \mathrm{shed}^{\mathrm{cost}}_{t} \cdot \mathrm{weight}_{h} + \sum_{p \in \mathcal{P},\ h \in \mathcal{H}} \mathit{burned}_{p,h} \cdot \mathrm{captured}_{p} \cdot \mathrm{weight}_{h} + \sum_{p \in \mathcal{P},\ h \in \mathcal{H}} \mathit{burned}^{\mathrm{starting}}_{p,h} \cdot \mathrm{captured}^{\mathrm{start}}_{p} \cdot \mathrm{weight}_{h}
+```
 
 #### Subject to
 
 **`meet_demand`**
 
-$$\sum_{p \in \mathcal{P}} \mathit{output}_{p,h} + \sum_{t \in \mathcal{T}} \mathit{shed}_{t,h} = \mathrm{demand}_{h} \qquad \forall\thinspace h \in \mathcal{H}$$
+```math
+\sum_{p \in \mathcal{P}} \mathit{output}_{p,h} + \sum_{t \in \mathcal{T}} \mathit{shed}_{t,h} = \mathrm{demand}_{h} \qquad \forall\, h \in \mathcal{H}
+```
 
 **`shed_within_step`**
 
-$$\mathit{shed}_{t,h} \le \mathrm{shed}^{\mathrm{limit}}_{t} \cdot \mathrm{demand}_{h} \qquad \forall\thinspace t \in \mathcal{T},\enspace h \in \mathcal{H}$$
+```math
+\mathit{shed}_{t,h} \le \mathrm{shed}^{\mathrm{limit}}_{t} \cdot \mathrm{demand}_{h} \qquad \forall\, t \in \mathcal{T},\ h \in \mathcal{H}
+```
 
 **`committed_units_exist`**
 
-$$\mathit{committed}_{p,h} \le \mathit{units}_{p} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
+```math
+\mathit{committed}_{p,h} \le \mathit{units}_{p} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H} \,:\, \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}
+```
 
 **`thermal_ceiling`**
 
-$$\mathit{output}_{p,h} \le \mathit{committed}_{p,h} \cdot \mathrm{unit\_size}_{p} \cdot \mathrm{availability}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
+```math
+\mathit{output}_{p,h} \le \mathit{committed}_{p,h} \cdot \mathrm{unit\_size}_{p} \cdot \mathrm{availability}_{p,h} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H} \,:\, \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}
+```
 
 **`thermal_floor`**
 
-$$\mathit{output}_{p,h} \ge \mathit{committed}_{p,h} \cdot \mathrm{unit\_size}_{p} \cdot \mathrm{min\_output}_{p} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
+```math
+\mathit{output}_{p,h} \ge \mathit{committed}_{p,h} \cdot \mathrm{unit\_size}_{p} \cdot \mathrm{min\_output}_{p} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H} \,:\, \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}
+```
 
 **`variable_ceiling`**
 
-$$\mathit{output}_{p,h} \le \mathit{units}_{p} \cdot \mathrm{unit\_size}_{p} \cdot \mathrm{availability}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{free}\text{'}$$
+```math
+\mathit{output}_{p,h} \le \mathit{units}_{p} \cdot \mathrm{unit\_size}_{p} \cdot \mathrm{availability}_{p,h} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H} \,:\, \mathrm{commitment}(p) = \text{'}\mathrm{free}\text{'}
+```
 
 **`commitment_tracks_starts`**
 
-$$\mathit{committed}_{p,h} - \mathit{committed}_{p,h \ominus 1} = \mathit{starting}_{p,h} - \mathit{shutting}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
+```math
+\mathit{committed}_{p,h} - \mathit{committed}_{p,h \ominus 1} = \mathit{starting}_{p,h} - \mathit{shutting}_{p,h} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H} \,:\, \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}
+```
 
 **`stay_up_once_started`**
 
-$$\mathit{committed}_{p,h} \ge \mathit{started\_recently}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
+```math
+\mathit{committed}_{p,h} \ge \mathit{started\_recently}_{p,h} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H} \,:\, \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}
+```
 
 **`stay_down_once_shut`**
 
-$$\mathit{units}_{p} - \mathit{committed}_{p,h} \ge \mathit{shut\_recently}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
+```math
+\mathit{units}_{p} - \mathit{committed}_{p,h} \ge \mathit{shut\_recently}_{p,h} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H} \,:\, \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}
+```
 
 **`ramp_up`**
 
-$$\mathit{output}_{p,h} - \mathit{output}_{p,h \ominus 1} \le \mathrm{ramp}_{p} \cdot \mathrm{unit\_size}_{p} \cdot \left( \mathit{committed}_{p,h} - \mathit{starting}_{p,h} \right) + \mathrm{start\_headroom}_{p,h} \cdot \mathrm{unit\_size}_{p} \cdot \mathit{starting}_{p,h} - \mathrm{min\_output}_{p} \cdot \mathrm{unit\_size}_{p} \cdot \mathit{shutting}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
+```math
+\mathit{output}_{p,h} - \mathit{output}_{p,h \ominus 1} \le \mathrm{ramp}_{p} \cdot \mathrm{unit\_size}_{p} \cdot \left( \mathit{committed}_{p,h} - \mathit{starting}_{p,h} \right) + \mathrm{start\_headroom}_{p,h} \cdot \mathrm{unit\_size}_{p} \cdot \mathit{starting}_{p,h} - \mathrm{min\_output}_{p} \cdot \mathrm{unit\_size}_{p} \cdot \mathit{shutting}_{p,h} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H} \,:\, \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}
+```
 
 **`ramp_down`**
 
-$$\mathit{output}_{p,h \ominus 1} - \mathit{output}_{p,h} \le \mathrm{ramp}_{p} \cdot \mathrm{unit\_size}_{p} \cdot \left( \mathit{committed}_{p,h} - \mathit{starting}_{p,h} \right) - \mathrm{min\_output}_{p} \cdot \mathrm{unit\_size}_{p} \cdot \mathit{starting}_{p,h} + \mathrm{start\_headroom}_{p,h} \cdot \mathrm{unit\_size}_{p} \cdot \mathit{shutting}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}$$
+```math
+\mathit{output}_{p,h \ominus 1} - \mathit{output}_{p,h} \le \mathrm{ramp}_{p} \cdot \mathrm{unit\_size}_{p} \cdot \left( \mathit{committed}_{p,h} - \mathit{starting}_{p,h} \right) - \mathrm{min\_output}_{p} \cdot \mathrm{unit\_size}_{p} \cdot \mathit{starting}_{p,h} + \mathrm{start\_headroom}_{p,h} \cdot \mathrm{unit\_size}_{p} \cdot \mathit{shutting}_{p,h} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H} \,:\, \mathrm{commitment}(p) = \text{'}\mathrm{unit}\text{'}
+```
 
 **`fuel_above_each_piece`**
 
-$$\mathit{burned}_{p,h} \ge \mathrm{fuel\_slope}_{p,s} \cdot \mathit{output}_{p,h} + \mathrm{fuel\_intercept}_{p,s} \cdot \mathit{committed}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace s \in \mathcal{S},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{fuel\_use}(p) = \text{'}\mathrm{curve}\text{'}$$
+```math
+\mathit{burned}_{p,h} \ge \mathrm{fuel\_slope}_{p,s} \cdot \mathit{output}_{p,h} + \mathrm{fuel\_intercept}_{p,s} \cdot \mathit{committed}_{p,h} \qquad \forall\, p \in \mathcal{P},\ s \in \mathcal{S},\ h \in \mathcal{H} \,:\, \mathrm{fuel\_use}(p) = \text{'}\mathrm{curve}\text{'}
+```
 
 **`fuel_at_the_heat_rate`**
 
-$$\mathit{burned}_{p,h} = \mathrm{heat\_rate}_{p} \cdot \mathit{output}_{p,h} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H} \thinspace:\thinspace \mathrm{fuel\_use}(p) = \text{'}\mathrm{flat}\text{'}$$
+```math
+\mathit{burned}_{p,h} = \mathrm{heat\_rate}_{p} \cdot \mathit{output}_{p,h} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H} \,:\, \mathrm{fuel\_use}(p) = \text{'}\mathrm{flat}\text{'}
+```
 
 **`fuel_to_start`**
 
-$$\mathit{burned}^{\mathrm{starting}}_{p,h} = \mathrm{unit\_size}_{p} \cdot \mathit{starting}_{p,h} \cdot \mathrm{start\_fuel}_{p} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
+```math
+\mathit{burned}^{\mathrm{starting}}_{p,h} = \mathrm{unit\_size}_{p} \cdot \mathit{starting}_{p,h} \cdot \mathrm{start\_fuel}_{p} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H}
+```
 
 **`carbon_budget`**
 
-$$\sum_{p \in \mathcal{P}} \sum_{h \in \mathcal{H}} \left( \mathit{burned}_{p,h} \cdot \mathrm{emitted}_{p} \cdot \mathrm{weight}_{h} + \mathit{burned}^{\mathrm{starting}}_{p,h} \cdot \mathrm{emitted}^{\mathrm{start}}_{p} \cdot \mathrm{weight}_{h} \right) \le \mathrm{carbon\_cap}$$
+```math
+\sum_{p \in \mathcal{P}} \sum_{h \in \mathcal{H}} \left( \mathit{burned}_{p,h} \cdot \mathrm{emitted}_{p} \cdot \mathrm{weight}_{h} + \mathit{burned}^{\mathrm{starting}}_{p,h} \cdot \mathrm{emitted}^{\mathrm{start}}_{p} \cdot \mathrm{weight}_{h} \right) \le \mathrm{carbon\_cap}
+```
 
 #### Definitions
 
 **`started_recently`**
 
-$$\mathit{started\_recently}_{p,h} = \mathit{starting}_{p,h} + \mathit{starting}_{p,h \ominus 1} + \mathit{starting}_{p,h \ominus 2} + \mathit{starting}_{p,h \ominus 3} + \mathit{starting}_{p,h \ominus 4} + \mathit{starting}_{p,h \ominus 5} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
+```math
+\mathit{started\_recently}_{p,h} = \mathit{starting}_{p,h} + \mathit{starting}_{p,h \ominus 1} + \mathit{starting}_{p,h \ominus 2} + \mathit{starting}_{p,h \ominus 3} + \mathit{starting}_{p,h \ominus 4} + \mathit{starting}_{p,h \ominus 5} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H}
+```
 
 **`shut_recently`**
 
-$$\mathit{shut\_recently}_{p,h} = \mathit{shutting}_{p,h} + \mathit{shutting}_{p,h \ominus 1} + \mathit{shutting}_{p,h \ominus 2} + \mathit{shutting}_{p,h \ominus 3} + \mathit{shutting}_{p,h \ominus 4} + \mathit{shutting}_{p,h \ominus 5} \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
+```math
+\mathit{shut\_recently}_{p,h} = \mathit{shutting}_{p,h} + \mathit{shutting}_{p,h \ominus 1} + \mathit{shutting}_{p,h \ominus 2} + \mathit{shutting}_{p,h \ominus 3} + \mathit{shutting}_{p,h \ominus 4} + \mathit{shutting}_{p,h \ominus 5} \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H}
+```
 
 #### Variable domains
 
 **`output`**
 
-$$\mathit{output}_{p,h} \ge 0 \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
+```math
+\mathit{output}_{p,h} \ge 0 \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H}
+```
 
 **`burned`**
 
-$$\mathit{burned}_{p,h} \ge 0 \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
+```math
+\mathit{burned}_{p,h} \ge 0 \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H}
+```
 
 **`burned_starting`**
 
-$$\mathit{burned}^{\mathrm{starting}}_{p,h} \ge 0 \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
+```math
+\mathit{burned}^{\mathrm{starting}}_{p,h} \ge 0 \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H}
+```
 
 **`committed`**
 
-$$\mathit{committed}_{p,h} \ge 0 \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
+```math
+\mathit{committed}_{p,h} \ge 0 \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H}
+```
 
 **`starting`**
 
-$$\mathit{starting}_{p,h} \ge 0 \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
+```math
+\mathit{starting}_{p,h} \ge 0 \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H}
+```
 
 **`shutting`**
 
-$$\mathit{shutting}_{p,h} \ge 0 \qquad \forall\thinspace p \in \mathcal{P},\enspace h \in \mathcal{H}$$
+```math
+\mathit{shutting}_{p,h} \ge 0 \qquad \forall\, p \in \mathcal{P},\ h \in \mathcal{H}
+```
 
 **`shed`**
 
-$$\mathit{shed}_{t,h} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace h \in \mathcal{H}$$
+```math
+\mathit{shed}_{t,h} \ge 0 \qquad \forall\, t \in \mathcal{T},\ h \in \mathcal{H}
+```
 
 **`units`**
 
-$$0 \le \mathit{units}_{p} \le \mathrm{units}^{\mathrm{available}}_{p} \qquad \forall\thinspace p \in \mathcal{P}$$
+```math
+0 \le \mathit{units}_{p} \le \mathrm{units}^{\mathrm{available}}_{p} \qquad \forall\, p \in \mathcal{P}
+```
 
 </details>
 <!-- math:end -->
@@ -221,16 +275,22 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       step:
         description: a block of demand that may be shed, each dearer than the last
         dtype: int
+      commitment_mode:
+        description: the ways a plant may be committed
+        dtype: str
+      fuel_use_mode:
+        description: the ways a plant's fuel use may be read
+        dtype: str
 
     lookups:
       commitment:
         description: whether a plant is committed unit by unit or dispatched freely
         over: plant
-        dtype: str
+        into: commitment_mode
       fuel_use:
         description: whether a plant's fuel use is read off the piecewise curve or a flat heat rate
         over: plant
-        dtype: str
+        into: fuel_use_mode
 
     parameters:
       unit_size:
@@ -306,44 +366,44 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       output:
         description: what a plant produces in an hour
-        foreach: [plant, hour]
+        dims: [plant, hour]
         bounds:
           lower: 0
       burned:
         description: fuel a plant burns running in an hour
-        foreach: [plant, hour]
+        dims: [plant, hour]
         bounds:
           lower: 0
       burned_starting:
         description: fuel a plant burns starting units in an hour
-        foreach: [plant, hour]
+        dims: [plant, hour]
         bounds:
           lower: 0
       committed:
         description: >-
           how many units of a plant are committed in an hour — counted in units and
           relaxed to a continuous variable, which is what GenX's UCommit=2 does
-        foreach: [plant, hour]
+        dims: [plant, hour]
         bounds:
           lower: 0
       starting:
         description: units of a plant brought up entering an hour
-        foreach: [plant, hour]
+        dims: [plant, hour]
         bounds:
           lower: 0
       shutting:
         description: units of a plant taken down entering an hour
-        foreach: [plant, hour]
+        dims: [plant, hour]
         bounds:
           lower: 0
       shed:
         description: demand shed out of a block in an hour
-        foreach: [step, hour]
+        dims: [step, hour]
         bounds:
           lower: 0
       units:
         description: how many units of a plant stand available all day
-        foreach: [plant]
+        dims: [plant]
         bounds:
           lower: 0
           upper: units_available
@@ -367,58 +427,58 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       meet_demand:
         description: what is produced plus what is shed meets the demand of the hour
-        foreach: [hour]
+        dims: [hour]
         expression: sum(output, over=plant) + sum(shed, over=step) == demand
 
       shed_within_step:
         description: a block sheds no more than its share of the hour's demand
-        foreach: [step, hour]
+        dims: [step, hour]
         expression: shed <= shed_limit * demand
 
       committed_units_exist:
-        foreach: [plant, hour]
+        dims: [plant, hour]
         where: "commitment == unit"
         expression: committed <= units
 
       thermal_ceiling:
         description: a committed unit produces no more than its available capacity
-        foreach: [plant, hour]
+        dims: [plant, hour]
         where: "commitment == unit"
         expression: output <= committed * unit_size * availability
 
       thermal_floor:
         description: a committed unit produces no less than its minimum
-        foreach: [plant, hour]
+        dims: [plant, hour]
         where: "commitment == unit"
         expression: output >= committed * unit_size * min_output
 
       variable_ceiling:
         description: a plant with no commitment produces no more than its available capacity
-        foreach: [plant, hour]
+        dims: [plant, hour]
         where: "commitment == free"
         expression: output <= units * unit_size * availability
 
       commitment_tracks_starts:
         description: what is committed changes only by what starts and what shuts
-        foreach: [plant, hour]
+        dims: [plant, hour]
         where: "commitment == unit"
         expression: committed - shift(committed, over=hour, offset=1, edge='wrap') == starting - shutting
 
       stay_up_once_started:
         description: a unit that started within the last six hours is still committed
-        foreach: [plant, hour]
+        dims: [plant, hour]
         where: "commitment == unit"
         expression: committed >= started_recently
 
       stay_down_once_shut:
         description: a unit that shut within the last six hours is still down
-        foreach: [plant, hour]
+        dims: [plant, hour]
         where: "commitment == unit"
         expression: units - committed >= shut_recently
 
       ramp_up:
         description: output rises no faster than the ramp allows, with extra room in the hour a unit starts
-        foreach: [plant, hour]
+        dims: [plant, hour]
         where: "commitment == unit"
         expression: >-
           output - shift(output, over=hour, offset=1, edge='wrap')
@@ -427,7 +487,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           - min_output * unit_size * shutting
 
       ramp_down:
-        foreach: [plant, hour]
+        dims: [plant, hour]
         where: "commitment == unit"
         expression: >-
           shift(output, over=hour, offset=1, edge='wrap') - output
@@ -439,24 +499,24 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           fuel use is above every piece of the curve, so at the optimum it sits on
           the binding one, and the no-load intercept is charged per committed unit
-        foreach: [plant, segment, hour]
+        dims: [plant, segment, hour]
         where: "fuel_use == curve"
         expression: burned >= fuel_slope * output + fuel_intercept * committed
 
       fuel_at_the_heat_rate:
         description: a plant with no curve burns fuel at a flat heat rate
-        foreach: [plant, hour]
+        dims: [plant, hour]
         where: "fuel_use == flat"
         expression: burned == heat_rate * output
 
       fuel_to_start:
         description: starting a unit burns its own fuel, on top of what running it burns
-        foreach: [plant, hour]
+        dims: [plant, hour]
         expression: burned_starting == unit_size * starting * start_fuel
 
       carbon_budget:
         description: a net-zero cap — what escapes capture, less what the biomass took up
-        foreach: []
+        dims: []
         expression: >-
           sum(sum(burned * emitted * weight + burned_starting * emitted_start * weight, over=hour), over=plant)
           <= carbon_cap

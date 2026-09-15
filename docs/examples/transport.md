@@ -25,64 +25,76 @@ Least-cost dispatch over a network, where a generator sits on a bus, a line join
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{S}$ | index $s$ — `snapshot` — dispatch periods |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{L}$ | index $\ell$ — `line` with $\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}$ — transmission lines, each joining two buses |
+| $`\mathcal{S}`$ | index $`s`$ — `snapshot` — dispatch periods |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{L}`$ | index $`\ell`$ — `line` with $`\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — transmission lines, each joining two buses |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\bar p$ | `p_max` over $\mathcal{G}$ — installed capacity |
-| $c$ | `cost` over $\mathcal{G}$ — marginal cost |
-| $\bar f$ | `cap` over $\mathcal{L}$ — forward transmission limit |
-| $\underline{f}$ | `neg_cap` over $\mathcal{L}$ — reverse transmission limit |
-| $d$ | `load` over $\mathcal{S} \times \mathcal{B}$ — demand at each bus |
+| $`\bar p`$ | `p_max` over $`\mathcal{G}`$ — installed capacity |
+| $`c`$ | `cost` over $`\mathcal{G}`$ — marginal cost |
+| $`\bar f`$ | `cap` over $`\mathcal{L}`$ — forward transmission limit |
+| $`\underline{f}`$ | `neg_cap` over $`\mathcal{L}`$ — reverse transmission limit |
+| $`d`$ | `load` over $`\mathcal{S} \times \mathcal{B}`$ — demand at each bus |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{S} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $f$ | `f` over $\mathcal{S} \times \mathcal{L}$ — flow on a line, signed towards its `line_to` bus |
+| $`p`$ | `p` over $`\mathcal{S} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`f`$ | `f` over $`\mathcal{S} \times \mathcal{L}`$ — flow on a line, signed towards its `line_to` bus |
 
 #### Definitions
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{gen\_at\_bus}$ | `gen_at_bus` over $\mathcal{S} \times \mathcal{B}$ — what the generators sitting on a bus produce there |
-| $\mathit{net\_inflow}$ | `net_inflow` over $\mathcal{S} \times \mathcal{B}$ — flow arriving at a bus minus flow leaving it, so a negative value is a net export |
+| $`\mathit{gen\_at\_bus}`$ | `gen_at_bus` over $`\mathcal{S} \times \mathcal{B}`$ — what the generators sitting on a bus produce there |
+| $`\mathit{net\_inflow}`$ | `net_inflow` over $`\mathcal{S} \times \mathcal{B}`$ — flow arriving at a bus minus flow leaving it, so a negative value is a net export |
 
 #### Objective
 
-$$\min \sum_{s \in \mathcal{S},\enspace g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
+```math
+\min \sum_{s \in \mathcal{S},\ g \in \mathcal{G}} p_{s,g} \cdot c_{g}
+```
 
 #### Subject to
 
 **`balance`**
 
-$$\mathit{gen\_at\_bus}_{s,b} + \mathit{net\_inflow}_{s,b} = d_{s,b} \qquad \forall\thinspace s \in \mathcal{S},\enspace b \in \mathcal{B}$$
+```math
+\mathit{gen\_at\_bus}_{s,b} + \mathit{net\_inflow}_{s,b} = d_{s,b} \qquad \forall\, s \in \mathcal{S},\ b \in \mathcal{B}
+```
 
 #### Definitions
 
 **`gen_at_bus`**
 
-$$\mathit{gen\_at\_bus}_{s,b} = \sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{s,g} \qquad \forall\thinspace s \in \mathcal{S},\enspace b \in \mathcal{B}$$
+```math
+\mathit{gen\_at\_bus}_{s,b} = \sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{s,g} \qquad \forall\, s \in \mathcal{S},\ b \in \mathcal{B}
+```
 
 **`net_inflow`**
 
-$$\mathit{net\_inflow}_{s,b} = \sum_{\ell \in \mathcal{L} \thinspace:\thinspace \mathrm{line\_to}(\ell) = b} f_{s,\ell} - \left( \sum_{\ell \in \mathcal{L} \thinspace:\thinspace \mathrm{line\_from}(\ell) = b} f_{s,\ell} \right) \qquad \forall\thinspace s \in \mathcal{S},\enspace b \in \mathcal{B}$$
+```math
+\mathit{net\_inflow}_{s,b} = \sum_{\ell \in \mathcal{L} \,:\, \mathrm{line\_to}(\ell) = b} f_{s,\ell} - \left( \sum_{\ell \in \mathcal{L} \,:\, \mathrm{line\_from}(\ell) = b} f_{s,\ell} \right) \qquad \forall\, s \in \mathcal{S},\ b \in \mathcal{B}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{s,g} \le \bar p_{g} \qquad \forall\thinspace s \in \mathcal{S},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{s,g} \le \bar p_{g} \qquad \forall\, s \in \mathcal{S},\ g \in \mathcal{G}
+```
 
 **`f`**
 
-$$\underline{f}_{\ell} \le f_{s,\ell} \le \bar f_{\ell} \qquad \forall\thinspace s \in \mathcal{S},\enspace \ell \in \mathcal{L}$$
+```math
+\underline{f}_{\ell} \le f_{s,\ell} \le \bar f_{\ell} \qquad \forall\, s \in \mathcal{S},\ \ell \in \mathcal{L}
+```
 
 </details>
 <!-- math:end -->
@@ -145,13 +157,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_max
       f:
         description: flow on a line, signed towards its `line_to` bus
-        foreach: [snapshot, line]
+        dims: [snapshot, line]
         bounds:
           lower: neg_cap
           upper: cap
@@ -167,7 +179,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       balance:
         description: what is generated at a bus plus what arrives over the lines meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: gen_at_bus + net_inflow == load
 
     objective:

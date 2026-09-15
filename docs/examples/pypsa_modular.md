@@ -23,61 +23,75 @@ PyPSA modular capacity expansion: a technology bought in whole units. The capaci
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{nom,mod}}$ | `p_nom_mod` over $\mathcal{G}$ — capacity of one module — what a single unit of this technology adds |
-| $\mathrm{p}^{\mathrm{nom,max}}$ | `p_nom_max` over $\mathcal{G}$ — most capacity that may stand at a generator once built |
-| $\mathrm{capital\_cost}$ | `capital_cost` over $\mathcal{G}$ — cost of holding one unit of capacity over the horizon |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
+| $`\mathrm{p}^{\mathrm{nom,mod}}`$ | `p_nom_mod` over $`\mathcal{G}`$ — capacity of one module — what a single unit of this technology adds |
+| $`\mathrm{p}^{\mathrm{nom,max}}`$ | `p_nom_max` over $`\mathcal{G}`$ — most capacity that may stand at a generator once built |
+| $`\mathrm{capital\_cost}`$ | `capital_cost` over $`\mathcal{G}`$ — cost of holding one unit of capacity over the horizon |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — capacity built at a generator |
-| $n^{\mathrm{mod}}$ | `n_mod` over $\mathcal{G}$ — how many whole modules are built |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — capacity built at a generator |
+| $`n^{\mathrm{mod}}`$ | `n_mod` over $`\mathcal{G}`$ — how many whole modules are built |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{nom,mod}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom,mod}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capital\_cost}_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capital\_cost}_{g}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$p_{t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`modularity`**
 
-$$p^{\mathrm{nom}}_{g} = n^{\mathrm{mod}}_{g} \cdot \mathrm{p}^{\mathrm{nom,mod}}_{g} \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+p^{\mathrm{nom}}_{g} = n^{\mathrm{mod}}_{g} \cdot \mathrm{p}^{\mathrm{nom,mod}}_{g} \qquad \forall\, g \in \mathcal{G}
+```
 
 **`nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{t,g} = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{t,g} = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$p_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`p_nom`**
 
-$$0 \le p^{\mathrm{nom}}_{g} \le \mathrm{p}^{\mathrm{nom,max}}_{g} \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+0 \le p^{\mathrm{nom}}_{g} \le \mathrm{p}^{\mathrm{nom,max}}_{g} \qquad \forall\, g \in \mathcal{G}
+```
 
 **`n_mod`**
 
-$$n^{\mathrm{mod}}_{g} \ge 0, n^{\mathrm{mod}}_{g} \in \mathbb{Z} \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+n^{\mathrm{mod}}_{g} \ge 0, n^{\mathrm{mod}}_{g} \in \mathbb{Z} \qquad \forall\, g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->
@@ -130,18 +144,18 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: capacity built at a generator
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
           upper: p_nom_max
       n_mod:
         description: how many whole modules are built
-        foreach: [generator]
+        dims: [generator]
         domain: integer
         bounds:
           lower: 0
@@ -149,19 +163,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       within_capacity:
         description: a generator produces no more than the capacity built for it
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= p_nom
 
       modularity:
         description: >-
           capacity is the module count times the module size, which is what makes
           the count rather than the capacity the decision
-        foreach: [generator]
+        dims: [generator]
         expression: p_nom == n_mod * p_nom_mod
 
       nodal_balance:
         description: what is generated at a bus meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(p, by=gen_bus) == load
 
     objective:

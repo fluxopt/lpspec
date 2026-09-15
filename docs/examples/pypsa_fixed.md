@@ -24,61 +24,75 @@ PyPSA dispatch and capacity fixed by data: a row that is present pins its variab
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{nom,max}}$ | `p_nom_max` over $\mathcal{G}$ — most capacity that may stand at a generator once built |
-| $\mathrm{capital\_cost}$ | `capital_cost` over $\mathcal{G}$ — cost of holding one unit of capacity over the horizon |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{p}^{\mathrm{nom,set}}$ | `p_nom_set` over $\mathcal{G}$ — the capacity a generator is to hold, for the generators whose capacity is already decided |
-| $\mathrm{p}^{\mathrm{set}}$ | `p_set` over $\mathcal{T} \times \mathcal{G}$ — the output a generator is to deliver, for the snapshots in which it is scheduled rather than chosen |
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
+| $`\mathrm{p}^{\mathrm{nom,max}}`$ | `p_nom_max` over $`\mathcal{G}`$ — most capacity that may stand at a generator once built |
+| $`\mathrm{capital\_cost}`$ | `capital_cost` over $`\mathcal{G}`$ — cost of holding one unit of capacity over the horizon |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{p}^{\mathrm{nom,set}}`$ | `p_nom_set` over $`\mathcal{G}`$ — the capacity a generator is to hold, for the generators whose capacity is already decided |
+| $`\mathrm{p}^{\mathrm{set}}`$ | `p_set` over $`\mathcal{T} \times \mathcal{G}`$ — the output a generator is to deliver, for the snapshots in which it is scheduled rather than chosen |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — capacity built at a generator |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — capacity built at a generator |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{nom,max}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom,max}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capital\_cost}_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capital\_cost}_{g}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$p_{t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`capacity_fixed`**
 
-$$p^{\mathrm{nom}}_{g} = \mathrm{p}^{\mathrm{nom,set}}_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{p}^{\mathrm{nom,set}}_{g} \text{ is defined}$$
+```math
+p^{\mathrm{nom}}_{g} = \mathrm{p}^{\mathrm{nom,set}}_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{p}^{\mathrm{nom,set}}_{g} \text{ is defined}
+```
 
 **`dispatch_fixed`**
 
-$$p_{t,g} = \mathrm{p}^{\mathrm{set}}_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{p}^{\mathrm{set}}_{t,g} \text{ is defined}$$
+```math
+p_{t,g} = \mathrm{p}^{\mathrm{set}}_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{p}^{\mathrm{set}}_{t,g} \text{ is defined}
+```
 
 **`nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{t,g} = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{t,g} = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$p_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`p_nom`**
 
-$$0 \le p^{\mathrm{nom}}_{g} \le \mathrm{p}^{\mathrm{nom,max}}_{g} \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+0 \le p^{\mathrm{nom}}_{g} \le \mathrm{p}^{\mathrm{nom,max}}_{g} \qquad \forall\, g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->
@@ -138,12 +152,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: capacity built at a generator
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
           upper: p_nom_max
@@ -151,14 +165,14 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       within_capacity:
         description: a generator produces no more than the capacity built for it
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= p_nom
 
       capacity_fixed:
         description: >-
           a generator whose capacity is already decided holds exactly that — the
           row exists only where the table has one
-        foreach: [generator]
+        dims: [generator]
         where: p_nom_set
         expression: p_nom == p_nom_set
 
@@ -166,13 +180,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           a generator scheduled for a snapshot delivers exactly its schedule there,
           and is free everywhere else
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: p_set
         expression: p == p_set
 
       nodal_balance:
         description: what is generated at a bus meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(p, by=gen_bus) == load
 
     objective:

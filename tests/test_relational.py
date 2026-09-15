@@ -130,8 +130,8 @@ def dispatch_sources(gens: pd.DataFrame, load: pd.DataFrame) -> dict:
 RHS_SPEC = {
     'dimensions': {'i': {'dtype': 'int'}},
     'parameters': {'rhs': {'dims': ['i']}},
-    'variables': {'x': {'foreach': ['i'], 'bounds': {'lower': 0}}},  # no upper: +inf
-    'constraints': {'c': {'foreach': ['i'], 'expression': 'x >= rhs'}},
+    'variables': {'x': {'dims': ['i'], 'bounds': {'lower': 0}}},  # no upper: +inf
+    'constraints': {'c': {'dims': ['i'], 'expression': 'x >= rhs'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x, over=i)'},
 }
 
@@ -142,8 +142,8 @@ RHS_SPEC = {
 NODE_CAP_SPEC = {
     'dimensions': {'node': {'dtype': 'str'}},
     'parameters': {'cap': {'dims': ['node']}},
-    'variables': {'x': {'foreach': ['node'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-    'constraints': {'k': {'foreach': ['node'], 'expression': 'x >= cap'}},
+    'variables': {'x': {'dims': ['node'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'constraints': {'k': {'dims': ['node'], 'expression': 'x >= cap'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x, over=node)'},
 }
 
@@ -151,8 +151,8 @@ NODE_CAP_SPEC = {
 LABEL_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'cost': {'dims': ['f']}, 'cap': {'dims': ['f']}},
-    'variables': {'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-    'constraints': {'k': {'foreach': ['f'], 'expression': 'x <= cap'}},
+    'variables': {'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'constraints': {'k': {'dims': ['f'], 'expression': 'x <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost)'},
 }
 
@@ -167,7 +167,7 @@ _CAP = pl.DataFrame({'f': ['a', 'b'], 'value': [5.0, 5.0]})
 CONSTANT_BESIDE_A_TERM = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'k': {'dims': ['t']}, 'd': {'dims': []}, 'load': {'dims': []}},
-    'variables': {'x': {'foreach': ['t'], 'where': 't != 2', 'bounds': {'lower': 0}}},
+    'variables': {'x': {'dims': ['t'], 'where': 't != 2', 'bounds': {'lower': 0}}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x, over=t)'},
 }
 
@@ -336,8 +336,8 @@ class TestTwoModelsRoundTrip:
 SCALAR_SPEC = {
     'dimensions': {'i': {'dtype': 'int'}},
     'parameters': {'s': {'dims': []}},
-    'variables': {'x': {'foreach': ['i'], 'bounds': {'lower': 0, 'upper': 's'}}},
-    'constraints': {'floor': {'foreach': ['i'], 'expression': 'x >= 1'}},
+    'variables': {'x': {'dims': ['i'], 'bounds': {'lower': 0, 'upper': 's'}}},
+    'constraints': {'floor': {'dims': ['i'], 'expression': 'x >= 1'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x * s, over=i)'},
 }
 
@@ -371,8 +371,8 @@ class TestWhatBindRefusesAndWhatItTakes:
         spec = {
             'dimensions': {'i': {'dtype': 'int'}},
             'parameters': {'cap': {'dims': ['i']}},
-            'variables': {'x': {'foreach': ['i'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-            'constraints': {'c': {'foreach': ['i'], 'expression': 'x >= 0'}},
+            'variables': {'x': {'dims': ['i'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+            'constraints': {'c': {'dims': ['i'], 'expression': 'x >= 0'}},
             'objective': {'sense': 'minimize', 'expression': 'sum(x, over=i)'},
         }
         sources = {'i': [0, 1, 2], 'cap': pl.DataFrame({'i': [0, 1], 'value': [5.0, 6.0]})}
@@ -411,8 +411,8 @@ class TestWhatBindRefusesAndWhatItTakes:
         spec = {
             'dimensions': {'n': {'dtype': 'int'}},
             'parameters': {'cost': {'dims': ['n']}},
-            'variables': {'x': {'foreach': ['n'], 'bounds': {'lower': 0, 'upper': 5}}},
-            'constraints': {'c': {'foreach': ['n'], 'expression': 'x <= 5'}},
+            'variables': {'x': {'dims': ['n'], 'bounds': {'lower': 0, 'upper': 5}}},
+            'constraints': {'c': {'dims': ['n'], 'expression': 'x <= 5'}},
             'objective': {'sense': 'maximize', 'expression': 'sum(x * cost)'},
         }
         with lps.solve(spec, {'n': [1, 2], 'cost': pl.DataFrame({'n': [1, 2], 'value': [1.0, 2.0]})}) as result:
@@ -439,8 +439,8 @@ class TestWhatBindRefusesAndWhatItTakes:
         spec = {
             'dimensions': {'snapshot': {'dtype': 'int'}},
             'parameters': {'load': {'dims': ['snapshot']}},
-            'variables': {'p': {'foreach': ['snapshot'], 'bounds': {'lower': 0}}},
-            'constraints': {'meet': {'foreach': ['snapshot'], 'expression': 'p >= load'}},
+            'variables': {'p': {'dims': ['snapshot'], 'bounds': {'lower': 0}}},
+            'constraints': {'meet': {'dims': ['snapshot'], 'expression': 'p >= load'}},
             'objective': {'sense': 'minimize', 'expression': 'sum(p, over=snapshot)'},
         }
         sources = {'load': str(odd / 'load.parquet'), 'snapshot': str(odd / 'index.parquet')}
@@ -448,7 +448,7 @@ class TestWhatBindRefusesAndWhatItTakes:
         lps.write(spec, sources, odd / 'model.lp')
         result = lps.solve(spec, sources)
         assert result.objective == pytest.approx(3.0)
-        assert (result.to_parquet(odd / 'solution') / 'primal' / 'p.parquet').exists()
+        assert (result.save(odd / 'solution') / 'primal' / 'p.parquet').exists()
 
     def test_a_dictionary_encoded_source_column_binds_like_a_plain_one(self):
         """A `Categorical` dim column is a source encoding, not a different model.
@@ -496,8 +496,8 @@ TWO_BAD_COORDS_SPEC = {
     'dimensions': {'bus': {'dtype': 'str'}, 'line': {}},
     'lookups': {'from': {'over': 'line', 'into': 'bus'}, 'to': {'over': 'line', 'into': 'bus'}},
     'parameters': {'cap': {'dims': ['line']}},
-    'variables': {'f': {'foreach': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-    'constraints': {'k': {'foreach': ['line'], 'expression': 'f <= cap'}},
+    'variables': {'f': {'dims': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'constraints': {'k': {'dims': ['line'], 'expression': 'f <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(f)'},
 }
 
@@ -529,14 +529,14 @@ class TestTheLabelSpace:
             'parameters': {'cap': {'dims': ['node', 'tech']}, 'load': {'dims': ['snapshot']}},
             'variables': {
                 'p': {
-                    'foreach': ['snapshot', 'node', 'tech'],
+                    'dims': ['snapshot', 'node', 'tech'],
                     'where': 'cap > 0',
                     'bounds': {'lower': 0, 'upper': 'cap'},
                 }
             },
             'constraints': {
                 'balance': {
-                    'foreach': ['snapshot', 'node'],
+                    'dims': ['snapshot', 'node'],
                     'expression': 'sum(p, over=tech) >= load',
                 }
             },
@@ -657,10 +657,10 @@ class TestTheLabelSpace:
             'dimensions': {'i': {'dtype': 'int'}},
             'parameters': {'a': {'dims': ['i']}, 'b': {'dims': ['i']}},
             'variables': {
-                'absent': {'foreach': ['i'], 'where': 'not a', 'bounds': {'lower': 0, 'upper': 1}},
-                'either': {'foreach': ['i'], 'where': 'a > 0 or b > 0', 'bounds': {'lower': 0, 'upper': 1}},
-                'both': {'foreach': ['i'], 'where': 'a and a > 0', 'bounds': {'lower': 0, 'upper': 1}},
-                'mixed': {'foreach': ['i'], 'where': 'a and not b', 'bounds': {'lower': 0, 'upper': 1}},
+                'absent': {'dims': ['i'], 'where': 'not a', 'bounds': {'lower': 0, 'upper': 1}},
+                'either': {'dims': ['i'], 'where': 'a > 0 or b > 0', 'bounds': {'lower': 0, 'upper': 1}},
+                'both': {'dims': ['i'], 'where': 'a and a > 0', 'bounds': {'lower': 0, 'upper': 1}},
+                'mixed': {'dims': ['i'], 'where': 'a and not b', 'bounds': {'lower': 0, 'upper': 1}},
             },
             'objective': {'sense': 'minimize', 'expression': 'sum(absent, over=i)'},
         }
@@ -695,13 +695,13 @@ class TestTheLabelSpace:
             'dimensions': {'i': {'dtype': 'int'}, 'j': {'dtype': 'str'}},
             'parameters': {'cap': {'dims': ['i']}},
             'variables': {
-                'x': {'foreach': ['i'], 'bounds': {'lower': 0, 'upper': 'cap'}},
-                'y': {'foreach': ['i', 'j'], 'bounds': {'lower': 0}},
-                'z': {'foreach': ['j'], 'bounds': {'lower': 0}},
+                'x': {'dims': ['i'], 'bounds': {'lower': 0, 'upper': 'cap'}},
+                'y': {'dims': ['i', 'j'], 'bounds': {'lower': 0}},
+                'z': {'dims': ['j'], 'bounds': {'lower': 0}},
             },
             'constraints': {
-                'c1': {'foreach': ['i'], 'expression': 'x >= cap'},
-                'c2': {'foreach': ['i', 'j'], 'expression': 'y >= 0'},
+                'c1': {'dims': ['i'], 'expression': 'x >= cap'},
+                'c2': {'dims': ['i', 'j'], 'expression': 'y >= 0'},
             },
             'objective': {'sense': 'minimize', 'expression': 'sum(x, over=i)'},
         }
@@ -736,10 +736,10 @@ class TestTheLabelSpace:
             'dimensions': {'i': {'dtype': 'int'}},
             'parameters': {'cap': {'dims': ['i']}},
             'variables': {
-                'pad': {'foreach': ['i'], 'bounds': {'lower': 0, 'upper': 0}},
-                'x': {'foreach': ['i'], 'bounds': {'lower': 0}},
+                'pad': {'dims': ['i'], 'bounds': {'lower': 0, 'upper': 0}},
+                'x': {'dims': ['i'], 'bounds': {'lower': 0}},
             },
-            'constraints': {'x': {'foreach': ['i'], 'expression': 'x >= cap'}},
+            'constraints': {'x': {'dims': ['i'], 'expression': 'x >= cap'}},
             'objective': {'sense': 'minimize', 'expression': 'sum(x, over=i)'},
         }
         with lps.solve(
@@ -819,7 +819,7 @@ class TestTheLabelSpace:
         spec = {
             'dimensions': {'cut': declared},
             'parameters': {'c': {'dims': ['cut']}},
-            'variables': {'x': {'foreach': ['cut'], 'bounds': {'lower': 0}}},
+            'variables': {'x': {'dims': ['cut'], 'bounds': {'lower': 0}}},
             'objective': {'sense': 'minimize', 'expression': 'sum(x * c)'},
         }
         empty = pl.DataFrame(schema={'cut': dtype, 'value': pl.Float64})
@@ -863,10 +863,10 @@ def _network(ends: tuple[str, str]) -> tuple[dict, dict]:
         },
         'lookups': {'from': {'over': 'line', 'into': 'bus'}, 'to': {'over': 'line', 'into': 'bus'}},
         'parameters': {'cap': {'dims': ['line']}, 'load': {'dims': ['snapshot', 'bus']}},
-        'variables': {'f': {'foreach': ['snapshot', 'line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+        'variables': {'f': {'dims': ['snapshot', 'line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {
             'balance': {
-                'foreach': ['snapshot', 'bus'],
+                'dims': ['snapshot', 'bus'],
                 'expression': 'sum(f, by=to) - sum(f, by=from) == load',
             }
         },
@@ -890,10 +890,10 @@ PINNED_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'relmax': {'dims': ['f']}, 'size_lb': {'dims': ['f']}, 'size_ub': {'dims': ['f']}},
     'variables': {
-        'rate': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 1000}},
-        'size': {'foreach': ['f'], 'bounds': {'lower': 'size_lb', 'upper': 'size_ub'}},
+        'rate': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 1000}},
+        'size': {'dims': ['f'], 'bounds': {'lower': 'size_lb', 'upper': 'size_ub'}},
     },
-    'constraints': {'envelope': {'foreach': ['f'], 'expression': 'rate - relmax * size <= 0'}},
+    'constraints': {'envelope': {'dims': ['f'], 'expression': 'rate - relmax * size <= 0'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(rate, over=f)'},
 }
 
@@ -906,8 +906,8 @@ SPELLED_ZEROS_INDEX = {'i': [0, 1], 'j': [0, 1, 2, 3]}
 SPELLED_ZEROS_SPEC = {
     'dimensions': {'i': {'dtype': 'int'}, 'j': {'dtype': 'int'}},
     'parameters': {'a': {'dims': ['i', 'j']}},
-    'variables': {'x': {'foreach': ['j'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'c': {'foreach': ['i'], 'expression': 'sum(a * x, over=j) >= 10'}},
+    'variables': {'x': {'dims': ['j'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {'c': {'dims': ['i'], 'expression': 'sum(a * x, over=j) >= 10'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x, over=j)'},
 }
 
@@ -954,8 +954,8 @@ class TestWhatReachesTheSolverAsAnEntry:
         spec = {
             'dimensions': {'i': {'dtype': 'int'}},
             'parameters': {'lb': {'dims': ['i']}},
-            'variables': {'x': {'foreach': ['i'], 'bounds': {'lower': 'lb'}}},
-            'constraints': {'c': {'foreach': ['i'], 'expression': 'x >= lb'}},
+            'variables': {'x': {'dims': ['i'], 'bounds': {'lower': 'lb'}}},
+            'constraints': {'c': {'dims': ['i'], 'expression': 'x >= lb'}},
             'objective': {'sense': 'minimize', 'expression': 'sum(x) + sum(4 * x)'},
         }
         with lps.build(spec, {'i': [0], 'lb': pl.DataFrame({'i': [0], 'value': [2.0]})}) as model:
@@ -981,7 +981,7 @@ class TestWhatReachesTheSolverAsAnEntry:
         spec = override(
             RHS_SPEC,
             **{
-                'variables.y': {'foreach': ['i'], 'bounds': {'lower': 0}},
+                'variables.y': {'dims': ['i'], 'bounds': {'lower': 0}},
                 'objective.expression': 'sum(x, over=i) + sum(y, over=i)',
                 'constraints.c.expression': expression,
             },
@@ -1036,8 +1036,8 @@ class TestWhatReachesTheSolverAsAnEntry:
         base = {
             'dimensions': {'i': {'dtype': 'int'}},
             'parameters': {'cost': {'dims': ['i']}, 'lb': {'dims': ['i']}},
-            'variables': {'p': {'foreach': ['i'], 'bounds': {'lower': 'lb'}}},
-            'constraints': {'c': {'foreach': ['i'], 'expression': 'p >= lb'}},
+            'variables': {'p': {'dims': ['i'], 'bounds': {'lower': 'lb'}}},
+            'constraints': {'c': {'dims': ['i'], 'expression': 'p >= lb'}},
             'objective': {'sense': 'minimize', 'expression': expression},
         }
         sources = {
@@ -1061,8 +1061,8 @@ class TestWhatReachesTheSolverAsAnEntry:
         spec = {
             'dimensions': {'snapshot': {'dtype': 'int'}, 'generator': {'dtype': 'str'}},
             'parameters': {'price': {'dims': ['snapshot', 'generator']}, 'load': {'dims': ['snapshot']}},
-            'variables': {'q': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
-            'constraints': {'floor': {'foreach': ['snapshot'], 'expression': 'q >= load'}},
+            'variables': {'q': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
+            'constraints': {'floor': {'dims': ['snapshot'], 'expression': 'q >= load'}},
             'objective': {'sense': 'minimize', 'expression': 'sum(q * price)'},
         }
         sources = {
@@ -1152,20 +1152,20 @@ class TestWhatReachesTheSolverAsAnEntry:
 POSITIONAL_COLS_SPEC = {
     'dimensions': {'i': {'dtype': 'int'}, 'j': {'dtype': 'str'}},
     'parameters': {'cap': {'dims': ['i', 'j']}},
-    'variables': {'x': {'foreach': ['i', 'j'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-    'constraints': {'c': {'foreach': ['i', 'j'], 'expression': 'x <= cap'}},
+    'variables': {'x': {'dims': ['i', 'j'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'constraints': {'c': {'dims': ['i', 'j'], 'expression': 'x <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(sum(x, over=j), over=i)'},
 }
 
 
 #: A bound parameter dense over the whole variable product — a profile per
-#: node, per hour. `p`'s upper bound spans exactly `p`'s foreach, so alignment
+#: node, per hour. `p`'s upper bound spans exactly `p`'s dims, so alignment
 #: is positional rather than a join (compiler `_aligned_bound`).
 DENSE_BOUND_SPEC = {
     'dimensions': {'t': {'dtype': 'int'}, 'n': {'dtype': 'str'}},
     'parameters': {'avail': {'dims': ['t', 'n']}, 'cost': {'dims': ['n']}},
-    'variables': {'p': {'foreach': ['t', 'n'], 'bounds': {'lower': 0, 'upper': 'avail'}}},
-    'constraints': {'cap': {'foreach': ['t'], 'expression': 'sum(p, over=n) <= 100'}},
+    'variables': {'p': {'dims': ['t', 'n'], 'bounds': {'lower': 0, 'upper': 'avail'}}},
+    'constraints': {'cap': {'dims': ['t'], 'expression': 'sum(p, over=n) <= 100'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(p * cost)'},
 }
 
@@ -1213,8 +1213,8 @@ def _aligned_for(spec, data, monkeypatch):
 FLAT_SPEC = {
     'dimensions': {'n': {'dtype': 'str'}},
     'parameters': {'avail': {'dims': ['n']}, 'cost': {'dims': ['n']}},
-    'variables': {'p': {'foreach': ['n'], 'bounds': {'lower': 0, 'upper': 'avail'}}},
-    'constraints': {'cap': {'foreach': [], 'expression': 'sum(p, over=n) <= 100'}},
+    'variables': {'p': {'dims': ['n'], 'bounds': {'lower': 0, 'upper': 'avail'}}},
+    'constraints': {'cap': {'dims': [], 'expression': 'sum(p, over=n) <= 100'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(p * cost)'},
 }
 
@@ -1244,8 +1244,8 @@ class TestThePositionalHandoff:
         spec = {
             'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
             'parameters': {'cap': {'dims': ['g']}, 'load': {'dims': ['t']}},
-            'variables': {'p': {'foreach': ['t', 'g'], 'where': 'cap > 0', 'bounds': {'lower': 0, 'upper': 'cap'}}},
-            'constraints': {'meet': {'foreach': ['t'], 'where': 'load > 0', 'expression': 'sum(p, over=g) >= load'}},
+            'variables': {'p': {'dims': ['t', 'g'], 'where': 'cap > 0', 'bounds': {'lower': 0, 'upper': 'cap'}}},
+            'constraints': {'meet': {'dims': ['t'], 'where': 'load > 0', 'expression': 'sum(p, over=g) >= load'}},
             'objective': {'sense': 'minimize', 'expression': 'sum(sum(p, over=g), over=t)'},
         }
         sources = {
@@ -1441,7 +1441,7 @@ class TestThePositionalHandoff:
     def test_a_bound_dense_over_the_product_is_attached_by_position_not_joined(self, monkeypatch):
         """The shape xarray gets for free: position *is* the coordinate.
 
-        `avail` spans exactly `p`'s foreach and has a row per coordinate, so the
+        `avail` spans exactly `p`'s dims and has a row per coordinate, so the
         label frame and the parameter describe the same product — and the label
         frame is in label order by construction. Sorting the parameter by the
         dimension ordinals reproduces that order, so the value column is attached
@@ -1539,7 +1539,7 @@ def _constant_beside_a_term(expression: str, *, over_the_dim: bool = False) -> d
     return {
         **spec,
         'parameters': parameters,
-        'constraints': {'bal': {'foreach': [], 'expression': expression}},
+        'constraints': {'bal': {'dims': [], 'expression': expression}},
     }
 
 
@@ -1577,8 +1577,8 @@ def _absent_slot_spec(expression: str) -> dict:
         'dimensions': {'t': {'dtype': 'int'}, 'r': {'dtype': 'str'}},
         'lookups': {'r_of': {'over': 't', 'into': 'r'}},
         'parameters': {'k': {'dims': ['t']}, 'd': {'dims': ['t']}, 'load': {'dims': []}},
-        'variables': {'x': {'foreach': ['t'], 'where': 't != 2', 'bounds': {'lower': 0}}},
-        'constraints': {'bal': {'foreach': [], 'expression': expression}},
+        'variables': {'x': {'dims': ['t'], 'where': 't != 2', 'bounds': {'lower': 0}}},
+        'constraints': {'bal': {'dims': [], 'expression': expression}},
         'objective': {'sense': 'minimize', 'expression': 'sum(x, over=t)'},
     }
 
@@ -1658,7 +1658,7 @@ class TestWhereTheLanesDifferByDesign:
 NETWORK = {
     'dimensions': {'from_bus': {'dtype': 'str'}, 'to_bus': {'dtype': 'str'}},
     'parameters': {'cap': {'dims': ['from_bus', 'to_bus']}},
-    'variables': {'f': {'foreach': ['from_bus', 'to_bus'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'variables': {'f': {'dims': ['from_bus', 'to_bus'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
     'objective': {'sense': 'maximize', 'expression': 'sum(f)'},
 }
 

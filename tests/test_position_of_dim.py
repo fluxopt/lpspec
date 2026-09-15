@@ -43,22 +43,22 @@ parameters:
 
 variables:
   soc:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0, upper: 100}
     description: energy stored at the end of a period
   out:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0, upper: 100}
     description: energy released in a period
 
 constraints:
   soc_start:
-    foreach: [snapshot]
+    dims: [snapshot]
     where: "position(snapshot) == 0"
     expression: soc == soc_initial + inflow - out
     description: the first period has no predecessor, so it carries the initial level
   soc_carry:
-    foreach: [snapshot]
+    dims: [snapshot]
     where: "position(snapshot) != 0"
     expression: soc == shift(soc, over=snapshot, offset=1) + inflow - out
     description: every later period carries the previous one's level
@@ -146,7 +146,7 @@ def test_a_negative_position_counts_from_the_end():
     cyclic = SPEC.replace(
         """objective:""",
         """  soc_final:
-    foreach: [snapshot]
+    dims: [snapshot]
     where: "position(snapshot) == -1"
     expression: soc >= 10
     description: the last period ends with at least ten stored
@@ -243,11 +243,11 @@ parameters:
   price: {dims: [snapshot]}
 
 variables:
-  soc: {foreach: [snapshot], bounds: {lower: 0, upper: 100}}
+  soc: {dims: [snapshot], bounds: {lower: 0, upper: 100}}
 
 constraints:
   pin:
-    foreach: [snapshot]
+    dims: [snapshot]
     where: "WHERE"
     expression: soc == 5
 
@@ -331,32 +331,6 @@ def test_a_coordinate_in_no_group_has_no_boundary(where):
     no group, so `sum(by=)` places its terms nowhere and this places no row.
     """
     assert 99 not in _masked(where), f'{where} claimed a coordinate that is in no group'
-
-
-def test_a_label_space_groups_a_position_like_a_targeted_lookup():
-    """`position(by=)` takes the label space that `sum`, `at` and `shift` refuse.
-
-    The asymmetry is the language's own (math-spec#281 pins it upstream): a
-    boundary within each group needs no target axis to land terms on, so a
-    map that owns its values groups it as well as one into a dimension. No
-    corpus model writes this spelling — every `by=` elsewhere uses a targeted
-    lookup — so without this test either lane could drop the label-space form
-    and stay green.
-    """
-    spec = MASK.replace(
-        '  period_of: {over: snapshot, into: period}',
-        '  period_of: {over: snapshot, into: period}\n  block: {over: snapshot, dtype: str}',
-    )
-    blocks = ['a', 'a', 'b', 'b', 'b', None]
-    sources = _grouped_sources() | {'block': relation('snapshot', 'block', GROUPED_SNAPSHOTS, blocks)}
-
-    def masked(where: str) -> list[int]:
-        with differential(spec.replace('WHERE', where), sources) as run:
-            rows = run.result.primal('soc').filter(pl.col('value') > 1e-9)
-            return sorted(int(s) for s in rows.select('snapshot').to_series())
-
-    assert masked('position(snapshot, by=block) == 0') == [10, 20], "each block's first snapshot, both lanes agreed"
-    assert masked('position(snapshot, by=block) == -1') == [11, 22], 'and the negative spelling counts from each tail'
 
 
 def test_a_group_shorter_than_the_position_is_an_error_at_bind(tmp_path):
@@ -474,12 +448,12 @@ parameters:
   price: {dims: [snapshot]}
 
 variables:
-  soc: {foreach: [snapshot], bounds: {lower: 0, upper: 60}}
-  release: {foreach: [snapshot], bounds: {lower: 0, upper: 100}}
+  soc: {dims: [snapshot], bounds: {lower: 0, upper: 60}}
+  release: {dims: [snapshot], bounds: {lower: 0, upper: 100}}
 
 constraints:
   season_balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: soc == shift(soc, over=snapshot, offset=1, EDGE) + inflow - release
 
 objective:

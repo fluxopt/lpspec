@@ -7,20 +7,10 @@ disagree about the model they load. Two things differ:
 - **The matrix's currency.** HiGHS takes the three CSR arrays; gurobipy's
   matrix API takes a matrix *object*, so they are wrapped in a
   ``scipy.sparse.csr_matrix`` — a view, not a copy. That wrapper is why the
-  ``[gurobi]`` extra carries scipy: the alternative is a Python call per row.
+  ``[gurobi]`` extra carries scipy.
 - **Nothing is batched.** The columns cannot be, since ``addMConstr`` writes
-  into one ``MVar`` spanning the model — and the matrix *should* not be, which
-  is where this sink parts company with the HiGHS one. See
+  into one ``MVar`` spanning the model. See
   :meth:`~lpspec.relational.sinks.tables.Tables.row_blocks`.
-
-**A column costs 192 bytes of Python objects here, on top of the solver's
-own.** gurobipy backs an ``MVar`` with one ``Var`` object per column and
-reads and writes every attribute through them, so a model of a million
-columns holds ~190 MB of them for as long as it is loaded, and a garbage
-collection that runs while they are young walks all of them (#1288). There
-is no object-free path — a file round trip only defers the same objects to
-the first read-back — so this is the price of the sink rather than a cost
-of it.
 
 ``gurobipy`` and ``scipy`` are imported inside the functions, so importing
 this module stays free for a caller who never solves with it.
@@ -47,8 +37,7 @@ if TYPE_CHECKING:
 
 #: Gurobi status -> termination condition. Copied from linopy's own
 #: ``Gurobi.CONDITION_MAP`` bar three entries (:data:`_LINOPY_DIVERGENCES`);
-#: ``tests/test_solve_status.py`` asserts both halves, so linopy moving — or
-#: fixing — fails here rather than silently.
+#: ``tests/test_solve_status.py`` asserts both halves.
 _CONDITION_OF_GUROBI_STATUS = {
     1: 'unknown',
     2: 'optimal',
@@ -85,17 +74,15 @@ def build_gurobi(
 ) -> Gurobi:
     """Load the model into a :class:`gurobipy.Model` and stop there.
 
-    :func:`~lpspec.relational.sinks.solvers.highs.build_highs`'s seam, drawn
-    for its reason: the search is the same work whoever filled the model.
+    :func:`~lpspec.relational.sinks.solvers.highs.build_highs`'s seam.
     ``batch_rows`` is a *nonzero* budget that splits the matrix across calls;
     it defaults to one call — see
-    :meth:`~lpspec.relational.sinks.tables.Tables.row_blocks` for why.
+    :meth:`~lpspec.relational.sinks.tables.Tables.row_blocks`.
 
     Returns:
-        The :class:`Gurobi` holding the model, at ``.handle``. The holder is
-        what a caller owns, because the model's licence lives on an
-        environment gurobipy gives no way back to from the model — ``close``,
-        or leaving a ``with``, releases both in the order Gurobi wants.
+        The :class:`Gurobi` holding the model, at ``.handle``. ``close``, or
+        leaving a ``with``, releases both the model and its environment in the
+        order Gurobi wants.
     """
     return Gurobi(tables, batch_rows, solver_options)
 
@@ -104,7 +91,7 @@ class Gurobi(Solver):
     """Gurobi, holding one model — :class:`Solver`'s member for the opt-in sink.
 
     :class:`~lpspec.relational.sinks.solvers.highs.Highs`'s twin, and the same
-    lifecycle. Four things are gurobipy's shape rather than a choice:
+    lifecycle. Four things are gurobipy's shape:
 
     - **A push writes through the read-back handles.** The ``MVar`` and the
       constraint blocks are what carry the attributes, so this keeps what
@@ -113,7 +100,7 @@ class Gurobi(Solver):
       it, and a holder dropped without closing runs it when the collector
       gets there; both dispose the model before its environment, the order
       Gurobi's licence wants, and the finalizer holds the two handles rather
-      than the solver, so nothing here keeps itself alive.
+      than the solver.
     - **Nothing pushes ``Sense``.** A row's comparison comes from the YAML and
       no data can move it, so a model whose senses differ is one
       :attr:`~lpspec.relational.sinks.tables.Tables.structure` has already
@@ -122,8 +109,7 @@ class Gurobi(Solver):
     """
 
     #: The loaded model, the two handles that read it back, and the
-    #: environment to release. Declared rather than inferred, ``close``
-    #: dropping all four.
+    #: environment to release. ``close`` drops all four.
     _m: Any
     _x: Any
     _blocks: list[Any]
@@ -131,27 +117,25 @@ class Gurobi(Solver):
     #: holder's lifetime.
     _release: weakref.finalize[[Any, Any], Gurobi]
     #: The quadratic constraints, in row order and **after** every linear one:
-    #: they are the tail of the label space, so the read-back concatenates
-    #: rather than scatters.
+    #: they are the tail of the label space.
     _qrows: list[Any]
     _env: Any
 
-    #: Both halves of the extra, for the reason :attr:`unavailable_message`
-    #: names both: the missing one is as often scipy.
+    #: Both halves of the extra.
     requires = ('gurobipy', 'scipy.sparse')
     unavailable_message = 'The gurobi sink requires the [gurobi] extra (gurobipy, scipy): pip install "lpspec[gurobi]"'
 
-    #: Gurobi branches on a set itself, which is the whole reason to declare
-    #: one: no binaries, no big-M, and no bound a member has to have.
+    #: Gurobi branches on a set itself: no binaries, no big-M, and no bound a
+    #: member has to have.
     #:
     #: The only sink with no quadratic exclusion: a Hessian stands beside
     #: integrality, and a nonconvex one reaches spatial branch-and-bound at
     #: default parameters, both measured in
     #: ``tests/test_gurobi_capability_probes.py``.
     #:
-    #: ``quadratic_constraint`` joined them when the stream that carries one
-    #: did. This is the only consumer in the package that builds one at all —
-    #: the linopy lane cannot (:data:`lpspec.lanes.LANES`).
+    #: This is the only consumer in the package that builds a
+    #: ``quadratic_constraint`` at all — the linopy lane cannot
+    #: (:data:`lpspec.lanes.LANES`).
     capabilities = Capabilities(
         supports={
             'integrality': 'native',
@@ -174,8 +158,7 @@ class Gurobi(Solver):
         """Whole vectors, in as many calls as there are blocks.
 
         The matrix API writes an attribute across an ``MVar`` or an
-        ``MConstr`` at a time, so there is nothing here to batch that was not
-        batched at the load.
+        ``MConstr`` at a time.
         """
         gurobipy = _gurobipy()
         cols = tables.dense_columns(gurobipy.GRB.INFINITY)
@@ -246,16 +229,13 @@ class Gurobi(Solver):
         """Solve what is loaded and read it back.
 
         Gurobi refuses the attribute where there is no primal or no dual
-        rather than handing back zeros, which is the one place it makes this
-        easier than HiGHS.
+        rather than handing back zeros.
 
         The one error translated here is the convexity refusal a *caller's own
         option* can provoke: ``QCPDual`` puts the solve on the convex path, so
         a nonconvex quadratic constraint that solves without it fails with it.
         Left alone that reaches the caller as a ``GurobiError`` naming a
-        parameter they set for an unrelated reason. The solver's own sentence
-        rides along because it names the row shape, and dropping it would leave
-        a caller with less than they had.
+        parameter they set for an unrelated reason.
         """
         gurobipy = _gurobipy()
         try:
@@ -284,17 +264,12 @@ class Gurobi(Solver):
         """``Model.reset``: the solution and the basis go, the model stays.
 
         The default depth, which discards the solution without touching the
-        parameters the caller set through ``solver_options`` — those are the
-        model's configuration and outlive any one run.
+        parameters the caller set through ``solver_options``.
         """
         self._m.reset()
 
     def close(self) -> None:
-        """Release the model and the licence its environment holds.
-
-        Explicitly, and now: a model a caller still references is disposed
-        under them, which is what releasing a licence means.
-        """
+        """Release the model and the licence its environment holds."""
         self._release()
         self._m = self._x = self._env = None
         self._blocks = []
@@ -319,20 +294,16 @@ def _built(
 ) -> tuple[Any, Any, list[Any], list[Any], Any]:
     """The model, the handles to read it back, and the environment to release.
 
-    ``x.X`` and ``block.Pi`` are numpy arrays; ``getVars()``/``getConstrs()``
-    would build one Python object per column and row for the same numbers.
-
     **Options go on the environment, not the model.** A licence parameter —
     ``WLSAccessID``, ``ComputeServer``, ``TokenServer`` — can only be set
-    before an environment starts, and ``setParam`` on the model refuses it,
-    so a Compute-Server or WLS user could not reach this sink at all. Nothing
-    else is affected: an environment's parameters are the defaults of every
-    model built on it. ``OutputFlag`` leads so a caller can put the log back.
+    before an environment starts, and ``setParam`` on the model refuses it.
+    Nothing else is affected: an environment's parameters are the defaults of
+    every model built on it. ``OutputFlag`` leads so a caller can put the log
+    back.
 
-    ``vtype`` is passed only when some column is integral, as linopy does: an
-    LP would otherwise pay part of the column hand-off for an array of one
-    repeated letter (#434). ``batch_rows`` goes straight through un-defaulted:
-    one call unless a caller asks otherwise (#434).
+    ``vtype`` is passed only when some column is integral, as linopy does.
+    ``batch_rows`` goes straight through un-defaulted: one call unless a
+    caller asks otherwise.
     """
     gurobipy = _gurobipy()
     environment = gurobipy.Env(params={'OutputFlag': 0, **dict(solver_options or {})})
@@ -345,7 +316,7 @@ def _built(
 
 
 def _filled(m: Any, tables: Tables, batch_rows: int | None, gurobipy: Any) -> tuple[Any, list[Any], list[Any]]:
-    """Everything :func:`_built` loads after the environment exists, so a load that fails part way still releases it."""
+    """Everything :func:`_built` loads after the environment exists."""
     import numpy as np
     import scipy.sparse
 
@@ -377,21 +348,18 @@ def _filled(m: Any, tables: Tables, batch_rows: int | None, gurobipy: Any) -> tu
 def _add_quadratic_rows(m: Any, x: Any, tables: Tables, rows: RowVectors, spelling: Any) -> list[Any]:
     r"""Every quadratic constraint, one ``addMQConstr`` call each.
 
-    The second stream with no bulk form — ``addSOS`` is the first — and for the
-    same reason it does not matter: the API takes one constraint per call, and
-    a model with enough quadratic rows for that to cost anything is one no
-    spatial branch-and-bound would finish.
+    The second stream with no bulk form — ``addSOS`` is the first: the API
+    takes one constraint per call.
 
     Each row is assembled from **both** matrices: its quadratic entries as
     :math:`Q` in :math:`x^	op Q x` (no halving, the convention
     :func:`_set_quadratic` already takes) and its linear entries from the
     ordinary matrix, where they sit at the same row label. A quadratic row
-    keeps its place in the linear matrix precisely so that the two halves are
-    read from one label rather than kept in step by hand.
+    keeps its place in the linear matrix, so the two halves are read from one
+    label.
 
     They are the **tail** of the label space, so the handles returned here
-    concatenate onto the linear blocks and the read-back stays two runs rather
-    than a scatter (:func:`_duals`).
+    concatenate onto the linear blocks (:func:`_duals`).
     """
     import numpy as np
     import scipy.sparse
@@ -418,9 +386,8 @@ def _set_quadratic(m: Any, x: Any, tables: Tables, cost: Any) -> None:
     stands, one entry per pair in the upper triangle.
 
     It sets the *whole* objective, so the cost vector already on the columns is
-    passed again rather than overwritten with zeros — and that replacement is
-    what makes a push safe, where accumulating would answer twice the curvature
-    on the second solve. Nothing is called at all for an affine model.
+    passed again rather than overwritten with zeros. Nothing is called at all
+    for an affine model.
     """
     import scipy.sparse
 
@@ -441,9 +408,7 @@ def _add_sets(m: Any, x: Any, tables: Tables, gurobipy: Any) -> None:
 
     The one stream with no bulk form: ``addSOS`` takes a list of ``Var`` and
     their weights, so a set is a call and its members are Python objects. The
-    ``MVar`` is sliced rather than ``getVars()`` walked, which keeps that cost
-    proportional to the *members* — a model whose sets cover a corner of it
-    pays for the corner.
+    ``MVar`` is sliced rather than ``getVars()`` walked.
     """
     if not tables.sos.height:
         return
@@ -454,8 +419,7 @@ def _add_sets(m: Any, x: Any, tables: Tables, gurobipy: Any) -> None:
 
 
 #: Our spelling of a comparison against Gurobi's, by ``GRB`` attribute name —
-#: a name rather than a value because ``gurobipy`` is an optional import and
-#: this is module level.
+#: a name because ``gurobipy`` is an optional import and this is module level.
 _GUROBI_SENSE = {'<=': 'LESS_EQUAL', '>=': 'GREATER_EQUAL', '==': 'EQUAL'}
 
 
@@ -529,11 +493,10 @@ def _duals(blocks: list[Any], qrows: list[Any]) -> pl.Series | None:
     — no zero vector to test.
 
     A quadratic row prices through ``QCPi``, which exists **only under
-    ``QCPDual``** — off by default and deliberately left off: asking for it
-    puts the solve on the convex path, and a nonconvex row that solves without
-    it then fails outright (measured: ``Constraint Q not PSD``). A caller who
-    wants prices asks with ``solver_options={'QCPDual': 1}``; without it the
-    attribute is refused, and that refusal *is* the answer.
+    ``QCPDual``** — off by default: asking for it puts the solve on the convex
+    path, and a nonconvex row that solves without it then fails outright. A
+    caller who wants prices asks with ``solver_options={'QCPDual': 1}``;
+    without it the attribute is refused, and that refusal *is* the answer.
     """
     import numpy as np
 

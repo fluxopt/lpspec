@@ -66,6 +66,7 @@ TRACKED = [
     'docs/guide.md',
     'docs/howto/parallel.md',
     'docs/howto/debug.md',
+    'docs/howto/archiving.md',
     'docs/reference/api.md',
     'docs/reference/sweeps.md',
     'docs/about/linopy.md',

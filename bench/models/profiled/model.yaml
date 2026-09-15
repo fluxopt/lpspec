@@ -36,14 +36,14 @@ parameters:
 
 variables:
   p:
-    foreach: [snapshot, node, tech]
+    dims: [snapshot, node, tech]
     bounds:
       lower: 0
       upper: availability
 
 constraints:
   balance:
-    foreach: [snapshot, node]
+    dims: [snapshot, node]
     expression: sum(p, over=tech) == demand
 
 objective:

@@ -52,13 +52,13 @@ Write the math in YAML, attach data at runtime, solve.
     parsed and name-checked before a single source is attached. Errors name the
     problem and its rewrite.
 
--   :material-fence: __A finite language, with a priced way out__
+-   :material-fence: __A finite language, with no escape hatch__
 
     ---
 
-    The ceiling is a closure (relational ∩ local), not a feature race.
-    Genuinely unsayable math goes in an `escape:` island — visible in the file,
-    billed before it runs.
+    The ceiling is relational, and locality prices a new operator rather than
+    barring it. Math the language cannot express is a gap in the language, and
+    a gap closes as a macro, a primitive or a formulation.
 
 -   :material-speedometer: __Straight to the solver__
 
@@ -106,38 +106,44 @@ is a choice, and **How** shows the one that was made here.
 
     | Symbol | Meaning |
     |---|---|
-    | $\mathcal{S}$ | index $s$ — `snapshot` — dispatch periods |
-    | $\mathcal{G}$ | index $g$ — `generator` — generating units |
+    | $`\mathcal{S}`$ | index $`s`$ — `snapshot` — dispatch periods |
+    | $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units |
 
     #### Parameters
 
     | Symbol | Meaning |
     |---|---|
-    | $\bar p$ | `p_max` over $\mathcal{G}$ — installed capacity |
-    | $\ell$ | `load` over $\mathcal{S}$ — demand to be met |
-    | $c$ | `cost` over $\mathcal{G}$ — marginal cost |
+    | $`\bar p`$ | `p_max` over $`\mathcal{G}`$ — installed capacity |
+    | $`\ell`$ | `load` over $`\mathcal{S}`$ — demand to be met |
+    | $`c`$ | `cost` over $`\mathcal{G}`$ — marginal cost |
 
     #### Variables
 
     | Symbol | Meaning |
     |---|---|
-    | $p$ | `p` over $\mathcal{S} \times \mathcal{G}$ — output of a generator in a snapshot |
+    | $`p`$ | `p` over $`\mathcal{S} \times \mathcal{G}`$ — output of a generator in a snapshot |
 
     #### Objective
 
-    $$\min \sum_{s \in \mathcal{S},\enspace g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
+    ```math
+    \min \sum_{s \in \mathcal{S},\ g \in \mathcal{G}} p_{s,g} \cdot c_{g}
+    ```
 
     #### Subject to
 
     **`power_balance`**
 
-    $$\sum_{g \in \mathcal{G}} p_{s,g} = \ell_{s} \qquad \forall\thinspace s \in \mathcal{S}$$
+    ```math
+    \sum_{g \in \mathcal{G}} p_{s,g} = \ell_{s} \qquad \forall\, s \in \mathcal{S}
+    ```
 
     #### Variable domains
 
     **`p`**
 
-    $$0 \le p_{s,g} \le \bar p_{g} \qquad \forall\thinspace s \in \mathcal{S},\enspace g \in \mathcal{G} \thinspace:\thinspace \bar p_{g} > 0$$
+    ```math
+    0 \le p_{s,g} \le \bar p_{g} \qquad \forall\, s \in \mathcal{S},\ g \in \mathcal{G} \,:\, \bar p_{g} > 0
+    ```
 
 === "LaTeX"
 

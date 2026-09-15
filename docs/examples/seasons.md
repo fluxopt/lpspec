@@ -42,48 +42,56 @@ A store that cycles inside each season rather than across the horizon, with seas
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` with $\mathrm{season\_of}: \mathcal{T} \to \mathcal{S}$ — dispatch periods in order |
-| $\mathcal{S}$ | index $s$ — `season` — the blocks the store cycles over |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{season\_of}: \mathcal{T} \to \mathcal{S}`$ — dispatch periods in order |
+| $`\mathcal{S}`$ | index $`s`$ — `season` — the blocks the store cycles over |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{inflow}$ | `inflow` over $\mathcal{T}$ — energy arriving in a snapshot, whether or not it is wanted then |
-| $\mathrm{price}$ | `price` over $\mathcal{T}$ — what one unit of release earns in a snapshot |
+| $`\mathrm{inflow}`$ | `inflow` over $`\mathcal{T}`$ — energy arriving in a snapshot, whether or not it is wanted then |
+| $`\mathrm{price}`$ | `price` over $`\mathcal{T}`$ — what one unit of release earns in a snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{soc}$ | `soc` over $\mathcal{T}$ — energy held at the end of a snapshot |
-| $\mathit{release}$ | `release` over $\mathcal{T}$ — energy released in a snapshot |
+| $`\mathit{soc}`$ | `soc` over $`\mathcal{T}`$ — energy held at the end of a snapshot |
+| $`\mathit{release}`$ | `release` over $`\mathcal{T}`$ — energy released in a snapshot |
 
-Upright is what the model is given — a parameter such as $\mathrm{inflow}$, a coordinate map, a label — and italic is what the solver chooses, such as $\mathit{soc}$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{inflow}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{soc}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
-$t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
+$`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
-$t \ominus^{\mathrm{lookup}(t)} k$ denotes a translation counted inside the group a lookup puts $t$ in (`shift(by=lookup)`), so a term never crosses out of its own group.
+$`t \ominus^{\mathrm{lookup}(t)} k`$ denotes a translation counted inside the group a lookup puts $`t`$ in (`shift(by=lookup)`), so a term never crosses out of its own group.
 
 #### Objective
 
-$$\max \sum_{t \in \mathcal{T}} \mathit{release}_{t} \cdot \mathrm{price}_{t}$$
+```math
+\max \sum_{t \in \mathcal{T}} \mathit{release}_{t} \cdot \mathrm{price}_{t}
+```
 
 #### Subject to
 
 **`season_balance`**
 
-$$\mathit{soc}_{t} = \mathit{soc}_{t \ominus^{\mathrm{season\_of}(t)} 1} + \mathrm{inflow}_{t} - \mathit{release}_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\mathit{soc}_{t} = \mathit{soc}_{t \ominus^{\mathrm{season\_of}(t)} 1} + \mathrm{inflow}_{t} - \mathit{release}_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 #### Variable domains
 
 **`soc`**
 
-$$0 \le \mathit{soc}_{t} \le 60 \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+0 \le \mathit{soc}_{t} \le 60 \qquad \forall\, t \in \mathcal{T}
+```
 
 **`release`**
 
-$$\mathit{release}_{t} \ge 0 \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\mathit{release}_{t} \ge 0 \qquad \forall\, t \in \mathcal{T}
+```
 
 </details>
 <!-- math:end -->
@@ -123,13 +131,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       soc:
         description: energy held at the end of a snapshot
-        foreach: [snapshot]
+        dims: [snapshot]
         bounds:
           lower: 0
           upper: 60
       release:
         description: energy released in a snapshot
-        foreach: [snapshot]
+        dims: [snapshot]
         bounds:
           lower: 0
 
@@ -139,7 +147,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the level carried into a snapshot is the previous snapshot's, and a
           season's first snapshot carries from that season's own last — so each
           season ends where it began and hands the next one nothing
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
 
     objective:

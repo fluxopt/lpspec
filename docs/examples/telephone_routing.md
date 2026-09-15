@@ -27,45 +27,53 @@ Routing telephone calls over a five-city network: how many of the 425 requested 
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{A}$ | index $a$ — `arc` — an undirected link between two cities, with capacity in circuits |
-| $\mathcal{C}$ | index $c$ — `call` — a city pair with circuits to place |
-| $\mathcal{P}$ | index $p$ — `path` with $\mathrm{call\_of}: \mathcal{P} \to \mathcal{C}$ — a route end to end, serving one city pair |
+| $`\mathcal{A}`$ | index $`a`$ — `arc` — an undirected link between two cities, with capacity in circuits |
+| $`\mathcal{C}`$ | index $`c`$ — `call` — a city pair with circuits to place |
+| $`\mathcal{P}`$ | index $`p`$ — `path` with $`\mathrm{call\_of}: \mathcal{P} \to \mathcal{C}`$ — a route end to end, serving one city pair |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{capacity}$ | `capacity` over $\mathcal{A}$ — circuits an arc can carry |
-| $\mathrm{demand}$ | `demand` over $\mathcal{C}$ — circuits a city pair asked for |
-| $\mathrm{uses}$ | `uses` over $\mathcal{P} \times \mathcal{A}$ — which arcs a path traverses — a path uses an arc or it does not, so the value is 1 and absence is 0 |
+| $`\mathrm{capacity}`$ | `capacity` over $`\mathcal{A}`$ — circuits an arc can carry |
+| $`\mathrm{demand}`$ | `demand` over $`\mathcal{C}`$ — circuits a city pair asked for |
+| $`\mathrm{uses}`$ | `uses` over $`\mathcal{P} \times \mathcal{A}`$ — which arcs a path traverses — a path uses an arc or it does not, so the value is 1 and absence is 0 |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{flow}$ | `flow` over $\mathcal{P}$ — circuits carried on a path — integral because a multi-commodity flow is not integral by nature, even though this instance's relaxation happens to be |
+| $`\mathit{flow}`$ | `flow` over $`\mathcal{P}`$ — circuits carried on a path — integral because a multi-commodity flow is not integral by nature, even though this instance's relaxation happens to be |
 
-Upright is what the model is given — a parameter such as $\mathrm{capacity}$, a coordinate map, a label — and italic is what the solver chooses, such as $\mathit{flow}$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{capacity}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{flow}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\max \sum_{p \in \mathcal{P}} \mathit{flow}_{p}$$
+```math
+\max \sum_{p \in \mathcal{P}} \mathit{flow}_{p}
+```
 
 #### Subject to
 
 **`within_demand`**
 
-$$\sum_{p \in \mathcal{P} \thinspace:\thinspace \mathrm{call\_of}(p) = c} \mathit{flow}_{p} \le \mathrm{demand}_{c} \qquad \forall\thinspace c \in \mathcal{C}$$
+```math
+\sum_{p \in \mathcal{P} \,:\, \mathrm{call\_of}(p) = c} \mathit{flow}_{p} \le \mathrm{demand}_{c} \qquad \forall\, c \in \mathcal{C}
+```
 
 **`within_capacity`**
 
-$$\sum_{p \in \mathcal{P}} \mathit{flow}_{p} \cdot \mathrm{uses}_{p,a} \le \mathrm{capacity}_{a} \qquad \forall\thinspace a \in \mathcal{A}$$
+```math
+\sum_{p \in \mathcal{P}} \mathit{flow}_{p} \cdot \mathrm{uses}_{p,a} \le \mathrm{capacity}_{a} \qquad \forall\, a \in \mathcal{A}
+```
 
 #### Variable domains
 
 **`flow`**
 
-$$\mathit{flow}_{p} \ge 0, \mathit{flow}_{p} \in \mathbb{Z} \qquad \forall\thinspace p \in \mathcal{P}$$
+```math
+\mathit{flow}_{p} \ge 0, \mathit{flow}_{p} \in \mathbb{Z} \qquad \forall\, p \in \mathcal{P}
+```
 
 </details>
 <!-- math:end -->
@@ -119,7 +127,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           circuits carried on a path — integral because a multi-commodity flow is
           not integral by nature, even though this instance's relaxation happens to
           be
-        foreach: [path]
+        dims: [path]
         domain: integer
         bounds:
           lower: 0
@@ -127,7 +135,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       within_demand:
         description: a pair cannot be carried more than it asked for, however many paths serve it
-        foreach: [call]
+        dims: [call]
         expression: sum(flow, by=call_of) <= demand
 
       within_capacity:
@@ -135,7 +143,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           an arc carries every path that traverses it, and no more than its
           capacity. A circuit reserves both directions of every arc it crosses,
           which is why the network is undirected and the flow is not signed.
-        foreach: [arc]
+        dims: [arc]
         expression: sum(flow * uses, over=path) <= capacity
 
     objective:

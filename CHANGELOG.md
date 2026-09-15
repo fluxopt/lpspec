@@ -1,5 +1,130 @@
 # Changelog
 
+## [0.0.1-alpha.330](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.329...v0.0.1-alpha.330) (2026-09-15)
+
+
+### Documentation
+
+* the language closes its own gaps instead of offering an escape hatch ([#1631](https://github.com/fluxopt/lpspec/issues/1631)) ([72928bd](https://github.com/fluxopt/lpspec/commit/72928bd8f8367320b6e3ca9367ea5e9ea76bb899))
+
+## [0.0.1-alpha.329](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.328...v0.0.1-alpha.329) (2026-09-14)
+
+
+### Bug Fixes
+
+* **compat:** a constant beside a variable term is refused where its data is short ([#1621](https://github.com/fluxopt/lpspec/issues/1621)) ([545ed6d](https://github.com/fluxopt/lpspec/commit/545ed6d1bbc2e3215ca2e3ac58f497a036fe86e6))
+
+## [0.0.1-alpha.328](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.327...v0.0.1-alpha.328) (2026-09-14)
+
+
+### Documentation
+
+* **bench:** the benchmark page publishes the newest run, and says where that run left a gap ([#1618](https://github.com/fluxopt/lpspec/issues/1618)) ([089f816](https://github.com/fluxopt/lpspec/commit/089f816a926eeedb3e00fe894ac1823ef32704da))
+
+## [0.0.1-alpha.327](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.326...v0.0.1-alpha.327) (2026-09-14)
+
+
+### Performance
+
+* **engine:** a model is hashed for a re-solve only once a re-solve is reached ([#1608](https://github.com/fluxopt/lpspec/issues/1608)) ([8d27e88](https://github.com/fluxopt/lpspec/commit/8d27e88b791335c20412faab45a7727a1b6a7a6c))
+
+## [0.0.1-alpha.326](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.325...v0.0.1-alpha.326) (2026-09-14)
+
+
+### Documentation
+
+* **howto:** reading a directory of runs is its own page ([#1611](https://github.com/fluxopt/lpspec/issues/1611)) ([88105f5](https://github.com/fluxopt/lpspec/commit/88105f5fc16f8bf7540f186ffdf3e58437242de3))
+
+## [0.0.1-alpha.325](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.324...v0.0.1-alpha.325) (2026-09-13)
+
+
+### Features
+
+* **api:** an archive says which data it was solved over and what the solve took ([#1601](https://github.com/fluxopt/lpspec/issues/1601)) ([758e71f](https://github.com/fluxopt/lpspec/commit/758e71f240c41e85114a082d2cf60204a377b104))
+
+## [0.0.1-alpha.324](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.323...v0.0.1-alpha.324) (2026-09-13)
+
+
+### Features
+
+* **api:** load reads an archive whole, and scan leaves it on disk ([#1603](https://github.com/fluxopt/lpspec/issues/1603)) ([001de65](https://github.com/fluxopt/lpspec/commit/001de65eed85ef40c9d838162cf32cd87dd887cc))
+
+
+### Performance
+
+* **engine:** a build stops hashing labels it can count ([#1589](https://github.com/fluxopt/lpspec/issues/1589)) ([bc49db5](https://github.com/fluxopt/lpspec/commit/bc49db5418ead02b755d0da733ef68af1666d553))
+* **engine:** a magnitude is read off each side of a column instead of being built ([#1592](https://github.com/fluxopt/lpspec/issues/1592)) ([019e22c](https://github.com/fluxopt/lpspec/commit/019e22c3fd9ec68a60702bc14caa3c8abcceb969))
+* **engine:** a model reaches HiGHS in one call instead of a batch at a time ([#1591](https://github.com/fluxopt/lpspec/issues/1591)) ([77ccb7d](https://github.com/fluxopt/lpspec/commit/77ccb7ddf159ef78270b9a1e78667c579c66e8a9))
+
+
+### Documentation
+
+* **api:** the glossary defines load and scan, and the tree spells each name one way ([#1604](https://github.com/fluxopt/lpspec/issues/1604)) ([3d43f6d](https://github.com/fluxopt/lpspec/commit/3d43f6d9e1e1fdb1306c570f0173b837689c2e51))
+* the published speed claims match the measurements behind them ([#1586](https://github.com/fluxopt/lpspec/issues/1586)) ([cb98d58](https://github.com/fluxopt/lpspec/commit/cb98d58e2aa147c480100bfceb17ec68d410a418))
+
+## [0.0.1-alpha.323](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.322...v0.0.1-alpha.323) (2026-09-12)
+
+
+### Features
+
+* **api:** an archived answer says which run it came from and when, in one record file ([#1585](https://github.com/fluxopt/lpspec/issues/1585)) ([650a3ad](https://github.com/fluxopt/lpspec/commit/650a3ad41a8bd8704a9bd2772f0fcf04994390e1))
+
+## [0.0.1-alpha.322](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.321...v0.0.1-alpha.322) (2026-09-12)
+
+
+### Features
+
+* **api:** an archive records how big the model was and how long it took ([#1598](https://github.com/fluxopt/lpspec/issues/1598)) ([80f6a6e](https://github.com/fluxopt/lpspec/commit/80f6a6efd11fffc50242626bd20db722a401a772))
+
+## [0.0.1-alpha.321](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.320...v0.0.1-alpha.321) (2026-09-12)
+
+
+### Documentation
+
+* **bench:** the benchmark page is re-taken from the newest run, its claims about the numbers included ([#1587](https://github.com/fluxopt/lpspec/issues/1587)) ([0210774](https://github.com/fluxopt/lpspec/commit/02107748aba0fd82b1b22c298a9bbe187e8ec91d))
+
+## [0.0.1-alpha.320](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.319...v0.0.1-alpha.320) (2026-09-11)
+
+
+### Features
+
+* **api:** a model, its data and its answer are one file that reads back into polars or a database ([#1579](https://github.com/fluxopt/lpspec/issues/1579)) ([8dc36f9](https://github.com/fluxopt/lpspec/commit/8dc36f94447aa77c38e3984a9e080138266a2017))
+* **api:** two names that differ only by case are refused, whichever verb reads the spec ([#1582](https://github.com/fluxopt/lpspec/issues/1582)) ([fc19d17](https://github.com/fluxopt/lpspec/commit/fc19d171d25b380c4fccb75e66078a24bcb8a7f8))
+
+## [0.0.1-alpha.319](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.318...v0.0.1-alpha.319) (2026-09-10)
+
+
+### Features
+
+* **data:** a lookup maps into a declared dimension rather than owning its values ([#1576](https://github.com/fluxopt/lpspec/issues/1576)) ([005b106](https://github.com/fluxopt/lpspec/commit/005b106d314b7763661b3e09bf3b7ec18966522a))
+
+## [0.0.1-alpha.318](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.317...v0.0.1-alpha.318) (2026-09-10)
+
+
+### Features
+
+* **strategy:** a rolling horizon may keep a different number of coordinates in each window ([#1572](https://github.com/fluxopt/lpspec/issues/1572)) ([e52bc2d](https://github.com/fluxopt/lpspec/commit/e52bc2d587d145b28581773cf36479a1ee5df890))
+
+
+### Bug Fixes
+
+* **strategy:** a carry hands on the last row a slice owns rather than a coordinate the caller names ([#1571](https://github.com/fluxopt/lpspec/issues/1571)) ([561d05c](https://github.com/fluxopt/lpspec/commit/561d05cfa289c0c5cacd75fd557d2c8e83c33776))
+* **strategy:** a hand-built axis refuses the stitched answer rather than returning the keyed one ([#1568](https://github.com/fluxopt/lpspec/issues/1568)) ([7332207](https://github.com/fluxopt/lpspec/commit/733220790377f8f1ccd7130ae3e7184892e76238))
+
+## [0.0.1-alpha.317](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.316...v0.0.1-alpha.317) (2026-09-10)
+
+
+### Documentation
+
+* descriptions set as prose under math-spec's escaping, pinned to the head of energy-models/math-spec[#421](https://github.com/fluxopt/lpspec/issues/421) ([#1565](https://github.com/fluxopt/lpspec/issues/1565)) ([5c6b606](https://github.com/fluxopt/lpspec/commit/5c6b60666195e6eb65e6ed4d0181d76d410c7fad))
+
+## [0.0.1-alpha.316](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.315...v0.0.1-alpha.316) (2026-09-10)
+
+
+### Documentation
+
+* the About pages keep each rule and drop the story behind it ([#1564](https://github.com/fluxopt/lpspec/issues/1564)) ([ec09ace](https://github.com/fluxopt/lpspec/commit/ec09ace8e5e00ec1d09b4a1bd854c2453e20b50f))
+
 ## [0.0.1-alpha.315](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.314...v0.0.1-alpha.315) (2026-09-09)
 
 

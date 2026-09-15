@@ -50,7 +50,7 @@ def _lookup_arrays(
     out: dict[str, dict[str, xr.DataArray]] = {}
     for dim, declared in program.dimensions.items():
         labels = master[dim]
-        for name in declared.maps:
+        for name in declared.targets:
             series = to_pandas(tidy[name].collect()).set_index(dim)[name].reindex(labels)
             out.setdefault(dim, {})[name] = xr.DataArray(series.to_numpy(), dims=[dim], coords={dim: labels}, name=name)
     return out
@@ -83,8 +83,7 @@ def load_parameters(
 def _from_tidy(frame: pl.DataFrame, dims: Sequence[str]) -> xr.DataArray:
     """A tidy ``(dims…, value)`` frame as an array.
 
-    Read through numpy rather than ``to_pandas()``, which wants pyarrow. A
-    dims-less value keeps the dtype it arrived with, as a column does — a
+    A dims-less value keeps the dtype it arrived with, as a column does — a
     ``bool`` cast to ``0.0`` would read as *defined* under a bare ``where``.
     """
     if not dims:

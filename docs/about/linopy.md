@@ -61,19 +61,21 @@ from lpspec import linopy as lpspec_linopy
 
 m = lpspec_linopy.build('spec.yaml', {...})  # -> linopy.Model
 m.solve(...)
-lpspec_linopy.expression(m, 'spec.yaml', 'co2', {...})  # a named quantity, read back
+lpspec_linopy.evaluate(m, 'spec.yaml', 'co2', {...})  # a quantity, read back
 ```
 
 Both calls are *pure*: YAML in, a model or a value out, nothing retained.
 `build` returns a plain `linopy.Model` with no accessor, no attached schema and
 no patched attributes, so nothing is lost across `pickle`, `deepcopy` or
-`to_netcdf`. To inspect the math, re-read the file with `to_spec`. `expression`
-is the reader, and the same purity forces it to take `sources` again. It
-evaluates a declared
-[named expression](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions)
-on the solved model and hands back linopy's native `.solution`. That is the
-eager half of `result.expression(name)`, so the differential suite can hold the
-two lanes to one answer.
+`to_netcdf`. To inspect the math, re-read the file with `to_spec`. `evaluate`
+is the reader, and the same purity forces it to take `sources` again. It values
+an expression written the way
+[`expressions:`](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions)
+writes one — a string, or the mapping that carries `cases:` — on the solved
+model, and hands back linopy's native `.solution`. A name the file declares is
+such an expression, the language substituting it where it stands. That is the
+eager half of `result.evaluate(...)`, so the differential suite can
+hold the two lanes to one answer.
 
 **This lane constructs; it does not attach.** Math for a `linopy.Model` that
 something else built, a PyPSA network say, has no verb here
@@ -138,10 +140,9 @@ band. So `examples/ports/osemosys_utopia.yaml`, whose objective owes a fixed
 cost on capacity that already stood in 1990, builds relationally and not here.
 **Dropping the constant is the one repair that must not happen.** The lane is
 the oracle, and a quietly shortened objective would recalibrate every
-differential test on such a model to the wrong number. Adding the constant back
-as a variable pinned to `[1, 1]` reaches the right answer and was refused too.
-It puts a column on the caller's model that the other lane does not have. So `builder.py` checks for a constant before linopy is asked and raises
-`LaneError`, naming the wall and the route that does build the model.
+differential test on such a model to the wrong number. So `builder.py` checks
+for a constant before linopy is asked and raises `LaneError`, naming the wall
+and the route that does build the model.
 `tests/test_corpus_parity.py` carries the strict xfail, typed to that error
 rather than to any `ValueError`. The day linopy grows a slot, the test XPASSes
 and the check comes out with it
@@ -164,15 +165,6 @@ would fix a symptom. The relational lane names the rewrite that reaches the same
 declare the parameter over the dimension and supply it there
 ([#1137](https://github.com/fluxopt/lpspec/issues/1137)).
 
-Finding that wall turned up a real disagreement behind it. `sum_back` read a
-constant at a slot the variable was absent from, where every other operator
-drops it. So the two lanes answered 2.5 and 3.0 on a file **neither** refused.
-A reduction consumes its operand before any row exists, so absence has to be
-pushed into the operand first. `sum` and `sum(by=)` did that and the window did
-not. The fix gave the window the same pass, with a differential test over every
-operator that moves along a dimension
-([#1142](https://github.com/fluxopt/lpspec/issues/1142)).
-
 **The lane takes the same data too**
 ([#60](https://github.com/fluxopt/lpspec/issues/60)). It reads every shape
 [the data contract](../reference/data.md) accepts and follows every index rule
@@ -185,7 +177,7 @@ lane builds a file.
 
 lpspec does not take array operations (`merge`, `reindex`, `stack`), the Python
 modeling API, or the solver layer. The first is data prep
-([the limits](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#what-the-language-will-not-say)).
+([the limits](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#what-the-language-will-not-express)).
 The second is [hard rule 5](architecture.md#hard-rules): the model is the file
 you review and diff. The third is
 [#106](https://github.com/fluxopt/lpspec/issues/106), where lpspec adopts

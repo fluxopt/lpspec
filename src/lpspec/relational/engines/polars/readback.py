@@ -13,7 +13,7 @@ from lpspec.relational.engines.polars.fragments import absence_restrictions
 from lpspec.relational.result import ConstraintRow
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from lpspec.relational.engines.polars.assembly import BuiltModel
     from lpspec.relational.engines.polars.attaching import AttachedSources
@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 #: unrepresentable as declared names.
 SOLUTION = '__solution value__'
 _EXPRESSION_ROW = '__expression row__'
+_LABEL_ORDER = '__label order__'
 
 
 def row(model: BuiltModel, name: str, coordinate: Mapping[str, Any]) -> ConstraintRow:
@@ -58,8 +59,7 @@ def _row_index(model: BuiltModel, name: str, coordinate: Mapping[str, Any]) -> t
     """The global row index constraint *name* built at *coordinate*, and that coordinate in dim order.
 
     The coordinate has to name **every** dim of the declaration: a partial
-    one matches a set of rows, and a verb that quietly answered about the
-    first of them would be reporting one row as if it were the block.
+    one matches a set of rows.
 
     Raises:
         LpspecError: The coordinate names dims the declaration does not,
@@ -93,8 +93,7 @@ def _label(name: str, dim: str, value: Any, dtype: pl.DataType) -> pl.Expr:
     """*value* as a literal of *dim*'s own type, or a refusal naming what it is not.
 
     The cast **is** the check: a string against an integer dim and a stranger
-    against an ``Enum`` are one failure, and neither reaches polars as a
-    comparison it can only report in its own vocabulary.
+    against an ``Enum`` are one failure.
     """
     try:
         return pl.lit(pl.Series([value], dtype=dtype).item(0), dtype=dtype)
@@ -169,6 +168,130 @@ def laid_out(
 def string_dims(attached: AttachedSources, dims: Sequence[str]) -> list[str]:
     """Those of *dims* attaching encoded as ``Enum`` — its string ones."""
     return [d for d in dims if attached.is_enum_encoded(d)]
+
+
+def reordered(
+    attached: AttachedSources,
+    registry: Mapping[str, labels.Labelled],
+    declared: Mapping[str, Any],
+    frames: Mapping[str, pl.DataFrame],
+) -> pl.Series:
+    """A saved solution's value frames back as the positional vector — the inverse of :func:`laid_out`.
+
+    Each declaration's ``(dims…, value)`` is aligned to its
+    :class:`~labels.Labelled` frame's label order and the values concatenated in
+    ``start`` order, rebuilding the vector a solver returned. A rebuild of the
+    model over the same spec and sources numbers the labels identically
+    (docs/about/architecture.md, "The relational lane").
+
+    Args:
+        attached: The rebuilt model's sources, for which dims it enum-encoded.
+        registry: The rebuilt model's ``variables`` or ``constraints``.
+        declared: The program's ``variables`` or ``constraints``, for the dims.
+        frames: The saved ``(dims…, value)`` frame per name, as read back.
+
+    Raises:
+        LpspecError: A declaration whose saved frame misses a coordinate the
+            rebuilt model holds — the frame is not this model's answer.
+    """
+    in_start_order = sorted((held.start, name) for name, held in registry.items())
+    pieces = [
+        _aligned(attached, name, registry[name], declared[name].dims, frames.get(name)) for _, name in in_start_order
+    ]
+    return pl.concat(pieces) if pieces else pl.Series(SOLUTION, [], dtype=pl.Float64)
+
+
+def _aligned(
+    attached: AttachedSources, name: str, held: labels.Labelled, dims: tuple[str, ...], stored: pl.DataFrame | None
+) -> pl.Series:
+    """One declaration's saved values in its label order — its slice of the vector.
+
+    The values are joined onto the rebuilt label frame on the dims, the string
+    ones cast as :func:`laid_out` casts them. A declaration the rebuild masks
+    away entirely holds no label, so its slice is empty and a missing *stored*
+    is no error; a missing one the rebuild does build raises.
+    """
+    if held.height == 0:
+        return pl.Series(SOLUTION, [], dtype=pl.Float64)
+    if stored is None:
+        raise LpspecError(
+            f"the saved answer holds no '{name}' frame, but this model builds it, so it is not this model's "
+            f'answer. Re-solve rather than read.'
+        )
+    if not dims:
+        return stored['value'].rename(SOLUTION)
+    order = (
+        held.frame.select(*dims)
+        .collect()
+        .with_columns(pl.col(d).cast(pl.String) for d in string_dims(attached, dims))
+        .with_row_index(_LABEL_ORDER)
+    )
+    joined = order.join(stored, on=list(dims), how='left').sort(_LABEL_ORDER)
+    if joined['value'].null_count():
+        raise LpspecError(
+            f"the saved answer's '{name}' frame does not cover every coordinate this model builds, so it "
+            f'is not an answer to this model. Re-solve rather than read.'
+        )
+    return joined['value'].rename(SOLUTION)
+
+
+def deferred_readers(
+    compiler: PolarsCompiler, named: Mapping[str, program.ExpressionDeclaration]
+) -> dict[str, Callable[[], pl.DataFrame]]:
+    """One deferred reader per named expression — nothing compiled until one is called.
+
+    Shared by the two paths that read named expressions: a solve reads them at a
+    solution, and :func:`~lpspec.evaluate` reads them as arithmetic. The two
+    differ only in the *compiler* handed in — whether it carries a
+    :class:`~lpspec.relational.engines.polars.compiler.Solution` — never in how a
+    declared name becomes a thunk, so that turn lives here once.
+
+    Args:
+        compiler: The compiler each reader compiles its expression through.
+        named: The declared named expressions, by name.
+
+    Returns:
+        A reader per name; calling one compiles and evaluates that expression.
+    """
+
+    def reader(name: str, expression: program.ExpressionNode) -> Callable[[], pl.DataFrame]:
+        return lambda: expression_frame(name, expression, compiler)
+
+    return {name: reader(name, e.expression) for name, e in named.items()}
+
+
+def evaluation_readers(
+    compiler: PolarsCompiler,
+    named: Mapping[str, program.ExpressionDeclaration],
+    lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
+) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, Any]], pl.DataFrame] | None]:
+    """The reads :meth:`~lpspec.relational.result.Result.evaluate` is built from, over one compiler.
+
+    Shared by every producer of them — a live solve, a rebuilt archive, and the
+    variable-free arithmetic path — so the two reads a declared name and an
+    ad-hoc expression get are defined once, and differ only in the compiler.
+
+    Args:
+        compiler: The compiler each read compiles through — carrying a solution,
+            or none for pure arithmetic.
+        named: The declared named expressions, by name.
+        lower: How an expression written the way ``expressions:`` writes one
+            becomes a plan node in the model's namespace, or ``None`` where there
+            is no model as written to lower against — then ad-hoc evaluation is
+            unavailable and the second element is ``None``.
+
+    Returns:
+        One deferred reader per declared name, and the ad-hoc evaluator (or
+        ``None``).
+    """
+    declared = deferred_readers(compiler, named)
+    if lower is None:
+        return declared, None
+
+    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
+        return expression_frame('the expression', lower(written), compiler)
+
+    return declared, evaluate
 
 
 def expression_frame(name: str, expr: program.ExpressionNode, compiler: PolarsCompiler) -> pl.DataFrame:

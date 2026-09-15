@@ -33,44 +33,52 @@ A cap on what each technology may generate per calendar month — an aggregate o
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` with $\mathrm{month\_of}: \mathcal{T} \to \mathcal{M}$ — dispatch periods, each falling in one month |
-| $\mathcal{M}$ | index $m$ — `month` — the grouping the budget is stated over |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{month\_of}: \mathcal{T} \to \mathcal{M}`$ — dispatch periods, each falling in one month |
+| $`\mathcal{M}`$ | index $`m`$ — `month` — the grouping the budget is stated over |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\bar p$ | `p_max` over $\mathcal{G}$ — installed capacity |
-| $c$ | `cost` over $\mathcal{G}$ — marginal cost |
-| $\ell$ | `load` over $\mathcal{T}$ — demand to be met |
-| $\bar E$ | `monthly_cap` over $\mathcal{M} \times \mathcal{G}$ — the budget the group sum is checked against, one per month and technology |
+| $`\bar p`$ | `p_max` over $`\mathcal{G}`$ — installed capacity |
+| $`c`$ | `cost` over $`\mathcal{G}`$ — marginal cost |
+| $`\ell`$ | `load` over $`\mathcal{T}`$ — demand to be met |
+| $`\bar E`$ | `monthly_cap` over $`\mathcal{M} \times \mathcal{G}`$ — the budget the group sum is checked against, one per month and technology |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot c_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot c_{g}
+```
 
 #### Subject to
 
 **`balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{t,g} = \ell_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{t,g} = \ell_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 **`monthly_budget`**
 
-$$\sum_{t \in \mathcal{T} \thinspace:\thinspace \mathrm{month\_of}(t) = m} p_{t,g} \le \bar E_{m,g} \qquad \forall\thinspace m \in \mathcal{M},\enspace g \in \mathcal{G}$$
+```math
+\sum_{t \in \mathcal{T} \,:\, \mathrm{month\_of}(t) = m} p_{t,g} \le \bar E_{m,g} \qquad \forall\, m \in \mathcal{M},\ g \in \mathcal{G}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \bar p_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \bar p_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->
@@ -118,18 +126,18 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_max
 
     constraints:
       balance:
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
       monthly_budget:
         description: what a generator produces across a month stays inside that month's budget
-        foreach: [month, generator]
+        dims: [month, generator]
         expression: sum(p, by=month_of) <= monthly_cap
 
     objective:
@@ -230,10 +238,10 @@ A lookup is a **function between two dimensions**, so it needs a
 codomain. `month` being one is not ceremony — three things rest on it:
 
 1. **`sum(by=)` lands terms on the dimension the lookup targets.**
-   The expression's dims are therefore `[month, generator]`, and a `foreach:`
+   The expression's dims are therefore `[month, generator]`, and a `dims:`
    can only name declared dimensions.
 2. **`monthly_cap` is indexed *by* month.** A parameter carries values *at*
-   coordinates; it cannot be the thing a `foreach` ranges over. So month could
+   coordinates; it cannot be the thing a `dims:` ranges over. So month could
    not be a parameter even if the grouping did not need it.
 3. **It is what makes a typo an error.** A value in the snapshot index that is
    not a coordinate of `month` is rejected at attach time:

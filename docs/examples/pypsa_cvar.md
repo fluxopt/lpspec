@@ -32,94 +32,116 @@ objective it is.
 <details markdown="1">
 <summary>The same model, as math</summary>
 
-PyPSA's CVaR risk preference on a stochastic network: the plan is chosen against the expectation *and* the tail, which Rockafellar and Uryasev make linear with three auxiliary quantities — an excess per future, the level the tail starts at, and the tail average itself. The risk-averse fleet is not the risk-neutral one. Optimum 35410.0, from PyPSA itself.
+PyPSA's CVaR risk preference on a stochastic network: the plan is chosen against the expectation and the tail, which Rockafellar and Uryasev make linear with three auxiliary quantities — an excess per future, the level the tail starts at, and the tail average itself. The risk-averse fleet is not the risk-neutral one. Optimum 35410.0, from PyPSA itself.
 
 #### Sets
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{S}$ | index $s$ — `scenario` — the futures the fleet is built against, one of which will happen |
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods, the same in every future |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units, each built once and run in every future |
+| $`\mathcal{S}`$ | index $`s`$ — `scenario` — the futures the fleet is built against, one of which will happen |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods, the same in every future |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units, each built once and run in every future |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{probability}$ | `probability` over $\mathcal{S}$ — how likely a future is — the weights the expectation is taken with |
-| $\mathrm{load}$ | `load` over $\mathcal{S} \times \mathcal{T}$ — demand to be met, and the one thing that differs between futures |
-| $\mathrm{capex}$ | `capex` over $\mathcal{G}$ — cost of holding one unit of capacity over the horizon |
-| $\mathrm{opex}$ | `opex` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{alpha}$ | `alpha` (scalar) — where the tail begins: the confidence level whose worst 1 - alpha of the probability mass the risk term averages over |
-| $\mathrm{omega}$ | `omega` (scalar) — how much of the objective is the tail rather than the expectation — 0 is the risk-neutral plan, 1 prices nothing but the worst futures |
+| $`\mathrm{probability}`$ | `probability` over $`\mathcal{S}`$ — how likely a future is — the weights the expectation is taken with |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{S} \times \mathcal{T}`$ — demand to be met, and the one thing that differs between futures |
+| $`\mathrm{capex}`$ | `capex` over $`\mathcal{G}`$ — cost of holding one unit of capacity over the horizon |
+| $`\mathrm{opex}`$ | `opex` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{alpha}`$ | `alpha` (scalar) — where the tail begins: the confidence level whose worst 1 - alpha of the probability mass the risk term averages over |
+| $`\mathrm{omega}`$ | `omega` (scalar) — how much of the objective is the tail rather than the expectation — 0 is the risk-neutral plan, 1 prices nothing but the worst futures |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — capacity built at a generator — the first-stage decision, taken before anyone knows which future arrived |
-| $p$ | `p` over $\mathcal{S} \times \mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot of a future |
-| $\mathit{excess}$ | `excess` over $\mathcal{S}$ — how far a future's operating cost runs past the level the tail begins at, and zero for the futures that do not reach it |
-| $\mathit{tail\_start}$ | `tail_start` (scalar) — the level the tail begins at — the value at risk, which the epigraph rows pin to the alpha quantile of the operating cost rather than the model declaring it |
-| $\mathit{tail\_average}$ | `tail_average` (scalar) — the average operating cost of the futures beyond that level |
+| $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — capacity built at a generator — the first-stage decision, taken before anyone knows which future arrived |
+| $`p`$ | `p` over $`\mathcal{S} \times \mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot of a future |
+| $`\mathit{excess}`$ | `excess` over $`\mathcal{S}`$ — how far a future's operating cost runs past the level the tail begins at, and zero for the futures that do not reach it |
+| $`\mathit{tail\_start}`$ | `tail_start` (scalar) — the level the tail begins at — the value at risk, which the epigraph rows pin to the alpha quantile of the operating cost rather than the model declaring it |
+| $`\mathit{tail\_average}`$ | `tail_average` (scalar) — the average operating cost of the futures beyond that level |
 
 #### Definitions
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{operating\_cost}$ | `operating_cost` over $\mathcal{S}$ — what one future costs to run, over the whole horizon |
+| $`\mathit{operating\_cost}`$ | `operating_cost` over $`\mathcal{S}`$ — what one future costs to run, over the whole horizon |
 
-Upright is what the model is given — a parameter such as $\mathrm{probability}$, a coordinate map, a label — and italic is what the solver chooses, such as $p^{\mathrm{nom}}$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{probability}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p^{\mathrm{nom}}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capex}_{g} + \sum_{s \in \mathcal{S}} \left( 1 - \mathrm{omega} \right) \cdot \mathrm{probability}_{s} \cdot \mathit{operating\_cost}_{s} + \mathrm{omega} \cdot \mathit{tail\_average}$$
+```math
+\min \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capex}_{g} + \sum_{s \in \mathcal{S}} \left( 1 - \mathrm{omega} \right) \cdot \mathrm{probability}_{s} \cdot \mathit{operating\_cost}_{s} + \mathrm{omega} \cdot \mathit{tail\_average}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$p_{s,t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\thinspace s \in \mathcal{S},\enspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{s,t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\, s \in \mathcal{S},\ t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`power_balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{s,t,g} = \mathrm{load}_{s,t} \qquad \forall\thinspace s \in \mathcal{S},\enspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{s,t,g} = \mathrm{load}_{s,t} \qquad \forall\, s \in \mathcal{S},\ t \in \mathcal{T}
+```
 
 **`tail_excess`**
 
-$$\mathit{excess}_{s} \ge \mathit{operating\_cost}_{s} - \mathit{tail\_start} \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+\mathit{excess}_{s} \ge \mathit{operating\_cost}_{s} - \mathit{tail\_start} \qquad \forall\, s \in \mathcal{S}
+```
 
 **`tail_definition`**
 
-$$\left( 1 - \mathrm{alpha} \right) \cdot \left( \mathit{tail\_average} - \mathit{tail\_start} \right) \ge \sum_{s \in \mathcal{S}} \mathrm{probability}_{s} \cdot \mathit{excess}_{s}$$
+```math
+\left( 1 - \mathrm{alpha} \right) \cdot \left( \mathit{tail\_average} - \mathit{tail\_start} \right) \ge \sum_{s \in \mathcal{S}} \mathrm{probability}_{s} \cdot \mathit{excess}_{s}
+```
 
 #### Definitions
 
 **`operating_cost`**
 
-$$\mathit{operating\_cost}_{s} = \sum_{t \in \mathcal{T}} \sum_{g \in \mathcal{G}} p_{s,t,g} \cdot \mathrm{opex}_{g} \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+\mathit{operating\_cost}_{s} = \sum_{t \in \mathcal{T}} \sum_{g \in \mathcal{G}} p_{s,t,g} \cdot \mathrm{opex}_{g} \qquad \forall\, s \in \mathcal{S}
+```
 
 #### Variable domains
 
 **`p_nom`**
 
-$$p^{\mathrm{nom}}_{g} \ge 0 \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+p^{\mathrm{nom}}_{g} \ge 0 \qquad \forall\, g \in \mathcal{G}
+```
 
 **`p`**
 
-$$p_{s,t,g} \ge 0 \qquad \forall\thinspace s \in \mathcal{S},\enspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{s,t,g} \ge 0 \qquad \forall\, s \in \mathcal{S},\ t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`excess`**
 
-$$\mathit{excess}_{s} \ge 0 \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+\mathit{excess}_{s} \ge 0 \qquad \forall\, s \in \mathcal{S}
+```
 
 **`tail_start`**
 
-$$\mathit{tail\_start} \in \mathbb{R}$$
+```math
+\mathit{tail\_start} \in \mathbb{R}
+```
 
 **`tail_average`**
 
-$$\mathit{tail\_average} \in \mathbb{R}$$
+```math
+\mathit{tail\_average} \in \mathbb{R}
+```
 
 </details>
 <!-- math:end -->
@@ -131,7 +153,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```yaml
     description: >-
       PyPSA's CVaR risk preference on a stochastic network: the plan is chosen
-      against the expectation *and* the tail, which Rockafellar and Uryasev make
+      against the expectation and the tail, which Rockafellar and Uryasev make
       linear with three auxiliary quantities — an excess per future, the level the
       tail starts at, and the tail average itself. The risk-averse fleet is not the
       risk-neutral one.
@@ -177,19 +199,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           capacity built at a generator — the first-stage decision, taken before
           anyone knows which future arrived
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
       p:
         description: output of a generator in a snapshot of a future
-        foreach: [scenario, snapshot, generator]
+        dims: [scenario, snapshot, generator]
         bounds:
           lower: 0
       excess:
         description: >-
           how far a future's operating cost runs past the level the tail begins at,
           and zero for the futures that do not reach it
-        foreach: [scenario]
+        dims: [scenario]
         bounds:
           lower: 0
       tail_start:
@@ -197,10 +219,10 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the level the tail begins at — the value at risk, which the epigraph rows
           pin to the alpha quantile of the operating cost rather than the model
           declaring it
-        foreach: []
+        dims: []
       tail_average:
         description: the average operating cost of the futures beyond that level
-        foreach: []
+        dims: []
 
     expressions:
       operating_cost:
@@ -212,19 +234,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           a generator produces no more than the capacity built for it, in every
           snapshot of every future
-        foreach: [scenario, snapshot, generator]
+        dims: [scenario, snapshot, generator]
         expression: p <= p_nom
 
       power_balance:
         description: what runs in this snapshot of this future meets the load there
-        foreach: [scenario, snapshot]
+        dims: [scenario, snapshot]
         expression: sum(p, over=generator) == load
 
       tail_excess:
         description: >-
           a future's excess reaches at least past the level the tail begins at,
           which with the lower bound of zero makes it the positive part
-        foreach: [scenario]
+        dims: [scenario]
         expression: excess >= operating_cost - tail_start
 
       tail_definition:
@@ -233,7 +255,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           excess divided by the tail's own probability, both sides multiplied by that
           probability — the epigraph that makes a quantile average linear, and the
           objective's weight on it is what pulls it tight
-        foreach: []
+        dims: []
         expression: >-
           (1 - alpha) * (tail_average - tail_start)
           >= sum(probability * excess, over=scenario)
@@ -352,7 +374,7 @@ carries that scale; the nodal prices, which is what a PyPSA user reads, do not.
 
 ## What it exercises
 
-Scalar variables and a scalar row (`foreach: []`) beside dimensioned ones, a
+Scalar variables and a scalar row (`dims: []`) beside dimensioned ones, a
 named expression reused in two places — the epigraph rows and the objective — and
 an auxiliary variable bounded below by an expression over *other* variables,
 which is the shape every linearised risk, regret or minimax measure takes. The

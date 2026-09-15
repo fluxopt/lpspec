@@ -44,20 +44,56 @@ def check_constant_side_covers(
 ) -> None:
     """A comparison's constant side must have values wherever the row is built.
 
-    A missing row is read as 0, and on a side with no variable that zero *is*
-    the bound — `x <= cap` becomes `x <= 0`, which binds rather than vanishing.
-    Keyed to the rows the declaration builds, not to the coordinate product: a
-    `where` that removed the coordinate has already answered the question.
+    A missing row is read as 0, and where that zero is a constant piece it *is*
+    the bound — `x <= cap` becomes `x <= 0`, and `x + hi <= 100` becomes
+    `x <= 100`, both binding rather than vanishing. The question is asked of
+    every constant piece, a parameter in a variable-free additive position,
+    whichever side it was written on and beside whatever term: a coefficient,
+    which a variable stands with in a product, is a zero when it is missing (the
+    absence rules) and is not one. Keyed to the rows the declaration builds, not
+    to the coordinate product: a `where` that removed the coordinate has already
+    answered the question.
     """
-    for side in (row.lhs, row.rhs):
-        if program.carries_variable(side):
-            continue
-        walk = _under_regions(side, ctx, mask)
-        found = [(node.name, where) for node, where in walk if isinstance(node, program.Parameter)]
-        for param, narrowed in sorted(found, key=itemgetter(0)):
-            missing = gaps_under(ctx.dataset[param], narrowed)
-            if missing:
-                raise DataError(uncovered_constant_message(param, missing, name))
+    found = [pair for side in (row.lhs, row.rhs) for pair in _constant_leaves(side, ctx, mask, coefficient=False)]
+    for param, narrowed in sorted(found, key=itemgetter(0)):
+        missing = gaps_under(ctx.dataset[param], narrowed)
+        if missing:
+            raise DataError(uncovered_constant_message(param, missing, name))
+
+
+def _constant_leaves(
+    node: program.ExpressionNode, ctx: EvaluationContext, mask: Any, coefficient: bool
+) -> Iterator[tuple[str, Any]]:
+    """Every parameter standing as a constant piece under *node*, with the rows it must cover.
+
+    A constant piece is a parameter in a variable-free additive position — `hi`
+    in `x + hi`, or in `sum(x) + sum(hi)`. A parameter a variable stands with in
+    a product is a coefficient instead, and a sparse coefficient is a zero the
+    absence rules allow, so ``coefficient`` records having passed through such a
+    product on the way down and suppresses the parameters below it. Additive
+    structure, a reduction and a division by it leave the flag as it was; a
+    ``cases:`` region narrows the mask as it does for the whole walk.
+    """
+    if isinstance(node, program.Variable):
+        return
+    if isinstance(node, program.Parameter):
+        if not coefficient:
+            yield node.name, mask
+        return
+    if isinstance(node, program.Cases):
+        for region in node.regions:
+            inside = evaluate_where(region.when, ctx)
+            yield from _constant_leaves(region.value, ctx, inside if mask is None else mask & inside, coefficient)
+        return
+    if isinstance(node, program.Multiply):
+        yield from _constant_leaves(node.left, ctx, mask, coefficient or program.carries_variable(node.right))
+        yield from _constant_leaves(node.right, ctx, mask, coefficient or program.carries_variable(node.left))
+        return
+    if isinstance(node, program.Divide):
+        yield from _constant_leaves(node.numerator, ctx, mask, coefficient)
+        return
+    for child in program.children(node):
+        yield from _constant_leaves(child, ctx, mask, coefficient)
 
 
 def _under_regions(

@@ -134,13 +134,13 @@ def test_every_negated_dual_is_checked_rather_than_excused():
 _ORDERING_FIXTURE = {
     'dimensions': {'t': {'dtype': 'int'}, 'g': {}},
     'parameters': {n: {'dims': ['g']} for n in ('alpha', 'beta', 'gamma', 'delta', 'epsilon')},
-    'variables': {'x': {'foreach': ['t', 'g'], 'bounds': {'lower': 0}}},
+    'variables': {'x': {'dims': ['t', 'g'], 'bounds': {'lower': 0}}},
     'expressions': {
-        'zeta': {'foreach': ['t', 'g'], 'cases': {'a': {'when': 'alpha', 'expression': 'beta'}}, 'otherwise': 1},
-        'eta': {'foreach': ['t', 'g'], 'cases': {'a': {'when': 'gamma', 'expression': 'delta'}}, 'otherwise': 'zeta'},
-        'theta': {'foreach': ['t', 'g'], 'expression': 'epsilon'},
+        'zeta': {'dims': ['t', 'g'], 'cases': {'a': {'when': 'alpha', 'expression': 'beta'}}, 'otherwise': 1},
+        'eta': {'dims': ['t', 'g'], 'cases': {'a': {'when': 'gamma', 'expression': 'delta'}}, 'otherwise': 'zeta'},
+        'theta': {'dims': ['t', 'g'], 'expression': 'epsilon'},
     },
-    'constraints': {'c': {'foreach': ['t', 'g'], 'expression': 'x >= zeta + eta + theta'}},
+    'constraints': {'c': {'dims': ['t', 'g'], 'expression': 'x >= zeta + eta + theta'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x)'},
 }
 

@@ -46,10 +46,6 @@ table with both as columns. `series.reset_index()` is the whole change.
 **An `xr.DataArray` is refused.** Pass `array.to_series().reset_index()`.
 `Result.to_dataarray()` is the way back out.
 
-**The [linopy lane](../about/linopy.md#3-it-is-a-lane) reads every shape on
-this list**, so one `sources` mapping goes to either
-[lane](glossary.md#how-it-runs).
-
 **Nothing on this path imports pandas, xarray or linopy on your behalf.**
 
 ## Where coordinates come from
@@ -66,7 +62,7 @@ parameters. Which labels an axis has is data's to say, and that rule is
 [the language's](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/).
 
 **A map goes under
-[the lookup's own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#the-map-is-supplied-under-the-lookups-own-name)**,
+[the lookup's own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#how-the-map-is-supplied)**,
 as a table of the rows it has. Attach reads it against the labels the index
 supplied: a label no row mentions is unmapped, and a key matching no label is
 refused as a typo.

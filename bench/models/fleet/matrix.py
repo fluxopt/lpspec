@@ -1,4 +1,4 @@
-"""`fleet` through gurobipy's matrix API: one `MVar`, one `addMConstr`.
+"""`fleet` as a matrix: twelve column blocks per snapshot, seven row blocks.
 
 One snapshot's twelve quantities are twelve blocks of `unit` columns, and the
 whole model is that block `kron`ed against the identity — every row here lives
@@ -7,16 +7,22 @@ inside a single snapshot, so unlike `storage` there is no off-diagonal.
 The block is dense on purpose: `fleet` holds its unit count fixed at fifty, so
 it is 301 x 600 whatever the ladder does, and writing it as an array reads as
 the model rather than as sparse-matrix plumbing.
+
+It is also the only case here with an inequality row, which is why `Lp` carries
+a sense per row rather than one for the model.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+from bench.models import Lp
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from typing import Any
 
 #: The twelve, in the order the model file declares them — which is also the
 #: column order of every block below.
@@ -28,8 +34,7 @@ QUANTITIES = (
 PRICED = ('p', 'discharge', 'import_')
 
 
-def build(env: Any, tables: Mapping[str, Any]) -> Any:
-    import gurobipy as gp
+def build(tables: Mapping[str, Any]) -> Lp:
     from scipy import sparse
 
     p_max = tables['p_max']['value'].to_numpy()
@@ -65,14 +70,11 @@ def build(env: Any, tables: Mapping[str, Any]) -> Any:
     senses = np.array(['='] + ['<'] * (6 * n_unit))
     prices = np.concatenate([cost if name in PRICED else np.zeros(n_unit) for name in QUANTITIES])
 
-    m = gp.Model(env=env)
-    x = m.addMVar(
-        n_snapshot * width, ub=np.tile(np.tile(p_max, len(QUANTITIES)), n_snapshot), obj=np.tile(prices, n_snapshot)
+    return Lp(
+        lower=np.zeros(n_snapshot * width),
+        upper=np.tile(np.tile(p_max, len(QUANTITIES)), n_snapshot),
+        obj=np.tile(prices, n_snapshot),
+        matrix=sparse.kron(sparse.eye(n_snapshot), block, format='csr'),
+        senses=np.tile(senses, n_snapshot),
+        rhs=np.concatenate([np.concatenate([[d], np.tile(p_max, 6)]) for d in demand]),
     )
-    m.addMConstr(
-        sparse.kron(sparse.eye(n_snapshot), block, format='csr'),
-        x,
-        np.tile(senses, n_snapshot),
-        np.concatenate([np.concatenate([[d], np.tile(p_max, 6)]) for d in demand]),
-    )
-    return m

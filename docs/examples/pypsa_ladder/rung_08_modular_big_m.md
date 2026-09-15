@@ -63,236 +63,314 @@ The model a plain `n.optimize()` builds, stated in one file. Every declaration i
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{N}$ | index $n$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N}$ — generating units, each on one bus |
-| $\mathcal{L}$ | index $l$ — `link` with $\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N}$ — controllable connections, each from one bus to the buses it delivers to |
-| $\mathcal{O}$ | index $o$ — `link_output` with $\mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L},\enspace \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N}$ — a link's output ports, one label per port a link declares — PyPSA's `bus1`, `bus2`, … columns read long, so a link of any number of output ports is one term in the balance, data prep |
-| $\mathcal{D}$ | index $d$ — `load` with $\mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}$ — demands, each on one bus |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{N}`$ | index $`n`$ — `bus` — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{Generator\_bus}: \mathcal{G} \to \mathcal{N}`$ — generating units, each on one bus |
+| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{Link\_bus0}: \mathcal{L} \to \mathcal{N}`$ — controllable connections, each from one bus to the buses it delivers to |
+| $`\mathcal{O}`$ | index $`o`$ — `link_output` with $`\mathrm{Link\_output\_link}: \mathcal{O} \to \mathcal{L},\ \mathrm{Link\_output\_bus}: \mathcal{O} \to \mathcal{N}`$ — a link's output ports, one label per port a link declares — PyPSA's `bus1`, `bus2`, … columns read long, so a link of any number of output ports is one term in the balance, data prep |
+| $`\mathcal{D}`$ | index $`d`$ — `load` with $`\mathrm{Load\_bus}: \mathcal{D} \to \mathcal{N}`$ — demands, each on one bus |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{w}$ | `snapshot_weightings_objective` over $\mathcal{T}$ — PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost |
-| $\mathrm{p}^{\mathrm{nom}}$ | `Generator_p_nom` over $\mathcal{G}$ — nominal power |
-| $\mathrm{ext}$ | `Generator_p_nom_extendable` over $\mathcal{G}$ — whether the nominal power is a decision |
-| $\underline{\mathrm{p}}$ | `Generator_p_min_pu` over $\mathcal{T} \times \mathcal{G}$ — least output, per unit of nominal power |
-| $\overline{\mathrm{p}}$ | `Generator_p_max_pu` over $\mathcal{T} \times \mathcal{G}$ — most output, per unit of nominal power — an availability profile |
-| $\mathrm{c}$ | `Generator_marginal_cost` over $\mathcal{T} \times \mathcal{G}$ — cost of one unit of output |
-| $\mathrm{com}$ | `Generator_committable` over $\mathcal{G}$ — whether output is gated by an on/off status decision |
-| $\mathrm{ru}$ | `Generator_ramp_limit_up` over $\mathcal{G}$ — most a generator may raise its output between snapshots, per unit of nominal power; no value means no limit |
-| $\mathrm{rd}$ | `Generator_ramp_limit_down` over $\mathcal{G}$ — most a generator may lower its output between snapshots, per unit of nominal power; no value means no limit |
-| $\mathrm{ru}^{\mathrm{up}}$ | `Generator_ramp_limit_start_up` over $\mathcal{G}$ — most output in the snapshot a unit starts, per unit of nominal power |
-| $\mathrm{rd}^{\mathrm{dn}}$ | `Generator_ramp_limit_shut_down` over $\mathcal{G}$ — most output in the snapshot before a unit stops, per unit of nominal power |
-| $\mathrm{u}^{0}$ | `Generator_status_initial` over $\mathcal{G}$ — one where the unit was on before the first snapshot, zero where off — PyPSA's `up_time_before > 0`, data prep |
-| $\mathrm{c}^{\mathrm{up}}$ | `Generator_start_up_cost` over $\mathcal{G}$ — cost of one start |
-| $\mathrm{c}^{\mathrm{dn}}$ | `Generator_shut_down_cost` over $\mathcal{G}$ — cost of one stop |
-| $\mathrm{c}^{\mathrm{on}}$ | `Generator_stand_by_cost` over $\mathcal{T} \times \mathcal{G}$ — cost of one snapshot spent on |
-| $\mathrm{p}^{\mathrm{mod}}$ | `Generator_p_nom_mod` over $\mathcal{G}$ — the module size a build comes in whole numbers of; no value means the build is continuous |
-| $\mathrm{N}^{\mathrm{fix}}$ | `Generator_modules_installed` over $\mathcal{G}$ — how many whole modules a committable build has in place: `Generator_p_nom / Generator_p_nom_mod` where a fixed build is modular, one where it is not, data prep. PyPSA refuses a fixed modular build whose nominal power is not a whole number of modules |
-| $\mathrm{M}$ | `Generator_big_m` over $\mathcal{G}$ — a bound safely above any feasible output — the build cap at full availability, data prep |
-| $\mathrm{nonneg}$ | `Generator_p_min_pu_nonneg` over $\mathcal{G}$ — true where none of the generator's own minimums-per-unit is negative — PyPSA's per-unit `(p_min_pu >= 0).all()`, data prep |
-| $\mathrm{f}^{\mathrm{nom}}$ | `Link_p_nom` over $\mathcal{L}$ — nominal power |
-| $\mathrm{ext}^{f}$ | `Link_p_nom_extendable` over $\mathcal{L}$ — whether the nominal power is a decision |
-| $\underline{\mathrm{f}}$ | `Link_p_min_pu` over $\mathcal{T} \times \mathcal{L}$ — least flow, per unit of nominal power — negative for a link that carries both ways |
-| $\overline{\mathrm{f}}$ | `Link_p_max_pu` over $\mathcal{T} \times \mathcal{L}$ — most flow, per unit of nominal power |
-| $\eta$ | `Link_efficiency` over $\mathcal{O}$ — share of the flow that arrives at an output port, PyPSA's `efficiency`, `efficiency2`, … read long — negative where that port consumes rather than delivers |
-| $\mathrm{d}^{f}$ | `Link_output_delay` over $\mathcal{O}$ — snapshots a port's delivery lags its link's flow — PyPSA's `delay`, `delay2`, … read long, in `snapshot_weightings.generators` units, which the file states as whole snapshots; zero for a port that delivers at once |
-| $\mathrm{cyc}^{f}$ | `Link_output_cyclic_delay` over $\mathcal{O}$ — whether a delayed port's flow wraps from the horizon's end — PyPSA's `cyclic_delay`, `cyclic_delay2`, …; where it does not, the flow still in transit at the first snapshots is lost |
-| $\mathrm{c}^{f}$ | `Link_marginal_cost` over $\mathcal{T} \times \mathcal{L}$ — cost of one unit of flow |
-| $\mathrm{load}$ | `Load_p_set` over $\mathcal{T} \times \mathcal{D}$ — demand |
-| $\underline{\mathrm{p}}^{\mathrm{nom}}$ | `Generator_p_nom_min` over $\mathcal{G}$ — least nominal power an extendable generator may be built at |
-| $\overline{\mathrm{p}}^{\mathrm{nom}}$ | `Generator_p_nom_max` over $\mathcal{G}$ — most nominal power an extendable generator may be built at |
-| $\mathrm{c}^{\mathrm{cap}}$ | `Generator_capital_cost` over $\mathcal{G}$ — cost of one unit of nominal power — PyPSA's `capital_cost`, periodized as an annuity in data prep |
+| $`\mathrm{w}`$ | `snapshot_weightings_objective` over $`\mathcal{T}`$ — PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `Generator_p_nom` over $`\mathcal{G}`$ — nominal power |
+| $`\mathrm{ext}`$ | `Generator_p_nom_extendable` over $`\mathcal{G}`$ — whether the nominal power is a decision |
+| $`\underline{\mathrm{p}}`$ | `Generator_p_min_pu` over $`\mathcal{T} \times \mathcal{G}`$ — least output, per unit of nominal power |
+| $`\overline{\mathrm{p}}`$ | `Generator_p_max_pu` over $`\mathcal{T} \times \mathcal{G}`$ — most output, per unit of nominal power — an availability profile |
+| $`\mathrm{c}`$ | `Generator_marginal_cost` over $`\mathcal{T} \times \mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{com}`$ | `Generator_committable` over $`\mathcal{G}`$ — whether output is gated by an on/off status decision |
+| $`\mathrm{ru}`$ | `Generator_ramp_limit_up` over $`\mathcal{G}`$ — most a generator may raise its output between snapshots, per unit of nominal power; no value means no limit |
+| $`\mathrm{rd}`$ | `Generator_ramp_limit_down` over $`\mathcal{G}`$ — most a generator may lower its output between snapshots, per unit of nominal power; no value means no limit |
+| $`\mathrm{ru}^{\mathrm{up}}`$ | `Generator_ramp_limit_start_up` over $`\mathcal{G}`$ — most output in the snapshot a unit starts, per unit of nominal power |
+| $`\mathrm{rd}^{\mathrm{dn}}`$ | `Generator_ramp_limit_shut_down` over $`\mathcal{G}`$ — most output in the snapshot before a unit stops, per unit of nominal power |
+| $`\mathrm{u}^{0}`$ | `Generator_status_initial` over $`\mathcal{G}`$ — one where the unit was on before the first snapshot, zero where off — PyPSA's `up_time_before > 0`, data prep |
+| $`\mathrm{c}^{\mathrm{up}}`$ | `Generator_start_up_cost` over $`\mathcal{G}`$ — cost of one start |
+| $`\mathrm{c}^{\mathrm{dn}}`$ | `Generator_shut_down_cost` over $`\mathcal{G}`$ — cost of one stop |
+| $`\mathrm{c}^{\mathrm{on}}`$ | `Generator_stand_by_cost` over $`\mathcal{T} \times \mathcal{G}`$ — cost of one snapshot spent on |
+| $`\mathrm{p}^{\mathrm{mod}}`$ | `Generator_p_nom_mod` over $`\mathcal{G}`$ — the module size a build comes in whole numbers of; no value means the build is continuous |
+| $`\mathrm{N}^{\mathrm{fix}}`$ | `Generator_modules_installed` over $`\mathcal{G}`$ — how many whole modules a committable build has in place: `Generator_p_nom / Generator_p_nom_mod` where a fixed build is modular, one where it is not, data prep. PyPSA refuses a fixed modular build whose nominal power is not a whole number of modules |
+| $`\mathrm{M}`$ | `Generator_big_m` over $`\mathcal{G}`$ — a bound safely above any feasible output — the build cap at full availability, data prep |
+| $`\mathrm{nonneg}`$ | `Generator_p_min_pu_nonneg` over $`\mathcal{G}`$ — true where none of the generator's own minimums-per-unit is negative — PyPSA's per-unit `(p_min_pu >= 0).all()`, data prep |
+| $`\mathrm{f}^{\mathrm{nom}}`$ | `Link_p_nom` over $`\mathcal{L}`$ — nominal power |
+| $`\mathrm{ext}^{f}`$ | `Link_p_nom_extendable` over $`\mathcal{L}`$ — whether the nominal power is a decision |
+| $`\underline{\mathrm{f}}`$ | `Link_p_min_pu` over $`\mathcal{T} \times \mathcal{L}`$ — least flow, per unit of nominal power — negative for a link that carries both ways |
+| $`\overline{\mathrm{f}}`$ | `Link_p_max_pu` over $`\mathcal{T} \times \mathcal{L}`$ — most flow, per unit of nominal power |
+| $`\eta`$ | `Link_efficiency` over $`\mathcal{O}`$ — share of the flow that arrives at an output port, PyPSA's `efficiency`, `efficiency2`, … read long — negative where that port consumes rather than delivers |
+| $`\mathrm{d}^{f}`$ | `Link_output_delay` over $`\mathcal{O}`$ — snapshots a port's delivery lags its link's flow — PyPSA's `delay`, `delay2`, … read long, in `snapshot_weightings.generators` units, which the file states as whole snapshots; zero for a port that delivers at once |
+| $`\mathrm{cyc}^{f}`$ | `Link_output_cyclic_delay` over $`\mathcal{O}`$ — whether a delayed port's flow wraps from the horizon's end — PyPSA's `cyclic_delay`, `cyclic_delay2`, …; where it does not, the flow still in transit at the first snapshots is lost |
+| $`\mathrm{c}^{f}`$ | `Link_marginal_cost` over $`\mathcal{T} \times \mathcal{L}`$ — cost of one unit of flow |
+| $`\mathrm{load}`$ | `Load_p_set` over $`\mathcal{T} \times \mathcal{D}`$ — demand |
+| $`\underline{\mathrm{p}}^{\mathrm{nom}}`$ | `Generator_p_nom_min` over $`\mathcal{G}`$ — least nominal power an extendable generator may be built at |
+| $`\overline{\mathrm{p}}^{\mathrm{nom}}`$ | `Generator_p_nom_max` over $`\mathcal{G}`$ — most nominal power an extendable generator may be built at |
+| $`\mathrm{c}^{\mathrm{cap}}`$ | `Generator_capital_cost` over $`\mathcal{G}`$ — cost of one unit of nominal power — PyPSA's `capital_cost`, periodized as an annuity in data prep |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `Generator_p` over $\mathcal{T} \times \mathcal{G}$ — `Generator-p` — output of a generator in a snapshot |
-| $f$ | `Link_p` over $\mathcal{T} \times \mathcal{L}$ — `Link-p` — PyPSA's `p0`, the flow measured at the `Link_bus0` end: a positive value withdraws there and injects at every bus the link's output ports deliver to |
-| $N$ | `Generator_n_mod` over $\mathcal{G}$ — `Generator-n_mod` — how many modules of an extendable modular build |
-| $u$ | `Generator_status` over $\mathcal{T} \times \mathcal{G}$ — `Generator-status` — how much of a committable unit is on: an integer the rows below cap at one, or at the module count where the build is modular |
-| $\mathit{up}$ | `Generator_start_up` over $\mathcal{T} \times \mathcal{G}$ — `Generator-start_up` — how much of a committable unit turns on this snapshot, capped as the status is |
-| $\mathit{dn}$ | `Generator_shut_down` over $\mathcal{T} \times \mathcal{G}$ — `Generator-shut_down` — how much of a committable unit turns off this snapshot, capped as the status is |
-| $P$ | `Generator_p_nom_ext` over $\mathcal{G}$ — `Generator-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
+| $`p`$ | `Generator_p` over $`\mathcal{T} \times \mathcal{G}`$ — `Generator-p` — output of a generator in a snapshot |
+| $`f`$ | `Link_p` over $`\mathcal{T} \times \mathcal{L}`$ — `Link-p` — PyPSA's `p0`, the flow measured at the `Link_bus0` end: a positive value withdraws there and injects at every bus the link's output ports deliver to |
+| $`N`$ | `Generator_n_mod` over $`\mathcal{G}`$ — `Generator-n_mod` — how many modules of an extendable modular build |
+| $`u`$ | `Generator_status` over $`\mathcal{T} \times \mathcal{G}`$ — `Generator-status` — how much of a committable unit is on: an integer the rows below cap at one, or at the module count where the build is modular |
+| $`\mathit{up}`$ | `Generator_start_up` over $`\mathcal{T} \times \mathcal{G}`$ — `Generator-start_up` — how much of a committable unit turns on this snapshot, capped as the status is |
+| $`\mathit{dn}`$ | `Generator_shut_down` over $`\mathcal{T} \times \mathcal{G}`$ — `Generator-shut_down` — how much of a committable unit turns off this snapshot, capped as the status is |
+| $`P`$ | `Generator_p_nom_ext` over $`\mathcal{G}`$ — `Generator-p_nom` — nominal power where it is a decision; the parameter of the same PyPSA name carries the fixed regime |
 
 #### Definitions
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{Generator\_previous\_status}$ | `Generator_previous_status` over $\mathcal{T} \times \mathcal{G}$ — the commitment state a generator carries into a snapshot — the state it brought into the horizon at the first, the previous snapshot's after that |
-| $\mathit{Generator\_previous\_p}$ | `Generator_previous_p` over $\mathcal{T} \times \mathcal{G}$ — the output a generator carries into a snapshot — nothing at the start of the horizon, which is why a unit that came in running carries no ramp row there |
-| $\mathit{Link\_output\_arrival}$ | `Link_output_arrival` over $\mathcal{T} \times \mathcal{O}$ — what a link delivers to an output port at a snapshot — its flow after the port's efficiency, delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not |
+| $`\mathit{Generator\_previous\_status}`$ | `Generator_previous_status` over $`\mathcal{T} \times \mathcal{G}`$ — the commitment state a generator carries into a snapshot — the state it brought into the horizon at the first, the previous snapshot's after that |
+| $`\mathit{Generator\_previous\_p}`$ | `Generator_previous_p` over $`\mathcal{T} \times \mathcal{G}`$ — the output a generator carries into a snapshot — nothing at the start of the horizon, which is why a unit that came in running carries no ramp row there |
+| $`\mathit{Link\_output\_arrival}`$ | `Link_output_arrival` over $`\mathcal{T} \times \mathcal{O}`$ — what a link delivers to an output port at a snapshot — its flow after the port's efficiency, delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not |
 
-$t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
+$`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
-$t \boxminus_{v} k$ denotes translation with $v$ standing where index $t-k$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $v$ rather than being dropped.
+$`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $`v`$ rather than being dropped.
 
-$\mathrm{pos}(t)$ denotes where index $t$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $0$. The index itself stays the coordinate, so $t$ compares against labels and $\mathrm{pos}(t)$ against positions.
+$`\mathrm{pos}(t)`$ denotes where index $`t`$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $`0`$. The index itself stays the coordinate, so $`t`$ compares against labels and $`\mathrm{pos}(t)`$ against positions.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{c}_{t,g} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\enspace l \in \mathcal{L}} f_{t,l} \cdot \mathrm{c}^{f}_{t,l} \cdot \mathrm{w}_{t} + \sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{c}^{\mathrm{cap}}_{g} + \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} u_{t,g} \cdot \mathrm{c}^{\mathrm{on}}_{t,g} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} \mathit{up}_{t,g} \cdot \mathrm{c}^{\mathrm{up}}_{g} + \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} \mathit{dn}_{t,g} \cdot \mathrm{c}^{\mathrm{dn}}_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{c}_{t,g} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\ l \in \mathcal{L}} f_{t,l} \cdot \mathrm{c}^{f}_{t,l} \cdot \mathrm{w}_{t} + \sum_{g \in \mathcal{G}} P_{g} \cdot \mathrm{c}^{\mathrm{cap}}_{g} + \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} u_{t,g} \cdot \mathrm{c}^{\mathrm{on}}_{t,g} \cdot \mathrm{w}_{t} + \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} \mathit{up}_{t,g} \cdot \mathrm{c}^{\mathrm{up}}_{g} + \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} \mathit{dn}_{t,g} \cdot \mathrm{c}^{\mathrm{dn}}_{g}
+```
 
 #### Subject to
 
 **`Generator_fix_p_lower`**
 
-$$p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}$$
+```math
+p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}
+```
 
 **`Generator_fix_p_upper`**
 
-$$p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}$$
+```math
+p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \neg \mathrm{ext}_{g} \wedge \neg \mathrm{com}_{g}
+```
 
 **`Link_fix_p_lower`**
 
-$$f_{t,l} \ge \underline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \neg \mathrm{ext}^{f}_{l}$$
+```math
+f_{t,l} \ge \underline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \neg \mathrm{ext}^{f}_{l}
+```
 
 **`Link_fix_p_upper`**
 
-$$f_{t,l} \le \overline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L} \thinspace:\thinspace \neg \mathrm{ext}^{f}_{l}$$
+```math
+f_{t,l} \le \overline{\mathrm{f}}_{t,l} \cdot \mathrm{f}^{\mathrm{nom}}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L} \,:\, \neg \mathrm{ext}^{f}_{l}
+```
 
 **`Generator_ext_p_nom_lower`**
 
-$$P_{g} \ge \underline{\mathrm{p}}^{\mathrm{nom}}_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g}$$
+```math
+P_{g} \ge \underline{\mathrm{p}}^{\mathrm{nom}}_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
+```
 
 **`Generator_ext_p_nom_upper`**
 
-$$P_{g} \le \overline{\mathrm{p}}^{\mathrm{nom}}_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g} \wedge \overline{\mathrm{p}}^{\mathrm{nom}}_{g} \text{ is defined}$$
+```math
+P_{g} \le \overline{\mathrm{p}}^{\mathrm{nom}}_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g} \wedge \overline{\mathrm{p}}^{\mathrm{nom}}_{g} \text{ is defined}
+```
 
 **`Generator_com_p_lower`**
 
-$$p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot u_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \neg \mathrm{ext}_{g}$$
+```math
+p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot u_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \neg \mathrm{ext}_{g}
+```
 
 **`Generator_com_p_upper`**
 
-$$p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot u_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \neg \mathrm{ext}_{g}$$
+```math
+p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{nom}}_{g} \cdot u_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \neg \mathrm{ext}_{g}
+```
 
 **`Generator_com_transition_start_up`**
 
-$$\mathit{up}_{t,g} \ge u_{t,g} - \mathit{Generator\_previous\_status}_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g}$$
+```math
+\mathit{up}_{t,g} \ge u_{t,g} - \mathit{Generator\_previous\_status}_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g}
+```
 
 **`Generator_com_transition_shut_down`**
 
-$$\mathit{dn}_{t,g} \ge \mathit{Generator\_previous\_status}_{t,g} - u_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g}$$
+```math
+\mathit{dn}_{t,g} \ge \mathit{Generator\_previous\_status}_{t,g} - u_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g}
+```
 
 **`Generator_p_ramp_limit_up_run_big_m`**
 
-$$p_{t,g} - \mathit{Generator\_previous\_p}_{t,g} \le \mathrm{ru}_{g} \cdot P_{g} + \mathrm{M}_{g} - \mathrm{M}_{g} \cdot \mathit{Generator\_previous\_status}_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{ru}_{g} \text{ is defined} \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{u}^{0}_{g} = 0 \right)$$
+```math
+p_{t,g} - \mathit{Generator\_previous\_p}_{t,g} \le \mathrm{ru}_{g} \cdot P_{g} + \mathrm{M}_{g} - \mathrm{M}_{g} \cdot \mathit{Generator\_previous\_status}_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{ru}_{g} \text{ is defined} \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{u}^{0}_{g} = 0 \right)
+```
 
 **`Generator_p_ramp_limit_up_start_big_m`**
 
-$$p_{t,g} - \mathit{Generator\_previous\_p}_{t,g} \le \mathrm{ru}^{\mathrm{up}}_{g} \cdot P_{g} + \mathrm{M}_{g} - \mathrm{M}_{g} \cdot \mathit{up}_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{ru}_{g} \text{ is defined} \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{u}^{0}_{g} = 0 \right)$$
+```math
+p_{t,g} - \mathit{Generator\_previous\_p}_{t,g} \le \mathrm{ru}^{\mathrm{up}}_{g} \cdot P_{g} + \mathrm{M}_{g} - \mathrm{M}_{g} \cdot \mathit{up}_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{ru}_{g} \text{ is defined} \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{u}^{0}_{g} = 0 \right)
+```
 
 **`Generator_p_ramp_limit_down_run_big_m`**
 
-$$\mathit{Generator\_previous\_p}_{t,g} - p_{t,g} \le \mathrm{rd}_{g} \cdot P_{g} + \mathrm{M}_{g} - \mathrm{M}_{g} \cdot u_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{rd}_{g} \text{ is defined} \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{u}^{0}_{g} = 0 \right)$$
+```math
+\mathit{Generator\_previous\_p}_{t,g} - p_{t,g} \le \mathrm{rd}_{g} \cdot P_{g} + \mathrm{M}_{g} - \mathrm{M}_{g} \cdot u_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{rd}_{g} \text{ is defined} \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{u}^{0}_{g} = 0 \right)
+```
 
 **`Generator_p_ramp_limit_down_shut_big_m`**
 
-$$\mathit{Generator\_previous\_p}_{t,g} - p_{t,g} \le \mathrm{rd}^{\mathrm{dn}}_{g} \cdot P_{g} + \mathrm{M}_{g} - \mathrm{M}_{g} \cdot \mathit{dn}_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{rd}_{g} \text{ is defined} \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{u}^{0}_{g} = 0 \right)$$
+```math
+\mathit{Generator\_previous\_p}_{t,g} - p_{t,g} \le \mathrm{rd}^{\mathrm{dn}}_{g} \cdot P_{g} + \mathrm{M}_{g} - \mathrm{M}_{g} \cdot \mathit{dn}_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{rd}_{g} \text{ is defined} \wedge \left( \mathrm{pos}(t) > 0 \vee \mathrm{u}^{0}_{g} = 0 \right)
+```
 
 **`Generator_p_nom_modularity`**
 
-$$P_{g} = \mathrm{p}^{\mathrm{mod}}_{g} \cdot N_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0$$
+```math
+P_{g} = \mathrm{p}^{\mathrm{mod}}_{g} \cdot N_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0
+```
 
 **`Generator_com_ext_p_upper_cap`**
 
-$$p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot P_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \neg \left( \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)$$
+```math
+p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot P_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \neg \left( \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)
+```
 
 **`Generator_com_ext_p_upper_big_m`**
 
-$$p_{t,g} \le \mathrm{M}_{g} \cdot u_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \neg \left( \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)$$
+```math
+p_{t,g} \le \mathrm{M}_{g} \cdot u_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \neg \left( \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)
+```
 
 **`Generator_com_ext_p_lower`**
 
-$$p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot P_{g} + \mathrm{M}_{g} \cdot u_{t,g} - \mathrm{M}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \neg \left( \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)$$
+```math
+p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot P_{g} + \mathrm{M}_{g} \cdot u_{t,g} - \mathrm{M}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \neg \left( \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)
+```
 
 **`Generator_com_ext_p_lower_nonneg`**
 
-$$p_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{nonneg}_{g} \wedge \neg \left( \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)$$
+```math
+p_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{nonneg}_{g} \wedge \neg \left( \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)
+```
 
 **`Generator_com_mod_p_lower`**
 
-$$p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{mod}}_{g} \cdot u_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0$$
+```math
+p_{t,g} \ge \underline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{mod}}_{g} \cdot u_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0
+```
 
 **`Generator_com_mod_p_upper`**
 
-$$p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{mod}}_{g} \cdot u_{t,g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0$$
+```math
+p_{t,g} \le \overline{\mathrm{p}}_{t,g} \cdot \mathrm{p}^{\mathrm{mod}}_{g} \cdot u_{t,g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0
+```
 
 **`Generator_status_p_fixed_upper`**
 
-$$u_{t,g} \le \mathrm{N}^{\mathrm{fix}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \neg \left( \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)$$
+```math
+u_{t,g} \le \mathrm{N}^{\mathrm{fix}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \neg \left( \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)
+```
 
 **`Generator_start_up_p_fixed_upper`**
 
-$$\mathit{up}_{t,g} \le \mathrm{N}^{\mathrm{fix}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \neg \left( \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)$$
+```math
+\mathit{up}_{t,g} \le \mathrm{N}^{\mathrm{fix}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \neg \left( \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)
+```
 
 **`Generator_shut_down_p_fixed_upper`**
 
-$$\mathit{dn}_{t,g} \le \mathrm{N}^{\mathrm{fix}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \neg \left( \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)$$
+```math
+\mathit{dn}_{t,g} \le \mathrm{N}^{\mathrm{fix}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \neg \left( \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0 \right)
+```
 
 **`Generator_status_p_nom_variable_upper`**
 
-$$u_{t,g} \le N_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0$$
+```math
+u_{t,g} \le N_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0
+```
 
 **`Generator_start_up_p_nom_variable_upper`**
 
-$$\mathit{up}_{t,g} \le N_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0$$
+```math
+\mathit{up}_{t,g} \le N_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0
+```
 
 **`Generator_shut_down_p_nom_variable_upper`**
 
-$$\mathit{dn}_{t,g} \le N_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0$$
+```math
+\mathit{dn}_{t,g} \le N_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g} \wedge \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0
+```
 
 **`Bus_nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{Generator\_bus}(g) = n} p_{t,g} - \left( \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{Link\_bus0}(l) = n} f_{t,l} \right) + \sum_{o \in \mathcal{O} \thinspace:\thinspace \mathrm{Link\_output\_bus}(o) = n} \mathit{Link\_output\_arrival}_{t,o} = \sum_{d \in \mathcal{D} \thinspace:\thinspace \mathrm{Load\_bus}(d) = n} \mathrm{load}_{t,d} \qquad \forall\thinspace t \in \mathcal{T},\enspace n \in \mathcal{N}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{Generator\_bus}(g) = n} p_{t,g} - \left( \sum_{l \in \mathcal{L} \,:\, \mathrm{Link\_bus0}(l) = n} f_{t,l} \right) + \sum_{o \in \mathcal{O} \,:\, \mathrm{Link\_output\_bus}(o) = n} \mathit{Link\_output\_arrival}_{t,o} = \sum_{d \in \mathcal{D} \,:\, \mathrm{Load\_bus}(d) = n} \mathrm{load}_{t,d} \qquad \forall\, t \in \mathcal{T},\ n \in \mathcal{N}
+```
 
 #### Definitions
 
 **`Generator_previous_status`**
 
-$$\mathit{Generator\_previous\_status}_{t,g} = \begin{cases} \mathrm{u}^{0}_{g} & \text{if } \mathrm{pos}(t) = 0 \cr u_{t - 1,g} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{Generator\_previous\_status}_{t,g} = \begin{cases} \mathrm{u}^{0}_{g} & \text{if } \mathrm{pos}(t) = 0 \\ u_{t - 1,g} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`Generator_previous_p`**
 
-$$\mathit{Generator\_previous\_p}_{t,g} = \begin{cases} 0 & \text{if } \mathrm{pos}(t) = 0 \cr p_{t - 1,g} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{Generator\_previous\_p}_{t,g} = \begin{cases} 0 & \text{if } \mathrm{pos}(t) = 0 \\ p_{t - 1,g} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`Link_output_arrival`**
 
-$$\mathit{Link\_output\_arrival}_{t,o} = \begin{cases} f_{t \ominus \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{if } \mathrm{cyc}^{f}_{o} \cr f_{t \boxminus_{0} \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{otherwise} \end{cases} \qquad \forall\thinspace t \in \mathcal{T},\enspace o \in \mathcal{O}$$
+```math
+\mathit{Link\_output\_arrival}_{t,o} = \begin{cases} f_{t \ominus \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{if } \mathrm{cyc}^{f}_{o} \\ f_{t \boxminus_{0} \mathrm{d}^{f},\mathrm{Link\_output\_link}(o)} \cdot \eta_{o} & \text{otherwise} \end{cases} \qquad \forall\, t \in \mathcal{T},\ o \in \mathcal{O}
+```
 
 #### Variable domains
 
 **`Generator_p`**
 
-$$p_{t,g} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`Link_p`**
 
-$$f_{t,l} \in \mathbb{R} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 **`Generator_n_mod`**
 
-$$N_{g} \ge 0, N_{g} \in \mathbb{Z} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0$$
+```math
+N_{g} \ge 0, N_{g} \in \mathbb{Z} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g} \wedge \mathrm{p}^{\mathrm{mod}}_{g} > 0
+```
 
 **`Generator_status`**
 
-$$u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g}$$
+```math
+u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g}
+```
 
 **`Generator_start_up`**
 
-$$\mathit{up}_{t,g} \ge 0, \mathit{up}_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g}$$
+```math
+\mathit{up}_{t,g} \ge 0, \mathit{up}_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g}
+```
 
 **`Generator_shut_down`**
 
-$$\mathit{dn}_{t,g} \ge 0, \mathit{dn}_{t,g} \in \mathbb{Z} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{com}_{g}$$
+```math
+\mathit{dn}_{t,g} \ge 0, \mathit{dn}_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{com}_{g}
+```
 
 **`Generator_p_nom_ext`**
 
-$$P_{g} \in \mathbb{R} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{ext}_{g}$$
+```math
+P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
+```
 
 </details>
 
@@ -439,104 +517,104 @@ $$P_{g} \in \mathbb{R} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\th
     variables:
       Generator_p:
         description: '`Generator-p` — output of a generator in a snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
       Link_p:
         description: '`Link-p` — PyPSA''s `p0`, the flow measured at the `Link_bus0` end: a positive value
           withdraws there and injects at every bus the link''s output ports deliver to'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
       Generator_n_mod:
         description: '`Generator-n_mod` — how many modules of an extendable modular build'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable AND Generator_p_nom_mod > 0
         domain: integer
         bounds: {lower: 0}
       Generator_status:
         description: '`Generator-status` — how much of a committable unit is on: an integer the rows below
           cap at one, or at the module count where the build is modular'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
       Generator_start_up:
         description: '`Generator-start_up` — how much of a committable unit turns on this snapshot, capped
           as the status is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
       Generator_shut_down:
         description: '`Generator-shut_down` — how much of a committable unit turns off this snapshot, capped
           as the status is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
       Generator_p_nom_ext:
         description: '`Generator-p_nom` — nominal power where it is a decision; the parameter of the same
           PyPSA name carries the fixed regime'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable
     constraints:
       Generator_fix_p_lower:
         description: '`Generator-fix-p-lower` — a fixed generator outputs at least its minimum'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom
       Generator_fix_p_upper:
         description: '`Generator-fix-p-upper` — a fixed generator outputs at most what is available'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom
       Link_fix_p_lower:
         description: '`Link-fix-p-lower` — a fixed link carries at least its minimum, negative for the other
           way'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p >= Link_p_min_pu * Link_p_nom
       Link_fix_p_upper:
         description: '`Link-fix-p-upper` — a fixed link carries at most its nominal power'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p <= Link_p_max_pu * Link_p_nom
       Generator_ext_p_nom_lower:
         description: '`Generator-ext-p_nom-lower` — the chosen build is at least its floor'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable
         expression: Generator_p_nom_ext >= Generator_p_nom_min
       Generator_ext_p_nom_upper:
         description: '`Generator-ext-p_nom-upper` — the chosen build is at most its cap; a cap of infinity
           is no row'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable AND Generator_p_nom_max
         expression: Generator_p_nom_ext <= Generator_p_nom_max
       Generator_com_p_lower:
         description: '`Generator-com-p-lower` — a committed unit outputs at least its minimum; off, at least
           nothing'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND not Generator_p_nom_extendable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom * Generator_status
       Generator_com_p_upper:
         description: '`Generator-com-p-upper` — a committed unit outputs at most what is available; off, at
           most nothing'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND not Generator_p_nom_extendable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom * Generator_status
       Generator_com_transition_start_up:
         description: '`Generator-com-transition-start-up` — turning on is a start, counted against the state
           the unit carried into the snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         expression: Generator_start_up >= Generator_status - Generator_previous_status
       Generator_com_transition_shut_down:
         description: '`Generator-com-transition-shut-down` — turning off is a stop, counted against the state
           the unit carried into the snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         expression: Generator_shut_down >= Generator_previous_status - Generator_status
       Generator_p_ramp_limit_up_run_big_m:
         description: '`Generator-p-ramp_limit_up-run-bigM` — a committed extendable unit raises output no
           faster than its limit of the chosen build; the big M releases the row in the snapshot it turns on'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_ramp_limit_up AND (position(snapshot)
           > 0 OR Generator_status_initial == 0)
         expression: Generator_p - Generator_previous_p <= Generator_ramp_limit_up * Generator_p_nom_ext +
@@ -545,7 +623,7 @@ $$P_{g} \in \mathbb{R} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\th
         description: '`Generator-p-ramp_limit_up-start-bigM` — in the snapshot it turns on, a committed extendable
           unit ramps no further than its start-up ramp of the chosen build; the big M releases the row everywhere
           else'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_ramp_limit_up AND (position(snapshot)
           > 0 OR Generator_status_initial == 0)
         expression: Generator_p - Generator_previous_p <= Generator_ramp_limit_start_up * Generator_p_nom_ext
@@ -553,7 +631,7 @@ $$P_{g} \in \mathbb{R} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\th
       Generator_p_ramp_limit_down_run_big_m:
         description: '`Generator-p-ramp_limit_down-run-bigM` — a committed extendable unit lowers output no
           faster than its limit of the chosen build; the big M releases the row in the snapshot it turns off'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_ramp_limit_down AND (position(snapshot)
           > 0 OR Generator_status_initial == 0)
         expression: Generator_previous_p - Generator_p <= Generator_ramp_limit_down * Generator_p_nom_ext
@@ -562,91 +640,91 @@ $$P_{g} \in \mathbb{R} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\th
         description: '`Generator-p-ramp_limit_down-shut-bigM` — in the snapshot it turns off, a committed
           extendable unit ramps no further than its shut-down ramp of the chosen build; the big M releases
           the row everywhere else'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_ramp_limit_down AND (position(snapshot)
           > 0 OR Generator_status_initial == 0)
         expression: Generator_previous_p - Generator_p <= Generator_ramp_limit_shut_down * Generator_p_nom_ext
           + Generator_big_m - Generator_big_m * Generator_shut_down
       Generator_p_nom_modularity:
         description: '`Generator-p_nom_modularity` — the chosen build is a whole number of modules'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable AND Generator_p_nom_mod > 0
         expression: Generator_p_nom_ext == Generator_p_nom_mod * Generator_n_mod
       Generator_com_ext_p_upper_cap:
         description: '`Generator-com-ext-p-upper-cap` — a committed extendable unit outputs at most what is
           available of the chosen build, whatever its status'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND NOT (Generator_p_nom_mod > 0)
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom_ext
       Generator_com_ext_p_upper_big_m:
         description: '`Generator-com-ext-p-upper-bigM` — off, a unit outputs nothing; on, the big M is no
           bound'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND NOT (Generator_p_nom_mod > 0)
         expression: Generator_p <= Generator_big_m * Generator_status
       Generator_com_ext_p_lower:
         description: '`Generator-com-ext-p-lower` — a committed extendable unit outputs at least its minimum
           of the chosen build; off, the big M releases the row'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND NOT (Generator_p_nom_mod > 0)
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom_ext + Generator_big_m * Generator_status
           - Generator_big_m
       Generator_com_ext_p_lower_nonneg:
         description: '`Generator-com-ext-p-lower-nonneg` — where no minimum-per-unit is negative, output is
           also plainly non-negative, a row the big-M lower cannot assert while the unit is off'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_p_min_pu_nonneg AND NOT
           (Generator_p_nom_mod > 0)
         expression: Generator_p >= 0
       Generator_com_mod_p_lower:
         description: '`Generator-com-mod-p-lower` — a committed modular unit outputs at least its minimum
           of one module, whether the build is fixed or a decision'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_mod > 0
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom_mod * Generator_status
       Generator_com_mod_p_upper:
         description: '`Generator-com-mod-p-upper` — a committed modular unit outputs at most one module''s
           share, whether the build is fixed or a decision'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_mod > 0
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom_mod * Generator_status
       Generator_status_p_fixed_upper:
         description: '`Generator-status-p-fixed-upper` — a status is at most the modules in place, an explicit
           row as PyPSA writes it: one where the build is not modular, and the fixed build''s whole count of
           modules where it is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND NOT (Generator_p_nom_extendable AND Generator_p_nom_mod > 0)
         expression: Generator_status <= Generator_modules_installed
       Generator_start_up_p_fixed_upper:
         description: '`Generator-start_up-p-fixed-upper` — a start is at most the modules in place, an explicit
           row as PyPSA writes it: one where the build is not modular, and the fixed build''s whole count of
           modules where it is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND NOT (Generator_p_nom_extendable AND Generator_p_nom_mod > 0)
         expression: Generator_start_up <= Generator_modules_installed
       Generator_shut_down_p_fixed_upper:
         description: '`Generator-shut_down-p-fixed-upper` — a stop is at most the modules in place, an explicit
           row as PyPSA writes it: one where the build is not modular, and the fixed build''s whole count of
           modules where it is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND NOT (Generator_p_nom_extendable AND Generator_p_nom_mod > 0)
         expression: Generator_shut_down <= Generator_modules_installed
       Generator_status_p_nom_variable_upper:
         description: '`Generator-status-p_nom-variable-upper` — a modular unit is on only where a module is
           built'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_p_nom_mod > 0
         expression: Generator_status <= Generator_n_mod
       Generator_start_up_p_nom_variable_upper:
         description: '`Generator-start_up-p_nom-variable-upper` — a modular unit starts only where a module
           is built'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_p_nom_mod > 0
         expression: Generator_start_up <= Generator_n_mod
       Generator_shut_down_p_nom_variable_upper:
         description: '`Generator-shut_down-p_nom-variable-upper` — a modular unit stops only where a module
           is built'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_p_nom_extendable AND Generator_p_nom_mod > 0
         expression: Generator_shut_down <= Generator_n_mod
       Bus_nodal_balance:
@@ -654,21 +732,21 @@ $$P_{g} \in \mathbb{R} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\th
           less what the links take away, plus what arrives over them after losses and any delay at every port
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(Generator_p, by=Generator_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
           by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
     expressions:
       Generator_previous_status:
         description: the commitment state a generator carries into a snapshot — the state it brought into
           the horizon at the first, the previous snapshot's after that
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: Generator_status_initial}
         otherwise: shift(Generator_status, over=snapshot, offset=1)
       Generator_previous_p:
         description: the output a generator carries into a snapshot — nothing at the start of the horizon,
           which is why a unit that came in running carries no ramp row there
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: 0}
         otherwise: shift(Generator_p, over=snapshot, offset=1)
@@ -677,7 +755,7 @@ $$P_{g} \in \mathbb{R} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\th
           delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the
           horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
-        foreach: [snapshot, link_output]
+        dims: [snapshot, link_output]
         cases:
           wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
               Link_efficiency, over=snapshot, offset=Link_output_delay, edge=''wrap'')'}

@@ -35,65 +35,81 @@ PyPSA's committable unit whose capacity is also being built: the minimum output 
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units, some of which are committed rather than merely dispatched |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units, some of which are committed rather than merely dispatched |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{min,pu}}$ | `p_min_pu` over $\mathcal{G}$ — share of its built capacity a committed unit must produce while on |
-| $\mathrm{p}^{\mathrm{nom,max}}$ | `p_nom_max` over $\mathcal{G}$ — most capacity a generator may build |
-| $\mathrm{big\_m}$ | `big_m` over $\mathcal{G}$ — a bound on the output of a committed unit, large enough never to bind on its own — the capacity ceiling times the availability, and present only for the units that are committed at all |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{capital\_cost}$ | `capital_cost` over $\mathcal{G}$ — cost of holding one unit of capacity over the horizon |
-| $\mathrm{load}$ | `load` over $\mathcal{T}$ — demand to be met |
+| $`\mathrm{p}^{\mathrm{min,pu}}`$ | `p_min_pu` over $`\mathcal{G}`$ — share of its built capacity a committed unit must produce while on |
+| $`\mathrm{p}^{\mathrm{nom,max}}`$ | `p_nom_max` over $`\mathcal{G}`$ — most capacity a generator may build |
+| $`\mathrm{big\_m}`$ | `big_m` over $`\mathcal{G}`$ — a bound on the output of a committed unit, large enough never to bind on its own — the capacity ceiling times the availability, and present only for the units that are committed at all |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{capital\_cost}`$ | `capital_cost` over $`\mathcal{G}`$ — cost of holding one unit of capacity over the horizon |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T}`$ — demand to be met |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — capacity built at a generator |
-| $\mathit{status}$ | `status` over $\mathcal{T} \times \mathcal{G}$ — is this unit committed in this snapshot? Declared only for the units that carry a big-M, which is what marks a unit as committed rather than merely dispatched |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — capacity built at a generator |
+| $`\mathit{status}`$ | `status` over $`\mathcal{T} \times \mathcal{G}`$ — is this unit committed in this snapshot? Declared only for the units that carry a big-M, which is what marks a unit as committed rather than merely dispatched |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{min,pu}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{min,pu}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capital\_cost}_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capital\_cost}_{g}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$p_{t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`off_means_zero`**
 
-$$p_{t,g} - \mathrm{big\_m}_{g} \cdot \mathit{status}_{t,g} \le 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{big\_m}_{g} \text{ is defined}$$
+```math
+p_{t,g} - \mathrm{big\_m}_{g} \cdot \mathit{status}_{t,g} \le 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{big\_m}_{g} \text{ is defined}
+```
 
 **`commitment_floor`**
 
-$$p_{t,g} - \mathrm{p}^{\mathrm{min,pu}}_{g} \cdot p^{\mathrm{nom}}_{g} - \mathrm{big\_m}_{g} \cdot \mathit{status}_{t,g} \ge -\mathrm{big\_m}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{big\_m}_{g} \text{ is defined}$$
+```math
+p_{t,g} - \mathrm{p}^{\mathrm{min,pu}}_{g} \cdot p^{\mathrm{nom}}_{g} - \mathrm{big\_m}_{g} \cdot \mathit{status}_{t,g} \ge -\mathrm{big\_m}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{big\_m}_{g} \text{ is defined}
+```
 
 **`power_balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$p_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`p_nom`**
 
-$$0 \le p^{\mathrm{nom}}_{g} \le \mathrm{p}^{\mathrm{nom,max}}_{g} \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+0 \le p^{\mathrm{nom}}_{g} \le \mathrm{p}^{\mathrm{nom,max}}_{g} \qquad \forall\, g \in \mathcal{G}
+```
 
 **`status`**
 
-$$\mathit{status}_{t,g} \in \{0, 1\} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{big\_m}_{g} \text{ is defined}$$
+```math
+\mathit{status}_{t,g} \in \{0, 1\} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \mathrm{big\_m}_{g} \text{ is defined}
+```
 
 </details>
 <!-- math:end -->
@@ -144,12 +160,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: capacity built at a generator
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
           upper: p_nom_max
@@ -158,21 +174,21 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           is this unit committed in this snapshot? Declared only for the units that
           carry a big-M, which is what marks a unit as committed rather than merely
           dispatched
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: big_m
         domain: binary
 
     constraints:
       within_capacity:
         description: a generator produces no more than the capacity built for it, committed or not
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= p_nom
 
       off_means_zero:
         description: >-
           an uncommitted unit produces nothing, and a committed one is held only by
           the big-M — which is why the row above is the real capacity limit
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: big_m
         expression: p - big_m * status <= 0
 
@@ -181,12 +197,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           a committed unit runs at no less than its share of the capacity built for
           it. The share of a *variable* capacity is a product of two decisions, so it
           is linearised: the row is slack by the whole big-M while the unit is off
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: big_m
         expression: p - p_min_pu * p_nom - big_m * status >= -big_m
 
       power_balance:
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
     objective:

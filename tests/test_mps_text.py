@@ -48,7 +48,7 @@ QUADRATIC_ROW_SPEC = {
     **QUADRATIC_OBJECTIVE_SPEC,
     'constraints': {
         **QUADRATIC_OBJECTIVE_SPEC['constraints'],
-        'coupled': {'foreach': ['g'], 'expression': 'p * p <= 9'},
+        'coupled': {'dims': ['g'], 'expression': 'p * p <= 9'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p, over=g)'},
 }
@@ -82,12 +82,12 @@ FREE_SPEC: dict[str, Any] = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'load': {'dims': ['t']}},
     'variables': {
-        'p': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 100}},
-        'slack': {'foreach': ['t']},
-        'spill': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 5}},
-        'idle': {'foreach': ['t'], 'bounds': {'lower': 1, 'upper': 7}},
+        'p': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 100}},
+        'slack': {'dims': ['t']},
+        'spill': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 5}},
+        'idle': {'dims': ['t'], 'bounds': {'lower': 1, 'upper': 7}},
     },
-    'constraints': {'meet': {'foreach': ['t'], 'expression': 'p + slack + spill == load'}},
+    'constraints': {'meet': {'dims': ['t'], 'expression': 'p + slack + spill == load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p, over=t) + sum(slack * 2, over=t)'},
 }
 

@@ -1,11 +1,10 @@
 """What a caller reads back — a solve's :class:`Result`, a build's :class:`Diagnostics`.
 
 The objects ``lps.solve`` and ``model.diagnostics()`` hand back, so they are
-the pieces of this subpackage a reader meets without going looking. They live
-beside the engine rather than in it because they answer different questions:
-the engine *builds* a model, and these *read* one — a :class:`Result` holds one
-finished frame per declaration, its values already laid out over the build's
-coordinates, so no reader ever goes back to the engine.
+the pieces of this subpackage a reader meets without going looking. A
+:class:`Result` holds one finished frame per declaration, its values already
+laid out over the build's coordinates, so no reader ever goes back to the
+engine.
 
 Named for linopy's envelope (``Result`` = status + solution + report).
 """
@@ -14,11 +13,27 @@ from __future__ import annotations
 
 import importlib.util
 from dataclasses import dataclass
+from datetime import datetime  # noqa: TC003  — a Record annotation this module writes
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
-from lpspec.relational.parquet import reader_kind, write_whole
+from lpspec.errors import (
+    LpspecError,
+    NoSolutionError,
+    no_model_behind_this_answer_message,
+    unknown_name_message,
+)
+from lpspec.relational.parquet import (
+    RECORD_FILE,
+    RECORD_SCHEMA,
+    Metrics,
+    Record,
+    clear_the_answer,
+    reader_kind,
+    write_format,
+    write_reasons,
+    write_whole,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -32,16 +47,15 @@ if TYPE_CHECKING:
 
 #: How much of the session a solve keeps, as a request to
 #: :meth:`lpspec.api.Model.solve` and as the report in
-#: :attr:`Result.kept`. One word rather than a pair of flags because the two
-#: things a session holds — the solver with the model on it, and the work that
-#: solver did — can only be dropped in that order: there is no carrying on from
-#: a solver that was closed, so the fourth combination does not exist.
+#: :attr:`Result.kept`. The two things a session holds — the solver with the
+#: model on it, and the work that solver did — can only be dropped in that
+#: order: there is no carrying on from a solver that was closed, so the fourth
+#: combination does not exist.
 Keep = Literal['nothing', 'solver', 'progress']
 
-#: What each word keeps, in the order of how much that is. Deliberately about
-#: provenance and not mechanism: whether *progress* is a basis, an incumbent
-#: or a sink's own notion is the sink's business, so a solver with no simplex
-#: fits these words unchanged.
+#: What each word keeps, in the order of how much that is. About provenance
+#: and not mechanism: whether *progress* is a basis, an incumbent or a sink's
+#: own notion is the sink's business.
 KEEPS: Mapping[Keep, str] = {
     'nothing': 'the model is handed to a fresh solver, which has nothing to begin from',
     'solver': 'the solver already holding the model is reused, and the work the last solve did is discarded',
@@ -50,7 +64,7 @@ KEEPS: Mapping[Keep, str] = {
 
 
 def unknown_keep_message(keep: object) -> str:
-    """Why *keep* is not one, and what the three are."""
+    """The message for a *keep* outside the three."""
     options = '\n'.join(f'  {name}: {what}' for name, what in KEEPS.items())
     return f'unknown keep {keep!r}. A solve may keep:\n{options}'
 
@@ -60,18 +74,12 @@ def unknown_keep_message(keep: object) -> str:
 _NEEDS_THE_EXTRA = (
     '{module} ships with the [linopy] extra rather than with the engine, so this build cannot bridge out '
     'to it: pip install "lpspec[linopy]". A result needs nothing added to be read as it stands — primal() '
-    'and dual() return polars frames, and to_parquet() writes one file per declaration.'
+    'and dual() return polars frames, and save() writes one file per declaration.'
 )
 
 
 def tidy_to_pandas(frame: pl.DataFrame) -> pd.DataFrame:
     """A tidy polars frame as pandas, column by column.
-
-    The three bridges below are shared by :class:`Result` and
-    :class:`~lpspec.strategy.Runs`, which differ only in where the tidy frame
-    comes from — a sweep's is the same frame one slice wider. Built column by
-    column because polars' own ``to_pandas`` reaches for pyarrow; pandas itself
-    ships with the ``[linopy]`` extra.
 
     Raises:
         ModuleNotFoundError: On an install without pandas, naming the extra.
@@ -89,11 +97,8 @@ def tidy_to_dataarray(frame: pd.DataFrame, name: str) -> xr.DataArray:
 
     A scalar declaration has none and comes back 0-dimensional.
 
-    Probed rather than imported, unlike the pandas bridge above: xarray is the
-    oracle lane's, and an ``import xarray`` anywhere under ``relational/`` is
-    what hard rule 2 forbids (``tests/test_architecture.py``). pandas reaches
-    it for us on the line below, and reports it as a missing *package* — this
-    turns that into the extra, before it happens.
+    Probed rather than imported: an ``import xarray`` anywhere under
+    ``relational/`` is what hard rule 2 forbids (``tests/test_architecture.py``).
 
     Raises:
         ModuleNotFoundError: On an install without xarray, naming the extra.
@@ -119,8 +124,8 @@ def tidy_to_dataset(names: Sequence[str], one: Callable[[str], xr.DataArray]) ->
 def _number(value: float, *, sign: bool = False) -> str:
     """*value* as the shortest string that reads back as itself.
 
-    Shortest round-trip, never rounded: a row is read to find the number the
-    data produced. A trailing ``.0`` is dropped, as linopy prints ``+50``.
+    Shortest round-trip, never rounded. A trailing ``.0`` is dropped, as linopy
+    prints ``+50``.
     """
     text = repr(float(value))
     text = text.removesuffix('.0')
@@ -130,8 +135,7 @@ def _number(value: float, *, sign: bool = False) -> str:
 def _bracket(labels: str) -> str:
     """``[1, wind]``, or nothing at all for a declaration over no dims.
 
-    A scalar is ``z``, not ``z[]`` — linopy's spelling, and an empty bracket
-    states a coordinate that does not exist.
+    A scalar is ``z``, not ``z[]`` — linopy's spelling.
     """
     return f'[{labels}]' if labels else ''
 
@@ -145,10 +149,11 @@ class ConstraintRow:
     Read off the built model, so it needs no solve — and it is the *built*
     row, after ``where`` masking, after any term whose variable was absent
     dropped out, and after a coefficient the data made exactly zero stopped
-    being a term at all (:func:`~lpspec.relational.engines.polars.assembly._without_zeros`
-    — what a zero states, absence already states). Those three are why a row
-    can be shorter than the file suggests, and why reading one is worth it
-    when a model says something other than what its author wrote.
+    being a term at all
+    (:func:`~lpspec.relational.engines.polars.assembly._without_zeros`). Those
+    three are why a row can be shorter than the file suggests, and why reading
+    one is worth it when a model says something other than what its author
+    wrote.
 
     Printing it gives the row as one line of math, which is what reading a row
     usually means; :attr:`terms` is the same content as a frame, for the row
@@ -173,10 +178,7 @@ class ConstraintRow:
     sense: str
     rhs: float
 
-    #: How many terms a line spells out before it summarises instead. The
-    #: number *is* the decision: past it the terms no longer fit a line worth
-    #: reading, and an arbitrary dozen of three hundred answers nothing that
-    #: their count and their spread does not answer better.
+    #: How many terms a line spells out before it summarises instead.
     display_terms = 12
 
     def __str__(self) -> str:
@@ -187,9 +189,7 @@ class ConstraintRow:
         """
         return f'{self.name}{_bracket(self._where())}: {self._body()} {self.sense} {_number(self.rhs)}'
 
-    #: The line, not the field-by-field dataclass dump. A row is read at a
-    #: prompt and in a notebook cell more often than it is printed, and there
-    #: the default would put a multi-line frame inside one row's identity.
+    #: The line, not the field-by-field dataclass dump.
     __repr__ = __str__
 
     def _where(self) -> str:
@@ -210,9 +210,9 @@ class ConstraintRow:
     def _per_declaration(self) -> str:
         """``p: 300 (|coef| 1…50)`` per variable, in the row's own term order.
 
-        The two questions a row too wide to read is asked: how much of it each
+        The two things a row too wide to read shows: how much of it each
         declaration contributes, and whether its coefficients span an order of
-        magnitude that will cost the solve.
+        magnitude.
         """
         import polars as pl
 
@@ -233,15 +233,13 @@ class ConstraintRow:
 class Diagnostics:
     """What a build and its solves did that the answer does not show.
 
-    Advisory, all of it: no answer depends on any field, and a caller who
-    branches on one has made this engine's bookkeeping part of their model.
-    Read them when a loop is slower or smaller than it should be.
+    Advisory, all of it: no answer depends on any field. Read them when a loop
+    is slower or smaller than it should be.
     """
 
-    #: The shape the build produced: columns, rows, and matrix entries. What
-    #: ``check`` cannot answer, needing no data where this needs all of it,
-    #: and the thing to report when a model is bigger than its author
-    #: expected — a broadcast that multiplied rows shows up here first.
+    #: The shape the build produced: columns, rows, and matrix entries. The
+    #: thing to report when a model is bigger than its author expected — a
+    #: broadcast that multiplied rows shows up here first.
     columns: int
     rows: int
     nonzeros: int
@@ -249,25 +247,19 @@ class Diagnostics:
     #: What the **last solve's sink** had to add on top of those to take the
     #: model, and zero for every sink that took it as built. A sink with no
     #: SOS concept is handed the sets as binaries and linking rows
-    #: (:mod:`lpspec.relational.sinks.sos`), which is the one thing that grows
-    #: a model after the build and the one growth no declaration accounts
-    #: for — so a solve that is larger than the model reads it here rather
-    #: than nowhere. Zero until something has been solved: a *writer* is
-    #: handed the model as built, and reports nothing.
-    sink_columns: int
-    sink_rows: int
+    #: (:mod:`lpspec.relational.sinks.sos`). Zero until something has been
+    #: solved: a *writer* is handed the model as built, and reports nothing.
+    added_columns: int
+    added_rows: int
 
     #: ``(constraint, rows_not_built)`` — every declared row that did not reach
     #: the solver (the absence rules), by either route: one emptied of all its
     #: terms, and one a **propagated absence** deleted while its other terms were
-    #: still live. Without this record a declared constraint could go unenforced
-    #: with no way to notice. Empty for a model whose every declared row was built — a recurrence's
-    #: first coordinate counting as a row it declared and did not get, so a
-    #: ``shift`` against the horizon's edge reports here and is the boundary
-    #: rather than a fault. Counts rather than coordinates: the label of an
-    #: unbuilt row does not exist, so naming which went would mean holding the
-    #: pre-drop frame — memory proportional to the omission, on the path this
-    #: package measures hardest.
+    #: still live. Empty for a model whose every declared row was built — a
+    #: recurrence's first coordinate counting as a row it declared and did not
+    #: get, so a ``shift`` against the horizon's edge reports here and is the
+    #: boundary rather than a fault. Counts rather than coordinates: the label
+    #: of an unbuilt row does not exist.
     omissions: pl.DataFrame
 
     #: ``(parameter, coordinates, rows, missing)`` — one row per parameter whose
@@ -275,10 +267,7 @@ class Diagnostics:
     #: and **empty where every one is complete**. Sparsity is the ordinary case
     #: here — absence is how a model masks — so this reports it rather than
     #: judging it: what a missing row means is the absence rules', and whether
-    #: it was meant is the caller's to say. It exists because the two are
-    #: indistinguishable from the answer alone: a table that lost a row and a
-    #: ``where:`` that removed one build the same model, and one of them is a
-    #: mistake nothing else would report.
+    #: it was meant is the caller's to say.
     #:
     #: A parameter over no dims has one coordinate and attaching already refuses
     #: a source that does not carry exactly one row for it, so it is never
@@ -301,9 +290,8 @@ class Diagnostics:
     #: and answers the bounds with ``Consider scaling the bounds by …`` — so a
     #: model can be clean on :attr:`coefficient_range` and still be the one the
     #: solver is complaining about. Zero and infinity are excluded, an
-    #: unbounded side and a ``lower: 0`` being nothing the solver represents,
-    #: which is what makes this comparable with the line it prints. A large
-    #: ``largest`` is usually a big number standing in for "uncapped", and
+    #: unbounded side and a ``lower: 0`` being nothing the solver represents. A
+    #: large ``largest`` is usually a big number standing in for "uncapped", and
     #: wants no upper bound at all rather than a rounder one.
     bound_range: pl.DataFrame
 
@@ -315,9 +303,6 @@ class Diagnostics:
 
     #: The same pair for the objective's coefficients, or ``None`` where the
     #: model declares no objective and where every term of one cancelled.
-    #: Beside the frame rather than in it: it is one declaration and never a
-    #: table, and badly scaled costs and a badly scaled matrix are different
-    #: faults with different repairs.
     objective_range: tuple[float, float] | None
 
     #: How many times this model has been solved, and how many of those solves
@@ -340,7 +325,33 @@ class Diagnostics:
     #: sum — an update's attach and build land on top of the first's, the way
     #: ``solves`` keeps counting. Clocks rather than a profile: enough to say
     #: which phase a slow loop spends its time in, not why.
-    timings: Mapping[str, float]
+    seconds: Mapping[str, float]
+
+    def metrics(self) -> Metrics:
+        """The sizes, counters and clocks as one value — the row an archive records.
+
+        What ``archive=`` records beside the answer, and what a caller feeding
+        its own store reads off a model it solved. Which fields reach it and
+        what it means cumulatively are
+        :class:`~lpspec.relational.parquet.Metrics`'s to say; a phase this
+        build never entered reads zero there. ``run`` is null: the name is the
+        publisher's, and nothing has published this yet.
+        """
+        clocks = self.seconds
+        return Metrics(
+            columns=self.columns,
+            rows=self.rows,
+            nonzeros=self.nonzeros,
+            added_columns=self.added_columns,
+            added_rows=self.added_rows,
+            solves=self.solves,
+            loads=self.loads,
+            attach_seconds=clocks.get('attach', 0.0),
+            build_seconds=clocks.get('build', 0.0),
+            handoff_seconds=clocks.get('handoff', 0.0),
+            solve_seconds=clocks.get('solve', 0.0),
+            write_seconds=clocks.get('write', 0.0),
+        )
 
 
 def _named(frames: Mapping[str, pl.LazyFrame], name: str, kind: str) -> pl.LazyFrame:
@@ -348,6 +359,29 @@ def _named(frames: Mapping[str, pl.LazyFrame], name: str, kind: str) -> pl.LazyF
         return frames[name]
     except KeyError:
         raise KeyError(unknown_name_message(kind, name, frames)) from None
+
+
+def evaluated(
+    declared: Mapping[str, Callable[[], pl.DataFrame]],
+    evaluator: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None,
+    expression: str | Mapping[str, Any],
+) -> pl.DataFrame:
+    """*expression* valued: by the declared reader that holds it, else lowered by *evaluator*.
+
+    The one rule every ``evaluate`` shares. A declared name is served by its own
+    reader first, so it costs no lowering and answers off an archive that
+    retains no model; anything else is what *evaluator* lowers, and where there
+    is none the refusal says so.
+
+    Raises:
+        LpspecError: *expression* is not a declared name and *evaluator* is
+            ``None``.
+    """
+    if isinstance(expression, str) and expression in declared:
+        return declared[expression]()
+    if evaluator is None:
+        raise LpspecError(no_model_behind_this_answer_message())
+    return evaluator(expression)
 
 
 @dataclass
@@ -383,15 +417,25 @@ class Result:
     #: How much of the session this solve kept, read off what actually ran —
     #: never off what was asked for.
     _kept: Keep
-    #: One deferred reader per declared named expression. A callable rather
-    #: than a frame because deferral is the contract (the rules for named expressions): nothing about
-    #: an expression is lowered or compiled until its reader is called, so a
-    #: model that reads none pays for none. Released with the primals by
-    #: :meth:`close`, since each holds this build's frames and values.
+    #: One deferred reader per declared named expression, and the ad-hoc
+    #: evaluator — what :meth:`evaluate` reads through and what :meth:`save`
+    #: writes. Nothing is compiled until a reader is called; the pair is
+    #: composed above the lane so the evaluator may read the model as written
+    #: (hard rule 2). ``_evaluate`` is ``None`` where there is no such model —
+    #: a build off an already-lowered ``Program``, or an answer read back off
+    #: disk. Released with the primals by :meth:`close`, since each holds this
+    #: build's frames and values.
     _expressions: Mapping[str, Callable[[], pl.DataFrame]] | None = None
+    _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = None
     #: Why there are no duals, when a solve that left values still has none.
     #: ``None`` whenever :attr:`_duals` holds them.
     _no_duals: str | None = None
+    #: Which spec this answered, as :func:`~lpspec.relational.parquet.digest_of`
+    #: names it. Attached by the model that solved, so a solve run off a
+    #: lowered program — which has no document — leaves it ``None``.
+    _spec_digest: str | None = None
+    #: When the solver returned, in UTC. Attached by the model that solved.
+    _solved_at: datetime | None = None
 
     @property
     def status(self) -> str:
@@ -423,6 +467,26 @@ class Result:
         return self._objective
 
     @property
+    def spec_digest(self) -> str | None:
+        """Which spec this answered — a digest of the file, not its name.
+
+        Two answers carrying one digest answered the same document, so a table
+        of saved cases says whether it is comparing like with like. The *data*
+        may differ entirely: two scenarios of one spec share this. ``None``
+        where the solve ran off a lowered program, which has no document.
+        """
+        return self._spec_digest
+
+    @property
+    def solved_at(self) -> datetime | None:
+        """When the solver returned, in UTC — ``None`` where the solve carried no clock.
+
+        What orders a table concatenated from runs solved apart, so that a
+        comparison is not left reading the timestamps of the files.
+        """
+        return self._solved_at
+
+    @property
     def kept(self) -> Keep:
         """How much of the session this solve kept — one of :data:`KEEPS`.
 
@@ -435,12 +499,11 @@ class Result:
         """
         return self._kept
 
-    def _readable(self, frames: Mapping[str, pl.LazyFrame] | None, what: str) -> Mapping[str, pl.LazyFrame]:
-        """*frames*, or why they cannot be read — closed first, then the status.
+    def _unclosed(self, what: str) -> Mapping[str, pl.LazyFrame]:
+        """The primals, or why nothing here can be read: this result was closed.
 
-        Closedness is read off the primals whichever mapping was asked for,
-        because :meth:`close` releases both together and a solve may
-        legitimately leave the duals empty.
+        The closed check is read off the primals whichever mapping the caller
+        wants: :meth:`close` releases them together.
         """
         if self._primals is None:
             raise LpspecError(
@@ -449,10 +512,16 @@ class Result:
                 f'their own data — so read what you need before close(), or drop the `with` and close '
                 f'when you are done.'
             )
+        return self._primals
+
+    def _readable(self, frames: Mapping[str, pl.LazyFrame] | None, what: str) -> Mapping[str, pl.LazyFrame]:
+        """*frames*, or why they cannot be read — closed first, then the status."""
+        self._unclosed(what)
         if not self._status.is_readable:
+            wording = f' ({self._status.solver_wording})' if self._status.solver_wording else ''
             raise NoSolutionError(
-                f'cannot read {what}: the solve terminated {self.termination_condition!r} '
-                f'({self._status.solver_wording}), so there are no values to read. Test '
+                f'cannot read {what}: the solve terminated {self.termination_condition!r}'
+                f'{wording}, so there are no values to read. Test '
                 f'`has_primal` first. This raises rather than returning, because the solver '
                 f'hands back a full-length vector of zeros either way and it is '
                 f'indistinguishable from an answer.'
@@ -508,39 +577,36 @@ class Result:
         frames = self._readable(self._activities, f"the activity of '{name}'")
         return _named(frames, name, 'constraint').collect(engine='streaming')
 
-    def expression(self, name: str) -> pl.DataFrame:
-        """The value of named expression *name* at this solution — ``(dims…, value)``.
+    def evaluate(self, expression: str | Mapping[str, Any]) -> pl.DataFrame:
+        """The value of *expression* at this solution — ``(dims…, value)``.
 
-        The quantity the model declares under ``expressions:``, evaluated at
-        the solve's primal values and aggregated to the expression's own dims —
-        :meth:`primal`'s shape and order, over those dims in declaration order.
-        Lowered and compiled on this call, not at build, so a model that reads
-        no expression pays for none.
+        *expression* is what one ``expressions:`` entry takes: a name the file
+        declares, an expression string, or the mapping carrying ``cases:``
+        with ``dims:`` and ``otherwise:``. It may use every name the model
+        declares and only those. The value is aggregated to the expression's
+        own dims, in declaration order, rows in label order over them —
+        :meth:`primal`'s shape and order.
 
-        Takes a **declared name only**, never an expression string: what is
-        readable is exactly what the file names, so the quantity a constraint
-        bounds and the quantity a report reads are one definition.
+        A declared name is served by its own reader, compiled on this call and
+        never lowered again, so a model whose expressions go unread compiles
+        none of them. Anything else lowers the model as written, which costs
+        what ``check`` costs.
 
         Raises:
             NoSolutionError: The solve left no values to read.
-            LpspecError: This result was closed.
-            DataError: A divisor with no value where the expression divides.
-            KeyError: No named expression is called *name*.
+            LpspecError: This result was closed; the model was built from an
+                already-lowered ``Program`` or read back off disk, so there is
+                nothing to lower an undeclared expression against; or a divisor
+                with no value where the expression divides.
+            LanguageError: A construct outside the language, or a name the
+                model does not declare.
         """
-        self._readable(self._primals, f"expression '{name}'")
-        readers = self._expressions or {}
-        try:
-            reader = readers[name]
-        except KeyError:
-            raise KeyError(
-                unknown_name_message('named expression', name, readers)
-                + ' expression() takes a name declared under expressions:, never an expression string.'
-            ) from None
-        return reader()
+        self._readable(self._primals, 'an expression')
+        return evaluated(self._expressions or {}, self._evaluate, expression)
 
     def _frame(self, name: str, kind: str) -> pl.DataFrame:
         """*name* through the reader *kind* names — the dispatch every bridge shares."""
-        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[reader_kind(kind)]
+        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.evaluate}[reader_kind(kind)]
         return reader(name)
 
     def _names(self, kind: str) -> tuple[str, ...]:
@@ -584,8 +650,7 @@ class Result:
 
         One kind per call: a dual and a variable of the same name would
         collide, and mean something else per row. Each arrives dense over its
-        own dims, all at once — on a large model name the few you need, or use
-        :meth:`to_parquet`, which writes every kind.
+        own dims, all at once — on a large model name the few you need.
 
         Args:
             names: What to include; none means every name of *kind*.
@@ -593,37 +658,81 @@ class Result:
         """
         return tidy_to_dataset(names or self._names(kind), lambda name: self.to_dataarray(name, kind))
 
-    def to_parquet(self, directory: str | Path) -> Path:
+    def save(self, directory: str | Path) -> Path:
         """Every kind this solve answered with, one file per name, into *directory*.
 
+        ``objective.parquet`` holds the
+        :class:`~lpspec.relational.parquet.Record` — how the solve terminated
+        and what it reached, in the columns a sweep keys and folds. A solve
+        that reached no objective writes null there rather than ``nan``, so a
+        directory per case is a table an aggregate reads. Then
         ``primal/<name>.parquet`` for every variable, ``dual/<name>.parquet``
         for every constraint where the duals are defined, and
         ``expression/<name>.parquet`` for every named expression this data
         can evaluate — an integer variable leaves the duals out, and an
-        expression that fails on this data is left out, :meth:`expression`
+        expression that fails on this data is left out, :meth:`evaluate`
         still saying why. The primals are streamed to disk in
         :meth:`primal`'s order, so the same model and data write the same
         bytes.
+
+        ``activity/<name>.parquet`` goes beside them for every constraint,
+        which no ``kind=`` names — a sweep folds three kinds and never holds
+        these, so a saved result carries them under a name of their own.
+
+        ``reasons.parquet`` holds ``(kind, name, reason)`` for whatever is
+        deliberately not here, and is absent when everything is: one row per
+        expression that failed, and one with an empty *name* for the duals,
+        whose absence is never per-constraint. Written because a directory
+        that simply lacks a file cannot tell "there is none, and here is why"
+        from "no such name", which is the one thing :meth:`dual` and
+        :meth:`evaluate` do say.
+
+        A solve that left no values writes the record and nothing else. A run
+        that came back infeasible is an answer a set of saved cases needs on
+        disk, rather than a directory that does not exist.
+
+        **The directory holds this answer and no other.** Whatever a previous
+        save left there is removed first, so a re-run cannot leave one model's
+        frames beside another's record. Files that are not part of the layout
+        are left alone.
 
         Returns:
             The directory.
 
         Raises:
-            NoSolutionError: The solve left no values to write.
             LpspecError: This result was closed.
         """
-        primals = self._readable(self._primals, 'the solution')
+        import polars as pl
+
+        primals = self._unclosed('the solution')
         out = Path(directory)
+        clear_the_answer(out)
+        write_format(out)
+        record = Record.of(
+            self.termination_condition,
+            self.objective,
+            has_primal=self.has_primal,
+            spec_digest=self._spec_digest,
+            solved_at=self._solved_at,
+        )
+        write_whole(pl.DataFrame([record._asdict()], schema_overrides=RECORD_SCHEMA), out / RECORD_FILE)
+        if not self._status.is_readable:
+            return out
         for name, frame in primals.items():
             write_whole(frame, out / 'primal' / f'{name}.parquet')
         for name, frame in (self._duals or {}).items():
             write_whole(frame, out / 'dual' / f'{name}.parquet')
+        for name, frame in (self._activities or {}).items():
+            write_whole(frame, out / 'activity' / f'{name}.parquet')
+        no_expressions: dict[str, str] = {}
         for name, reader in (self._expressions or {}).items():
             try:
                 evaluated = reader()
-            except LpspecError:
+            except LpspecError as absent:
+                no_expressions[name] = str(absent)
                 continue
             write_whole(evaluated, out / 'expression' / f'{name}.parquet')
+        write_reasons(out, self._no_duals, no_expressions)
         return out
 
     def close(self) -> None:
@@ -632,11 +741,10 @@ class Result:
         Its frames, which carry both its own values and its hold on the label
         frames of the build it answered. Frames already read stay valid. Never
         the model or the solver, which are the
-        :class:`~lpspec.api.Model`'s to close: a result closed on the way
-        out of a ``with`` block must not take down the model a loop is still
-        solving, and a sibling result keeps its own.
+        :class:`~lpspec.api.Model`'s to close.
         """
         self._primals = self._duals = self._activities = self._expressions = None
+        self._evaluate = None
 
     def __enter__(self) -> Result:
         return self

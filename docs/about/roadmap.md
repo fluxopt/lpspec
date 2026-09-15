@@ -38,8 +38,10 @@ memory. That is neither a fallback nor a dialect: one language, and the second
 and the build is relational, so nothing dense is ever materialised. Peak memory
 tracks the model rather than a number someone guessed. What is missing is the
 *declaration*: there is no way to say "build this within N gigabytes or fail".
-The honest version is partition-wise execution, which the locality
-closure already guarantees is safe.
+The honest version is partition-wise execution. Every operator in the language
+today reads a bounded number of rows per output row, so the partitions are
+already safe. An operator that reads a whole table would put one full pass
+before the partitions rather than rule them out.
 
 **A solve that explains itself.** A solved model should tell you why it is
 infeasible, what a row costs and what changed since the last solve. It should
@@ -63,7 +65,7 @@ that streams.
 Everything else is scheduling.
 
 The specific refusals, each with its reason and its rewrite, are in
-[the ceiling](https://math-spec.readthedocs.io/en/latest/about/ceiling/#deliberate-non-primitives):
+[the ceiling](https://math-spec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives):
 data prep, arbitrary array ops, domain helpers, normalisation, in-plan
 conditionals, a Python modelling API. Parity with another tool is not by
 itself a reason to add anything.
@@ -74,9 +76,7 @@ itself a reason to add anything.
 subsystem) read-back, a join rather than a scatter; serialisation to parquet;
 elastic relaxation; dualisation, since transposing a COO matrix is swapping two
 column names. Model statistics and coefficient ranges were the first of these
-and already ship. `diagnostics()` gives the range *per declaration*, taken as
-each block is built. That is what naming the badly scaled one costs when the
-matrix arrives a declaration at a time.
+and already ship ([diagnostics](../reference/api.md#diagnostics)).
 
 **Ahead of comparable declarative layers:** a sparse-by-construction build with
 no dense intermediate, and a hand-off straight to the solver rather than

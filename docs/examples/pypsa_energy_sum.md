@@ -24,52 +24,62 @@ PyPSA energy-total bounds: a generator's dispatch reduced over the whole horizon
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{weighting}$ | `weighting` over $\mathcal{T}$ — hours a snapshot stands for — what turns a power into an energy |
-| $\mathrm{p}^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — installed capacity of a generator |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{e}^{\mathrm{sum,max}}$ | `e_sum_max` over $\mathcal{G}$ — most energy a generator may deliver over the whole horizon, for the generators that have such a limit |
-| $\mathrm{e}^{\mathrm{sum,min}}$ | `e_sum_min` over $\mathcal{G}$ — least energy a generator must deliver over the whole horizon, for the generators that owe one |
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
+| $`\mathrm{weighting}`$ | `weighting` over $`\mathcal{T}`$ — hours a snapshot stands for — what turns a power into an energy |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — installed capacity of a generator |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{e}^{\mathrm{sum,max}}`$ | `e_sum_max` over $`\mathcal{G}`$ — most energy a generator may deliver over the whole horizon, for the generators that have such a limit |
+| $`\mathrm{e}^{\mathrm{sum,min}}`$ | `e_sum_min` over $`\mathcal{G}`$ — least energy a generator must deliver over the whole horizon, for the generators that owe one |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
 
-Upright is what the model is given — a parameter such as $\mathrm{weighting}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{weighting}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} \cdot \mathrm{weighting}_{t}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g} \cdot \mathrm{weighting}_{t}
+```
 
 #### Subject to
 
 **`nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{t,g} = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{t,g} = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 **`energy_cap`**
 
-$$\sum_{t \in \mathcal{T}} p_{t,g} \cdot \mathrm{weighting}_{t} \le \mathrm{e}^{\mathrm{sum,max}}_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{e}^{\mathrm{sum,max}}_{g} \text{ is defined}$$
+```math
+\sum_{t \in \mathcal{T}} p_{t,g} \cdot \mathrm{weighting}_{t} \le \mathrm{e}^{\mathrm{sum,max}}_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{e}^{\mathrm{sum,max}}_{g} \text{ is defined}
+```
 
 **`energy_floor`**
 
-$$\sum_{t \in \mathcal{T}} p_{t,g} \cdot \mathrm{weighting}_{t} \ge \mathrm{e}^{\mathrm{sum,min}}_{g} \qquad \forall\thinspace g \in \mathcal{G} \thinspace:\thinspace \mathrm{e}^{\mathrm{sum,min}}_{g} \text{ is defined}$$
+```math
+\sum_{t \in \mathcal{T}} p_{t,g} \cdot \mathrm{weighting}_{t} \ge \mathrm{e}^{\mathrm{sum,min}}_{g} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{e}^{\mathrm{sum,min}}_{g} \text{ is defined}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->
@@ -128,7 +138,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
@@ -136,7 +146,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       nodal_balance:
         description: what is generated at a bus meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(p, by=gen_bus) == load
 
       energy_cap:
@@ -144,13 +154,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           a generator with a ceiling on total energy delivers no more than it over
           the horizon — the weighting is what makes the sum an energy rather than a
           count of snapshots
-        foreach: [generator]
+        dims: [generator]
         where: e_sum_max
         expression: sum(p * weighting, over=snapshot) <= e_sum_max
 
       energy_floor:
         description: a generator that owes a total delivers at least it over the horizon
-        foreach: [generator]
+        dims: [generator]
         where: e_sum_min
         expression: sum(p * weighting, over=snapshot) >= e_sum_min
 
@@ -228,6 +238,6 @@ the port asserts the formulation, not the presentation.
 ## What it exercises
 
 A reduction over a dimension the constraint does not span: `sum(p * weighting,
-over=snapshot)` with `foreach: [generator]`. The `where:` masking a row to where
+over=snapshot)` with `dims: [generator]`. The `where:` masking a row to where
 its bound exists, on both a `<=` and a `>=`. And a parameter that multiplies
 inside a reduction and again in the objective.

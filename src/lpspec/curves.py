@@ -12,10 +12,6 @@ this module appends what it saw.
 
 Called from :func:`~lpspec.sources.tidy_sources`, so both lanes pass through it
 by entering the one door.
-
-Separate from ``sources.py`` because the question is different: that module
-asks what shape a caller's table is in, this one asks whether the numbers in it
-describe a curve the declared method can build.
 """
 
 from __future__ import annotations

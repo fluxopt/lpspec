@@ -42,51 +42,61 @@ PyPSA stochastic optimisation: one network and three futures, where capacity is 
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{S}$ | index $s$ — `scenario` — the futures the fleet is built against, one of which will happen |
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods, the same in every future |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units, each built once and run in every future |
+| $`\mathcal{S}`$ | index $`s`$ — `scenario` — the futures the fleet is built against, one of which will happen |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods, the same in every future |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units, each built once and run in every future |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{probability}$ | `probability` over $\mathcal{S}$ — how likely a future is — the weights the expectation is taken with |
-| $\mathrm{load}$ | `load` over $\mathcal{S} \times \mathcal{T}$ — demand to be met, and the one thing that differs between futures |
-| $\mathrm{capex}$ | `capex` over $\mathcal{G}$ — cost of holding one unit of capacity over the horizon |
-| $\mathrm{opex}$ | `opex` over $\mathcal{G}$ — cost of one unit of output |
+| $`\mathrm{probability}`$ | `probability` over $`\mathcal{S}`$ — how likely a future is — the weights the expectation is taken with |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{S} \times \mathcal{T}`$ — demand to be met, and the one thing that differs between futures |
+| $`\mathrm{capex}`$ | `capex` over $`\mathcal{G}`$ — cost of holding one unit of capacity over the horizon |
+| $`\mathrm{opex}`$ | `opex` over $`\mathcal{G}`$ — cost of one unit of output |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — capacity built at a generator — the first-stage decision, which spans no scenario because it is taken before anyone knows which future arrived |
-| $p$ | `p` over $\mathcal{S} \times \mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot of a future — the second-stage decision, one per scenario |
+| $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — capacity built at a generator — the first-stage decision, which spans no scenario because it is taken before anyone knows which future arrived |
+| $`p`$ | `p` over $`\mathcal{S} \times \mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot of a future — the second-stage decision, one per scenario |
 
-Upright is what the model is given — a parameter such as $\mathrm{probability}$, a coordinate map, a label — and italic is what the solver chooses, such as $p^{\mathrm{nom}}$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{probability}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p^{\mathrm{nom}}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{s \in \mathcal{S},\enspace t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{s,t,g} \cdot \mathrm{opex}_{g} \cdot \mathrm{probability}_{s} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capex}_{g}$$
+```math
+\min \sum_{s \in \mathcal{S},\ t \in \mathcal{T},\ g \in \mathcal{G}} p_{s,t,g} \cdot \mathrm{opex}_{g} \cdot \mathrm{probability}_{s} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capex}_{g}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$p_{s,t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\thinspace s \in \mathcal{S},\enspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{s,t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\, s \in \mathcal{S},\ t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`power_balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{s,t,g} = \mathrm{load}_{s,t} \qquad \forall\thinspace s \in \mathcal{S},\enspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{s,t,g} = \mathrm{load}_{s,t} \qquad \forall\, s \in \mathcal{S},\ t \in \mathcal{T}
+```
 
 #### Variable domains
 
 **`p_nom`**
 
-$$p^{\mathrm{nom}}_{g} \ge 0 \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+p^{\mathrm{nom}}_{g} \ge 0 \qquad \forall\, g \in \mathcal{G}
+```
 
 **`p`**
 
-$$p_{s,t,g} \ge 0 \qquad \forall\thinspace s \in \mathcal{S},\enspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{s,t,g} \ge 0 \qquad \forall\, s \in \mathcal{S},\ t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->
@@ -134,14 +144,14 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           capacity built at a generator — the first-stage decision, which spans no
           scenario because it is taken before anyone knows which future arrived
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
       p:
         description: >-
           output of a generator in a snapshot of a future — the second-stage
           decision, one per scenario
-        foreach: [scenario, snapshot, generator]
+        dims: [scenario, snapshot, generator]
         bounds:
           lower: 0
 
@@ -150,12 +160,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           a generator produces no more than the capacity built for it, in every
           snapshot of every future — one capacity spanning three scenarios of rows
-        foreach: [scenario, snapshot, generator]
+        dims: [scenario, snapshot, generator]
         expression: p <= p_nom
 
       power_balance:
         description: what runs in this snapshot of this future meets the load there
-        foreach: [scenario, snapshot]
+        dims: [scenario, snapshot]
         expression: sum(p, over=generator) == load
 
     objective:
@@ -222,7 +232,7 @@ expected-value model does not merely cost less, it answers a question nobody
 posed. `what_the_mean_would_build()` in the reference prints it.
 
 **One capacity, three scenarios of rows.** `within_capacity` is `p <= p_nom` with
-a `foreach` of `[scenario, snapshot, generator]` against a variable declared over
+a `dims:` of `[scenario, snapshot, generator]` against a variable declared over
 `[generator]` — nine rows reading one column, which is how a first-stage decision
 is coupled to a second-stage one. Nothing in the language had to learn about
 stages: the dim algebra broadcasts the capacity because the constraint's frame
@@ -251,4 +261,4 @@ Two variables that deliberately span different dimensions, coupled by a
 constraint whose frame is the wider of the two, and an objective that reduces one
 of them against a probability. The claim is not that the math is hard — it is
 that *structure comes from data*: nothing here declares a stage, and the two
-stages are visible only in which dimensions each `foreach` lists.
+stages are visible only in which dimensions each `dims:` lists.

@@ -27,59 +27,73 @@ Dispatch plus a battery whose state of charge is closed into a cycle: the horizo
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{S}$ | index $s$ — `snapshot` — dispatch periods, cyclic at the horizon |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units |
+| $`\mathcal{S}`$ | index $`s`$ — `snapshot` — dispatch periods, cyclic at the horizon |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\bar p$ | `p_max` over $\mathcal{G}$ — installed capacity |
-| $c$ | `cost` over $\mathcal{G}$ — marginal cost |
-| $\ell$ | `load` over $\mathcal{S}$ — demand to be met |
+| $`\bar p`$ | `p_max` over $`\mathcal{G}`$ — installed capacity |
+| $`c`$ | `cost` over $`\mathcal{G}`$ — marginal cost |
+| $`\ell`$ | `load` over $`\mathcal{S}`$ — demand to be met |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{S} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $\mathrm{charge}$ | `charge` over $\mathcal{S}$ — energy into the store |
-| $\mathrm{discharge}$ | `discharge` over $\mathcal{S}$ — energy out of the store |
-| $\mathrm{soc}$ | `soc` over $\mathcal{S}$ — state of charge carried into the next snapshot |
+| $`p`$ | `p` over $`\mathcal{S} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`\mathrm{charge}`$ | `charge` over $`\mathcal{S}`$ — energy into the store |
+| $`\mathrm{discharge}`$ | `discharge` over $`\mathcal{S}`$ — energy out of the store |
+| $`\mathrm{soc}`$ | `soc` over $`\mathcal{S}`$ — state of charge carried into the next snapshot |
 
-$t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
+$`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
 #### Objective
 
-$$\min \sum_{s \in \mathcal{S},\enspace g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
+```math
+\min \sum_{s \in \mathcal{S},\ g \in \mathcal{G}} p_{s,g} \cdot c_{g}
+```
 
 #### Subject to
 
 **`power_balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{s,g} + \mathrm{discharge}_{s} - \mathrm{charge}_{s} = \ell_{s} \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+\sum_{g \in \mathcal{G}} p_{s,g} + \mathrm{discharge}_{s} - \mathrm{charge}_{s} = \ell_{s} \qquad \forall\, s \in \mathcal{S}
+```
 
 **`soc_balance`**
 
-$$\mathrm{soc}_{s} = \mathrm{soc}_{s \ominus 1} + \mathrm{charge}_{s} \cdot 0.9 - \mathrm{discharge}_{s} \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+\mathrm{soc}_{s} = \mathrm{soc}_{s \ominus 1} + \mathrm{charge}_{s} \cdot 0.9 - \mathrm{discharge}_{s} \qquad \forall\, s \in \mathcal{S}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{s,g} \le \bar p_{g} \qquad \forall\thinspace s \in \mathcal{S},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{s,g} \le \bar p_{g} \qquad \forall\, s \in \mathcal{S},\ g \in \mathcal{G}
+```
 
 **`charge`**
 
-$$0 \le \mathrm{charge}_{s} \le 30 \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+0 \le \mathrm{charge}_{s} \le 30 \qquad \forall\, s \in \mathcal{S}
+```
 
 **`discharge`**
 
-$$0 \le \mathrm{discharge}_{s} \le 30 \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+0 \le \mathrm{discharge}_{s} \le 30 \qquad \forall\, s \in \mathcal{S}
+```
 
 **`soc`**
 
-$$0 \le \mathrm{soc}_{s} \le 100 \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+0 \le \mathrm{soc}_{s} \le 100 \qquad \forall\, s \in \mathcal{S}
+```
 
 </details>
 <!-- math:end -->
@@ -115,25 +129,25 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_max
       charge:
         description: energy into the store
-        foreach: [snapshot]
+        dims: [snapshot]
         bounds:
           lower: 0
           upper: 30
       discharge:
         description: energy out of the store
-        foreach: [snapshot]
+        dims: [snapshot]
         bounds:
           lower: 0
           upper: 30
       soc:
         description: state of charge carried into the next snapshot
-        foreach: [snapshot]
+        dims: [snapshot]
         bounds:
           lower: 0
           upper: 100
@@ -141,14 +155,14 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       power_balance:
         description: generation plus what the store gives back covers the load, net of charging
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) + discharge - charge == load
       soc_balance:
         description: >-
           the level carried out of a snapshot is the one carried in plus what was
           stored, minus what was taken — and it wraps at the horizon, so the first
           snapshot inherits from the last
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap') + charge * 0.9 - discharge
 
     objective:

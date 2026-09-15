@@ -1,4 +1,4 @@
-"""Bind runtime data to a lowered program — the one door both lanes enter.
+"""Attach runtime data to a lowered program — the one door both lanes enter.
 
 The language says what a parameter *is* — its dims, its dtype — and never where
 its values come from. This is the other half: what the caller passed (parquet
@@ -76,7 +76,7 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
     for dname, declared in program.dimensions.items():
         if dname in data:
             sources[dname] = _index(data[dname], dname, declared.dtype)
-        elif authors := [f'sources[{n!r}]' for n in declared.maps if n in data]:
+        elif authors := [f'sources[{n!r}]' for n in sorted(declared.targets) if n in data]:
             raise DataError(_declared_map_needs_labels_message(dname, authors))
     sources |= _lookup_relations(program, data, sources)
 
@@ -116,7 +116,7 @@ def supplied(program: Program, frames: Mapping[str, pl.LazyFrame]) -> dict[str, 
         if name not in takes:
             continue
         lk = names.get(name)
-        out[name] = frame.rename({name: lk.target}) if lk is not None and lk.target is not None else frame
+        out[name] = frame.rename({name: lk.target}) if lk is not None else frame
     return out
 
 
@@ -223,13 +223,13 @@ def _check_lookup_sources(program: Program, data: Mapping[str, Source]) -> None:
     """
     for over, lk in program.lookups:
         if lk.name not in data:
-            raise DataError(_unsupplied_lookup_message(lk.name, over, lk.target or lk.name))
+            raise DataError(_unsupplied_lookup_message(lk.name, over, lk.target))
 
     for dim in program.dimensions:
         if dim not in data:
             continue
         carried = _column_names(data[dim], dim)
-        for name in program.dimensions[dim].maps:
+        for name in program.dimensions[dim].targets:
             if name in carried:
                 raise DataError(
                     f"index for dimension '{dim}' carries a '{name}' column, and '{name}' is a lookup "
@@ -259,9 +259,8 @@ def _lookup_relations(
     """Every lookup's map as the ``(over, lookup)`` relation both lanes read.
 
     Rows only where the map is defined — a label it leaves out simply has none.
-    The keys are checked against ``over``'s labels and, for a lookup with a
-    target, the values against the target's: a stray on either side would
-    place terms nowhere, silently.
+    The keys are checked against ``over``'s labels and the values against the
+    target's: a stray on either side would place terms nowhere, silently.
 
     Raises:
         DataError: A relation short of either column, carrying a null in one,
@@ -270,17 +269,16 @@ def _lookup_relations(
     """
     relations: dict[str, pl.LazyFrame] = {}
     for over, lk in program.lookups:
-        rows = _read_relation(data[lk.name], lk.name, over, lk.target or lk.name)
+        rows = _read_relation(data[lk.name], lk.name, over, lk.target)
         _check_keys_are_labels(rows, lk.name, over, _labels_of(over, indices[over]))
-        if lk.target is not None:
-            if lk.target not in indices:
-                raise DataError(
-                    f"dimension '{over}' lookup '{lk.name}' targets '{lk.target}', which nothing in this "
-                    f"spec spans and which has no index of its own, so the lookup's values have no label "
-                    f"set to be checked against. Pass an index for '{lk.target}' under that key in "
-                    f'sources, or remove the lookup.'
-                )
-            _check_values_are_labels(rows, over, lk.name, lk.target, _labels_of(lk.target, indices[lk.target]))
+        if lk.target not in indices:
+            raise DataError(
+                f"dimension '{over}' lookup '{lk.name}' targets '{lk.target}', which nothing in this "
+                f"spec spans and which has no index of its own, so the lookup's values have no label "
+                f"set to be checked against. Pass an index for '{lk.target}' under that key in "
+                f'sources, or remove the lookup.'
+            )
+        _check_values_are_labels(rows, over, lk.name, lk.target, _labels_of(lk.target, indices[lk.target]))
         relations[lk.name] = rows
     return relations
 
@@ -479,7 +477,7 @@ def _wrong_rank(name: str, said: str, dims: Sequence[str]) -> str:
 
 
 def _broadcast(name: str, value: pl.Expr, dims: Sequence[str], sources: Mapping[str, pl.LazyFrame]) -> pl.LazyFrame:
-    """One number over every coordinate of *dims* — a cross join, since nothing downstream broadcasts."""
+    """One number over every coordinate of *dims* — a cross join."""
     frame = pl.LazyFrame({'__one__': [0]})
     for dim in dims:
         frame = frame.join(pl.LazyFrame({dim: _labels(name, dim, sources)}), how='cross')
@@ -538,10 +536,9 @@ def _check_one_row_per_coordinate(
     """A parameter is a function of its dims: one row per coordinate, every label a real one.
 
     Labels are checked against the dimensions whose index has been read; one
-    still missing is refused once every source is in. A parameter with no dims has exactly one coordinate, so the rule reads as
-    "exactly one row" — and a second row would silently multiply every row it
-    broadcasts into. Every cheap question runs in one pass; naming an offender
-    costs a pass of its own and runs only on a path about to raise.
+    still missing is refused once every source is in. A parameter with no dims
+    has exactly one coordinate, so the rule reads as "exactly one row" — and a
+    second row would silently multiply every row it broadcasts into.
     """
     if not p.dims:
         if frame.height != 1:
@@ -623,9 +620,7 @@ _COLUMNS: Mapping[str, tuple[type[pl.DataType], ...]] = {
 }
 
 #: What each declared dtype accepts. ``int`` serving ``float`` is the one
-#: widening: it is the only conversion between two declared types that loses
-#: nothing. A float column under ``int`` is refused, which is what makes a
-#: fractional offset unrepresentable rather than checked.
+#: widening; a float column under ``int`` is refused.
 ACCEPTED_VALUE_TYPES: Mapping[str, tuple[type[pl.DataType], ...]] = {
     **_COLUMNS,
     'float': _COLUMNS['float'] + _COLUMNS['int'],

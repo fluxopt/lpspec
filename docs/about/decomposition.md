@@ -34,17 +34,17 @@ parameters:
   avail: {dims: [snapshot, generator]}
 variables:
   cap:
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0, upper: 100}
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds: {lower: 0}
 constraints:
   capacity:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     expression: p <= cap * avail
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) >= load
 objective:
   sense: minimize
@@ -67,14 +67,14 @@ parameters:
   cap_hat: {dims: [generator]}          # was `cap`, a variable
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds: {lower: 0}
 constraints:
   capacity:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     expression: p <= cap_hat * avail
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) >= load
 objective:
   sense: minimize
@@ -103,17 +103,17 @@ parameters:
   fcut_slope: {dims: [fcut, generator]}
 variables:
   cap:
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0, upper: 100}
   theta:
-    foreach: []
+    dims: []
     bounds: {lower: 0}
 constraints:
   optimality_cut:
-    foreach: [cut]
+    dims: [cut]
     expression: theta >= cut_const + sum(cut_slope * cap, over=generator)
   feasibility_cut:
-    foreach: [fcut]
+    dims: [fcut]
     expression: sum(fcut_slope * cap, over=generator) <= fcut_const
 objective:
   sense: minimize
@@ -125,7 +125,7 @@ objective:
 parameter tables and generates no YAML, so the model a reviewer reads is the
 model that runs.
 
-`theta` is a scalar variable, `foreach: []`, and its `lower: 0` is the only
+`theta` is a scalar variable, `dims: []`, and its `lower: 0` is the only
 thing keeping the first master bounded before any cut exists.
 
 ## Reading a cut out of an answer
@@ -173,17 +173,17 @@ parameters:
   cap_hat: {dims: [generator]}
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds: {lower: 0}
   short:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0}
 constraints:
   capacity:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     expression: p <= cap_hat * avail
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) + short >= load
 objective:
   sense: minimize
@@ -197,7 +197,7 @@ model declares one objective.
 ## The loop
 
 ```python
-sub_model, feasibility_model, master_model = (lps.check(path) for path in paths)
+sub_model, feasibility_model, master_model = (to_spec(path) for path in paths)
 
 for step in range(25):
     with lps.solve(sub_model, {**dispatch, 'cap_hat': capacity}) as sub:
@@ -224,13 +224,12 @@ Twenty lines, three `lps.solve` calls, and a growing pair of tables. **A reader
 could write this**, which is the observation that matters most for
 [#596](https://github.com/fluxopt/lpspec/issues/596).
 
-The models are loaded once above the loop, because a cut is a row in a
-parameter table rather than an edit to a file. `lps.solve` accepts what
-`lps.check` returns, a lowered program
-([glossary](../reference/glossary.md#the-chain)), anywhere it accepts a path.
-So parse, validation and lowering are paid once for the run instead of three
-times an iteration. Any driver over a fixed model does the same, and
-`solve_over` already does.
+The models are read once above the loop, because a cut is a row in a
+parameter table rather than an edit to a file. `lps.solve` accepts a `Spec`
+([glossary](../reference/glossary.md#the-chain)) anywhere it accepts a path,
+and reading one it already has costs nothing. So parsing and validation are
+paid once for the run instead of three times an iteration. Any driver over a
+fixed model does the same, and `solve_over` already does.
 
 ## Running it
 
