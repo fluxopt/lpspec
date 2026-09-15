@@ -118,3 +118,20 @@ that refuses the domain mistakes, and a `to_sources` that lowers the validated
 components into what [`transport.yaml`](https://github.com/fluxopt/lpspec/blob/main/examples/transport.yaml)
 takes. A negative cost, a wrongly signed limit and an islanded bus each solve
 without complaint in lpspec, and are refused there before the build.
+
+**Reach for a schema tool where the checks are declarations.** Types, ranges,
+uniqueness and foreign keys are better stated once than written out. The first
+two validate a polars frame directly, the shape `sources` already holds, so no
+conversion sits between the check and the data.
+
+| tool | validates | fit |
+|---|---|---|
+| [Patito](https://github.com/JakobGM/patito) | polars frames against pydantic-style models | closest — the `sources` frames as they stand |
+| [Pandera](https://pandera.readthedocs.io/) | polars or pandas frames against a schema | mature, with cross-field and wide-to-long checks |
+| [Pydantic](https://docs.pydantic.dev/) | one component record at a time | small tables, where a per-field message reads best |
+
+**The graph-level checks stay hand-written.** Connectivity, and whether the
+supply at a bus can ever meet its load, are not column rules, so they live in
+your code as in the example. [PyPSA](https://pypsa.org/) is a ready-made
+component model with its own `consistency_check`, and its shapes map onto
+`sources` [as shown above](#from-pypsas-shapes).

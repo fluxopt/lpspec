@@ -32,8 +32,11 @@ silently — a confident answer to the wrong problem, never an error:
 
 For a richer schema half — column types, ranges and foreign keys as
 declarations rather than hand-written checks — a table-first validator drops in
-where `_check_schema` sits: `patito` and `pandera` both speak polars, and
-`pydantic` speaks rows. The domain half below stays yours either way.
+where `_check_schema` sits: Patito (https://github.com/JakobGM/patito) and
+Pandera (https://pandera.readthedocs.io/) both validate a polars frame, and
+Pydantic (https://docs.pydantic.dev/) validates one record at a time. The
+domain half below — connectivity, and supply that can meet load — stays yours
+either way. See docs/howto/data.md for when to reach for each.
 """
 
 from __future__ import annotations
