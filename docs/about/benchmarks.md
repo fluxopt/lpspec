@@ -8,15 +8,15 @@ models, with the numbers under each chart.
 **Every published number is the median of a measurement's rounds, and every
 band is the first to the third quartile of the same rounds.** Every measurement
 gets the same nine rounds, pinned rather than calibrated by duration, so no
-cell is a best-of-nine beside a neighbour's best-of-forty. The median rather
-than the fastest round, because a cell whose nine rounds all ran slow has no
-clean round to pick. The median rather than the mean, because one slow round
-moves a mean and leaves a median where it was. Four published cells on this
-run have a mean above 1.10x their median, the worst at 1.21x: `fleet/s` and
-`fleet/xs` on highspy-matrix, `transport/xs` and `dispatch/xs` on
-gurobipy-matrix. All four are one of the two smallest rungs of a matrix arm,
-where the whole measurement is milliseconds and a single scheduler hiccup is
-the gap. No lpspec, linopy or pyomo cell on this run reaches 1.05x.
+cell is a best-of-nine beside a neighbour's best-of-forty. The median beats
+the fastest round because a cell whose nine rounds all ran slow has no clean
+round to pick. It beats the mean because one slow round moves a mean and
+leaves a median where it was. On this run four published cells have a mean
+above 1.10x their median, the worst at 1.21x: `fleet/s` and `fleet/xs` on
+highspy-matrix, `transport/xs` and `dispatch/xs` on gurobipy-matrix. All four
+are the two smallest rungs of a matrix arm, where the whole measurement is
+milliseconds and one scheduler hiccup is the gap. No lpspec, linopy or pyomo
+cell on this run reaches 1.05x.
 
 The median flipped one cell against lpspec on this run: `dispatch/s` on the
 `gurobi` [sink](../reference/glossary.md#how-it-runs), against linopy. On
@@ -68,20 +68,16 @@ Build only, repeated in one process. **first** is the first recorded round and *
 
 ## The same size, reached by widening
 
-This table is drawn through the `highs` sink, and no run has published it. The
-two cases that carry width rungs are killed there before they write a file, for
-the reason [below](#not-measured-yet). [The chart page](benchmarks-scaling.html)
-carries `transport` through `gurobi`; `storage` was killed on that sink too on
-this run, so no width ladder of it survives anywhere.
+This table renders from `highs` rungs of `storage` and `transport`, and no run
+has published it: both cases are killed on that sink before they write a file,
+for the reason [below](#not-measured-yet). The committed results hold
+`transport` through `gurobi` only, on [the chart page](benchmarks-scaling.html),
+and `storage` through neither sink. `bench.report` drops a fragment it cannot
+render rather than blanking the fence, so the fence stays empty until
+`pixi run ladder` brings those rungs back.
 
 <!-- bench:sweeps -->
 <!-- bench:/sweeps -->
-
-**No file in `bench/results` carries the table above.** It renders from `highs`
-rungs of `storage` and `transport`, and the committed results hold `transport`
-through the `gurobi` sink only and `storage` through neither. `bench.report`
-drops a fragment it cannot render rather than blanking the fence, so the fence
-stays empty until `pixi run ladder` brings those rungs back.
 
 ## Not measured yet
 
@@ -103,9 +99,9 @@ Listed so that a claim with no table under it is visible as one.
   publishes them.
 - **`storage` is absent from every table, and `transport` from the `highs`
   ones.** The memory budget projects the next rung off a `w10` or `w100` cell
-  that took under a gigabyte, and where the projection comes in under 16 GB the
-  run starts a rung that does not fit: `bench/memory-watchdog.sh` then kills the
-  case to save the box. Three cases died that way on this run —
+  that took under a gigabyte. Where the projection comes in under 16 GB the run
+  starts a rung that does not fit, and `bench/memory-watchdog.sh` kills the
+  case to save the box. Three cases died that way on this run:
   `transport/w100` on `highs` at 23.7 GB, `storage/w1000` on `highs` at
   25.3 GB, `storage/w1000` on `gurobi` at 26.3 GB. A killed case writes no
   file, so each loses every rung it had already measured, its rows in the
@@ -113,8 +109,7 @@ Listed so that a claim with no table under it is visible as one.
   ([#1498](https://github.com/fluxopt/lpspec/issues/1498)). `storage` survived
   on `gurobi` until this run only because the projection stopped
   `gurobipy-matrix` one rung earlier: 0.858 GB at `storage/w100` projects to
-  17.2 GB, just over the budget, and a cell a little cheaper than that is a
-  cell allowed to climb. The last `highs` numbers past `w10` are in
+  17.2 GB, just over the budget. The last `highs` numbers past `w10` are in
   [#1285](https://github.com/fluxopt/lpspec/pull/1285), taken on a machine that
   could hold them. There lpspec took 0.11 s and 0.59 GB at `transport/w100`,
   against linopy's 53.53 s and 14.26 GB.

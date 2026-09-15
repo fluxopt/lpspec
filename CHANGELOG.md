@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.0.1-alpha.334](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.333...v0.0.1-alpha.334) (2026-09-15)
+
+
+### Features
+
+* **language:** a model states its topology as relations, the way math-spec 0.0.0-alpha.89 does ([#1646](https://github.com/fluxopt/lpspec/issues/1646)) ([1fd8926](https://github.com/fluxopt/lpspec/commit/1fd892677e4929da7158e8032f64190a1684fe31))
+
+## [0.0.1-alpha.333](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.332...v0.0.1-alpha.333) (2026-09-15)
+
+
+### Bug Fixes
+
+* a polars without the streaming engine still solves and reads back ([#1644](https://github.com/fluxopt/lpspec/issues/1644)) ([c47ae6c](https://github.com/fluxopt/lpspec/commit/c47ae6c5741a2bfa863bf3642662ee474f301f23))
+
+## [0.0.1-alpha.332](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.331...v0.0.1-alpha.332) (2026-09-15)
+
+
+### Documentation
+
+* the about pages and the model pages say each fact once, in sentences of one idea ([#1640](https://github.com/fluxopt/lpspec/issues/1640)) ([5d4efa3](https://github.com/fluxopt/lpspec/commit/5d4efa3d16d3029fdaf3d3543a14414240fda637))
+* the howtos, tutorials and reference say each fact once and drop the argument for it ([#1639](https://github.com/fluxopt/lpspec/issues/1639)) ([697f29d](https://github.com/fluxopt/lpspec/commit/697f29d58a4f450d292b48d978d788a7bc8ae492))
+
 ## [0.0.1-alpha.331](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.330...v0.0.1-alpha.331) (2026-09-15)
 
 
@@ -2443,7 +2465,7 @@
 
 ### Features
 
-* **language:** one shift(over=, offset=, edge=), replacing roll and shift ([#359](https://github.com/fluxopt/lpspec/issues/359)) ([8473a24](https://github.com/fluxopt/lpspec/commit/8473a24621326eb39151fd50337f1c6decb7a51d))
+* **language:** one shift(along=, offset=, edge=), replacing roll and shift ([#359](https://github.com/fluxopt/lpspec/issues/359)) ([8473a24](https://github.com/fluxopt/lpspec/commit/8473a24621326eb39151fd50337f1c6decb7a51d))
 
 ## [0.0.1-alpha.34](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.33...v0.0.1-alpha.34) (2026-07-30)
 

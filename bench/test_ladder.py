@@ -27,6 +27,8 @@ either way, and it would swamp the build) and anything about expressiveness.
 from __future__ import annotations
 
 import gc
+from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 import pytest
@@ -35,7 +37,7 @@ from bench.arms import ARMS, unmeasurable
 from bench.conftest import shape_of
 
 
-def _rounds(benchmark: Any, request: pytest.FixtureRequest, fn: Any, *args: Any) -> Any:
+def _rounds(benchmark: Any, request: pytest.FixtureRequest, fn: Any, *args: Any, setup: Any = None) -> Any:
     """*fn* once per round, with a full garbage collection before each clock starts.
 
     A round otherwise inherits the last one's garbage, and what that costs is
@@ -55,11 +57,13 @@ def _rounds(benchmark: Any, request: pytest.FixtureRequest, fn: Any, *args: Any)
     """
     rounds = getattr(request.config.option, 'benchmark_min_rounds', None)
     if rounds is None:
+        if setup is not None:
+            args, _ = setup()
         return benchmark(fn, *args)
     return benchmark.pedantic(
         fn,
-        args=args,
-        setup=_collected,
+        args=() if setup is not None else args,
+        setup=_collected if setup is None else _CollectedSetup(setup),
         rounds=rounds,
         iterations=1,
         warmup_rounds=0,
@@ -68,6 +72,25 @@ def _rounds(benchmark: Any, request: pytest.FixtureRequest, fn: Any, *args: Any)
 
 def _collected() -> None:
     gc.collect()
+
+
+@dataclass
+class _CollectedSetup:
+    """The collection above, in front of a setup that also supplies the arguments.
+
+    A verb whose subject has to exist before the clock — a rolling-horizon
+    window, against a model already built — gets it from here rather than from a
+    closure over state the parent built: `benchmem(isolate=True)` pickles setup
+    and action to a spawned child, and a closure does not pickle at all, so every
+    cell of such a rung died before it was timed (#1617). A dataclass pickles
+    whenever what it holds does.
+    """
+
+    setup: Any
+
+    def __call__(self) -> Any:
+        gc.collect()
+        return self.setup()
 
 
 def _record(benchmark: Any, counts: dict[str, Any], case_name: str, size: str) -> None:
@@ -179,8 +202,15 @@ def test_window(
     **The two arms are allowed different answers, which is the measurement.**
     An arm carries between windows whatever its library gives it a verb for —
     ours re-attaches and pushes onto the loaded solver, linopy's constructs a
-    new model, because that is what a linopy driver does. Window one runs
-    outside the clock on both, so what is timed is a later window either way.
+    new model, because that is what a linopy driver does. What is timed is a
+    later window on both; what that costs is a re-attach on one and a whole
+    rebuild on the other, which is the comparison.
+
+    Each arm's `window_setup` runs untracked before every sample, so whatever
+    the window is measured *against* — our built model and loaded solver, and
+    nothing at all on linopy's side — stays out of the clock. It runs in the
+    spawned child too, which is the reason it is a verb rather than a closure
+    the parent hands over (#1617).
 
     An arm with no `window` verb is skipped naming that, rather than measured as
     though a rebuild were its rolling-horizon path.
@@ -196,7 +226,7 @@ def test_window(
         pytest.skip('a file is written whole every window — there is no loaded artifact to re-attach to')
 
     prepared = module.prepare(case_name, size, paths(case_name, size), {})
-    counts = _rounds(benchmark, request, module.window(sink, prepared))
+    counts = _rounds(benchmark, request, module.window, setup=partial(module.window_setup, sink, prepared))
     _record(benchmark, counts, case_name, size)
     ceiling.record(arm, case_name, size, sink, _measured(benchmark), _peak(benchmark))
 

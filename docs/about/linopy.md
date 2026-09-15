@@ -1,8 +1,8 @@
 # Relationship to linopy
 
 Everything about [linopy](https://github.com/PyPSA/linopy) in one place, for a
-reader who arrives from linopy or PyPSA. There are three separate relationships,
-and keeping them apart keeps the rest of the docs quiet:
+reader who arrives from linopy or PyPSA. There are three separate
+relationships:
 
 | | What | Where it matters |
 |---|---|---|
@@ -68,14 +68,13 @@ Both calls are *pure*: YAML in, a model or a value out, nothing retained.
 `build` returns a plain `linopy.Model` with no accessor, no attached schema and
 no patched attributes, so nothing is lost across `pickle`, `deepcopy` or
 `to_netcdf`. To inspect the math, re-read the file with `to_spec`. `evaluate`
-is the reader, and the same purity forces it to take `sources` again. It values
-an expression written the way
+is the reader, and the same purity makes it take `sources` again. It values an
+expression written the way
 [`expressions:`](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions)
-writes one — a string, or the mapping that carries `cases:` — on the solved
-model, and hands back linopy's native `.solution`. A name the file declares is
-such an expression, the language substituting it where it stands. That is the
-eager half of `result.evaluate(...)`, so the differential suite can
-hold the two lanes to one answer.
+writes one, a string or the mapping that carries `cases:`, on the solved model.
+It hands back linopy's native `.solution`. A name the file declares is such an
+expression. This is the eager half of `result.evaluate(...)`, which is what
+lets the differential suite hold the two lanes to one answer.
 
 **This lane constructs; it does not attach.** Math for a `linopy.Model` that
 something else built, a PyPSA network say, has no verb here
@@ -103,10 +102,10 @@ in `linopy/builder.py`, one section per group below.
 | `p` — a parameter | its `xr.DataArray`, `.fillna(0.0)` where it stands as a coefficient |
 | `+` `-` `*` `/` | the Python operators linopy overloads |
 | `sum(x, over=t)` | `.sum('t')` |
-| `sum(x, by=lk)` | the lookup attached as a coordinate, then `.groupby()`, reindexed onto the target dimension's declared labels; `by=[lk1, lk2]` groups by both at once |
-| `at(p, by=lk)` | `.sel({into: lookup})`, xarray's vectorised selection; one entry per lookup reads a tuple of labels at once |
-| `shift(x, over=t, offset=n)` | `.shift({t: n})`; `.roll({t: n})` under `edge: wrap`; a `.sel()` gather where the offset differs per entity or `by=` groups it |
-| `sum_back(x, over=t, within=w)` | a sum of `w` scalar gathers, each unreachable position contributing zero; under `by=` each gather reads inside the group, so the window stops at its edge |
+| `sum(x, by=r)` | the relation attached as a coordinate, then `.groupby()`, reindexed onto the value dimension's declared labels; `by=[r1, r2]` groups by both at once |
+| `at(p, by=r)` | `.sel({into: relation})`, xarray's vectorised selection; one entry per relation reads a tuple of labels at once |
+| `shift(x, along=t, offset=n)` | `.shift({t: n})`; `.roll({t: n})` under `edge: wrap`; a `.sel()` gather where the offset differs per entity or `by=` groups it |
+| `sum_back(x, along=t, window=w)` | a sum of `w` scalar gathers, each unreachable position contributing zero; under `by=` each gather reads inside the group, so the window stops at its edge |
 | `dual(c)` | `Model.constraints['c'].dual`, at a read only; the language keeps a dual out of the math, and a solve that stored none refuses the read |
 
 | A `where:` | linopy |
@@ -133,37 +132,30 @@ direction.** Neither is a language limit: both files pass `check`, and each is
 built by the lane the other cannot. A `LaneError` names the wall *and* the route
 around it, and that is what parts it from a language error.
 
-**The first is this lane's wall: an objective carrying a constant.** The
-expression setter of `linopy.Objective` rejects any expression whose `const` is
-nonzero: *"Constant values in objective function not supported."* There is no
-slot to put one in, which is why PyPSA carries `n.objective_constant` out of
-band. So `examples/ports/osemosys_utopia.yaml`, whose objective owes a fixed
-cost on capacity that already stood in 1990, builds relationally and not here.
+**The first is this lane's wall: an objective carrying a constant.**
+`linopy.Objective` rejects any expression whose `const` is nonzero:
+*"Constant values in objective function not supported."* There is no slot to
+put one in, which is why PyPSA carries `n.objective_constant` out of band. So
+`examples/ports/osemosys_utopia.yaml`, whose objective carries a fixed cost on
+capacity that already stood in 1990, builds relationally and not here.
 **Dropping the constant is the one repair that must not happen.** The lane is
 the oracle, and a quietly shortened objective would recalibrate every
 differential test on such a model to the wrong number. So `builder.py` checks
 for a constant before linopy is asked and raises `LaneError`, naming the wall
-and the route that does build the model.
-`tests/test_corpus_parity.py` carries the strict xfail, typed to that error
-rather than to any `ValueError`. The day linopy grows a slot, the test XPASSes
-and the check comes out with it
-([#894](https://github.com/fluxopt/lpspec/issues/894)).
+and the lane that does build the model. `tests/test_corpus_parity.py` carries
+the strict xfail ([#894](https://github.com/fluxopt/lpspec/issues/894)).
 
 **The second is the relational lane's wall, and it is the mirror: an operator
 acting along a dimension that a constant part does not carry**, beside a term
 that does. Take `sum(x * k + d, over=t)` where `d` is a scalar. The relational
 lane compiles a constant part as its own
-[table](../reference/glossary.md#the-data). A fragment with no rows for `t`
-has no slots for the operator to act on. Under a mask, only the rows know which
-slots those are. This lane has no such split. The operand is one masked
-expression, so the constant is dropped wherever the term is, and the lane
-builds the file as written.
-
-**It is one wall, reached by all four operators that act along a dimension**
-(`sum(over=)`, `sum(by=)`, `shift`, `sum_back`). That is why they share one
-refusal rather than each wording its own: a fix for one that left the others
-would fix a symptom. The relational lane names the rewrite that reaches the same number:
-declare the parameter over the dimension and supply it there
+[table](../reference/glossary.md#the-data), and a fragment with no rows for
+`t` has no slots for the operator to act on. This lane has no such split: the
+operand is one masked expression, so the constant is dropped wherever the term
+is, and the lane builds the file as written. All four operators that act along
+a dimension (`sum(over=)`, `sum(by=)`, `shift`, `sum_back`) reach the one wall
+and share one refusal. It names the rewrite: declare the parameter over the
+dimension and supply it there
 ([#1137](https://github.com/fluxopt/lpspec/issues/1137)).
 
 **The lane takes the same data too**

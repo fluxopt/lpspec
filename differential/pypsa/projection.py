@@ -3,8 +3,8 @@
 The file states every row PyPSA can emit; a rung's network builds some of
 them. Its projection keeps the constraints with rows built and the variables
 with columns built, drops from every kept expression the additive terms over
-variables the rung never builds or parameters and lookups it never feeds —
-they contribute nothing — and keeps the parameters, lookups and dimensions
+variables the rung never builds or parameters and relations it never feeds —
+they contribute nothing — and keeps the parameters, relations and dimensions
 those blocks still name. Derived, never
 edited: the parity runner writes one per rung from the certificate, solves it
 and holds it to PyPSA's objective, so a cut that lost something load-bearing
@@ -19,6 +19,20 @@ from typing import Any
 import yaml
 
 NAME = re.compile(r'\b[A-Za-z_][A-Za-z0-9_]*\b')
+
+
+def _relation_dims(relation: dict[str, Any]) -> set[str]:
+    """The dimensions a relation declaration names, read off the raw block.
+
+    This module shapes YAML before the language reads it, so both spellings of
+    ``columns:`` are read here rather than off a loaded declaration: a list
+    names each column after its dimension, a mapping names the dimension per
+    column.
+    """
+    columns = relation['columns']
+    if isinstance(columns, dict):
+        return set(columns.values())
+    return {columns} if isinstance(columns, str) else set(columns)
 
 
 def terms(expression: str) -> list[str]:
@@ -79,7 +93,9 @@ def project(raw: dict[str, Any], parity: dict[str, Any]) -> dict[str, Any]:
     variables = {n: v for n, v in raw['variables'].items() if parity['built_columns'].get(n)}
     fed = set(parity['attached_nonempty'])
     dead = (
-        (set(raw['variables']) - set(variables)) | (set(raw['parameters']) - fed) | (set(raw.get('lookups', {})) - fed)
+        (set(raw['variables']) - set(variables))
+        | (set(raw['parameters']) - fed)
+        | (set(raw.get('relations', {})) - fed)
     )
     constraints = {}
     for name, block in raw['constraints'].items():
@@ -123,19 +139,19 @@ def project(raw: dict[str, Any], parity: dict[str, Any]) -> dict[str, Any]:
     for block in variables.values():
         mentioned |= _mentions(block)
     parameters = {n: p for n, p in raw['parameters'].items() if n in mentioned}
-    lookups = {n: lk for n, lk in raw.get('lookups', {}).items() if n in mentioned}
+    relations = {n: lk for n, lk in raw.get('relations', {}).items() if n in mentioned}
     dims: set[str] = set()
     for block in (*variables.values(), *constraints.values()):
         dims |= set(block.get('dims', []))
     for p in parameters.values():
         dims |= set(p.get('dims', []))
-    for lk in lookups.values():
-        dims |= {lk['over'], lk.get('into')} - {None}
+    for lk in relations.values():
+        dims |= _relation_dims(lk)
     dimensions = {n: d for n, d in raw['dimensions'].items() if n in dims}
     out = {k: v for k, v in raw.items() if k in ('version', 'description')}
     out['dimensions'] = dimensions
-    if lookups:
-        out['lookups'] = lookups
+    if relations:
+        out['relations'] = relations
     out['parameters'] = parameters
     out['variables'] = variables
     out['constraints'] = constraints

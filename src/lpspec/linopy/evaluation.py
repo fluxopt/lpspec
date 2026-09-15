@@ -32,6 +32,7 @@ from lpspec.linopy.operators import (
     operator_sum,
     operator_sum_back,
 )
+from lpspec.relations import maps_out_of, partition_of
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -53,10 +54,11 @@ _PREDICATE_OPS: dict[str, Callable[[Any, Any], Any]] = {
 
 @dataclass(frozen=True)
 class EvaluationContext:
-    """Everything evaluating a plan needs beyond the node: the data, the axes, the model, the lookups, the program.
+    """Everything evaluating a plan needs beyond the node: the data, the axes, the model, the relations, the program.
 
-    ``dim_coords`` carries the attached lookup columns, which a predicate on a
-    lookup and a grouped operator both read instead of the parameter dataset.
+    ``dim_coords`` carries the attached relation columns, which a predicate on
+    a relation and a grouped operator both read instead of the parameter
+    dataset.
     """
 
     dataset: xr.Dataset
@@ -91,8 +93,8 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
     each side where it has a value (:func:`constant_side`) rather than reading
     its NaNs, since a build fills those before they reach the arithmetic.
 
-    **A null lookup value is excluded explicitly rather than by ``fillna``.** A
-    partial lookup arrives as an object array holding ``None``, and numpy
+    **A null relation value is excluded explicitly rather than by ``fillna``.**
+    A partial map arrives as an object array holding ``None``, and numpy
     answers ``None != 'north'`` with *True* rather than with null — so a ``!=``
     would keep exactly the labels that map nowhere.
     """
@@ -125,8 +127,8 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
 
     if isinstance(node, program.DimensionPositionNode):
         labels = master_coords[node.name]
-        if node.by is not None:
-            arr = _group_offsets(node, bound_lookup(node.by, node.name, ctx.dim_coords), np.asarray(labels))
+        if (by := partition_of(node)) is not None:
+            arr = _group_offsets(node, by, bound_relation(by, node.name, ctx.dim_coords), np.asarray(labels))
             return (_PREDICATE_OPS[node.op](arr, 0) & arr.notnull()).fillna(value=False).astype(bool)
         at = node.position + len(labels) if node.position < 0 else node.position
         if not 0 <= at < len(labels):
@@ -134,18 +136,18 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
         arr = xr.DataArray(np.arange(len(labels)), coords={node.name: labels}, dims=[node.name])
         return _PREDICATE_OPS[node.op](arr, at).astype(bool)
 
-    if isinstance(node, program.LookupComparisonNode):
-        arr = bound_lookup(node.name, node.over, ctx.dim_coords)
+    if isinstance(node, program.RelationComparisonNode):
+        arr = bound_relation(node.name, node.dims[0], ctx.dim_coords)
         return (_PREDICATE_OPS[node.op](arr, node.value) & arr.notnull()).fillna(value=False).astype(bool)
 
-    if isinstance(node, program.LookupPairComparisonNode):
-        left = bound_lookup(node.name, node.over, ctx.dim_coords)
-        right = bound_lookup(node.other, node.over, ctx.dim_coords)
+    if isinstance(node, program.RelationPairComparisonNode):
+        left = bound_relation(node.name, node.dims[0], ctx.dim_coords)
+        right = bound_relation(node.other, node.dims[0], ctx.dim_coords)
         defined = left.notnull() & right.notnull()
         return (_PREDICATE_OPS[node.op](left, right) & defined).fillna(value=False).astype(bool)
 
-    if isinstance(node, program.LookupDefinedNode):
-        return bound_lookup(node.name, node.over, ctx.dim_coords).notnull()
+    if isinstance(node, program.RelationDefinedNode):
+        return bound_relation(node.name, node.dims[0], ctx.dim_coords).notnull()
 
     if isinstance(node, program.ExpressionComparisonNode):
         (left, left_defined), (right, right_defined) = constant_side(node.left, ctx), constant_side(node.right, ctx)
@@ -179,11 +181,13 @@ def _defined(arr: xr.DataArray, dtype: str) -> xr.DataArray:
     return arr.notnull() & np.isfinite(arr)
 
 
-def _group_offsets(node: program.DimensionPositionNode, groups: xr.DataArray, labels: np.ndarray) -> xr.DataArray:
+def _group_offsets(
+    node: program.DimensionPositionNode, by: str, groups: xr.DataArray, labels: np.ndarray
+) -> xr.DataArray:
     """Each coordinate's distance from the boundary of *its own* group.
 
     Zero marks the coordinate the position names, so every comparator reads the
-    same as it does ungrouped. ``nan`` where the lookup sends a coordinate
+    same as it does ungrouped. ``nan`` where the relation sends a coordinate
     nowhere: in no group, so no group's boundary.
 
     Raises:
@@ -194,25 +198,25 @@ def _group_offsets(node: program.DimensionPositionNode, groups: xr.DataArray, la
     needed = node.position + 1 if node.position >= 0 else -node.position
     short = sorted(str(g) for g, n in zip(partition.names, partition.counts, strict=True) if n < needed)
     if short:
-        raise DataError(short_groups_message(node.name, str(node.by), node.op, node.position, short))
+        raise DataError(short_groups_message(node.name, by, node.op, node.position, short))
     target = node.position if node.position >= 0 else partition.size + node.position
     return partition.within.where(partition.grouped) - target
 
 
-def unbound_lookup_message(name: str, over: str) -> str:
-    """A declared lookup read with no attached map."""
+def unbound_relation_message(name: str, over: str) -> str:
+    """A declared relation read with no attached map."""
     return (
-        f"lookup '{name}' over dimension '{over}' has no attached values. "
-        f"Pass it under key '{name}' as a table with columns ['{over}', '{name}']."
+        f"relation '{name}' keyed over dimension '{over}' has no attached values. "
+        f"Pass it under key '{name}' as a table of the rows it holds."
     )
 
 
-def bound_lookup(name: str, over: str, dim_coords: Mapping[str, Mapping[str, xr.DataArray]]) -> xr.DataArray:
-    """A lookup's attached values as an array over the dim it is over."""
+def bound_relation(name: str, over: str, dim_coords: Mapping[str, Mapping[str, xr.DataArray]]) -> xr.DataArray:
+    """A map's attached values as an array over the dimension it is keyed by."""
     try:
         return dim_coords[over][name]
     except KeyError:
-        raise DataError(unbound_lookup_message(name, over)) from None
+        raise DataError(unbound_relation_message(name, over)) from None
 
 
 def as_linopy_mask(mask: xr.DataArray) -> xr.DataArray | None:
@@ -288,14 +292,16 @@ def evaluate_expression(node: program.ExpressionNode, ctx: EvaluationContext) ->
     if isinstance(node, program.GroupSum):
         return operator_grouped_sum(
             evaluate_expression(node.operand, ctx),
-            _lookup_arrays(node.over, node.coordinate, ctx),
+            _relation_arrays(node.over[0], node.coordinate, ctx),
             into=node.into,
             labels=ctx.master_coords,
         )
 
     if isinstance(node, program.At):
         return operator_at(
-            evaluate_expression(node.operand, ctx), _lookup_arrays(node.over, node.coordinate, ctx), into=node.into
+            evaluate_expression(node.operand, ctx),
+            _relation_arrays(node.over[0], node.coordinate, ctx),
+            into=node.into,
         )
 
     if isinstance(node, program.Translate):
@@ -392,10 +398,10 @@ def _gathered(
             slots = operator_sum(slots, dimension)
         return slots
     if isinstance(node, program.GroupSum):
-        mappings = _lookup_arrays(node.over, node.coordinate, ctx)
+        mappings = _relation_arrays(node.over[0], node.coordinate, ctx)
         return operator_grouped_sum(slots, mappings, into=node.into, labels=ctx.master_coords)
     if isinstance(node, program.At):
-        return operator_at(slots, _lookup_arrays(node.over, node.coordinate, ctx), into=node.into)
+        return operator_at(slots, _relation_arrays(node.over[0], node.coordinate, ctx), into=node.into)
     if isinstance(node, program.Translate):
         return operator_shift(
             slots,
@@ -473,19 +479,20 @@ def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
 
 
 def _partition(node: program.Translate | program.Window, ctx: EvaluationContext) -> Any:
-    """The lookup a windowed operator may not reach across, as its values.
+    """The relation a windowed operator may not reach across, as its values.
 
     **Named for the dimension its values are labels of**, not for itself: an
     amount declared over the group's own dim is read through this array by
     :func:`~lpspec.linopy.operators._per_group`, which pairs the two by that
     name.
     """
-    if node.partition is None:
+    by = partition_of(node)
+    if by is None:
         return None
-    array = bound_lookup(node.partition, node.dimension, ctx.dim_coords)
-    return array.rename(ctx.program.dimension(node.dimension).targets[node.partition])
+    array = bound_relation(by, node.dimension, ctx.dim_coords)
+    return array.rename(maps_out_of(ctx.program, node.dimension)[by])
 
 
-def _lookup_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The declared lookups *names* as arrays over *over*, in the order the plan wrote them."""
-    return tuple(bound_lookup(name, over, ctx.dim_coords) for name in names)
+def _relation_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
+    """The declared maps *names* as arrays over *over*, in the order the plan wrote them."""
+    return tuple(bound_relation(name, over, ctx.dim_coords) for name in names)

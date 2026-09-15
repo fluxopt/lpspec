@@ -4,12 +4,12 @@ Capacity that comes in whole modules: an integer count decides it, not a continu
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **56700.0**, matched to `rtol=1e-09`.
 
-The capacity variable survives. What changes is that it is no longer free to
-land anywhere: `p_nom = n_mod × p_nom_mod` ties it to a whole number of modules,
-so a technology sold in 30 MW turbines cannot be built 23 MW at a time.
+The capacity variable survives, but `p_nom = n_mod × p_nom_mod` ties it to a
+whole number of modules. A technology sold in 30 MW turbines cannot be built
+23 MW at a time.
 
-One bus and no network, deliberately. A model that fails to match should
-implicate one feature, and here that feature is the module count.
+One bus and no network: a model that fails to match should implicate one
+feature, and here that feature is the module count.
 
 ## The model
 
@@ -24,7 +24,7 @@ PyPSA modular capacity expansion: a technology bought in whole units. The capaci
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 
 #### Parameters
@@ -118,11 +118,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: generating units, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
 
     parameters:
       p_nom_mod:
@@ -226,20 +226,17 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         return n
     ```
 
-**The module count has to bind, or the model proves nothing.** The three module
-sizes are 30, 25 and 20; peak load is 143. Wind fills 120 — four whole modules,
-and its own ceiling — leaving 23, which no single gas module covers and one
-25 MW module overshoots. Drop `p_nom_mod` and the same instance builds 108 of
-wind and 35 of oil, neither a multiple of anything, for **54040.0** against the
-modular **56700.0**. A port whose integer constraint were quietly ignored would
-report the cheaper number.
+**The module count binds.** The three module sizes are 30, 25 and 20; peak
+load is 143. Wind fills 120, four whole modules and its own ceiling, leaving
+23. No single gas module covers 23, and one 25 MW module overshoots it. Drop
+`p_nom_mod` and the same instance builds 108 of wind and 35 of oil, neither a
+multiple of anything, for **54040.0** against the modular **56700.0**. A port
+that ignored the integer constraint would report the cheaper number.
 
 ## What it exercises
 
-`domain: integer` on a variable that is not a status — the module count is a
-*count*, with no upper bound of its own, held down only by the capacity ceiling
-above it. Every other integrality in the corpus is a 0/1 decision.
-
-It is also the first port where a capacity variable is decided by another
-variable rather than by a bound, which is what makes `modularity` an equality
-between two decisions rather than a limit on one.
+`domain: integer` on a variable that is not a status. The module count has no
+upper bound of its own; only the capacity ceiling above it holds it down.
+Every other integrality in the corpus is a 0/1 decision. And `modularity`, an
+equality between two decisions: a capacity variable decided by another
+variable rather than by a bound.

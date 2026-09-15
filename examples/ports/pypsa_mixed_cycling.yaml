@@ -19,15 +19,15 @@ dimensions:
     description: storage units, each sitting on one bus
     dtype: str
 
-lookups:
+relations:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    columns: [generator, bus]
+    key: generator
   storage_bus:
     description: the bus a storage unit sits on
-    over: storage
-    into: bus
+    columns: [storage, bus]
+    key: storage
 
 parameters:
   cyclic:
@@ -99,7 +99,7 @@ constraints:
       from its last and it ends every horizon where it began
     dims: [snapshot, storage]
     where: "cyclic"
-    expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap') + p_store - p_dispatch
+    expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap') + p_store - p_dispatch
 
   energy_balance_carry:
     description: >-
@@ -107,7 +107,7 @@ constraints:
       the first — the vacated position is absent, so that row is not built here
     dims: [snapshot, storage]
     where: "NOT cyclic"
-    expression: soc == shift(soc, over=snapshot, offset=1) + p_store - p_dispatch
+    expression: soc == shift(soc, along=snapshot, offset=1) + p_store - p_dispatch
 
   energy_balance_seed:
     description: >-

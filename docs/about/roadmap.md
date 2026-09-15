@@ -87,12 +87,12 @@ validation of every expression, `where` string and *uncalled* macro template.
 
 **Behind linopy**, and none of it a ceiling question: the post-solve object
 (labelled DataArrays vs tidy tables; `to_dataarray` bridges), debugging (an
-IIS via Gurobi), lifecycle (mutate, re-solve, warm start, `relax`/`fix`),
-solver breadth (ten backends and four handoffs vs three direct
+IIS via Gurobi), lifecycle (`relax` and `fix` as verbs, where here they are
+[loops](../lifecycle.ipynb)), solver breadth (ten backends and four handoffs vs three direct
 [sinks](../reference/glossary.md#how-it-runs) plus files), and the variable
 types and constraint kinds the capability model still gates.
 
 **The ranking this implies:** indexed access blocks whole model classes today;
-the operational verbs block using the engine at 3am; solver breadth blocks
+the operational verbs block running the engine unattended; solver breadth blocks
 arrival from linopy at all; semi-continuous and `cumsum`-over-data are cheap,
 unblocked and unscheduled.

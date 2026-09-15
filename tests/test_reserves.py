@@ -1,7 +1,7 @@
 """``reserves``: every many-to-many shape at once, each proven load-bearing.
 
 The gallery claims the language covers two idioms for a many-to-many relation:
-reify the pair set as a dimension with leg lookups (lines bus-to-bus, offers as
+reify the pair set as a dimension with leg relations (lines bus-to-bus, offers as
 (generator, market, tranche) triples), or state pure weighted membership as an
 incidence parameter (overlapping reserve zones). ``examples/reserves.yaml``
 holds all of them in one instance; ``test_ports.py`` already checks it against
@@ -20,6 +20,7 @@ import polars as pl
 import pytest
 
 import lpspec as lps
+from lpspec.relations import maps_out_of
 from tests.conftest import EXAMPLES_DIR, port_sources
 from tests.differential import RTOL, differential
 
@@ -92,9 +93,8 @@ def test_each_many_to_many_shape_moves_the_optimum(mutate, direction):
 
 def test_the_instance_actually_holds_every_shape():
     """The mutations above prove effect; this pins presence, so neither can rot alone."""
-    assert set(lps.check(RESERVES_YAML).dimensions['offer'].targets) == {'gen_of', 'market_of', 'tranche_of'}, (
-        'the offer set is three-legged — the k-ary case'
-    )
+    maps = maps_out_of(lps.check(RESERVES_YAML), 'offer')
+    assert set(maps) == {'gen_of', 'market_of', 'tranche_of'}, 'the offer set is three-legged — the k-ary case'
     sources = port_sources('reserves')
     endpoints = (
         sources['line_from']

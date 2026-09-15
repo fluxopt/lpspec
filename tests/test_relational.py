@@ -31,7 +31,6 @@ from math_spec.program import (
     ConstraintDeclaration,
     DimensionDeclaration,
     GroupSum,
-    LookupDeclaration,
     Mask,
     Negate,
     ObjectiveDeclaration,
@@ -39,9 +38,11 @@ from math_spec.program import (
     ParameterComparisonNode,
     ParameterDeclaration,
     Program,
+    RelationDeclaration,
     Sum,
     Variable,
     VariableDeclaration,
+    Walk,
 )
 
 import lpspec as lps
@@ -177,8 +178,8 @@ CONSTANT_BESIDE_A_TERM = {
 CONSTANT_BESIDE_A_TERM_CASES = [
     ('sum(x * k + d, over=t) >= load', 8.0, 'sum-over'),
     ('sum(sum(x * k + d, by=r_of), over=r) >= load', 8.0, 'sum-by'),
-    ('sum(shift(x * k + d, over=t, offset=1, edge=0), over=t) >= load', 8.0, 'shift'),
-    ('sum(sum_back(x * k + d, over=t, within=2), over=t) >= load', 3.0, 'sum-back'),
+    ('sum(shift(x * k + d, along=t, offset=1, edge=0), over=t) >= load', 8.0, 'shift'),
+    ('sum(sum_back(x * k + d, along=t, window=2), over=t) >= load', 3.0, 'sum-back'),
 ]
 
 
@@ -204,13 +205,24 @@ def dispatch_eager_objective(gens: pd.DataFrame, load: pd.DataFrame) -> float:
     return float(m.objective.value)
 
 
+#: The transport network's wiring, as the three maps a nodal balance walks.
+GEN_BUS = RelationDeclaration('gen_bus', (('generator', 'generator'), ('bus', 'bus')), ('generator',))
+LINE_FROM = RelationDeclaration('from', (('line', 'line'), ('bus', 'bus')), ('line',))
+LINE_TO = RelationDeclaration('to', (('line', 'line'), ('bus', 'bus')), ('line',))
+
+
+def _onto_bus(relation: RelationDeclaration) -> Walk:
+    """*relation* walked the way a nodal balance walks it: out of its key, onto the bus."""
+    return Walk(relation, relation.key, relation.values, ())
+
+
 def transport_program() -> Program:
     injection = Add(
         Add(
-            GroupSum(Variable('p'), over='generator', coordinate=('gen_bus',), into=('bus',)),
-            GroupSum(Variable('f'), over='line', coordinate=('to',), into=('bus',)),
+            GroupSum(Variable('p'), (_onto_bus(GEN_BUS),)),
+            GroupSum(Variable('f'), (_onto_bus(LINE_TO),)),
         ),
-        Negate(GroupSum(Variable('f'), over='line', coordinate=('from',), into=('bus',))),
+        Negate(GroupSum(Variable('f'), (_onto_bus(LINE_FROM),))),
     )
     return Program(
         parameters={
@@ -245,9 +257,9 @@ def transport_program() -> Program:
         ),
         dimensions={
             'snapshot': DimensionDeclaration(dtype='int'),
-            'bus': DimensionDeclaration(),
-            'generator': DimensionDeclaration((LookupDeclaration('gen_bus', 'bus'),)),
-            'line': DimensionDeclaration((LookupDeclaration('from', 'bus'), LookupDeclaration('to', 'bus'))),
+            'bus': DimensionDeclaration((GEN_BUS, LINE_FROM, LINE_TO)),
+            'generator': DimensionDeclaration((GEN_BUS,)),
+            'line': DimensionDeclaration((LINE_FROM, LINE_TO)),
         },
     )
 
@@ -494,7 +506,10 @@ class TestWhatBindRefusesAndWhatItTakes:
 #: that used to be reported one coordinate at a time.
 TWO_BAD_COORDS_SPEC = {
     'dimensions': {'bus': {'dtype': 'str'}, 'line': {}},
-    'lookups': {'from': {'over': 'line', 'into': 'bus'}, 'to': {'over': 'line', 'into': 'bus'}},
+    'relations': {
+        'from': {'columns': ['line', 'bus'], 'key': 'line'},
+        'to': {'columns': ['line', 'bus'], 'key': 'line'},
+    },
     'parameters': {'cap': {'dims': ['line']}},
     'variables': {'f': {'dims': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
     'constraints': {'k': {'dims': ['line'], 'expression': 'f <= cap'}},
@@ -784,7 +799,7 @@ class TestTheLabelSpace:
         """The per-coordinate loop this replaced raised on the first offender, so a
         source with two bad coordinates was fixed, rebuilt, and refused again (#273).
 
-        A relation is one lookup's, so the pass is over its rows: both labels it
+        A relation is one relation's, so the pass is over its rows: both labels it
         maps twice arrive in one count and are named together.
         """
         data = {
@@ -861,7 +876,10 @@ def _network(ends: tuple[str, str]) -> tuple[dict, dict]:
             'bus': {'dtype': 'str'},
             'line': {},
         },
-        'lookups': {'from': {'over': 'line', 'into': 'bus'}, 'to': {'over': 'line', 'into': 'bus'}},
+        'relations': {
+            'from': {'columns': ['line', 'bus'], 'key': 'line'},
+            'to': {'columns': ['line', 'bus'], 'key': 'line'},
+        },
         'parameters': {'cap': {'dims': ['line']}, 'load': {'dims': ['snapshot', 'bus']}},
         'variables': {'f': {'dims': ['snapshot', 'line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {
@@ -1524,7 +1542,7 @@ REWRITE_CASES = [
 def _constant_beside_a_term(expression: str, *, over_the_dim: bool = False) -> dict:
     """The model, optionally with the rewrite the refusal names applied.
 
-    `r` and its lookup are added only for the case that groups into them: a
+    `r` and its relation are added only for the case that groups into them: a
     dimension nothing uses as an axis is advice `check` issues, and the suite
     turns warnings into errors, so carrying them for every case would fail the
     other three for a reason that has nothing to do with the gap.
@@ -1535,7 +1553,7 @@ def _constant_beside_a_term(expression: str, *, over_the_dim: bool = False) -> d
         parameters['d'] = {'dims': ['t']}
     if 'r_of' in expression:
         spec['dimensions'] = {**spec['dimensions'], 'r': {'dtype': 'str'}}
-        spec['lookups'] = {'r_of': {'over': 't', 'into': 'r'}}
+        spec['relations'] = {'r_of': {'columns': ['t', 'r'], 'key': 't'}}
     return {
         **spec,
         'parameters': parameters,
@@ -1554,11 +1572,11 @@ def _constant_beside_a_term(expression: str, *, over_the_dim: bool = False) -> d
 ABSENT_SLOT_CASES = [
     pytest.param('sum(x * k + d, over=t) >= load', id='sum-over'),
     pytest.param('sum(sum(x * k + d, by=r_of), over=r) >= load', id='sum-by'),
-    pytest.param('sum(shift(x * k + d, over=t, offset=1, edge=0), over=t) >= load', id='shift-forward'),
-    pytest.param('sum(shift(x * k + d, over=t, offset=-1, edge=0), over=t) >= load', id='shift-back'),
-    pytest.param("sum(shift(x * k + d, over=t, offset=1, edge='wrap'), over=t) >= load", id='shift-wrap'),
+    pytest.param('sum(shift(x * k + d, along=t, offset=1, edge=0), over=t) >= load', id='shift-forward'),
+    pytest.param('sum(shift(x * k + d, along=t, offset=-1, edge=0), over=t) >= load', id='shift-back'),
+    pytest.param("sum(shift(x * k + d, along=t, offset=1, edge='wrap'), over=t) >= load", id='shift-wrap'),
     pytest.param('sum(at(sum(x * k + d, by=r_of), by=r_of), over=t) >= load', id='at'),
-    pytest.param('sum(sum_back(x * k + d, over=t, within=2), over=t) >= load', id='sum-back'),
+    pytest.param('sum(sum_back(x * k + d, along=t, window=2), over=t) >= load', id='sum-back'),
 ]
 
 
@@ -1575,7 +1593,7 @@ ABSENT_SLOT_SOURCES = {
 def _absent_slot_spec(expression: str) -> dict:
     return {
         'dimensions': {'t': {'dtype': 'int'}, 'r': {'dtype': 'str'}},
-        'lookups': {'r_of': {'over': 't', 'into': 'r'}},
+        'relations': {'r_of': {'columns': ['t', 'r'], 'key': 't'}},
         'parameters': {'k': {'dims': ['t']}, 'd': {'dims': ['t']}, 'load': {'dims': []}},
         'variables': {'x': {'dims': ['t'], 'where': 't != 2', 'bounds': {'lower': 0}}},
         'constraints': {'bal': {'dims': [], 'expression': expression}},

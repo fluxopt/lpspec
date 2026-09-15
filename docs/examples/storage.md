@@ -11,9 +11,8 @@ State of charge links each snapshot to the one before it, cyclically:
 $$\mathrm{soc}_s = \mathrm{soc}_{s-1} + 0.9\,\mathrm{charge}_s - \mathrm{discharge}_s$$
 
 with $s-1$ wrapping at the horizon, so the battery ends where it started. The
-charging efficiency is written into the model as a literal `0.9` rather than
-declared as a parameter — which is why it appears as a number here and not as
-an $\eta$.
+model writes the charging efficiency as the literal `0.9` rather than
+declaring a parameter, so it appears here as a number and not as an $\eta$.
 
 ## The model
 
@@ -163,7 +162,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           stored, minus what was taken — and it wraps at the horizon, so the first
           snapshot inherits from the last
         dims: [snapshot]
-        expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap') + charge * 0.9 - discharge
+        expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap') + charge * 0.9 - discharge
 
     objective:
       sense: minimize
@@ -207,15 +206,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 ## What it exercises
 
-`shift(soc, over=snapshot, offset=1, edge='wrap')` is the whole of it. One term reaches one position
-back along `snapshot`, and `edge='wrap'` wraps — the first snapshot reads the
-last, which is what makes the storage cyclic without a boundary condition
-written out by hand. Omitting `edge=` is the same node without the wrap, where
-positions translated past the edge simply contribute nothing.
+`shift(soc, along=snapshot, offset=1, edge='wrap')` is the whole of it. One
+term reaches one position back along `snapshot`. With `edge='wrap'` the first
+snapshot reads the last, which makes the storage cyclic without a boundary
+condition written out by hand. Without `edge=` the same node does not wrap,
+and a position translated past the edge contributes nothing.
 
 It is also the one plan shape whose cost is not obviously linear in the model
-size, which is why it is named in *Not measured yet* in
-[the benchmarks](../about/benchmarks.md).
+size, so [the benchmarks](../about/benchmarks.md) list it under *Not measured
+yet*.
 
 ---
 

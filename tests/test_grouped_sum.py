@@ -7,7 +7,7 @@ Three-way differential on examples/transport.yaml:
      involves no sum at all)
 
 Plus ``examples/monthly_budget.yaml``, which is the same primitive over *time*:
-a lookup over ``snapshot`` groups it into months exactly as a lookup over
+a relation over ``snapshot`` groups it into months exactly as a relation over
 ``generator`` groups onto buses. The gallery page quotes its dual and prints
 its snapshot index, so a test has to hold both.
 """
@@ -88,8 +88,13 @@ def test_sum_lowers_to_one_node_per_injection_term():
     (c,) = program.constraints.values()
     assert c.dims == ('snapshot', 'bus')
     terms = _flatten(c.lhs)
-    assert GroupSum(Variable('p'), over='generator', coordinate=('gen_bus',), into=('bus',)) in terms
-    assert GroupSum(Variable('f'), over='line', coordinate=('line_to',), into=('bus',)) in terms
+    grouped = {(t.operand, t.over, t.coordinate, t.into) for t in terms if isinstance(t, GroupSum)}
+    assert (Variable('p'), ('generator',), ('gen_bus',), ('bus',)) in grouped, (
+        'generation is grouped out of generator onto bus, through gen_bus and nothing else'
+    )
+    assert (Variable('f'), ('line',), ('line_to',), ('bus',)) in grouped, (
+        'inflow is grouped out of line onto bus, through line_to and nothing else'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -171,8 +176,8 @@ PARTIAL_YAML = """
 dimensions:
   g: {dtype: str}
   item: {dtype: str}
-lookups:
-  grp: {over: item, into: g}
+relations:
+  grp: {columns: [item, g], key: item}
 parameters:
   cap: {dims: [item]}
   target: {dims: [g]}
@@ -191,7 +196,7 @@ objective:
 
 
 def _partial_inputs():
-    """`item` carries lookup `grp`: i0 and i1 in group g0, i2 in none."""
+    """`item` carries relation `grp`: i0 and i1 in group g0, i2 in none."""
     items = ['i0', 'i1', 'i2']
     index = pd.DataFrame({'item': items})
     grp = pd.DataFrame({'item': ['i0', 'i1'], 'g': ['g0', 'g0']})
@@ -239,7 +244,7 @@ def test_a_partial_coordinate_places_its_orphans_nowhere(tmp_path):
 
 GROUPED_ONTO_BUS = {
     'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-    'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
+    'relations': {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
     'parameters': {'p_max': {'dims': ['generator']}, 'load': {'dims': ['bus']}},
     'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
     'constraints': {'balance': {'dims': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
@@ -269,7 +274,7 @@ GROUPED_ONTO_BUS_SOURCES = {
 
 @pytest.mark.parametrize('sources', GROUPED_ONTO_BUS_SOURCES.values(), ids=GROUPED_ONTO_BUS_SOURCES.keys())
 def test_a_grouped_sum_lands_on_the_dimension_it_declares(sources):
-    """The result spans ``bus``'s declared index, not the labels the lookup reaches.
+    """The result spans ``bus``'s declared index, not the labels the relation reaches.
 
     A groupby yields only the labels some member points at, and in sorted
     order. Either departure — a bus no generator sits on, or a declared order
@@ -289,7 +294,7 @@ BROADCAST_GROUP_SUM = {
         'generator': {'dtype': 'str'},
         'bus': {'dtype': 'str'},
     },
-    'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
+    'relations': {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
     'parameters': {'w': {'dims': ['generator']}, 'limit': {'dims': ['snapshot', 'bus']}},
     'variables': {'x': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
     'constraints': {
@@ -524,7 +529,7 @@ def test_a_mistyped_month_is_a_typo_and_not_a_new_group(monthly):
     typo = month_of.with_columns(
         pl.when(pl.col('month') == '2030-03').then(pl.lit('2030-3')).otherwise(pl.col('month')).alias('month')
     )
-    with pytest.raises(DataError, match=r"lookup 'month_of' has value\(s\) that are not 'month' labels"):
+    with pytest.raises(DataError, match=r"relation 'month_of' has value\(s\) that are not 'month' labels"):
         lps.solve(MONTHLY_YAML, {**sources, 'month_of': typo})
 
 

@@ -5,17 +5,16 @@
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **18200**, matched to `rtol=1e-09`.
 
 PyPSA states a ramp limit as a fraction of `p_nom` bounding the change between
-consecutive snapshots, written from the *second* snapshot on — there is no
-dispatch before the first for it to ramp from.
+consecutive snapshots. The row exists from the *second* snapshot on: there is
+no dispatch before the first to ramp from.
 
-**The limit binds, and that took a redesign.** [The transport
-model](pypsa_transport.md)'s links run saturated, which fixes every generator's
-output exactly; a ramp limit on that instance can only make it infeasible,
-never change the answer. So this model widens the
-ratings to 200 and lets merit order pick the dispatch. Gas then moves
-70 → 100 → 80 → 50, hitting its ±30 limit twice and calling oil on at the two
-middle snapshots. Without the limits the same instance costs **17000**; with
-them, 18200.
+**The limit binds.** The links of [the transport model](pypsa_transport.md)
+run saturated, which fixes every generator's output exactly. A ramp limit on
+that instance could only make it infeasible, never change the answer. This
+model widens the ratings to 200 and lets merit order pick the dispatch. Gas
+then moves 70 → 100 → 80 → 50, hits its ±30 limit twice, and calls oil on at
+the two middle snapshots. Without the limits the same instance costs
+**17000**; with them, 18200.
 
 ## The model
 
@@ -30,7 +29,7 @@ PyPSA linear optimal power flow with a limit on how fast a generator may change 
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — controllable connections, each joining two buses |
 
@@ -122,19 +121,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: controllable connections, each joining two buses
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       link_from:
         description: the bus a link leaves
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
       link_to:
         description: the bus a link arrives at
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
 
     parameters:
       p_nom:
@@ -185,11 +184,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
       ramp_up:
         dims: [snapshot, generator]
-        expression: p - shift(p, over=snapshot, offset=1) <= ramp_limit_up * p_nom
+        expression: p - shift(p, along=snapshot, offset=1) <= ramp_limit_up * p_nom
 
       ramp_down:
         dims: [snapshot, generator]
-        expression: shift(p, over=snapshot, offset=1) - p <= ramp_limit_down * p_nom
+        expression: shift(p, along=snapshot, offset=1) - p <= ramp_limit_down * p_nom
 
     objective:
       sense: minimize
@@ -250,17 +249,14 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 `shift` vacates the first snapshot, and a vacated position is *absent*, so the
-row there drops on its own — which is the boundary PyPSA wants, since nothing
-precedes it to ramp from. No `where` states it. Asking for the wrap,
-`edge='wrap'`, would put the last snapshot onto the first and quietly build a different
-model; it needs a gate, and a gate written as `snapshot > 0` hardcodes the
-index origin, so it stops being the boundary on a horizon that starts anywhere
-else. [Cyclic storage](pypsa_cyclic_storage.md) wants the wrap and asks for it by name.
+row there drops on its own. That is the boundary PyPSA wants, and no `where`
+states it. `edge='wrap'` would put the last snapshot onto the first and build
+a different model, and a gate such as `snapshot > 0` would hardcode the index
+origin. [Cyclic storage](pypsa_cyclic_storage.md) wants the wrap and asks for
+it by name.
 
 ## What it exercises
 
-`shift` — the first externally verified model in the corpus to translate along a
-dimension, and the acyclic boundary it carries. Also
-parameter arithmetic on a constraint's right-hand side (`ramp_limit_up *
-p_nom`), kept as arithmetic rather than a precomputed column so the file states
-what PyPSA states.
+`shift` along a dimension, and the acyclic boundary it carries. Also parameter
+arithmetic on a constraint's right-hand side (`ramp_limit_up * p_nom`), kept
+as arithmetic so the file states what PyPSA states.

@@ -4,15 +4,15 @@ Three futures over one network: the fleet is built before anyone knows which arr
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **33940.0**, matched to `rtol=1e-09`.
 
-`n.set_scenarios` makes a network stochastic, and what it does is add one
-dimension to some variables and not others:
+`n.set_scenarios` makes a network stochastic by adding one dimension to some
+variables and not others:
 
 ```
 Generator-p_nom  ('name',)
 Generator-p      ('scenario', 'name', 'snapshot')
 ```
 
-That is the whole two-stage program. Capacity is a **first-stage** decision — one
+That is the whole two-stage program. Capacity is a **first-stage** decision: one
 number per generator, spanning no scenario, because it is taken while all three
 futures are still open. Dispatch is **second stage**, one per future, chosen once
 the load is known. `define_objective` then runs every term through `_expected`,
@@ -27,8 +27,8 @@ The three futures differ in one thing, the load:
 | `cold` | 0.3 | 130 | 160 | 110 |
 | `severe` | 0.1 | 170 | 210 | 140 |
 
-`base` costs 150 to build and 10 to run, `peak` 120 and 70 — so the mix, not just
-the total, is what the expectation decides.
+`base` costs 150 to build and 10 to run, `peak` 120 and 70, so the expectation
+decides the mix as well as the total.
 
 ## The model
 
@@ -224,25 +224,23 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         return n
     ```
 
-**The expectation is doing work, and here is what it is worth.** Collapse the
-three futures into their probability-weighted mean load — 116, 141, 101 — and the
-same network builds **141 MW of `base` and no `peak` at all**, for 24730.0. That
-fleet has no dispatch in the severe future, which asks for 210: the
-expected-value model does not merely cost less, it answers a question nobody
-posed. `what_the_mean_would_build()` in the reference prints it.
+**The expectation is doing work.** Collapse the three futures into their
+probability-weighted mean load, 116, 141, 101, and the same network builds
+**141 MW of `base` and no `peak` at all**, for 24730.0. That fleet has no
+feasible dispatch in the severe future, which asks for 210.
+`what_the_mean_would_build()` in the reference prints it.
 
-**One capacity, three scenarios of rows.** `within_capacity` is `p <= p_nom` with
-a `dims:` of `[scenario, snapshot, generator]` against a variable declared over
-`[generator]` — nine rows reading one column, which is how a first-stage decision
-is coupled to a second-stage one. Nothing in the language had to learn about
-stages: the dim algebra broadcasts the capacity because the constraint's frame
-says to.
+**One capacity, three scenarios of rows.** `within_capacity` is `p <= p_nom`
+with a `dims:` of `[scenario, snapshot, generator]` against a variable declared
+over `[generator]`: nine rows reading one column. That is how a first-stage
+decision couples to a second-stage one. The dim algebra broadcasts the capacity
+because the constraint's frame says to.
 
 **Prices carry the probability, and they add up to the capital cost.** The nodal
 price in `mild` is 6.0 rather than 10.0, because the term it prices is weighted
-by 0.6 — a PyPSA user reading `marginal_price` off a stochastic network is
-reading a *weighted* price, and both implementations agree on that. The scarcity
-rents are where the two stages meet:
+by 0.6. `marginal_price` off a stochastic PyPSA network is a *weighted* price,
+and both implementations agree on that. The scarcity rents are where the two
+stages meet:
 
 | | snapshot 0 | 1 | 2 |
 |---|---|---|---|
@@ -250,15 +248,14 @@ rents are where the two stages meet:
 | `cold` | 3 | **21** | 3 |
 | `severe` | 7 | **127** | 1 |
 
-`base` is at its capacity in three cells, and the rents there — 18 in `cold`, 6
-and 126 in `severe` — sum to 150, its cost to build. `peak` is at capacity in one
+`base` is at its capacity in three cells, and the rents there (18 in `cold`, 6
+and 126 in `severe`) sum to 150, its cost to build. `peak` is at capacity in one
 cell, and its rent there is 120, its cost to build. A capacity that is chosen
 once is paid for by every future that runs it out.
 
 ## What it exercises
 
-Two variables that deliberately span different dimensions, coupled by a
-constraint whose frame is the wider of the two, and an objective that reduces one
-of them against a probability. The claim is not that the math is hard — it is
-that *structure comes from data*: nothing here declares a stage, and the two
-stages are visible only in which dimensions each `dims:` lists.
+Two variables that span different dimensions, coupled by a constraint whose
+frame is the wider of the two, and an objective that reduces one of them against
+a probability. Nothing here declares a stage. The two stages are visible only in
+which dimensions each `dims:` lists.

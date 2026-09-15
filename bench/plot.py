@@ -78,7 +78,7 @@ def series(*paths: Path) -> dict[tuple[str, str, str], dict[str, Any]]:
     """
     out: dict[tuple[str, str, str], dict[str, Any]] = {}
     for record in (r for p in paths for r in bench_results.records(p)):
-        if record.get('record') != 'timing' or 'error' in record:
+        if record.get('record') != 'timing' or record.get('phase', 'emit') != 'emit' or 'error' in record:
             continue
         if record.get('peak_rss_bytes') is None or record['size'] not in LADDER_OF:
             continue

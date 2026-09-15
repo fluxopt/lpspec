@@ -1,6 +1,6 @@
 """``sum(x, by=[l, m])`` — one grouping through several maps at once.
 
-The single-lookup form lands terms on one dimension; this lands them on a
+The single-relation form lands terms on one dimension; this lands them on a
 product of dimensions, which is what a capacity limit per *location and
 technology* asks for. PyPSA ships exactly that as a constraint type
 (`tech_capacity_expansion_limit`, carrier and bus together), so the shape has
@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import pytest
 from math_spec import to_program
-from math_spec.program import GroupSum, Variable
+from math_spec.program import GroupSum, RelationDeclaration, Variable, Walk
 
 from lpspec.errors import DimensionError
 from tests.conftest import by_coord, override, raw_of, relation, schema_of
@@ -46,9 +46,9 @@ dimensions:
   bus: {dtype: str, description: a node of the network}
   technology: {dtype: str, description: what a generator is built from}
 
-lookups:
-  gen_bus: {over: generator, into: bus, description: the bus a generator sits on}
-  gen_tech: {over: generator, into: technology, description: the technology it is}
+relations:
+  gen_bus: {columns: [generator, bus], key: generator, description: the bus a generator sits on}
+  gen_tech: {columns: [generator, technology], key: generator, description: the technology it is}
 
 parameters:
   cost: {dims: [generator], description: marginal cost of a unit of output}
@@ -110,7 +110,7 @@ def _inputs():
 # ---------------------------------------------------------------------------
 
 
-def test_grouping_through_two_lookups_agrees_across_the_lanes():
+def test_grouping_through_two_relations_agrees_across_the_lanes():
     """The optimum, hand-derived, and the same on both lanes and the LP file.
 
     (a, wind) caps `g1` at 10 and (a, sun) caps `g2` at 5, which is 15 of the
@@ -232,27 +232,37 @@ def test_a_grouped_parameter_reads_zero_where_no_member_lands():
 # ---------------------------------------------------------------------------
 
 
-def test_two_lookups_lower_to_one_node_and_not_to_a_composition():
+def test_two_relations_lower_to_one_node_and_not_to_a_composition():
     """One grouping, so one plan node: the coordinates ride one join.
 
     A composition would consume `generator` twice, and the second pass would
     have nothing left to group.
     """
     (limit, _demand) = to_program(schema_of(SPEC)).constraints.values()
-    assert limit.lhs == GroupSum(
-        Variable('p'), over='generator', coordinate=('gen_bus', 'gen_tech'), into=('bus', 'technology')
-    )
+    assert isinstance(limit.lhs, GroupSum)
+    assert limit.lhs.operand == Variable('p')
+    assert (limit.lhs.over, limit.lhs.coordinate, limit.lhs.into) == (
+        ('generator',),
+        ('gen_bus', 'gen_tech'),
+        ('bus', 'technology'),
+    ), 'one node carrying both maps, each paired with the dimension it lands on'
 
 
-def test_a_hand_built_node_whose_tuples_disagree_is_refused():
-    """`math_spec.program` is a public IR, so a node can arrive without going through
-    resolution — and the two tuples pair up positionally, so a mismatch would
-    otherwise drop the unpaired coordinate and group by one map too few.
+def test_a_hand_built_walk_onto_two_columns_is_refused():
+    """`math_spec.program` is a public IR, so a node can arrive without the front door.
 
-    Nothing in the language can build this: resolution derives both tuples
-    from one list of names. It is the shortest path to the guard.
+    The compiler pairs one relation with one dimension it lands on, so a walk
+    onto two columns at once would leave the second unpaired and group by one
+    map too few. No file reaches this: `lpspec.relations.refusal` turns away
+    a relation of three columns before either lane sees it, so a hand-built
+    node is the shortest path to the guard.
     """
-    node = GroupSum(Variable('p'), over='generator', coordinate=('gen_bus', 'gen_tech'), into=('bus',))
+    gen_bt = RelationDeclaration(
+        'gen_bt',
+        (('generator', 'generator'), ('bus', 'bus'), ('technology', 'technology')),
+        ('generator',),
+    )
+    node = GroupSum(Variable('p'), (Walk(gen_bt, ('generator',), ('bus', 'technology'), ()),))
     with pytest.raises(ValueError, match='zip'):
         compiler().expression(node, 'a hand-built plan')
 
@@ -262,10 +272,10 @@ def test_a_hand_built_node_whose_tuples_disagree_is_refused():
 # ---------------------------------------------------------------------------
 
 
-def test_a_partition_is_one_lookup_and_says_so():
-    """`shift(by=...)` takes a lookup in the other position, so a list means nothing.
+def test_a_partition_is_one_relation_and_says_so():
+    """`shift(by=...)` takes a relation in the other position, so a list means nothing.
 
-    `sum` and `at` consume the dim their lookups are over and *produce* the
+    `sum` and `at` consume the dim their relations are over and *produce* the
     targets, which is what a list is: one grouping into a product. A partition
     produces nothing — it says which rows are neighbours — so several of them
     name no shape the operator could walk, and the refusal is at load rather
@@ -273,7 +283,7 @@ def test_a_partition_is_one_lookup_and_says_so():
     """
     patch = {
         'constraints.technology_at_bus.dims': ['generator'],
-        'constraints.technology_at_bus.expression': 'shift(p, over=generator, offset=1, by=[gen_bus, gen_tech]) <= 1',
+        'constraints.technology_at_bus.expression': 'shift(p, along=generator, offset=1, by=[gen_bus, gen_tech]) <= 1',
     }
-    with pytest.raises(DimensionError, match=r'by=\[gen_bus, gen_tech\]\) partitions by several lookups'):
+    with pytest.raises(DimensionError, match=r'by=\[gen_bus, gen_tech\]\) partitions by several relations'):
         schema_of(SPEC, **patch)

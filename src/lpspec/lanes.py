@@ -14,6 +14,7 @@ from math_spec.program import Program
 
 from lpspec.errors import LpspecError
 from lpspec.relational.sinks.capabilities import Capabilities
+from lpspec.relations import refusal as _relation_refusal
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping
@@ -70,8 +71,8 @@ type Label = int | float | str | datetime
 #: plain-Python shapes a hand-written model reaches for, a ``{label: value}``
 #: map, a sequence in the dimension's own label order, and one number for
 #: every coordinate. A dimension's index: a table carrying a column named
-#: after it, or a bare sequence of its labels. A lookup: the table of the
-#: rows it maps.
+#: after it, or a bare sequence of its labels. A relation: the table of the
+#: rows it holds, one column per column it declares.
 type Source = (
     str
     | Path
@@ -109,7 +110,7 @@ def _case_collision(program: Program) -> str | None:
     """
     flat = (
         *(('dimension', name) for name in program.dimensions),
-        *(('lookup', lookup.name) for _, lookup in program.lookups),
+        *(('relation', name) for name in program.relations),
         *(('parameter', name) for name in program.parameters),
         *(('variable', name) for name in program.variables),
         *(('named expression', name) for name in program.named_expressions),
@@ -139,9 +140,11 @@ def lowered(spec: Buildable) -> Program:
     Raises:
         LanguageError: A construct outside the streaming language.
         LpspecError: Two declarations of one namespace whose names differ only
-            by case.
+            by case, or a relation wider than the single-valued map either lane
+            builds.
     """
     program = to_program(spec)
-    if (collision := _case_collision(program)) is not None:
-        raise LpspecError(collision)
+    for refused in (_case_collision(program), _relation_refusal(program)):
+        if refused is not None:
+            raise LpspecError(refused)
     return program

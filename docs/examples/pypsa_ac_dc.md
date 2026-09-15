@@ -5,15 +5,15 @@ A meshed AC–DC network under a CO₂ budget. **PyPSA's own `ac-dc-meshed` exam
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **18441021.477729216**, matched to `rtol=1e-09`, nodal prices included.
 
 Every model above puts a generator on a bus and stops there. Here a generator
-also burns a **carrier**, and both maps do work: the nodal balance groups
-generation through `bus`, while the CO₂ budget reads an emission rate back down
+also burns a **carrier**, and both maps do work. The nodal balance groups
+generation through `bus`; the CO₂ budget reads an emission rate back down
 through `carrier`. Two coordinates on one dimension, landing on two different
-axes.
+targets.
 
 Nine buses, six generators, seven passive lines and four controllable links
-across three sub-networks — the first ported network large enough that the two
-kinds of branch matter. Capacity is a decision everywhere, so the model prices
-what it builds as well as what it runs.
+across three sub-networks: large enough that the two kinds of branch matter.
+Capacity is a decision everywhere, so the model prices what it builds as well
+as what it runs.
 
 ## The model
 
@@ -28,8 +28,8 @@ PyPSA linear optimal power flow on a meshed AC-DC network whose generators sit o
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
-| $`\mathcal{C}`$ | index $`c`$ — `carrier` — what a generator burns, and what its emissions are a property of |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\ \mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_from}: \mathcal{I} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{I} \to \mathcal{B}`$ — network nodes |
+| $`\mathcal{C}`$ | index $`c`$ — `carrier` with $`\mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}`$ — what a generator burns, and what its emissions are a property of |
 | $`\mathcal{E}`$ | index $`e`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{E} \to \mathcal{B},\ \mathrm{gen\_carrier}: \mathcal{E} \to \mathcal{C}`$ — generating units, each sitting on a bus and burning a carrier — two coordinates on one dimension, landing on two different axes |
 | $`\mathcal{L}`$ | index $`l`$ — `line` with $`\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — passive AC lines, each joining two buses |
 | $`\mathcal{I}`$ | index $`i`$ — `link` with $`\mathrm{link\_from}: \mathcal{I} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{I} \to \mathcal{B}`$ — controllable connections, each joining two buses |
@@ -201,31 +201,31 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: one independent loop per meshed sub-network
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       gen_carrier:
         description: the carrier a generator burns
-        over: generator
-        into: carrier
+        columns: [generator, carrier]
+        key: generator
       line_from:
         description: the bus a line leaves
-        over: line
-        into: bus
+        columns: [line, bus]
+        key: line
       line_to:
         description: the bus a line arrives at
-        over: line
-        into: bus
+        columns: [line, bus]
+        key: line
       link_from:
         description: the bus a link leaves
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
       link_to:
         description: the bus a link arrives at
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
 
     parameters:
       load:
@@ -453,34 +453,29 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **An emission rate is a property of the carrier, and `at()` is how a generator
-reads it.** `co2_per_mwh` is dimensioned over `carrier` alone — six generators,
-two rates — and `at(co2_per_mwh, by=gen_carrier)` walks the map
-backwards to put the right rate beside each generator's output. PyPSA does the
-same join through `n.carriers`; the difference is that here the map is declared
-once and checked at load.
-
-The alternative is a `(generator, carrier)` incidence table contracted away,
-which reaches the same number and no longer says that a generator burns exactly
-one fuel.
+reads it.** `co2_per_mwh` is dimensioned over `carrier` alone: six generators,
+two rates. `at(co2_per_mwh, by=gen_carrier)` walks the map backwards to put
+the right rate beside each generator's output. PyPSA does the same join
+through `n.carriers`.
 
 **The recorded optimum is the system cost, not `n.objective`.** Every component
-here is extendable, so PyPSA credits the capital already standing in `p_nom` and
-reports the change against that starting point — a *negative* number on this
-network. The port has no starting point to credit and states the cost outright,
-so the figure recorded is `n.objective + n.objective_constant`. Worth knowing
-before comparing any PyPSA capacity-expansion result against anything.
+here is extendable, so PyPSA credits the capital already standing in `p_nom`.
+It reports the change against that starting point, a negative number on this
+network. The port has no starting point to credit and states the cost
+outright, so the recorded figure is `n.objective + n.objective_constant`.
 
 ## What it exercises
 
-Two lookups over one dimension into different targets, and `at()` reading a
+Two relations keyed over one dimension onto different dimensions, and `at()` reading a
 parameter that lives only on the coarse end. Beside them, the shapes the
 models above already established: `sum(by=)` on both ends of two different branch
 dimensions, and a cycle basis as a sparse `(cycle, line)` parameter.
 
-The cycle basis carries **impedance** rather than reactance alone: PyPSA applies
+The cycle basis carries impedance rather than reactance alone. PyPSA applies
 the voltage law with `x` inside an AC sub-network and `r` inside a DC one, and
 this network has one meshed loop of each. Which value belongs in the row is
-decided in data preparation, where [the limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation) puts
-graph work — the language sees one incidence table either way.
+decided in data preparation, where
+[the limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
+put graph work; the language sees one incidence table either way.
 
 No new construct was needed.

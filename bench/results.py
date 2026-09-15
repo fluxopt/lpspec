@@ -6,7 +6,7 @@ read against the numbers it prints. When the harness became pytest, the cheap
 and safe move was to leave every one of those lines alone and change only what
 feeds them — so this module speaks the record shape they already read:
 
-    {'record': 'timing', 'case', 'size', 'arm', 'sink',
+    {'record': 'timing', 'case', 'size', 'arm', 'sink', 'phase',
      'wall_seconds', 'fastest_seconds', 'q1_seconds', 'q3_seconds', 'iqr', 'median', 'rounds',
      'peak_rss_bytes', 'peak_bytes', 'allocations',
      'counts': {...}, 'live_fraction'}
@@ -111,6 +111,19 @@ def _commit(info: dict[str, Any]) -> str | None:
     return f'{head}-dirty' if info.get('dirty') else head
 
 
+def _phase(name: str) -> str:
+    """Which rung a timing record came off, so two of them cannot share a key.
+
+    `test_emit` and `test_window` measure the same cell — same case, size, sink
+    and arm — at two different moments of a driver's life: the first window and
+    a later one. Without this they are one key, and the renderers, which take
+    the lowest wall clock per key, publish the re-attach as though it were the
+    build (#1617). Every consumer filters on it; `bench/tidy.py` carries it into
+    the long CSV as the `phase` column.
+    """
+    return 'window' if name.startswith('test_window') else 'emit'
+
+
 def _benchmem(extra: dict[str, Any], field: str) -> float | None:
     """One pytest-benchmem series, reduced across repeats. ``None`` without `isolate=True`.
 
@@ -190,6 +203,7 @@ def records(path: Path) -> Iterator[dict[str, Any]]:
         yield {
             **common,
             'record': 'timing',
+            'phase': _phase(b['name']),
             'sink': params.get('sink'),
             'wall_seconds': stats.get('median'),
             'fastest_seconds': stats.get('min'),

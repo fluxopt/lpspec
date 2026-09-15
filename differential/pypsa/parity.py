@@ -172,11 +172,11 @@ def flattened(name: str, table: object, dims: list[str]) -> object:
 def prepared(spec: Path, n, stem: str | None = None) -> dict[str, object]:
     """`prep.sources` cut to what *spec* declares — lpspec refuses a key the spec does not take; *stem* names the rung whose `OPTIMIZE` sizes the loss fan."""
     declared = math_spec.to_spec(spec)
-    names = {*declared.dimensions, *declared.parameters, *declared.lookups}
+    names = {*declared.dimensions, *declared.parameters, *declared.relations}
     losses = keywords(stem).get('transmission_losses', {}) if stem else {}
     segments = int(losses.get('segments', 0)) if isinstance(losses, dict) else int(losses or 0)
     dims = {name: p.dims for name, p in declared.parameters.items()} | {
-        name: [lookup.over] for name, lookup in declared.lookups.items()
+        name: list(relation.keys) for name, relation in declared.relations.items()
     }
     return {
         name: flattened(name, table, dims.get(name, []))
@@ -836,7 +836,7 @@ def coverage(stamped: dict[str, dict]) -> list[str]:
                     gaps.append(f'{name}: {block_name} is always all-or-nothing, so its mask is untested')
         fed = set().union(*(stamp['attached_nonempty'] for stamp in stamps))
         gaps.extend(
-            f'{name}: no rung feeds {unfed}' for unfed in sorted({*declared.parameters, *declared.lookups} - fed)
+            f'{name}: no rung feeds {unfed}' for unfed in sorted({*declared.parameters, *declared.relations} - fed)
         )
         gaps.extend(untested_conjuncts(name, math_spec.to_program(CORPUS / 'examples' / name), stamps))
     return gaps

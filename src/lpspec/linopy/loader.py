@@ -8,6 +8,7 @@ import pandas as pd
 import xarray as xr
 
 from lpspec.frames import to_pandas
+from lpspec.relations import maps_out_of
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -20,37 +21,37 @@ def dimension_coords(
     program: program.Program,
     tidy: Mapping[str, pl.LazyFrame],
 ) -> tuple[dict[str, pd.Index], dict[str, dict[str, xr.DataArray]]]:
-    """Every dimension's labels, and each declared lookup as an array over its dimension.
+    """Every dimension's labels, and each declared relation as an array over the dimension it is keyed by.
 
     *tidy* is :func:`~lpspec.sources.tidy_sources`' output, so every index and
     map has been read and checked; what happens here is the conversion.
 
     Returns:
         The master coordinates by dimension, and by dimension the array each
-        declared lookup carries over it. A dimension declaring no lookup is
-        absent from the second.
+        map keyed over it carries. A dimension no map runs out of is absent
+        from the second.
     """
     master = {d: pd.Index(pd.unique(to_pandas(tidy[d].select(d).collect())[d]), name=d) for d in program.dimensions}
-    return master, _lookup_arrays(program, tidy, master)
+    return master, _relation_arrays(program, tidy, master)
 
 
-def _lookup_arrays(
+def _relation_arrays(
     program: program.Program,
     tidy: Mapping[str, pl.LazyFrame],
     master: Mapping[str, pd.Index],
 ) -> dict[str, dict[str, xr.DataArray]]:
-    """Each declared lookup as an array over the dimension it is over.
+    """Each map as an array over the dimension it is keyed by.
 
-    A map arrives as its own ``(over, lookup)`` relation holding rows only
+    A map arrives as its own ``(key dim, relation)`` table holding rows only
     where it is defined. **The padding happens here**: an array is dense by
     construction, and linopy's ``groupby`` wants one aligned to the
     dimension's coordinates — so a label the relation leaves out becomes a
     null, which every reader on this lane treats as "in no group".
     """
     out: dict[str, dict[str, xr.DataArray]] = {}
-    for dim, declared in program.dimensions.items():
+    for dim in program.dimensions:
         labels = master[dim]
-        for name in declared.targets:
+        for name in maps_out_of(program, dim):
             series = to_pandas(tidy[name].collect()).set_index(dim)[name].reindex(labels)
             out.setdefault(dim, {})[name] = xr.DataArray(series.to_numpy(), dims=[dim], coords={dim: labels}, name=name)
     return out

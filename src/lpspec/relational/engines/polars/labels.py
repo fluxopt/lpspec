@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
+from lpspec.relational.collect import polars_engine
 from lpspec.relational.engines.polars.compiler import UNIT, ordinal
 
 if TYPE_CHECKING:
@@ -109,7 +110,7 @@ def frame(
         numbering = pl.lit(start, dtype=pl.Int64) + numbering
     position = '#position' if dropped else label
     materialised = in_position_order(
-        surviving.select(*(dims or (UNIT,)), numbering.alias(position)).collect(engine='streaming'),
+        surviving.select(*(dims or (UNIT,)), numbering.alias(position)).collect(engine=polars_engine()),
         position,
     )
     if not dropped and dims:
@@ -133,7 +134,7 @@ def declared_height(compiler: PolarsCompiler, dims: tuple[str, ...], where: prog
     """
     if where is None:
         return math.prod(compiler.data.cardinality[d] for d in dims)
-    return int(compiler.frame(dims, where).select(pl.len()).collect(engine='streaming').item())
+    return int(compiler.frame(dims, where).select(pl.len()).collect(engine=polars_engine()).item())
 
 
 def _factored(
@@ -170,7 +171,7 @@ def _factored(
         .sort([ordinal(d) for d in kept])
         .select(*kept)
         .with_row_index(rank)
-        .collect(engine='streaming')
+        .collect(engine=polars_engine())
     )
     width = survivors.height
     if width == 0:
@@ -184,7 +185,7 @@ def _factored(
             *dims,
             (pl.lit(start, dtype=pl.Int64) + pl.col(position) * width + pl.col(rank)).alias(label),
         )
-        .collect(engine='streaming')
+        .collect(engine=polars_engine())
     )
     return in_position_order(labelled, label).with_columns(pl.col(label).set_sorted())
 

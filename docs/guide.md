@@ -29,9 +29,8 @@ import lpspec as lps
 program = lps.check('dispatch.yaml')
 ```
 
-`check` lowers the file to a plan with no data attached, and raises if the
-file uses something outside the language. The plan is for reading — the verbs
-below take the file, or a `math_spec.to_spec` of it, not the plan.
+`check` raises if the file uses something outside the language, and needs no
+data to do it.
 
 ## 4. Attach the numbers and solve
 
@@ -56,9 +55,7 @@ print(result.objective)  # 10500.0
 ```
 
 Wind at 10 runs first, and gas at 50 covers what is left. Solar has no
-capacity, so the `where: "p_max > 0"` on `p` built no column for it. These
-are the numbers of the committed instance, so
-[preparing the data](howto/data.md) reaches the same 10500 from its files.
+capacity, so the `where: "p_max > 0"` on `p` built no column for it.
 
 ## 5. Read the answer back
 

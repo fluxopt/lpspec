@@ -182,7 +182,7 @@ CARRIED_IN = {
                 'boundary': {'when': 'switchable and position(t) == 0', 'expression': 'before'},
             },
             # no `edge=`, so this region has nothing at t == 0 - which no region claims it at
-            'otherwise': 'shift(on, over=t, offset=1)',
+            'otherwise': 'shift(on, along=t, offset=1)',
         }
     },
     'constraints': {
@@ -190,7 +190,7 @@ CARRIED_IN = {
         'runs_only_when_on': {'dims': ['t', 'g'], 'expression': 'p <= on * cap'},
         'ramp': {
             'dims': ['t', 'g'],
-            'expression': 'p - shift(p, over=t, offset=1, edge=0) <= step * carried + first_step * (1 - carried)',
+            'expression': 'p - shift(p, along=t, offset=1, edge=0) <= step * carried + first_step * (1 - carried)',
         },
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost)'},
@@ -302,7 +302,7 @@ def test_a_region_that_claims_nothing_does_not_unmake_the_row():
             'carried': {
                 'dims': ['t', 'g'],
                 'cases': {'always': {'when': 'everywhere', 'expression': 1}},
-                'otherwise': 'shift(on, over=t, offset=1)',
+                'otherwise': 'shift(on, along=t, offset=1)',
             }
         },
     }

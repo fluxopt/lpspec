@@ -59,22 +59,22 @@ def _empty_sum(array: Any, over: str) -> Any:
 def operator_grouped_sum(
     array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...], labels: Mapping[str, pd.Index]
 ) -> Any:
-    """Sum *array* through declared lookups, producing dimensions *into*.
+    """Sum *array* through declared relations, producing dimensions *into*.
 
     YAML: ``sum(p, by=gen_bus)`` or ``sum(p, by=[gen_bus, gen_tech])``.
-    *mappings* are the lookups' values as one-dimensional arrays over the dim
+    *mappings* are the maps' values as one-dimensional arrays over the dim
     being grouped; that dim is summed out and *into* holds the group labels,
-    one dim per lookup.
+    one dim per relation.
 
-    A null lookup value says the label belongs to no group, so its terms
+    A null value says the label belongs to no group, so its terms
     contribute nowhere. linopy refuses to group by NaN at all, so those members
-    are dropped before grouping — and with several lookups a member missing
+    are dropped before grouping — and with several relations a member missing
     *any* of them belongs to no group at all.
 
     *labels* holds each target's declared index, and the result is reindexed
     onto them: a groupby yields only the labels some member actually points at,
     in xarray's sort order, and linopy v1 aligns on membership *and* order.
-    Lookup values are validated against their target's labels when they are
+    A map's values are validated against their target's labels when they are
     loaded, so this only ever adds a label, never drops a term.
     """
     mappings = _renamed(mappings, into)
@@ -90,7 +90,7 @@ def operator_grouped_sum(
 
 
 def operator_at(array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...]) -> Any:
-    """Read *array* through declared lookups — the adjoint of a group.
+    """Read *array* through declared relations — the adjoint of a group.
 
     YAML: ``at(on, by=component)``. *mappings* are the same one-dimensional
     arrays ``sum`` takes; grouping sums *along* them, this indexes *through*
@@ -99,7 +99,7 @@ def operator_at(array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...])
     pullback exactly — one ``into`` label read once per fine label pointing at
     it.
 
-    A null lookup value reads nothing and its row is absent, the same reading
+    A null value reads nothing and its row is absent, the same reading
     ``sum`` gives a null group. It cannot be selected, so it is dropped from
     the indexer and the result is put back over the whole dim, the missing
     positions holding the operand's own **absence** rather than a zero: absence
@@ -128,7 +128,7 @@ class _Edge:
 def operator_shift(array: Any, *, over: str, offset: Any, wrap: bool, fill: float | None, by: Any = None) -> Any:
     """Translate *array* along one dimension — the value at *t - offset*.
 
-    YAML: ``shift(soc, over=snapshot, offset=1)``. *wrap* is cyclic and vacates
+    YAML: ``shift(soc, along=snapshot, offset=1)``. *wrap* is cyclic and vacates
     nothing; *fill* is what the vacated positions contribute; neither leaves
     them **absent**, which propagates and drops the row — what linopy v1's own
     ``shift`` already answers.
@@ -159,7 +159,7 @@ def operator_shift(array: Any, *, over: str, offset: Any, wrap: bool, fill: floa
 def operator_sum_back(array: Any, *, over: str, within: Any, wrap: bool, by: Any = None) -> Any:
     """Sum *array* over a trailing window along one dimension.
 
-    YAML: ``sum_back(started, over=snapshot, within=min_up)``. The result at
+    YAML: ``sum_back(started, along=snapshot, window=min_up)``. The result at
     *t* is the sum from *t - within + 1* through *t*, so a width of 1 is the
     operand itself and *wrap* lets the window reach around the axis.
 
@@ -176,7 +176,7 @@ def operator_sum_back(array: Any, *, over: str, within: Any, wrap: bool, by: Any
     no row. A width of zero everywhere is that window at every position.
 
     ``by=`` stops the window at each group's edge. A width declared over the
-    group's own dim is read through the lookup first (:func:`_per_group`).
+    group's own dim is read through the relation first (:func:`_per_group`).
     """
     within = _per_group(within, by) if by is not None else within
     asked = _widest(within)
@@ -202,7 +202,7 @@ def operator_sum_back(array: Any, *, over: str, within: Any, wrap: bool, by: Any
 def _widest(within: Any) -> int:
     """The widest window the data asks for, which bounds how many lags are gathered.
 
-    A coordinate the lookup maps nowhere asks for no window: a width read
+    A coordinate the relation maps nowhere asks for no window: a width read
     through one carries the operand's own absence there (:func:`_per_group`),
     so the maximum skips the holes rather than coming back absent itself, and
     a width no coordinate carries at all is a window of nothing. The lag loop
@@ -290,8 +290,8 @@ def _per_group(offset: Any, groups: Any) -> Any:
 
     One lag per group — a lead time that differs by period, which a
     ``(period, timestep)`` model writes as an offset over ``period`` because
-    ``period`` is not the axis it walks. The group *is* the lookup's value, so
-    the lag a coordinate moves by is its group's, read through that lookup:
+    ``period`` is not the axis it walks. The group *is* the relation's value, so
+    the lag a coordinate moves by is its group's, read through that relation:
     the pullback ``at()`` already is. Every other offset is returned as it
     came.
 
@@ -308,7 +308,7 @@ def _per_group(offset: Any, groups: Any) -> Any:
 
 @dataclass(frozen=True)
 class _Groups:
-    """How one lookup partitions an axis, as the arrays every in-group gather reads.
+    """How one relation partitions an axis, as the arrays every in-group gather reads.
 
     Computed once per operand and shared across a window's lags: the partition
     does not depend on the lag.
@@ -337,7 +337,7 @@ class _Groups:
 def _grouped(over: str, labels: np.ndarray, groups: Any) -> _Groups:
     """The partition *groups* makes of the axis *over* carrying *labels*.
 
-    A coordinate the lookup sends nowhere belongs to no group: its ``within``
+    A coordinate the relation sends nowhere belongs to no group: its ``within``
     is 0, its ``size`` 1 and its ``grouped`` False, and every gather reads the
     last of those first.
     """
@@ -391,7 +391,7 @@ def _gather_in_groups(array: Any, over: str, offset: Any, *, groups: _Groups, ed
     member, and carries the offset's own dims.
 
     A coordinate in no group reaches nothing — the null reading a partial
-    lookup gets everywhere else. That is not the same as reaching *off* a
+    relation gets everywhere else. That is not the same as reaching *off* a
     group's edge, which is what a policy speaks for, so the two are tracked
     apart and only the second is filled.
     """

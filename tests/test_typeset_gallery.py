@@ -137,7 +137,7 @@ DIVERGENT = {
     ),
     'multi_period': (
         'writes the pullback in reader notation: a hatted p for the capacity variable '
-        'and period() for the lookup, where the generator spells the declarations — '
+        'and period() for the relation, where the generator spells the declarations — '
         'p^nom and period_of(). Matching would take a symbol table, not a renderer '
         'change.'
     ),

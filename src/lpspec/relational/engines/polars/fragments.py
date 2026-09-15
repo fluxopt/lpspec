@@ -54,7 +54,7 @@ def join_on(
 
 #: The right-hand operand's value while a join holds both. The spaces make it
 #: unrepresentable as a declared name, so it cannot collide with a dimension or
-#: lookup the model already has.
+#: relation the model already has.
 _RHS = '__rhs value__'
 
 #: Carries the one bit a *scalar* declaration's presence frame has to say:

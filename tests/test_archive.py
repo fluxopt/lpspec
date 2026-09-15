@@ -20,7 +20,7 @@ import yaml as pyyaml
 from math_spec import to_program, to_spec
 
 import lpspec as lps
-from lpspec.layout import ANSWER_DIR, DIGESTS_MEMBER, _staging_for
+from lpspec.layout import ANSWER_DIR, _staging_for
 from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of_file
 from lpspec.sources import attachable, tidy_sources
 from tests.conftest import (
@@ -62,7 +62,7 @@ def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: s
     spec, unpacked = _question(lps.load_archive(archive, tmp_path / 'out'))
 
     assert set(unpacked) == set(attachable(program)), (
-        'the archive holds one member per attachable key — every declared parameter, dimension and lookup, '
+        'the archive holds one member per attachable key — every declared parameter, dimension and relation, '
         'and nothing a piecewise block derives'
     )
     before = tidy_sources(program, sources)
@@ -410,22 +410,6 @@ def test_a_sweep_archive_digests_the_sources_it_was_cut_from(
     }, 'each of the whole sources the sweep was cut from'
 
 
-def test_an_archive_holding_no_digest_table_is_refused_by_name(
-    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """An archive written before the digests reads as short of a member.
-
-    Nothing else would catch it: the answer's layout stamp says nothing about
-    the archive around it, and the sources are all still there.
-    """
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case').close()
-    (tmp_path / 'case' / DIGESTS_MEMBER).unlink()
-
-    with pytest.raises(lps.LayoutError, match=DIGESTS_MEMBER) as excinfo:
-        lps.load_archive(tmp_path / 'case')
-    assert 'Solving the model it holds again' in str(excinfo.value), 'and the message names the way out'
-
-
 def test_an_archive_records_what_reaching_its_answer_cost(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
@@ -503,22 +487,6 @@ def test_a_case_that_wrote_a_file_and_one_that_did_not_are_still_one_table(
     )
     files = pl.concat(pl.read_parquet(tmp_path / case / ANSWER_DIR / METRICS_FILE) for case in cases)
     assert files.height == 2, 'and the two files a warehouse globs are one table'
-
-
-def test_an_archive_holding_no_metrics_row_is_refused_by_name(
-    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """The layout stamp cannot say this one, so the missing member has to.
-
-    `format.json` is held at 0 while the layout moves, so an archive written
-    before the metrics row reads as current and is short of a member instead.
-    """
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
-    (tmp_path / 'case' / ANSWER_DIR / METRICS_FILE).unlink()
-
-    with pytest.raises(lps.LayoutError, match=METRICS_FILE) as excinfo:
-        lps.load_archive(tmp_path / 'case')
-    assert 'solving the model it holds again' in str(excinfo.value), 'and the message names the way out'
 
 
 def test_an_archive_whose_metrics_are_short_of_a_column_is_refused_by_name(

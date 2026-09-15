@@ -14,11 +14,11 @@ dimensions:
     description: generating units, each sitting on one bus
     dtype: str
 
-lookups:
+relations:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    columns: [generator, bus]
+    key: generator
 
 parameters:
   weighting:

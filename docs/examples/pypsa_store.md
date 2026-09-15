@@ -4,10 +4,9 @@ The component every sector-coupled PyPSA model uses for hydrogen, heat and gas.
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **7005.5025000000005**, matched to `rtol=1e-09`.
 
-[Storage units](pypsa_storage.md) ports the `StorageUnit`: a dispatch/store pair of
-non-negative variables so the two efficiencies can differ, and a power rating of
-its own. A `Store` is a different component, not a re-parametrisation of that
-one:
+[Storage units](pypsa_storage.md) ports the `StorageUnit`: a dispatch/store pair
+of non-negative variables, one per efficiency, and a power rating of its own. A
+`Store` is a different component:
 
 | | `StorageUnit` | `Store` |
 |---|---|---|
@@ -33,7 +32,7 @@ PyPSA's Store component: one signed power at the bus, no efficiencies and no pow
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{store\_bus}: \mathcal{S} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{S}`$ | index $`s`$ — `store` with $`\mathrm{store\_bus}: \mathcal{S} \to \mathcal{B}`$ — energy stores, each sitting on one bus |
 
@@ -149,15 +148,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: energy stores, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       store_bus:
         description: the bus a store sits on
-        over: store
-        into: bus
+        columns: [store, bus]
+        key: store
 
     parameters:
       p_nom:
@@ -231,7 +230,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the store supplied to its bus
         dims: [snapshot, store]
         expression: >-
-          e == shift(e, over=snapshot, offset=1) * (1 - standing_loss) - store_p
+          e == shift(e, along=snapshot, offset=1) * (1 - standing_loss) - store_p
 
     objective:
       sense: minimize
@@ -292,24 +291,24 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         return n
     ```
 
-**The standing loss is visible in the price vector, which is why it is recorded.**
-The nodal prices run `68.79, 72.41, 76.23, 85.50, 90.00, 10.00` — each earlier
+**The standing loss is visible in the price vector, so the reference reads it.**
+The nodal prices run `68.79, 72.41, 76.23, 85.50, 90.00, 10.00`. Each earlier
 snapshot's price is the next one's divided by 0.95, because a unit stored now is
 worth 0.95 of a unit later. A port that dropped the decay would still solve and
-still look sensible; it would hold more energy than it should, buy less gas, and
-report a lower cost. The dual vector catches it where a single objective figure
-might not.
+still look sensible. It would hold more energy than it should, buy less gas, and
+report a lower cost. The dual vector catches that where a single objective
+figure might not.
 
 **The initial level is not decayed, and the instance can tell.** PyPSA's first
 row is `e = e_initial - p`, so the 20 MWh in the tank before the horizon arrives
-whole. Decay it and the same instance costs **7074.30** against **7005.50** — a
-version with an empty tank reports 3116.36 either way, which is what this
-model was doing.
+whole. Decay it and the same instance costs **7074.30** against **7005.50**. A
+version with an empty tank reports 3116.36 either way, which is why the tank
+starts full.
 
 **A store with no rating still cannot move arbitrary power**, because the level
-it draws from is bounded and the level it charges into is too. That is why the
-port declares `store_p` with no bounds at all — an upper bound written here
-would be a limit PyPSA does not have.
+it draws from is bounded and so is the level it charges into. The port declares
+`store_p` with no bounds at all. An upper bound here would be a limit PyPSA does
+not have.
 
 ## What it exercises
 

@@ -5,12 +5,12 @@ A hydro unit takes inflow it did not choose, and spills what neither turbine nor
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **3200.0**, matched to `rtol=1e-09`.
 
 `inflow` is energy that arrives whether or not the model wanted it. When the
-reservoir is full and the turbine is at its limit, the energy balance can only
-close if something lets the surplus go — which is what `spill` is.
+reservoir is full and the turbine is at its limit, the energy balance closes
+only if something lets the surplus go. That is `spill`.
 
 Two storage units share the bus: `res` receives inflow, `bat` receives none. The
-battery earns its place by absorbing water that would otherwise be spilled, so
-neither unit is decoration.
+battery absorbs water that would otherwise be spilled, so neither unit is
+decoration.
 
 ## The model
 
@@ -25,7 +25,7 @@ PyPSA storage spillage: water a reservoir cannot hold leaves through a second si
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{S}`$ | index $`s`$ — `storage` with $`\mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — storage units, each sitting on one bus |
 
@@ -141,15 +141,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: storage units, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       storage_bus:
         description: the bus a storage unit sits on
-        over: storage
-        into: bus
+        columns: [storage, bus]
+        key: storage
 
     parameters:
       p_nom:
@@ -238,7 +238,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           less what was taken and what was let go
         dims: [snapshot, storage]
         expression: >-
-          soc == shift(soc, over=snapshot, offset=1)
+          soc == shift(soc, along=snapshot, offset=1)
           + p_store - p_dispatch + inflow - spill
 
     objective:
@@ -306,40 +306,34 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **Spilling is forced, not chosen.** Snapshot 1 opens with a full 60 MWh
-reservoir and 50 MWh more arriving against a 30 MW turbine, so at least 20 MWh
-has to go. Total gas burn is then pinned at `20 + spill` = 40 MWh, which is the
+reservoir and 50 MWh more arriving against a 30 MW turbine. At least 20 MWh has
+to go. Total gas burn is then pinned at `20 + spill` = 40 MWh, which is the
 entire objective. A port that dropped the spill variable would be **infeasible**
-rather than merely wrong — which is a better failure than most.
+rather than wrong.
 
-**The battery has no spill decision at all**, and says so. PyPSA declares the
-spill variable only for units whose inflow is positive somewhere; the port
-matches that with `where: "inflow != 0"`, which is why `spill` has six
-coordinates rather than twelve.
+**The battery has no spill decision at all.** PyPSA declares the spill variable
+only for units whose inflow is positive somewhere. The port matches that with
+`where: "inflow != 0"`, so `spill` has six coordinates rather than twelve.
 
-That mask is only safe because of the line beside it. A constraint mentioning a
-masked variable loses its **row**, not just the term — so on its own the mask
-would delete the battery's whole energy balance, its stored energy would come
-from nowhere, and the model would report **0.0** instead of 3200. `absence: zero`
-is what says the missing coordinates hold a spill of zero rather than a quantity
-with no value, so the row stands and the term simply is not in it.
+The mask is safe only because of the line beside it. A constraint mentioning a
+masked variable loses its **row**, not only the term. On its own the mask would
+delete the battery's whole energy balance. Its stored energy would come from
+nowhere, and the model would report **0.0** instead of 3200. `absence: zero`
+says the missing coordinates hold a spill of zero rather than a quantity with no
+value, so the row stands without the term.
 
-The alternative is to bound `spill` above by `inflow` and let the zero pin it,
-which is what this port did before `absence:` existed. Same answer, six more
-columns, and a model that says *this unit's spill is zero* where it means *this
-unit does not spill*.
-
-**Why the mask compares rather than naming the parameter.** `where: inflow`
+**The mask compares a value rather than naming the parameter.** `where: inflow`
 would be a **no-op** here: a `where:` on a bare parameter reads *defined and
-finite*, and the padded `0.0` is both. The zeros cannot simply be dropped from
-the table either — `inflow` is a term on the energy balance's constant side, and
-a sparse parameter there is refused at load, since a missing row read as zero
-would be a bound rather than an absence. So the sparsity that matters is in the
-*value*, and `!= 0` is how the model asks for it.
+finite*, and the padded `0.0` is both. Nor can the zeros be dropped from the
+table. `inflow` is a term on the energy balance's constant side, and a sparse
+parameter there is refused at load. A missing row read as zero would be a bound
+rather than an absence. The sparsity that matters is in the *value*, and
+`!= 0` is how the model asks for it.
 
 ## What it exercises
 
-`absence: zero` on a masked variable — the declaration that keeps a row whose
-term has gone — against an energy balance carrying two independent sinks. Also
+`absence: zero` on a masked variable, the declaration that keeps a row whose
+term has gone, against an energy balance carrying two independent sinks. Also
 the asymmetry underneath it: a masked **variable** takes its row, while a sparse
-**parameter** on a constant side is refused outright, so the two halves of this
-model's sparsity are spelled in two different ways.
+**parameter** on a constant side is refused. The two halves of this model's
+sparsity are spelled in two different ways.

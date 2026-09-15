@@ -25,7 +25,7 @@ PyPSA energy-total bounds: a generator's dispatch reduced over the whole horizon
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 
 #### Parameters
@@ -105,11 +105,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: generating units, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
 
     parameters:
       weighting:
@@ -219,21 +219,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **A bound only some rows have is written, not inferred.** PyPSA defaults the two
-attributes to ±∞ and emits a row only where the value is finite. Here the tables
-are short — one row in `e_sum_max`, one in `e_sum_min` — and the constraint
-carries `where: e_sum_max`. Leaving the `where:` off is refused at load time,
-with the reason spelled out: a missing row on a comparison's constant side would
-*be* the bound, so `x <= 0` would bind where the model said nothing. The two
-readings build different models, so neither is guessed.
+attributes to ±∞ and emits a row only where the value is finite. Here the
+tables are short, one row in `e_sum_max` and one in `e_sum_min`, and the
+constraint carries `where: e_sum_max`. Leaving the `where:` off is refused at
+load time. A missing row on a comparison's constant side would be the bound,
+so `x <= 0` would bind where the model said nothing.
 
 **The snapshot weightings are not 1, and that changes what a dual means.** They
-are the hours each snapshot stands for, and they enter twice — once in the
-energy the bounds see, once in the cost. PyPSA divides the nodal-balance dual by
-the objective weighting before publishing it as `marginal_price`, so its figure
-reads per unit energy: a flat **60** against a dual of **60, 120, 180, 120**.
-Every model above weights its snapshots 1 and hides the division entirely. The
-recorded reference is the dual, because that is the object both models hold —
-the port asserts the formulation, not the presentation.
+are the hours each snapshot stands for, and they enter twice: once in the
+energy the bounds see, once in the cost. PyPSA divides the nodal-balance dual
+by the objective weighting before publishing it as `marginal_price`, so its
+figure reads per unit energy. That is a flat **60** against a dual of
+**60, 120, 180, 120**. Every model above weights its snapshots 1 and hides the
+division. The recorded reference is the dual, the object both models hold.
 
 ## What it exercises
 

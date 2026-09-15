@@ -4,15 +4,14 @@ A day of dispatch for two carbon-capture plants and a wind farm under a net-zero
 
 > **✔ Verified against GenX** — objective **2341.8230753008093**, matched to `rtol=1e-09`. Asserted upstream in `test/test_piecewisefuel.jl`, and re-run here on GenX itself.
 
-**A plant burns one fuel, and that fuel's price moves hour by hour.** So the
-price a plant pays is a `(fuel, hour)` table read through the plant's own fuel —
-a lookup whose target keeps a dimension after the read. Every other reach-through
-in this corpus lands on a single value; this one lands on a row.
+**A plant burns one fuel, and that fuel's price moves hour by hour.** The price
+a plant pays is a `(fuel, hour)` table read through the plant's own fuel, a
+relation whose target keeps a dimension after the read. Every other reach-through
+in this corpus lands on a single value. This one lands on a row.
 
-The instance folds that read into `fuel_price[plant, hour]` because the
-mapping is one-to-one here, and the page says so rather than pretending
-otherwise: what the model needs is the *joined* price, and where a plant's fuel
-is a declared map the join is the language's to do.
+The instance folds that read into `fuel_price[plant, hour]`, because the mapping
+is one-to-one here. What the model needs is the *joined* price, and where a
+plant's fuel is a declared map the join is the language's to do.
 
 ## The model
 
@@ -30,8 +29,8 @@ GenX's piecewise-fuel case: a day of dispatch for two carbon-capture plants and 
 | $`\mathcal{H}`$ | index $`h`$ — `hour` — hours of a representative day that repeats |
 | $`\mathcal{S}`$ | index $`s`$ — `segment` — a piece of the fuel curve |
 | $`\mathcal{T}`$ | index $`t`$ — `step` — a block of demand that may be shed, each dearer than the last |
-| $`\mathcal{C}`$ | index $`c`$ — `commitment_mode` — the ways a plant may be committed |
-| $`\mathcal{F}`$ | index $`f`$ — `fuel_use_mode` — the ways a plant's fuel use may be read |
+| $`\mathcal{C}`$ | index $`c`$ — `commitment_mode` with $`\mathrm{commitment}: \mathcal{P} \to \mathcal{C}`$ — the ways a plant may be committed |
+| $`\mathcal{F}`$ | index $`f`$ — `fuel_use_mode` with $`\mathrm{fuel\_use}: \mathcal{P} \to \mathcal{F}`$ — the ways a plant's fuel use may be read |
 
 #### Parameters
 
@@ -282,15 +281,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: the ways a plant's fuel use may be read
         dtype: str
 
-    lookups:
+    relations:
       commitment:
         description: whether a plant is committed unit by unit or dispatched freely
-        over: plant
-        into: commitment_mode
+        columns: [plant, commitment_mode]
+        key: plant
       fuel_use:
         description: whether a plant's fuel use is read off the piecewise curve or a flat heat rate
-        over: plant
-        into: fuel_use_mode
+        columns: [plant, fuel_use_mode]
+        key: plant
 
     parameters:
       unit_size:
@@ -411,17 +410,17 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     expressions:
       started_recently:
         expression: >-
-          starting + shift(starting, over=hour, offset=1, edge='wrap')
-          + shift(starting, over=hour, offset=2, edge='wrap') + shift(starting, over=hour, offset=3, edge='wrap')
-          + shift(starting, over=hour, offset=4, edge='wrap') + shift(starting, over=hour, offset=5, edge='wrap')
+          starting + shift(starting, along=hour, offset=1, edge='wrap')
+          + shift(starting, along=hour, offset=2, edge='wrap') + shift(starting, along=hour, offset=3, edge='wrap')
+          + shift(starting, along=hour, offset=4, edge='wrap') + shift(starting, along=hour, offset=5, edge='wrap')
         description: >-
           units started in this hour or the five before it — the day is a
           representative period that repeats, so the first hour follows the last
       shut_recently:
         expression: >-
-          shutting + shift(shutting, over=hour, offset=1, edge='wrap')
-          + shift(shutting, over=hour, offset=2, edge='wrap') + shift(shutting, over=hour, offset=3, edge='wrap')
-          + shift(shutting, over=hour, offset=4, edge='wrap') + shift(shutting, over=hour, offset=5, edge='wrap')
+          shutting + shift(shutting, along=hour, offset=1, edge='wrap')
+          + shift(shutting, along=hour, offset=2, edge='wrap') + shift(shutting, along=hour, offset=3, edge='wrap')
+          + shift(shutting, along=hour, offset=4, edge='wrap') + shift(shutting, along=hour, offset=5, edge='wrap')
         description: units shut in this hour or the five before it
 
     constraints:
@@ -462,7 +461,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: what is committed changes only by what starts and what shuts
         dims: [plant, hour]
         where: "commitment == unit"
-        expression: committed - shift(committed, over=hour, offset=1, edge='wrap') == starting - shutting
+        expression: committed - shift(committed, along=hour, offset=1, edge='wrap') == starting - shutting
 
       stay_up_once_started:
         description: a unit that started within the last six hours is still committed
@@ -481,7 +480,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dims: [plant, hour]
         where: "commitment == unit"
         expression: >-
-          output - shift(output, over=hour, offset=1, edge='wrap')
+          output - shift(output, along=hour, offset=1, edge='wrap')
           <= ramp * unit_size * (committed - starting)
           + start_headroom * unit_size * starting
           - min_output * unit_size * shutting
@@ -490,7 +489,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dims: [plant, hour]
         where: "commitment == unit"
         expression: >-
-          shift(output, over=hour, offset=1, edge='wrap') - output
+          shift(output, along=hour, offset=1, edge='wrap') - output
           <= ramp * unit_size * (committed - starting)
           - min_output * unit_size * starting
           + start_headroom * unit_size * shutting
@@ -539,19 +538,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 ## What the port had to decide
 
 **A piecewise fuel curve is a floor per piece.** GenX gives the gas plant two
-segments — 6.0 MMBtu/MWh above a 0.4 no-load intercept, then 7.2 above 0.208 —
-and requires fuel use to be at least each of them. At the optimum it rests on
+segments: 6.0 MMBtu/MWh above a 0.4 no-load intercept, and 7.2 above 0.208.
+Fuel use must be at least each of them. At the optimum it rests on
 whichever binds, so the curve needs no binaries and no `piecewise:` block: it is
 one constraint over a `segment` axis. The intercept is charged per *committed
 unit*, which is why commitment has to be a variable even though nothing here is
 integral.
 
 **Commitment is continuous, and the day wraps.** `UCommit=2` relaxes the
-commitment variables, and the 24 hours are a representative period that repeats,
-so `shift(edge='wrap')` is exactly right: hour 1 follows hour 24. The six-hour
-minimum up and down times are the same for both plants, so they expand as six
-shifted terms. Where they differ by plant, `sum_back(within=)` reads the width
-off the column — [minimum up and down times](pypsa_min_up_down.md).
+commitment variables. The 24 hours are a representative period that repeats,
+so `shift(edge='wrap')` fits: hour 1 follows hour 24. The six-hour minimum up
+and down times are the same for both plants, so they expand as six shifted
+terms. Where they differ by plant, `sum_back(window=)` reads the width off the
+column, as in [minimum up and down times](pypsa_min_up_down.md).
 
 **Negative emissions are a coefficient, not a special case.** The biomass plant
 captures 90% of its carbon and the fuel counts its own uptake, so a burned
@@ -581,5 +580,5 @@ happened to preserve the total would still move one of these.
 
 `shift(edge='wrap')` on a representative day, a piecewise curve as a floor per
 piece rather than a formulation, and a carbon budget whose coefficients carry
-capture and uptake. No new construct — the interest is that a framework's
-dispatch model, settings and all, is a page of declarations.
+capture and uptake. No new construct: a framework's dispatch model, settings
+and all, is a page of declarations.

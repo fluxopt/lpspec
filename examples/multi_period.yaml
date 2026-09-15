@@ -14,8 +14,8 @@ dimensions:
     description: generating units
     dtype: str
 
-lookups:
-  period_of: {over: snapshot, into: period}
+relations:
+  period_of: {columns: [snapshot, period], key: snapshot}
 
 parameters:
   load:

@@ -124,7 +124,7 @@ LAWS = [
         id='reduction-is-linear-when-every-operand-is-total',
     ),
     pytest.param(
-        "sum(shift(shift(x, over=t, offset=1, edge='wrap'), over=t, offset=-1, edge='wrap'), over=f) <= 120",
+        "sum(shift(shift(x, along=t, offset=1, edge='wrap'), along=t, offset=-1, edge='wrap'), over=f) <= 120",
         'sum(x, over=f) <= 120',
         id='cyclic-shift-is-invertible',
     ),
@@ -253,8 +253,8 @@ def test_shift_and_a_filled_shift_are_different_operators():
     Bare, the vacated slot is absent and the row goes with it (#289). Filled, it
     contributes the identity of the position it sits in and the row survives.
     """
-    bare = _objective_of('sum(x - shift(x, over=t, offset=1), over=f) <= 10')
-    filled = _objective_of('sum(x - shift(x, over=t, offset=1, edge=0), over=f) <= 10')
+    bare = _objective_of('sum(x - shift(x, along=t, offset=1), over=f) <= 10')
+    filled = _objective_of('sum(x - shift(x, along=t, offset=1, edge=0), over=f) <= 10')
 
     assert bare != pytest.approx(filled, rel=RTOL), (
         'a bare shift drops the first row; a filled one keeps it, so these cannot agree'
@@ -286,15 +286,15 @@ PLAIN_COORDS = {'f': pd.Index(['a', 'b', 'c', 'd'], name='f'), 't': pd.Index([0,
 def _wide_objective_of(expression: str, *, dims: list[str]) -> float:
     """The wide fixture solved through both lanes, for one expression.
 
-    ``g`` and the lookup that reaches it exist only for the grouped cases:
+    ``g`` and the relation that reaches it exist only for the grouped cases:
     the plain fixture passes no ``g`` index, and a target with no index of its
-    own is refused rather than carried as a dangling lookup (#488).
+    own is refused rather than carried as a dangling relation (#488).
     """
     grouped = 'g' in dims
     dimensions = {'g': {}, 'f': {}, 't': {'dtype': 'int'}} if grouped else {'f': {}, 't': {'dtype': 'int'}}
     spec = {
         'dimensions': dimensions,
-        **({'lookups': {'grp': {'over': 'f', 'into': 'g'}}} if grouped else {}),
+        **({'relations': {'grp': {'columns': ['f', 'g'], 'key': 'f'}}} if grouped else {}),
         'parameters': {
             'gate': {'dims': ['f'], 'dtype': 'bool'},
             'gate2': {'dims': ['f'], 'dtype': 'bool'},
@@ -397,7 +397,7 @@ def test_shift_created_absence_reaches_a_reduction_like_any_other():
 
     The shifted operand is a **separate** variable from the one the objective
     maximises, and that is what makes the case discriminating. Written as
-    ``sum(x + shift(x, over=t, offset=1), over=f)`` it is not: the ``t=1`` row bounds the
+    ``sum(x + shift(x, along=t, offset=1), over=f)`` it is not: the ``t=1`` row bounds the
     same ``x[.,0]`` that a missing restriction would bound at ``t=0``, so it
     dominates and the objective reads 120 either way. Verified by disabling the
     propagation — that spelling still passed while five other cases failed.
@@ -414,7 +414,7 @@ def test_shift_created_absence_reaches_a_reduction_like_any_other():
             'x': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
             'v': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
         },
-        'constraints': {'c': {'dims': ['t'], 'expression': 'sum(x + shift(v, over=t, offset=1), over=f) <= 120'}},
+        'constraints': {'c': {'dims': ['t'], 'expression': 'sum(x + shift(v, along=t, offset=1), over=f) <= 120'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     index = {'f': pd.Index(['a', 'b'], name='f'), 't': pd.Index([0, 1], name='t')}
