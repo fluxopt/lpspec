@@ -22,6 +22,7 @@ import polars as pl
 from lpspec.curves import derive_curve_sources, validate_curve_extent, validate_piecewise_data
 from lpspec.errors import DataError, did_you_mean
 from lpspec.frames import as_frame, is_dense_array, is_multi_indexed
+from lpspec.relational.collect import polars_engine
 
 if TYPE_CHECKING:
     from math_spec.program import DimensionDeclaration, LookupDeclaration, ParameterDeclaration, Program
@@ -523,7 +524,7 @@ def _checked_parameter(
             f"(need dims {list(p.dims)} plus 'value'; has {available}). Rename them to "
             f'the declared dims, or drop the index names to attach positionally.'
         )
-    frame = table.select(wanted).collect(engine='streaming')
+    frame = table.select(wanted).collect(engine=polars_engine())
     _check_one_row_per_coordinate(name, p, frame, sources)
     _check_values_are_present(name, p, frame)
     _check_value_dtype(name, p, frame)

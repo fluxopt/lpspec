@@ -27,6 +27,7 @@ import polars as pl
 from math_spec import program
 
 from lpspec.errors import LpspecError
+from lpspec.relational.collect import polars_engine
 from lpspec.relational.engines.polars.fragments import (
     GROUP_RANK,
     GROUP_SIZE,
@@ -261,7 +262,7 @@ class PolarsCompiler:
             return None
 
         position = self.row_major(v.dims, self.ordinal_of)
-        pairs = table.select(position.alias('__at__'), pl.col('value')).collect(engine='streaming')
+        pairs = table.select(position.alias('__at__'), pl.col('value')).collect(engine=polars_engine())
         return frame.with_columns(pl.Series(alias, _scattered(pairs['__at__'], pairs['value'], expected)))
 
     def row_major(self, dims: tuple[str, ...], ordinals: Callable[[str], pl.Expr]) -> pl.Expr:
