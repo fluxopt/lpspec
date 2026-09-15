@@ -1610,8 +1610,15 @@ def test_the_window_payload_an_isolated_pass_ships_can_be_pickled() -> None:
     The size assertion is the other half of the contract — a payload that ships
     pre-built state would measure *deserializing* the model rather than
     re-attaching to it, and benchmem warns above 1 MiB.
+
+    The payload is the plugin's own, so unlike the two tests above this one is
+    only asked where pytest-benchmem is installed — the environment the ladder
+    itself runs in.
     """
-    from pytest_benchmem.pytest_plugin import _pedantic_action
+    plugin = pytest.importorskip(
+        'pytest_benchmem.pytest_plugin',
+        reason='pytest-benchmem is not installed — bench/ runs through `pixi run -e bench`',
+    )
 
     from bench.test_ladder import _CollectedSetup
 
@@ -1620,7 +1627,7 @@ def test_the_window_payload_an_isolated_pass_ships_can_be_pickled() -> None:
         if not hasattr(module, 'window'):
             continue
         setup = _CollectedSetup(partial(module.window_setup, 'highs', prepared))
-        mem_setup, tracked = _pedantic_action(module.window, (), {}, setup)
+        mem_setup, tracked = plugin._pedantic_action(module.window, (), {}, setup)
         try:
             blob = pickle.dumps((tracked, mem_setup))
         except Exception as exc:
