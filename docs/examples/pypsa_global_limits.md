@@ -6,8 +6,8 @@ Limits that hold over a whole set at once: an energy total, a capacity at one bu
 
 Every other bound in this corpus belongs to a component. A *global* limit
 belongs to a set PyPSA selects by an attribute: all generators burning gas, all
-wind capacity at one bus, every extendable link. [AC-DC](pypsa_ac_dc.md) ports one of them — the CO₂ cap — but that one groups nothing, being a single bound
-over everything.
+wind capacity at one bus, every extendable link. [AC-DC](pypsa_ac_dc.md) ports
+one of them, the CO₂ cap, which groups nothing: a single bound over everything.
 
 Four limits here, and each is the same sentence in the language: **a sum over a
 group, against a bound only some rows carry**.
@@ -390,23 +390,16 @@ exactly: 27.83 MW and 12.33 MW solve `100a + 50b = 3400` and
 `200a + 400b = 10500` together.
 
 **The selection is data, not a construct.** PyPSA selects by querying its own
-tables — `carrier == "gas"` — and writes the per-bus one into a *column name*,
+tables, `carrier == "gas"`, and writes the per-bus cap into a column name,
 `nom_max_wind`. That column name is a `(bus, carrier)` pair, and the port says
-so: one grouping through both maps lands the built capacity on exactly that
-pair, and `bus_capacity_cap` is a table keyed by it.
-
-The alternative is what this port shipped before
-[#704](https://github.com/fluxopt/lpspec/issues/704): a 0/1 `capped_carrier`
-column pulled down with `at()` and multiplied in, which caps **one** carrier
-and re-spells the `gen_carrier` lookup as data a second time. Losing it is the
-point — a lookup's values are checked against the dimension they target when
-they are bound, where a parameter's are not.
+so. One grouping through both maps lands the built capacity on that pair, and
+`bus_capacity_cap` is a table keyed by it.
 
 ## The fifth limit, which PyPSA does not build
 
-`tech_capacity_expansion_limit` — a carrier's capacity across the whole network
-— is missing from the table above, and not because the language cannot say it.
-In pypsa 1.2.4 a single-period network cannot get one built at all:
+`tech_capacity_expansion_limit`, a carrier's capacity across the whole network,
+is missing from the table above. The language can say it, but in pypsa 1.2.4 a
+single-period network cannot get one built at all:
 
 ```
 no investment_period   emits no constraint at all
@@ -414,18 +407,17 @@ investment_period=0    raises ValueError: Investment period not in `n.investment
 ```
 
 `global_constraints.py:48` groups the rows by
-`["carrier_attribute", "sense", "investment_period"]`; where no period is given
-that key is `NaN`, pandas drops NaN keys, and the row leaves no constraint
-behind. The next line reads `period = None if isnan(period) else int(period)`,
-so NaN is plainly expected to arrive — which makes this theirs to fix rather
-than ours to work around, and
-[#966](https://github.com/fluxopt/lpspec/issues/966) tracks reporting it. The
-limit itself will be proved by [multi-period
-investment](pypsa_multi_period.md), where a period exists to name.
+`["carrier_attribute", "sense", "investment_period"]`. Where no period is
+given that key is `NaN`, pandas drops NaN keys, and the row leaves no
+constraint behind. The next line reads
+`period = None if isnan(period) else int(period)`, so NaN is expected to
+arrive; [#966](https://github.com/fluxopt/lpspec/issues/966) tracks reporting
+it upstream. [Multi-period investment](pypsa_multi_period.md) proves the limit
+itself, where a period exists to name.
 
 ## What it exercises
 
 A reduction over two dimensions at once (`sum(sum(p, by=gen_carrier), over=snapshot)`),
 one grouping landing on a pair of dimensions (`sum(p_nom, by=[gen_bus, gen_carrier])`),
-and two scalar-bounded sums over one set with different weights. No construct here is new — which is the
-result, for five constraints PyPSA implements in five functions.
+and two scalar-bounded sums over one set with different weights. No construct
+here is new, for five constraints PyPSA implements in five functions.

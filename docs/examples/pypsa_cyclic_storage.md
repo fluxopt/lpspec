@@ -5,10 +5,10 @@
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **17228.77962151063**, matched to `rtol=1e-09`.
 
 **The model that gets smaller.** [Storage units](pypsa_storage.md) needs two
-equations for the energy balance — one seeding the first snapshot from `soc_initial`, one carrying
-over every other. Closing the cycle *removes the first*, and what is left
-changes by one token: `shift` vacates the first snapshot and drops that row,
-`edge='wrap'` puts it onto the last.
+equations for the energy balance: one seeding the first snapshot from
+`soc_initial`, one carrying over every other. Closing the cycle removes the
+first. What is left changes by one token: `shift` vacates the first snapshot
+and drops that row, `edge='wrap'` puts it onto the last.
 
 ```diff
 -  energy_balance_initial:
@@ -19,10 +19,8 @@ changes by one token: `shift` vacates the first snapshot and drops that row,
 +    expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap') * (1 - standing_loss) + ...
 ```
 
-`soc_initial` leaves the instance with it — a cyclic horizon has no seed to
-give. In PyPSA the same change is `cyclic_state_of_charge=True`, which is
-shorter still; the difference is that theirs is a flag on a component and ours
-is the absence of a special case.
+`soc_initial` leaves the instance with it: a cyclic horizon has no seed to
+give. In PyPSA the same change is `cyclic_state_of_charge=True`.
 
 Closing the loop costs money: **17228.78** against **15253.18** without it. The
 battery can no longer end the horizon empty, so it has to buy back what it
@@ -365,8 +363,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 ## What it exercises
 
-`edge='wrap'`, against the bare `shift` of [storage units](pypsa_storage.md) — plus division by a parameter and the same
-five-term `sum(by=)` balance, with one fewer equation and one fewer parameter.
-Worth reading the two side by side: neither boundary needs a clause to state it.
-The operator names which one is meant, and picking the wrong one is a different
-model rather than a missing guard.
+`edge='wrap'`, against the bare `shift` of [storage units](pypsa_storage.md),
+plus division by a parameter and the same five-term `sum(by=)` balance, with
+one fewer equation and one fewer parameter. Neither boundary needs a clause to
+state it: the operator names which one is meant, and the wrong one is a
+different model rather than a missing guard.
