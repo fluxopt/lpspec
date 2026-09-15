@@ -37,21 +37,6 @@ if TYPE_CHECKING:
     from math_spec import program
 
 
-#: How a whole ``expressions:`` block reaches a plan node, and what a later
-#: block needs to read this one's entries.
-type _LowerAll = Callable[
-    [Mapping[str, Any], Mapping[str, Any]],
-    tuple[dict[str, program.ExpressionNode], dict[str, Any]],
-]
-
-#: :meth:`~lpspec.relational.result.Result.extend`'s half of the readers, over
-#: this build's snapshot.
-type _Extend = Callable[
-    [Mapping[str, Any], Mapping[str, Any]],
-    tuple[dict[str, Callable[[], pl.DataFrame]], dict[str, Any]],
-]
-
-
 def _no_built_model(doing: str) -> str:
     """The message for a call made with no built model."""
     return (
@@ -158,7 +143,6 @@ class PolarsEngine:
         solver_options: Mapping[str, Any] | None = None,
         keep: Keep = 'solver',
         lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None = None,
-        lower_all: _LowerAll | None = None,
     ) -> Result:
         """Hand the built model to a solver and solve it.
 
@@ -188,11 +172,8 @@ class PolarsEngine:
                 in because lowering reads the model as written, which nothing
                 under ``relational/`` sees (docs/about/architecture.md, hard
                 rule 2). ``None`` for a build from an already-lowered
-                ``Program``, and the result then says so rather than evaluating.
-            lower_all: The same for a whole ``expressions:`` block
-                (:meth:`~lpspec.relational.result.Result.extend`). Independent
-                of *lower*: a live solve passes both, a loaded answer *lower*
-                alone.
+                ``Program``, and the result then says so rather than
+                evaluating an undeclared expression.
 
         Returns:
             The solution, holding this engine and the build it answered.
@@ -238,7 +219,7 @@ class PolarsEngine:
                 quadratic_rows=self._quadratic_constraints(),
             )
         )
-        expressions, evaluate, extend = self._readers(answer.primal, answer.dual, no_duals, lower, lower_all)
+        expressions, evaluate = self._readers(answer.primal, answer.dual, no_duals, lower)
         return Result(
             _status=answer.status,
             _objective=answer.objective,
@@ -248,7 +229,6 @@ class PolarsEngine:
             _kept=kept,
             _expressions=expressions,
             _evaluate=evaluate,
-            _extend=extend,
             _no_duals=no_duals,
         )
 
@@ -352,48 +332,28 @@ class PolarsEngine:
         dual: pl.Series | None,
         no_duals: str | None,
         lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
-        lower_all: _LowerAll | None,
     ) -> tuple[
         dict[str, Callable[[], pl.DataFrame]],
         Callable[[str | Mapping[str, Any]], pl.DataFrame] | None,
-        _Extend | None,
     ]:
-        """What a result reads expressions through: one reader per declared name, one for an unnamed expression, one for a block of named ones.
+        """What :meth:`~lpspec.relational.result.Result.evaluate` reads through: a reader per declared name, and the ad-hoc evaluator.
 
-        All close over the same snapshot the result *owns* — the program, the
+        Both close over the same snapshot the result *owns* — the program, the
         attached data, a copy of this build's variable-frame registry and the
         solver's primal vector — so they keep answering after an update or
         ``close()``, at the cost of keeping those frames alive. Nothing is
-        compiled until a reader is called; a block handed to ``extend`` is
-        lowered once, there and then.
+        compiled until a reader is called.
 
-        ``evaluate`` is served whenever *lower* is given and ``extend`` whenever
-        *lower_all* is, independently: a loaded answer rebuilds *lower* alone
-        (:meth:`evaluator`), so it evaluates without extending.
+        The evaluator is served whenever *lower* is given: a loaded answer
+        rebuilds it (:meth:`reconstruct`), and a build off a lowered ``Program``,
+        which has no model as written, does not.
         """
         if primal is None:
-            return {}, None, None
+            return {}, None
         model = self._model
         solution = Solution(primal, dual, dict(model.constraints), no_duals)
         compiler = PolarsCompiler(model.program, model.attached, dict(model.variables), solution)
-
-        def reader(name: str, expression: program.ExpressionNode) -> Callable[[], pl.DataFrame]:
-            return lambda: readback.expression_frame(name, expression, compiler)
-
-        declared = {name: reader(name, e.expression) for name, e in model.program.named_expressions.items()}
-
-        def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
-            assert lower is not None
-            return readback.expression_frame('the expression', lower(written), compiler)
-
-        def extend(
-            carried: Mapping[str, Any], added: Mapping[str, Any]
-        ) -> tuple[dict[str, Callable[[], pl.DataFrame]], dict[str, Any]]:
-            assert lower_all is not None
-            nodes, merged = lower_all(carried, added)
-            return {name: reader(name, node) for name, node in nodes.items()}, merged
-
-        return declared, (evaluate if lower is not None else None), (extend if lower_all is not None else None)
+        return readback.evaluation_readers(compiler, model.program.named_expressions, lower)
 
     def reconstruct(
         self,
@@ -401,18 +361,13 @@ class PolarsEngine:
         duals: Mapping[str, pl.DataFrame] | None,
         no_duals: str | None,
         lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
-        lower_all: _LowerAll | None,
-    ) -> tuple[
-        Callable[[str | Mapping[str, Any]], pl.DataFrame] | None,
-        _Extend | None,
-    ]:
-        """The ``evaluate`` and ``extend`` readers for a saved solution, over this rebuilt model.
+    ) -> Callable[[str | Mapping[str, Any]], pl.DataFrame] | None:
+        """The ad-hoc evaluator for a saved solution, over this rebuilt model.
 
         The primal and dual are reconstructed from the frames a save wrote,
         this build supplying the labels that put the values back in vector order
-        (:func:`readback.reordered`); the readers are then the ones :meth:`solve`
-        hands a live result. ``evaluate`` comes back where *lower* is given,
-        ``extend`` where *lower_all* is.
+        (:func:`readback.reordered`); the evaluator is then the one :meth:`solve`
+        hands a live result. It comes back where *lower* is given.
 
         Args:
             primals: The saved ``(dims…, value)`` frame per variable.
@@ -420,7 +375,6 @@ class PolarsEngine:
                 duals — *no_duals* then says why, and a read of one raises it.
             no_duals: Why there are no duals, or ``None`` when *duals* holds them.
             lower: How an expression the caller writes becomes a plan node.
-            lower_all: How a block of them does, for ``extend``.
         """
         model = self._model
         primal = readback.reordered(model.attached, model.variables, model.program.variables, primals)
@@ -429,8 +383,8 @@ class PolarsEngine:
             if duals is not None
             else None
         )
-        _, evaluate, extend = self._readers(primal, dual, no_duals, lower, lower_all)
-        return evaluate, extend
+        _, evaluate = self._readers(primal, dual, no_duals, lower)
+        return evaluate
 
     def _discrete(self) -> list[str]:
         """The variables this model declared as anything but continuous."""

@@ -117,15 +117,6 @@ def null_bounds_message(name: str, rows: int) -> str:
     )
 
 
-def already_readable_message(clash: list[str]) -> str:
-    """An expression named after a quantity a result already reads."""
-    return (
-        f'{clash} are already readable here; extend adds, it does not replace. Rename them, or read '
-        f'what is there — expression() takes any name this result carries, declared or added by an '
-        f'earlier extend.'
-    )
-
-
 def carried_parameter_message(carried: list[str]) -> str:
     """An expression to evaluate across a sweep that reads a carried parameter."""
     return (

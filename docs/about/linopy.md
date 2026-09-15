@@ -74,8 +74,8 @@ an expression written the way
 writes one — a string, or the mapping that carries `cases:` — on the solved
 model, and hands back linopy's native `.solution`. A name the file declares is
 such an expression, the language substituting it where it stands. That is the
-eager half of `result.evaluate(...)`, so the differential suite can hold the
-two lanes to one answer.
+eager half of `result.evaluate(...)`, so the differential suite can
+hold the two lanes to one answer.
 
 **This lane constructs; it does not attach.** Math for a `linopy.Model` that
 something else built, a PyPSA network say, has no verb here

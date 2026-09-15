@@ -90,7 +90,7 @@ flowchart TB
         DIRECT --> SOL["result.py<br/>label join, never dense"]
     end
 
-    SOL --> ANS["<b>Result</b> — the lane runs to the answer<br/>objective · primal · dual · activity · expression · evaluate · extend<br/>polars tables you can join"]
+    SOL --> ANS["<b>Result</b> — the lane runs to the answer<br/>objective · primal · dual · activity · evaluate<br/>polars tables you can join"]
 
     subgraph LIN["linopy/ — the peer lane"]
         direction TB
@@ -195,18 +195,20 @@ protects: a new consumer is free, a new primitive is taxed.
 
 ### The Python surface
 
-**Twenty-eight names, and the count is the feature.** The model is the YAML
+**Twenty-nine names, and the count is the feature.** The model is the YAML
 file, and Python is how you *run* it, so nothing on the surface constructs
-math or reaches the plan. The names, by role: the four verbs `check`, `build`,
-`solve`, `write`; the fold `solve_over` with its two axes; the two archives
+math or reaches the plan. The names, by role: the five verbs `check`, `build`,
+`evaluate`, `solve`, `write`; the fold `solve_over` with its two axes; the two archives
 that carry a spec, its data and its answer, `SolveArchive` and
 `SweepArchive`, with `load_archive`, `load_result` and `load_runs` to read one
 back whole and `scan_archive`, `scan_result` and `scan_runs` to read it off
 the directory it lies in; the three types a verb hands back, `Model`,
-`Result`, `Runs`; the error tree under `LpspecError`, `NoSolutionError` and
+`Result` and `Runs`; the error tree under `LpspecError`, `NoSolutionError` and
 `LpspecWarning`. What
 each one takes and returns is [the Python API](../reference/api.md). A verb
-that answers with no data (`check`) needs nothing but the file.
+that answers with no data (`check`) needs nothing but the file, and one that
+answers with no solver (`evaluate`, a spec of parameters and expressions read
+as arithmetic) needs no solver installed.
 
 **Loading a file and rendering one are not on this list.** `to_spec`,
 `SymbolTable`, the three `to_…` renderers and the shell front that runs them
@@ -237,10 +239,10 @@ its axes sit at the top level beside `solve`. The surface test exempts
 submodules (`not inspect.ismodule`), so moving names under `lpspec.something`
 moves them out from under the list a reviewer reads.
 
-**A return type is not a name.** `build` returns a `Model`, `solve` a `Result`
-and `solve_over` a `Runs`, and none is exported. You reach them by calling,
+**A return type is not a name.** `build` returns a `Model`, `solve` a `Result`,
+`solve_over` a `Runs`, and none is exported. You reach them by calling,
 and import them from their module only to annotate. What the objects carry
-(`Result` alone has fourteen readers) is [the Python API](../reference/api.md)'s
+(`Result` alone has twelve readers) is [the Python API](../reference/api.md)'s
 to list. **A handle's methods answer "what do I do with this", never "what is
 this"**: `solve`, `write`, `close` and `update` pass. Anything that changed a
 declaration would be a language feature wearing a method, which hard rule 5
@@ -406,7 +408,7 @@ conventions are in `compiler.py` and `fragments.py`.
 `assembly.py`, `sinks/`, and `engine.py`, which runs that lifecycle and holds
 the solver between solves. `labels.py`, `readback.py` and `result.py` sit
 beside the engine, because each answers a question the engine merely *uses*.
-`fragments.py`, `predicates.py`, `reindex.py` and `status.py` are off the
+`fragments.py`, `predicates.py`, `reindex.py`, `evaluate.py` and `status.py` are off the
 spine and undrawn. `frames.py`, the other boundary, is top level because all
 three consumers read it. The [module map](#module-map) says what each does.
 
@@ -559,8 +561,9 @@ is structure.
 | `relational/engines/polars/attaching.py` | the door's tables → `AttachedSources`, the frozen, `Enum`-encoded tables every query is written against |
 | `relational/engines/polars/assembly.py` | one build: every declaration into rows of the model tables, quadratic constraints last |
 | `relational/engines/polars/readback.py` | a built row, a solve's tables and a named expression, spelled back out in the model's own labels |
+| `relational/engines/polars/evaluate.py` | a spec of parameters and expressions, no variables: the named expressions read straight off the data as arithmetic, with no solver |
 | `relational/engines/polars/engine.py` | the lifecycle: build, hand to a sink, read back; the counters and clocks `diagnostics()` reports |
-| `relational/result.py` | what a solve returned: status, objective, and the label joins that read values back |
+| `relational/result.py` | what a solve returned: status, objective, the label joins that read values back, and the deferred expression readers |
 | `expressions.py` | expressions spliced into the model as written and lowered with it — what a reader values when the file never named the quantity |
 | `relational/parquet.py` | answers on disk: the `<kind>/<name>` layout a result and a sweep both write, and the writer that lands a file whole |
 | `relational/sinks/tables.py` | what every sink reads and no more: the five tables, the batching scalars, and their projection onto the solver's column index |

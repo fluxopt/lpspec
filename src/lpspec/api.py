@@ -1,8 +1,9 @@
 """The runner: attach data to a YAML spec and execute it. Not a modeling API.
 
 Math is defined in YAML only — there is no Python API for constructing specs,
-and the logical plan is internal. Four verbs run a model: ``check``, ``build``
-(YAML + sources → a :class:`Model`), ``solve`` and ``write``. ``load_result`` reads back an
+and the logical plan is internal. Five verbs run a model: ``check``, ``build``
+(YAML + sources → a :class:`Model`), ``solve``, ``write``, and ``evaluate`` for a
+spec with no variables. ``load_result`` reads back an
 answer :meth:`Result.save` wrote and ``scan_result`` leaves it on disk; the
 question and the answer as one archive is :class:`lpspec.archive.SolveArchive`.
 
@@ -41,6 +42,7 @@ from lpspec.lanes import LANES, Buildable, Label, Source, declared, lowered
 from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational import sinks
 from lpspec.relational.engines.polars.engine import PolarsEngine
+from lpspec.relational.engines.polars.evaluate import expression_readers
 from lpspec.relational.parquet import (
     METRICS_FILE,
     METRICS_SCHEMA,
@@ -51,7 +53,7 @@ from lpspec.relational.parquet import (
     read_reasons,
     write_whole,
 )
-from lpspec.relational.result import Result
+from lpspec.relational.result import Result, evaluated
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
 from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
@@ -63,7 +65,7 @@ if TYPE_CHECKING:
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep
 
-__all__ = ['build', 'check', 'load_result', 'scan_result', 'solve', 'write']
+__all__ = ['build', 'check', 'evaluate', 'load_result', 'scan_result', 'solve', 'write']
 
 
 def _portability(program: Program, sink: str) -> tuple[str | None, list[str]]:
@@ -124,6 +126,80 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
     return program
 
 
+def _refuse_a_model(program: Program) -> None:
+    """Refuse a spec that declares a decision — :func:`evaluate` is arithmetic, not a solve.
+
+    A variable has no value until a solver picks one, so an expression over one
+    cannot be evaluated as arithmetic, and a constraint or an objective is a law
+    that picks it rather than a quantity to read. Naming :func:`solve` is the
+    whole rewrite.
+
+    Raises:
+        LpspecError: The program declares variables, constraints or an
+            objective.
+    """
+    declared = []
+    if program.variables:
+        declared.append(f'variables ({", ".join(sorted(program.variables))})')
+    if program.constraints:
+        declared.append(f'constraints ({", ".join(sorted(program.constraints))})')
+    if program.objective is not None:
+        declared.append('an objective')
+    if not declared:
+        return
+    raise LpspecError(
+        f'evaluate takes a spec with no variables — dimensions, parameters, lookups and expressions, '
+        f'evaluated as arithmetic. This one declares {", ".join(declared)}, which makes it a model: a '
+        f'variable has no value until a solver picks one. Solve it with lps.solve(spec, sources), or '
+        f'drop the decision to evaluate the arithmetic that remains.'
+    )
+
+
+def evaluate(spec: Buildable, sources: Mapping[str, Source], expression: str | Mapping[str, Any]) -> pl.DataFrame:
+    """The value of *expression* over a spec with no variables — arithmetic, no solver.
+
+    A spec that declares no variables is a calculation, not an optimisation:
+    dimensions, parameters, lookups and ``expressions:``. Each expression reads
+    only the attached data, so it has a value with no solve and no chosen point.
+    This attaches *sources* and values one expression, the way
+    :meth:`~lpspec.relational.result.Result.evaluate` does at a solution. The
+    language it is read through — what loads, what is refused, how a construct
+    prints and lowers — is the one a spec that solves is read through; only the
+    variables are absent.
+
+    A spec that declares variables is a model, and belongs to :func:`solve`: an
+    expression over a decision has no value until the decision is made.
+
+    Args:
+        spec: As :func:`check` takes it — a YAML path, a mapping, or a ``Spec``.
+        sources: As :func:`build` takes them: parameter names to tables or
+            parquet paths, and dimension names to their labels.
+        expression: What one ``expressions:`` entry takes — a name the spec
+            declares, an expression string, or the mapping carrying ``cases:``
+            with ``foreach:`` and ``otherwise:``.
+
+    Returns:
+        The value, ``(dims…, value)`` over the expression's own dims. Only
+        this expression is compiled: a declared one nothing asks for costs
+        nothing.
+
+    Raises:
+        LanguageError: A construct outside the streaming language, or a name
+            the spec does not declare.
+        LpspecError: A spec that declares variables, constraints or an
+            objective — a model to solve, not a calculation to evaluate.
+        DataError: A source that is missing, unreadable, or the wrong shape,
+            or a divisor with no value where the expression divides.
+    """
+    document = declared(spec)
+    program = lowered(document)
+    _refuse_a_model(program)
+    readers, evaluator = expression_readers(
+        program, tidy_sources(program, sources), lambda written: expressions.lower(document, written)
+    )
+    return evaluated(readers, evaluator, expression)
+
+
 class Model:
     """A spec with your data attached to it — what :func:`build` returns.
 
@@ -156,12 +232,6 @@ class Model:
         (docs/about/architecture.md, hard rule 2).
         """
         return expressions.lower(self._spec, written)
-
-    def _lower_all(
-        self, carried: Mapping[str, Any], added: Mapping[str, Any]
-    ) -> tuple[dict[str, ExpressionNode], dict[str, Any]]:
-        """A whole ``expressions:`` block as plan nodes, held here for :meth:`_lower`'s reason."""
-        return expressions.lower_all(self._spec, carried, added)
 
     def _fill(self) -> None:
         """Build the frames from whatever is attached now.
@@ -264,7 +334,6 @@ class Model:
                 solver_options=solver_options,
                 keep=keep,
                 lower=self._lower,
-                lower_all=self._lower_all,
             ),
             _spec_digest=self._digest,
             _solved_at=datetime.now(UTC),
@@ -606,16 +675,16 @@ def _answer_under(out: Path, read: Reading) -> Result:
 
 
 def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
-    """*answer* with :meth:`~lpspec.relational.result.Result.evaluate` and :meth:`~...Result.extend` wired, over *spec* and *sources* rebuilt.
+    """*answer* with an undeclared expression readable through :meth:`~lpspec.relational.result.Result.evaluate`, over *spec* and *sources* rebuilt.
 
-    Reading or adding a quantity the file never named lowers the model as
-    written, so the model is rebuilt (a build, never a solve) and the saved
-    primal and dual put back in order against it. The declared readers a save
-    wrote are untouched; only an expression outside them reaches the rebuilt
-    readers. *answer* is returned unchanged where the solve left no values.
+    Reading a quantity the file never named lowers the model as written, so the
+    model is rebuilt (a build, never a solve) and the saved primal and dual put
+    back in order against it. The declared readers a save wrote are untouched;
+    only an expression outside them reaches the rebuilt evaluator. *answer* is
+    returned unchanged where the solve left no values.
 
-    The rebuild is deferred to the first :meth:`~...Result.evaluate` or
-    :meth:`~...Result.extend` call and cached.
+    The rebuild is deferred to the first undeclared ``answer.evaluate`` call
+    and cached.
 
     Args:
         answer: A saved solve, as :func:`load_result` or :func:`scan_result`
@@ -628,9 +697,9 @@ def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source
     frames = answer._primals
     dual_frames = answer._duals
     no_duals = answer._no_duals
-    built: list[tuple[Any, Any]] = []
+    built: list[Callable[[str | Mapping[str, Any]], pl.DataFrame] | None] = []
 
-    def readers() -> tuple[Any, Any]:
+    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
         if not built:
             primals = {name: frame.collect() for name, frame in frames.items()}
             duals = (
@@ -639,13 +708,9 @@ def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source
                 else None
             )
             model = build(spec, sources)
-            built.append(model._engine.reconstruct(primals, duals, no_duals, model._lower, model._lower_all))
-        return built[0]
+            built.append(model._engine.reconstruct(primals, duals, no_duals, model._lower))
+        evaluator = built[0]
+        assert evaluator is not None, 'a rebuilt model with a spec as written lowers an ad-hoc expression'
+        return evaluator(written)
 
-    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
-        return readers()[0](written)
-
-    def extend(carried: Mapping[str, Any], added: Mapping[str, Any]) -> tuple[Any, Any]:
-        return readers()[1](carried, added)
-
-    return replace(answer, _evaluate=evaluate, _extend=extend)
+    return replace(answer, _evaluate=evaluate)
