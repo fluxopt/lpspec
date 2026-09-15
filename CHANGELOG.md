@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.1-alpha.332](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.331...v0.0.1-alpha.332) (2026-09-15)
+
+
+### Documentation
+
+* the about pages and the model pages say each fact once, in sentences of one idea ([#1640](https://github.com/fluxopt/lpspec/issues/1640)) ([5d4efa3](https://github.com/fluxopt/lpspec/commit/5d4efa3d16d3029fdaf3d3543a14414240fda637))
+* the howtos, tutorials and reference say each fact once and drop the argument for it ([#1639](https://github.com/fluxopt/lpspec/issues/1639)) ([697f29d](https://github.com/fluxopt/lpspec/commit/697f29d58a4f450d292b48d978d788a7bc8ae492))
+
 ## [0.0.1-alpha.331](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.330...v0.0.1-alpha.331) (2026-09-15)
 
 
