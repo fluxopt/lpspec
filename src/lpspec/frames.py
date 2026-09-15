@@ -7,30 +7,36 @@ pandas is already in ``sys.modules``.
 
 **Tables in, arrays out.** What is read here is a table: rows under named
 columns, an index being a column wearing a hat. An ``xarray.DataArray`` is a
-dense n-dimensional array rather than a table, and taking one would be this
-package agreeing that a parameter is a rectangle already materialised. xarray
-is what a result is handed back *as* (``to_dataarray``) and what the linopy
-lane builds internally, never what either lane reads.
+dense n-dimensional array rather than a table and is not read. xarray is what
+a result is handed back *as* (``to_dataarray``) and what the linopy lane
+builds internally, never what either lane reads.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from lpspec.lanes import ArrowTable
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    import pandas as pd
+
+    from lpspec.lanes import Source
 
 
 __all__ = ['as_frame', 'is_dense_array', 'is_multi_indexed', 'to_pandas']
 
 
-def to_pandas(table: pl.DataFrame) -> Any:
+def to_pandas(table: pl.DataFrame) -> pd.DataFrame:
     """A polars frame as pandas, column by column, without reaching for pyarrow.
 
-    A dictionary-encoded column is widened first: it carries a writer's own
-    codes, and the labels have to compare the way every other arrival's do.
+    A dictionary-encoded column (``Categorical``, ``Enum``) is widened to
+    string first.
     """
     import pandas as pd
 
@@ -40,17 +46,21 @@ def to_pandas(table: pl.DataFrame) -> Any:
     return pd.DataFrame({name: table[name].to_numpy() for name in table.columns})
 
 
-def as_frame(obj: object, dims: Sequence[str] = ()) -> pl.LazyFrame | None:
-    """Normalise one in-memory table to a lazy frame.
+def as_frame(obj: Source, dims: Sequence[str] = ()) -> pl.LazyFrame | None:
+    """One source as a lazy frame: a parquet path scanned, or an in-memory table normalised.
 
-    *dims* names the columns a pandas index becomes.
+    The one place a string is read as a parquet path, for every door a source
+    enters by. *dims* names the columns a pandas index becomes.
 
     Returns:
-        The frame, or ``None`` for "not table-shaped" — the caller knows
-        whether it held a parameter or an index and writes the message.
+        The frame, or ``None`` for "not table-shaped" — a number, a
+        ``{label: value}`` map, a bare sequence — which the caller spreads,
+        passes through, or refuses with the message that knows what it wanted.
     """
     import sys
 
+    if isinstance(obj, (str, Path)):
+        return pl.scan_parquet(obj)
     if isinstance(obj, pl.LazyFrame):
         return obj
     if isinstance(obj, pl.DataFrame):
@@ -58,27 +68,28 @@ def as_frame(obj: object, dims: Sequence[str] = ()) -> pl.LazyFrame | None:
 
     pd = sys.modules.get('pandas')
     if pd is not None and isinstance(obj, pd.Series):
-        obj = _series_to_frame(obj, dims)
+        frame = _series_to_frame(obj, dims)
+        return _from_pandas(frame) if frame is not None else None
     if pd is not None and isinstance(obj, pd.DataFrame):
         return _from_pandas(obj)
 
-    if hasattr(obj, '__arrow_c_stream__') or hasattr(obj, '__arrow_c_array__'):
+    if isinstance(obj, ArrowTable):
         try:
-            return pl.DataFrame(obj).lazy()  # pyrefly: ignore[bad-argument-type]  — narrowed by the capsule test
+            return pl.DataFrame(obj).lazy()
         except (TypeError, ValueError, pl.exceptions.PolarsError):
             return None
     return None
 
 
 def is_dense_array(obj: object) -> bool:
-    """Whether *obj* is an ``xarray.DataArray``, the one shape recognised and deliberately not read."""
+    """Whether *obj* is an ``xarray.DataArray``, the one shape recognised and not read."""
     import sys
 
     xr = sys.modules.get('xarray')
     return xr is not None and isinstance(obj, xr.DataArray)
 
 
-def is_multi_indexed(obj: object) -> bool:
+def is_multi_indexed(obj: Source) -> bool:
     """Whether *obj* is a pandas Series carrying more than one index level."""
     import sys
 
@@ -86,13 +97,12 @@ def is_multi_indexed(obj: object) -> bool:
     return pd is not None and isinstance(obj, pd.Series) and obj.index.nlevels > 1
 
 
-def _series_to_frame(series: Any, dims: Sequence[str]) -> Any | None:
+def _series_to_frame(series: pd.Series, dims: Sequence[str]) -> pd.DataFrame | None:
     """A pandas Series with its one index level promoted to a column.
 
     One level is all a Series can carry here — :func:`is_multi_indexed` refuses
-    the rest — so it runs along one dimension exactly as a dict and a sequence
-    do, and a declaration of any other arity is that same mismatch, declined
-    rather than reported.
+    the rest — so it runs along one dimension as a dict and a sequence do, and
+    any other arity is declined rather than reported.
 
     Where the caller named the level it attaches by that name — renaming it to
     *dims* would transpose the data when two dims share a label space, which
@@ -104,11 +114,11 @@ def _series_to_frame(series: Any, dims: Sequence[str]) -> Any | None:
     if len(dims) != 1:
         return None
     if series.index.name is None:
-        series = series.rename_axis(dims)
+        series = series.rename_axis(dims[0])
     return series.rename('value').reset_index()
 
 
-def _from_pandas(frame: Any) -> pl.LazyFrame:
+def _from_pandas(frame: pd.DataFrame) -> pl.LazyFrame:
     """A pandas frame, column by column, without reaching for pyarrow.
 
     A whole-frame conversion needs pyarrow for anything Arrow-backed, which
@@ -125,6 +135,6 @@ def _from_pandas(frame: Any) -> pl.LazyFrame:
     return pl.DataFrame(columns).lazy()
 
 
-def _is_missing(value: Any) -> bool:
+def _is_missing(value: object) -> bool:
     """Whether an object-array entry is pandas' rendering of "no value"."""
     return value is None or (isinstance(value, float) and value != value)

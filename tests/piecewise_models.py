@@ -25,10 +25,10 @@ parameters:
 
 variables:
   p:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0, upper: 100}
   op_cost:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0}
 
 piecewise:
@@ -40,7 +40,7 @@ piecewise:
 
 constraints:
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: p == load
 
 objective:
@@ -50,7 +50,7 @@ objective:
 #: And the same restriction as the default's, said as a set rather than built
 #: out of binaries. The two must reach the same optimum on every sink.
 SOS2_SPEC = override(raw_of(NONCONVEX_YAML), **{'piecewise.cost_curve.method': 'sos2'})
-#: two dims in the frame, so the emitted ``foreach`` has an order to get wrong.
+#: two dims in the frame, so the emitted ``dims`` has an order to get wrong.
 TWO_DIM_YAML = """
 dimensions:
   snapshot: {dtype: int}
@@ -64,10 +64,10 @@ parameters:
 
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds: {lower: 0, upper: 100}
   op_cost:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds: {lower: 0}
 
 piecewise:
@@ -79,7 +79,7 @@ piecewise:
 
 constraints:
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) == load
 
 objective:
@@ -99,13 +99,13 @@ parameters:
 
 variables:
   power:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0, upper: 100}
   fuel:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0}
   heat:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0}
 
 piecewise:
@@ -118,7 +118,7 @@ piecewise:
 
 constraints:
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: power == load
 
 objective:
@@ -138,13 +138,13 @@ parameters:
 
 variables:
   u:
-    foreach: [snapshot]
+    dims: [snapshot]
     domain: binary
   p:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0, upper: 100}
   op_cost:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0}
 
 piecewise:
@@ -157,10 +157,10 @@ piecewise:
 
 constraints:
   commit:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: u == on_flag
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: p == load * on_flag
 
 objective:
@@ -183,15 +183,15 @@ parameters:
 
 variables:
   p:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0, upper: 100}
     description: dispatched power
   op_cost:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0}
     description: operating cost, read off the curve
   running:
-    foreach: [snapshot]
+    dims: [snapshot]
     domain: binary
     description: unused here; a gate for the case lp cannot take one
 
@@ -206,7 +206,7 @@ piecewise:
 
 constraints:
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: p == load
     description: output meets demand
 

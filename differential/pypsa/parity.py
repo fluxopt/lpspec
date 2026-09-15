@@ -134,7 +134,7 @@ def templated(name: str) -> re.Pattern | None:
 
 
 def template_dims(declared, model) -> dict[str, str]:
-    """Block name -> the dimension PyPSA spells into the constraint's name — the one foreach dim its constraint has no axis for (a component dim rides its ``name`` axis)."""
+    """Block name -> the dimension PyPSA spells into the constraint's name — the one declared dim its constraint has no axis for (a component dim rides its ``name`` axis)."""
     out = {}
     for name, block in declared.constraints.items():
         pattern = templated(stands_for(block.description))
@@ -143,13 +143,13 @@ def template_dims(declared, model) -> dict[str, str]:
             continue
         axes = set(model.constraints[their].coords.dims)
         component = {*prep.DIM.values(), 'bus'} if 'name' in axes else set()
-        (out[name],) = [d for d in block.foreach if d not in axes and d not in component]
+        (out[name],) = [d for d in block.dims if d not in axes and d not in component]
     return out
 
 
 def template_axis(block, dim: str) -> int:
     """Where *dim* sits in a row key — keys are ordered snapshot first, then by name."""
-    dims = sorted(block.foreach, key=lambda d: (d != 'snapshot', d))
+    dims = sorted(block.dims, key=lambda d: (d != 'snapshot', d))
     return dims.index(dim)
 
 
@@ -172,11 +172,11 @@ def flattened(name: str, table: object, dims: list[str]) -> object:
 def prepared(spec: Path, n, stem: str | None = None) -> dict[str, object]:
     """`prep.sources` cut to what *spec* declares — lpspec refuses a key the spec does not take; *stem* names the rung whose `OPTIMIZE` sizes the loss fan."""
     declared = math_spec.to_spec(spec)
-    names = {*declared.dimensions, *declared.parameters, *declared.lookups}
+    names = {*declared.dimensions, *declared.parameters, *declared.relations}
     losses = keywords(stem).get('transmission_losses', {}) if stem else {}
     segments = int(losses.get('segments', 0)) if isinstance(losses, dict) else int(losses or 0)
     dims = {name: p.dims for name, p in declared.parameters.items()} | {
-        name: [lookup.over] for name, lookup in declared.lookups.items()
+        name: list(relation.keys) for name, relation in declared.relations.items()
     }
     return {
         name: flattened(name, table, dims.get(name, []))
@@ -257,7 +257,7 @@ def conjunct_verdicts(built_model, program) -> dict[str, str]:
     """
     compiler = built_model._engine._model.compiler
     verdicts: dict[str, str] = {}
-    for name, block in (program.constraints | program.variables).items():
+    for name, block in {**program.constraints, **program.variables}.items():
         where = getattr(block, 'where', None)
         if where is None:
             continue
@@ -564,8 +564,8 @@ def solver_size(n, built_model) -> dict[str, dict[str, int]]:
     return {
         'pypsa': {'rows': theirs.getNumRow(), 'columns': theirs.getNumCol(), 'nonzeros': theirs.getNumNz()},
         'lpspec': {
-            'rows': ours.rows + ours.sink_rows,
-            'columns': ours.columns + ours.sink_columns,
+            'rows': ours.rows + ours.added_rows,
+            'columns': ours.columns + ours.added_columns,
             'nonzeros': ours.nonzeros,
         },
     }
@@ -830,13 +830,13 @@ def coverage(stamped: dict[str, dict]) -> list[str]:
                 if not sum(counts):
                     gaps.append(f'{name}: no rung builds {block_name}')
                 elif block.where and not any(
-                    0 < c < math.prod(stamp['dims'][d] for d in block.foreach)
+                    0 < c < math.prod(stamp['dims'][d] for d in block.dims)
                     for c, stamp in zip(counts, stamps, strict=True)
                 ):
                     gaps.append(f'{name}: {block_name} is always all-or-nothing, so its mask is untested')
         fed = set().union(*(stamp['attached_nonempty'] for stamp in stamps))
         gaps.extend(
-            f'{name}: no rung feeds {unfed}' for unfed in sorted({*declared.parameters, *declared.lookups} - fed)
+            f'{name}: no rung feeds {unfed}' for unfed in sorted({*declared.parameters, *declared.relations} - fed)
         )
         gaps.extend(untested_conjuncts(name, math_spec.to_program(CORPUS / 'examples' / name), stamps))
     return gaps

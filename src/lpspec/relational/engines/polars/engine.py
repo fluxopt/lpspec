@@ -25,9 +25,10 @@ from lpspec.relational.engines.polars.assembly import (
     BuiltModel,
     Measured,
     declares_quadratic,
+    short_parameters,
 )
 from lpspec.relational.engines.polars.attaching import attach
-from lpspec.relational.engines.polars.compiler import PolarsCompiler
+from lpspec.relational.engines.polars.compiler import PolarsCompiler, Solution
 from lpspec.relational.result import KEEPS, ConstraintRow, Diagnostics, Keep, Result, unknown_keep_message
 
 if TYPE_CHECKING:
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
 
 
 def _no_built_model(doing: str) -> str:
-    """Why there is no model *doing*, in the two ways that happens."""
+    """The message for a call made with no built model."""
     return (
         f'there is no built model {doing}: it was closed, or an update raised and released '
         f'it rather than leaving half of one behind. Build it again — update() with data it can '
@@ -66,11 +67,11 @@ class PolarsEngine:
         #: What the last solve's sink had to add to take the model — nothing,
         #: unless it had no concept of a set the model declares. A fact about a
         #: *solve*, so a rebuild does not clear it.
-        self._sink_columns = 0
-        self._sink_rows = 0
+        self._added_columns = 0
+        self._added_rows = 0
         #: Wall seconds each phase has spent, cumulatively. Time spent is a
         #: fact about what ran, so a rebuild adds to it rather than clearing it.
-        self._timings: dict[str, float] = {}
+        self._seconds: dict[str, float] = {}
 
     @property
     def _model(self) -> BuiltModel:
@@ -88,17 +89,21 @@ class PolarsEngine:
 
         **A second call rebuilds over the same object**, which is what
         ``update`` is. The previous build is released *before* this one starts,
-        so a driver that re-solves in a loop stays at one model's peak; what
-        the loaded solver holds survives as the digest it recorded at its load.
+        and the held solver is asked for its
+        :meth:`~lpspec.relational.sinks.solvers.base.Solver.structure` first,
+        reading it being what lets go of these frames.
         A build that raises leaves no model at all rather than half of one,
         and ``diagnostics()`` answers from what was measured by then.
         """
+        if self._solver is not None:
+            self._solver.structure()
         self._built = None
         self._measured = Measured()
-        with _clocked(self._timings, 'attach'):
+        with _clocked(self._seconds, 'attach'):
             attached = attach(program, sources)
+        self._measured.sparse = short_parameters(program, attached)
         assembly = Assembly(program, attached, self._measured)
-        with _clocked(self._timings, 'build'):
+        with _clocked(self._seconds, 'build'):
             self._built = assembly.run()
 
     # ------------------------------------------------------------------
@@ -116,9 +121,7 @@ class PolarsEngine:
 
         A construct the format has no section for is refused here, the way the
         solve path refuses one a solver cannot ingest
-        (:func:`~lpspec.relational.sinks.ingestible`) and with the sentence
-        ``check(spec, sink=...)`` would have given: written anyway, the file
-        would parse, solve, and be a different model.
+        (:func:`~lpspec.relational.sinks.ingestible`).
 
         Raises:
             ValueError: A suffix nothing writes.
@@ -130,7 +133,7 @@ class PolarsEngine:
         tables = self._model.tables()
         if (refused := sinks.refusal(self._model.program, suffix)) is not None:
             raise LpspecError(refused)
-        with _clocked(self._timings, 'write'):
+        with _clocked(self._seconds, 'write'):
             chosen.write(tables, path)
 
     def solve(
@@ -139,6 +142,7 @@ class PolarsEngine:
         *,
         solver_options: Mapping[str, Any] | None = None,
         keep: Keep = 'solver',
+        lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None = None,
     ) -> Result:
         """Hand the built model to a solver and solve it.
 
@@ -163,6 +167,13 @@ class PolarsEngine:
                 :attr:`~lpspec.relational.result.Result.kept` reports what
                 happened. ``nothing`` is held to structurally, the held solver
                 being closed before the load decision.
+            lower: How an expression the caller *writes* becomes a plan node,
+                for :meth:`~lpspec.relational.result.Result.evaluate`. Passed
+                in because lowering reads the model as written, which nothing
+                under ``relational/`` sees (docs/about/architecture.md, hard
+                rule 2). ``None`` for a build from an already-lowered
+                ``Program``, and the result then says so rather than
+                evaluating an undeclared expression.
 
         Returns:
             The solution, holding this engine and the build it answered.
@@ -174,10 +185,10 @@ class PolarsEngine:
         if keep not in KEEPS:
             raise LpspecError(unknown_keep_message(keep))
         built = self._model.tables()
-        with _clocked(self._timings, 'handoff'):
+        with _clocked(self._seconds, 'handoff'):
             tables = sinks.ingestible(solver_name, built, self._model.program)
-            self._sink_columns = tables.column_count - built.column_count
-            self._sink_rows = tables.row_count - built.row_count
+            self._added_columns = tables.column_count - built.column_count
+            self._added_rows = tables.row_count - built.row_count
             if keep == 'nothing' and self._solver is not None:
                 self._solver.close()
                 self._solver = None
@@ -189,7 +200,7 @@ class PolarsEngine:
         self._solves += 1
         if self._solver is not held:
             self._loads += 1
-        with _clocked(self._timings, 'solve'):
+        with _clocked(self._seconds, 'solve'):
             answer = self._solver.run(tables)
         assert answer.primal is not None or not answer.status.is_readable, (
             'a readable status must come with a primal vector'
@@ -198,6 +209,17 @@ class PolarsEngine:
             'activity travels with the primal: every sink reads it whenever a solution exists, mixed-integer included'
         )
         primals, duals, activities = self._read_back(answer.primal, answer.dual, answer.activity)
+        no_duals = (
+            None
+            if answer.dual is not None
+            else _no_duals_message(
+                self._discrete(),
+                answer.status.termination_condition,
+                sets=self._reformulated_sets(tables is not built),
+                quadratic_rows=self._quadratic_constraints(),
+            )
+        )
+        expressions, evaluate = self._readers(answer.primal, answer.dual, no_duals, lower)
         return Result(
             _status=answer.status,
             _objective=answer.objective,
@@ -205,15 +227,9 @@ class PolarsEngine:
             _duals=duals,
             _activities=activities,
             _kept=kept,
-            _expressions=self._expression_readers(answer.primal),
-            _no_duals=None
-            if answer.dual is not None
-            else _no_duals_message(
-                self._discrete(),
-                answer.status.termination_condition,
-                sets=self._reformulated_sets(tables is not built),
-                quadratic_rows=self._quadratic_constraints(),
-            ),
+            _expressions=expressions,
+            _evaluate=evaluate,
+            _no_duals=no_duals,
         )
 
     def diagnostics(self) -> Diagnostics:
@@ -226,8 +242,8 @@ class PolarsEngine:
             columns=self._measured.columns,
             rows=self._measured.rows,
             nonzeros=self._measured.nonzeros,
-            sink_columns=self._sink_columns,
-            sink_rows=self._sink_rows,
+            added_columns=self._added_columns,
+            added_rows=self._added_rows,
             omissions=pl.DataFrame(
                 {'constraint': list(self._measured.omitted), 'rows_not_built': list(self._measured.omitted.values())},
                 schema={'constraint': pl.String, 'rows_not_built': pl.UInt32},
@@ -240,10 +256,26 @@ class PolarsEngine:
                 },
                 schema={'constraint': pl.String, 'smallest': pl.Float64, 'largest': pl.Float64},
             ),
+            bound_range=pl.DataFrame(
+                {
+                    'variable': list(self._measured.bounds),
+                    'smallest': [low for low, _ in self._measured.bounds.values()],
+                    'largest': [high for _, high in self._measured.bounds.values()],
+                },
+                schema={'variable': pl.String, 'smallest': pl.Float64, 'largest': pl.Float64},
+            ),
+            rhs_range=pl.DataFrame(
+                {
+                    'constraint': list(self._measured.rhs),
+                    'smallest': [low for low, _ in self._measured.rhs.values()],
+                    'largest': [high for _, high in self._measured.rhs.values()],
+                },
+                schema={'constraint': pl.String, 'smallest': pl.Float64, 'largest': pl.Float64},
+            ),
             objective_range=self._measured.objective_range,
             solves=self._solves,
             loads=self._loads,
-            timings=dict(self._timings),
+            seconds=dict(self._seconds),
         )
 
     def _read_back(
@@ -253,10 +285,10 @@ class PolarsEngine:
 
         References rather than copies: the frames point at this build's label
         frames, and :meth:`build` replacing the registries takes nothing from
-        what an earlier result still holds. Lazy, so composing every
-        declaration's plan here costs nothing for the ones nobody reads. A
-        vector that is ``None`` yields no frames at all rather than empty
-        ones, which is the state :class:`Result` reports through the status.
+        what an earlier result still holds. Lazy, so each declaration's plan is
+        composed only when it is read. A vector that is ``None`` yields no
+        frames at all rather than empty ones, which is the state
+        :class:`Result` reports through the status.
         """
         model = self._model
         program = model.program
@@ -280,32 +312,69 @@ class PolarsEngine:
             rows(activity),
         )
 
-    def _expression_readers(self, primal: pl.Series | None) -> dict[str, Callable[[], pl.DataFrame]]:
-        """One deferred reader per declared named expression — nothing compiled yet.
+    def _readers(
+        self,
+        primal: pl.Series | None,
+        dual: pl.Series | None,
+        no_duals: str | None,
+        lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
+    ) -> tuple[
+        dict[str, Callable[[], pl.DataFrame]],
+        Callable[[str | Mapping[str, Any]], pl.DataFrame] | None,
+    ]:
+        """What :meth:`~lpspec.relational.result.Result.evaluate` reads through: a reader per declared name, and the ad-hoc evaluator.
 
-        A closure compiles its expression when it is first called, so a solve
-        over fifty declared expressions that reads none pays for a dict of
-        closures. Each captures a snapshot the result *owns* — the program,
-        the attached data, a copy of this build's variable-frame registry and
-        the solver's primal vector — so it keeps answering after an update or
-        ``close()``, at the cost of keeping those frames alive.
+        Both close over the same snapshot the result *owns* — the program, the
+        attached data, a copy of this build's variable-frame registry and the
+        solver's primal vector — so they keep answering after an update or
+        ``close()``, at the cost of keeping those frames alive. Nothing is
+        compiled until a reader is called.
+
+        The evaluator is served whenever *lower* is given: a loaded answer
+        rebuilds it (:meth:`reconstruct`), and a build off a lowered ``Program``,
+        which has no model as written, does not.
         """
         if primal is None:
-            return {}
+            return {}, None
         model = self._model
-        compiler = PolarsCompiler(model.program, model.attached, dict(model.variables))
-        values = pl.DataFrame(
-            {'var_label': pl.int_range(primal.len(), dtype=pl.Int64, eager=True), readback.SOLUTION: primal}
-        ).lazy()
+        solution = Solution(primal, dual, dict(model.constraints), no_duals)
+        compiler = PolarsCompiler(model.program, model.attached, dict(model.variables), solution)
+        return readback.evaluation_readers(compiler, model.program.named_expressions, lower)
 
-        def reader(name: str, expression: program.ExpressionNode) -> Callable[[], pl.DataFrame]:
-            return lambda: readback.expression_frame(name, expression, compiler, values)
+    def reconstruct(
+        self,
+        primals: Mapping[str, pl.DataFrame],
+        duals: Mapping[str, pl.DataFrame] | None,
+        no_duals: str | None,
+        lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
+    ) -> Callable[[str | Mapping[str, Any]], pl.DataFrame] | None:
+        """The ad-hoc evaluator for a saved solution, over this rebuilt model.
 
-        return {name: reader(name, e) for name, e in model.program.named_expressions.items()}
+        The primal and dual are reconstructed from the frames a save wrote,
+        this build supplying the labels that put the values back in vector order
+        (:func:`readback.reordered`); the evaluator is then the one :meth:`solve`
+        hands a live result. It comes back where *lower* is given.
+
+        Args:
+            primals: The saved ``(dims…, value)`` frame per variable.
+            duals: The same per constraint, or ``None`` where the solve left no
+                duals — *no_duals* then says why, and a read of one raises it.
+            no_duals: Why there are no duals, or ``None`` when *duals* holds them.
+            lower: How an expression the caller writes becomes a plan node.
+        """
+        model = self._model
+        primal = readback.reordered(model.attached, model.variables, model.program.variables, primals)
+        dual = (
+            readback.reordered(model.attached, model.constraints, model.program.constraints, duals)
+            if duals is not None
+            else None
+        )
+        _, evaluate = self._readers(primal, dual, no_duals, lower)
+        return evaluate
 
     def _discrete(self) -> list[str]:
         """The variables this model declared as anything but continuous."""
-        return sorted(n for n, v in self._model.program.variables.items() if v.variable_type != 'continuous')
+        return sorted(n for n, v in self._model.program.variables.items() if v.domain != 'continuous')
 
     def _quadratic_constraints(self) -> list[str]:
         """The constraints this model declared as quadratic — a fact about the model, not the solve."""
@@ -326,9 +395,8 @@ class PolarsEngine:
     def close(self) -> None:
         """Drop the built model. A :class:`Result` keeps its own frames.
 
-        One assignment, because the build is one value. A loaded solver goes
-        first, being the one thing here that is not this process's memory.
-        :meth:`diagnostics` still answers afterwards.
+        A loaded solver goes first, being the one thing here that is not this
+        process's memory. :meth:`diagnostics` still answers afterwards.
         """
         if self._solver is not None:
             self._solver.close()
@@ -349,21 +417,11 @@ def _no_duals_message(
     sets: Sequence[str],
     quadratic_rows: Sequence[str],
 ) -> str:
-    """Why a solve that *did* leave values still has no duals.
-
-    Integrality is decidable from the model, and naming the variable is
-    actionable where "the solver reported none" is not.
+    """The message for a solve that left values but no duals.
 
     *sets* are the special-ordered sets a sink without the concept turned into
-    binaries. They come first because a model that declared none of its own
-    integrality would otherwise be told it is mixed-integer with nothing named
-    — and because the fix is a different one: another sink, not a different
-    model.
-
-    *quadratic_rows* are the quadratic constraints, whose prices are off by
-    default: asking for them puts the solve on the convex path, and a nonconvex
-    row that solves without them fails with them. The one case here where
-    nothing is wrong with the model.
+    binaries. *quadratic_rows* are the quadratic constraints, whose prices are
+    off by default.
     """
     if quadratic_rows and not discrete:
         names = ', '.join(f"'{n}'" for n in quadratic_rows)
@@ -396,8 +454,8 @@ def _no_duals_message(
 
 
 @contextmanager
-def _clocked(timings: dict[str, float], phase: str) -> Iterator[None]:
-    """Add the block's wall time onto ``timings[phase]`` — the diagnostics clocks.
+def _clocked(seconds: dict[str, float], phase: str) -> Iterator[None]:
+    """Add the block's wall time onto ``seconds[phase]`` — the diagnostics clocks.
 
     Cumulative, so a phase that runs again adds to its total the way the
     counters count. Recorded on failure too: a build that died mid-phase spent
@@ -407,4 +465,4 @@ def _clocked(timings: dict[str, float], phase: str) -> Iterator[None]:
     try:
         yield
     finally:
-        timings[phase] = timings.get(phase, 0.0) + perf_counter() - started
+        seconds[phase] = seconds.get(phase, 0.0) + perf_counter() - started

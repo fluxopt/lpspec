@@ -96,12 +96,12 @@ parameters:
 variables:
   activity:
     description: how hard a technology runs, per timeslice and mode
-    foreach: [timeslice, technology, mode, year]
+    dims: [timeslice, technology, mode, year]
     bounds:
       lower: 0
   build:
     description: how much capacity is built, and when
-    foreach: [technology, vintage]
+    dims: [technology, vintage]
     bounds:
       lower: 0
 
@@ -120,14 +120,14 @@ expressions:
 constraints:
   within_capacity:
     description: a technology cannot run beyond the capacity standing that year
-    foreach: [timeslice, technology, year]
+    dims: [timeslice, technology, year]
     expression: sum(activity, over=mode) <= capacity * capacity_available
 
   fuel_balance:
     description: >-
       every fuel balances in every timeslice — what is produced covers the
       demand placed on it plus what other technologies consume
-    foreach: [timeslice, fuel, year]
+    dims: [timeslice, fuel, year]
     expression: >-
       sum(sum(activity * output_ratio, over=mode), over=technology) * year_split
       >= sliced_demand
@@ -135,23 +135,23 @@ constraints:
 
   annual_balance:
     description: and balances again over the year, for demands that are not sliced
-    foreach: [fuel, year]
+    dims: [fuel, year]
     expression: >-
       sum(sum(sum(activity * output_ratio * year_split, over=mode), over=technology), over=timeslice)
       >= annual_demand
       + sum(sum(sum(activity * input_ratio * year_split, over=mode), over=technology), over=timeslice)
 
   capacity_ceiling:
-    foreach: [technology, year]
+    dims: [technology, year]
     expression: capacity <= max_capacity
 
   capacity_floor:
-    foreach: [technology, year]
+    dims: [technology, year]
     expression: capacity >= min_capacity
 
   reserve:
     description: firm capacity exceeds the electricity demand of the moment by the reserve margin
-    foreach: [timeslice, year]
+    dims: [timeslice, year]
     expression: >-
       sum(sum(sum(activity * reserve_demand, over=mode), over=fuel), over=technology) * reserve_margin
       <= sum(capacity * reserve_tagged, over=technology)

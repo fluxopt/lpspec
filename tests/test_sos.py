@@ -60,7 +60,7 @@ DATA = {'site': SITES, 'size': SIZES, 'value': _table(VALUE), 'cap': _table(CAP)
 BASE: dict[str, Any] = {
     'dimensions': {'site': {'dtype': 'str'}, 'size': {'dtype': 'int'}},
     'parameters': {'value': {'dims': ['site', 'size']}, 'cap': {'dims': ['site', 'size']}},
-    'variables': {'take': {'foreach': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'variables': {'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
     'objective': {'sense': 'maximize', 'expression': 'sum(sum(take * value, over=site), over=size)'},
 }
 
@@ -243,7 +243,7 @@ def test_highs_refuses_the_written_section_which_is_why_it_reformulates(tmp_path
 )
 def test_a_member_a_big_m_cannot_stand_in_for_is_refused(bounds, expected):
     raw = spec(1)
-    raw['variables'] = {'take': {'foreach': ['site', 'size'], 'bounds': bounds}}
+    raw['variables'] = {'take': {'dims': ['site', 'size'], 'bounds': bounds}}
     with pytest.raises(DataError, match=expected):
         lps.solve(raw, DATA)
 
@@ -252,7 +252,7 @@ def test_a_big_m_stands_in_for_the_missing_bound():
     """What the refusal names as the fix, taken — and the optimum follows it,
     which is what makes `big_m` a statement rather than a knob."""
     raw = spec(1, big_m=2.0)
-    raw['variables'] = {'take': {'foreach': ['site', 'size'], 'bounds': {'lower': 0}}}
+    raw['variables'] = {'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0}}}
     result = lps.solve(raw, DATA)
     assert result.objective == pytest.approx(2.0 * 3.0 + 2.0 * 5.0), 'the optimum does not follow the declared big-M'
 
@@ -268,7 +268,7 @@ def test_the_tighter_of_the_bound_and_big_m_is_the_coefficient():
 def test_the_refusals_do_not_reach_the_sinks_that_need_neither(tmp_path):
     """An unbounded member is a *reformulation* condition, not a language one."""
     raw = spec(1)
-    raw['variables'] = {'take': {'foreach': ['site', 'size'], 'bounds': {'lower': 0}}}
+    raw['variables'] = {'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0}}}
     lps.check(raw)
     assert lps.write(raw, DATA, tmp_path / 'unbounded.lp').read_text().count('S1 ::') == 2
 
@@ -286,7 +286,7 @@ def test_a_masked_member_leaves_the_set_and_its_neighbours_adjacent():
     """
     raw = spec(2)
     raw['variables'] = {
-        'take': {'foreach': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 'cap'}, 'where': 'size != 1'}
+        'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 'cap'}, 'where': 'size != 1'}
     }
     assert lps.solve(raw, DATA).objective == pytest.approx(best(2, [0, 2, 3]))
 
@@ -316,14 +316,14 @@ def test_diagnostics_separate_the_built_model_from_what_the_sink_added():
     solve larger than the model would otherwise be invisible.
     """
     with lps.build(spec(1), DATA) as model:
-        assert (model.diagnostics().sink_columns, model.diagnostics().sink_rows) == (0, 0), (
+        assert (model.diagnostics().added_columns, model.diagnostics().added_rows) == (0, 0), (
             'nothing has been handed to a sink yet'
         )
         model.solve()
         report = model.diagnostics()
         assert (report.columns, report.rows) == (len(SITES) * len(SIZES), 0), 'the model declares no rows of its own'
-        assert report.sink_columns == len(SITES) * len(SIZES), 'a binary per member'
-        assert report.sink_rows == len(SITES) * len(SIZES) + len(SITES), 'a linking row each, and one row per set'
+        assert report.added_columns == len(SITES) * len(SIZES), 'a binary per member'
+        assert report.added_rows == len(SITES) * len(SIZES) + len(SITES), 'a linking row each, and one row per set'
 
 
 def test_a_sink_that_takes_the_set_reports_adding_nothing():
@@ -331,7 +331,7 @@ def test_a_sink_that_takes_the_set_reports_adding_nothing():
     pytest.importorskip('gurobipy', reason='the native SOS path needs the [gurobi] extra')
     with lps.build(spec(1), DATA) as model:
         model.solve('gurobi')
-        assert (model.diagnostics().sink_columns, model.diagnostics().sink_rows) == (0, 0)
+        assert (model.diagnostics().added_columns, model.diagnostics().added_rows) == (0, 0)
 
 
 def test_a_model_with_no_set_is_handed_over_as_built(tmp_path):
@@ -339,7 +339,7 @@ def test_a_model_with_no_set_is_handed_over_as_built(tmp_path):
     with lps.build(BASE, DATA) as model:
         model.solve()
         model.write(tmp_path / 'plain.lp')
-        assert (model.diagnostics().sink_columns, model.diagnostics().sink_rows) == (0, 0)
+        assert (model.diagnostics().added_columns, model.diagnostics().added_rows) == (0, 0)
 
 
 def test_a_sos2_set_of_one_member_restricts_nothing():
@@ -356,7 +356,7 @@ def test_a_sos2_set_of_one_member_restricts_nothing():
     """
     raw = spec(2)
     raw['parameters'] = raw['parameters'] | {'live': {'dims': ['site', 'size'], 'dtype': 'bool'}}
-    raw['variables'] = {'take': {'foreach': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 'cap'}, 'where': 'live'}}
+    raw['variables'] = {'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 'cap'}, 'where': 'live'}}
     live = DATA | {
         'live': _table({(site, size): (site == 'north' or size == 0) for site in SITES for size in SIZES}).with_columns(
             pl.col('value').cast(pl.Boolean)
@@ -385,7 +385,7 @@ def test_regrouping_the_members_is_a_different_model_to_a_loaded_solver():
     raw = {
         'dimensions': {'site': {'dtype': 'str'}, 'size': {'dtype': 'int'}},
         'parameters': {'worth': {'dims': ['site', 'size']}, 'live': {'dims': ['site', 'size'], 'dtype': 'bool'}},
-        'variables': {'take': {'foreach': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 1}, 'where': 'live'}},
+        'variables': {'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 1}, 'where': 'live'}},
         'sos': {'pick': {'variable': 'take', 'over': 'size', 'type': 1}},
         'objective': {'sense': 'maximize', 'expression': 'sum(sum(take * worth, over=site), over=size)'},
     }
@@ -417,13 +417,13 @@ def test_regrouping_the_members_is_a_different_model_to_a_loaded_solver():
 def test_a_set_that_runs_along_a_leading_dim_still_arrives_grouped():
     """The one shape where the stream is not already in ``(set, weight)`` order.
 
-    With ``over`` first in the ``foreach``, a set's members are ``|site|``
+    With ``over`` first in the ``dims``, a set's members are ``|site|``
     apart in label order, so every set interleaves with every other. The sinks
     read a set's edges off neighbouring rows, so an ungrouped stream links
     members to the wrong binaries — and still reaches a plausible optimum.
     """
     raw = spec(1)
-    raw['variables'] = {'take': {'foreach': ['size', 'site'], 'bounds': {'lower': 0, 'upper': 'cap'}}}
+    raw['variables'] = {'take': {'dims': ['size', 'site'], 'bounds': {'lower': 0, 'upper': 'cap'}}}
     with lps.build(raw, DATA) as model:
         sets = model._engine._model.tables().sos
         assert sets['set'].to_list() == [0, 0, 0, 0, 1, 1, 1, 1], 'the members of a set did not end up together'
@@ -432,8 +432,8 @@ def test_a_set_that_runs_along_a_leading_dim_still_arrives_grouped():
         assert model.solve().objective == pytest.approx(best(1))
 
 
-@pytest.mark.parametrize('foreach', [['site', 'size'], ['size', 'site']], ids=['over-last', 'over-first'])
-def test_a_mask_that_drops_nothing_places_the_sets_where_the_arithmetic_does(foreach: list[str]):
+@pytest.mark.parametrize('dims', [['site', 'size'], ['size', 'site']], ids=['over-last', 'over-first'])
+def test_a_mask_that_drops_nothing_places_the_sets_where_the_arithmetic_does(dims: list[str]):
     """A label is a position where nothing was dropped, and both paths say so.
 
     An unmasked variable's sets and weights are arithmetic on the label, which
@@ -443,10 +443,10 @@ def test_a_mask_that_drops_nothing_places_the_sets_where_the_arithmetic_does(for
     paths, so either the two frames are one frame or one of them is wrong —
     and a member in the wrong set is linked to another set's binaries.
 
-    Both orders of the ``foreach``, because the split is where ``over`` sits
+    Both orders of the ``dims``, because the split is where ``over`` sits
     in it: last leaves the sets contiguous, first interleaves them.
     """
-    take = {'foreach': foreach, 'bounds': {'lower': 0, 'upper': 'cap'}}
+    take = {'dims': dims, 'bounds': {'lower': 0, 'upper': 'cap'}}
     raw = spec(2) | {'variables': {'take': take}}
     masked = raw | {
         'parameters': raw['parameters'] | {'live': {'dims': ['site', 'size'], 'dtype': 'bool'}},
@@ -473,7 +473,7 @@ def test_a_mask_that_empties_a_set_leaves_the_numbering_dense():
     The mask empties the *first* set here, which is the one arrangement where
     a hole and no hole are different numbers.
     """
-    take = {'foreach': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 'cap'}, 'where': 'live'}
+    take = {'dims': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 'cap'}, 'where': 'live'}
     raw = spec(1) | {'variables': {'take': take}}
     raw['parameters'] = raw['parameters'] | {'live': {'dims': ['site', 'size'], 'dtype': 'bool'}}
     live = _table({(site, size): float(site == 'south') for site in SITES for size in SIZES}).with_columns(
@@ -557,10 +557,10 @@ def _without_the_set() -> dict[str, Any]:
     """
     raw = to_spec(SOS_YAML).to_dict()
     raw.pop('piecewise')
-    raw['variables']['lam'] = {'foreach': ['snapshot', 'generator', 'bp'], 'bounds': {'lower': 0, 'upper': 1}}
+    raw['variables']['lam'] = {'dims': ['snapshot', 'generator', 'bp'], 'bounds': {'lower': 0, 'upper': 1}}
     raw['constraints'] |= {
-        'convexity': {'foreach': ['snapshot', 'generator'], 'expression': 'sum(lam, over=bp) == 1'},
-        'dispatch': {'foreach': ['snapshot', 'generator'], 'expression': 'p == sum(lam * bp_x, over=bp)'},
-        'cost': {'foreach': ['snapshot', 'generator'], 'expression': 'op_cost == sum(lam * bp_y, over=bp)'},
+        'convexity': {'dims': ['snapshot', 'generator'], 'expression': 'sum(lam, over=bp) == 1'},
+        'dispatch': {'dims': ['snapshot', 'generator'], 'expression': 'p == sum(lam * bp_x, over=bp)'},
+        'cost': {'dims': ['snapshot', 'generator'], 'expression': 'op_cost == sum(lam * bp_y, over=bp)'},
     }
     return raw

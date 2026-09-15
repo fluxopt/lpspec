@@ -34,10 +34,10 @@ DISJOINT_SPEC = {
     },
     'parameters': {'a': {'coverage': 'masked', 'dims': ['i']}, 'b': {'dims': ['j']}, 'c': {'dims': ['k']}},
     'variables': {
-        'x': {'foreach': ['i'], 'bounds': {'lower': 1, 'upper': 1}},
-        'y': {'foreach': ['j'], 'bounds': {'lower': 1, 'upper': 1}},
+        'x': {'dims': ['i'], 'bounds': {'lower': 1, 'upper': 1}},
+        'y': {'dims': ['j'], 'bounds': {'lower': 1, 'upper': 1}},
     },
-    'constraints': {'floor': {'foreach': ['i'], 'expression': 'x >= 0'}},
+    'constraints': {'floor': {'dims': ['i'], 'expression': 'x >= 0'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x * a) + sum(y * b)'},
 }
 
@@ -93,10 +93,10 @@ BRACKETED_SPEC = {
     'dimensions': {'i': {'dtype': 'int'}, 'j': {'dtype': 'int'}},
     'parameters': {'c': {'dims': ['i']}},
     'variables': {
-        'x': {'foreach': ['i'], 'bounds': {'lower': 1, 'upper': 1}},
-        'y': {'foreach': ['j'], 'bounds': {'lower': 1, 'upper': 1}},
+        'x': {'dims': ['i'], 'bounds': {'lower': 1, 'upper': 1}},
+        'y': {'dims': ['j'], 'bounds': {'lower': 1, 'upper': 1}},
     },
-    'constraints': {'floor': {'foreach': ['i'], 'expression': 'x >= 0'}},
+    'constraints': {'floor': {'dims': ['i'], 'expression': 'x >= 0'}},
 }
 
 
@@ -136,8 +136,8 @@ def test_an_objective_carrying_dims_is_refused_with_the_wrapper_named():
 FEASIBILITY_SPEC = {
     'dimensions': {'g': {'dtype': 'str'}},
     'parameters': {'cap': {'coverage': 'masked', 'dims': ['g']}, 'need': {'dims': []}},
-    'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-    'constraints': {'meet': {'foreach': [], 'expression': 'sum(x, over=g) >= need'}},
+    'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'constraints': {'meet': {'dims': [], 'expression': 'sum(x, over=g) >= need'}},
 }
 
 

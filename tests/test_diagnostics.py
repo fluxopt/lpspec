@@ -1,4 +1,4 @@
-"""What the build reports about itself: omissions, timings, magnitudes, sparsity.
+"""What the build reports about itself: omissions, clocks, magnitudes, sparsity.
 
 A diagnostic is a claim about a model the solver never sees. A row that lost
 every term is not built, and saying so is the difference between a smaller
@@ -40,16 +40,18 @@ def test_a_row_with_no_terms_is_not_built_and_is_reported(solver_name, batch_row
     guard against by keeping the row; `diagnostics().omissions` answers it without asking
     the solver to carry a comparison nothing can fail.
 
-    Ragged batches because the range loop is where a *surviving* seat would be
+    Ragged batches because a block loop is where a *surviving* seat would be
     lost — labels are compacted when a row goes, so the dense vector and the
-    chunk ranges have to agree about the narrower block. Both solvers, because
-    the seating is theirs jointly.
+    block ranges have to agree about the narrower block. That is the Gurobi and
+    Xpress sinks; HiGHS takes the whole model in one call and reads
+    ``batch_rows`` not at all, so its four cases are one case asked four times.
+    Every sink all the same, because the seating is theirs jointly.
     """
     spec = {
         'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
         'parameters': {'load': {'dims': ['t']}},
-        'variables': {'p': {'foreach': ['t', 'g'], 'where': 't > 0', 'bounds': {'lower': 0, 'upper': 100}}},
-        'constraints': {'balance': {'foreach': ['t'], 'expression': 'sum(p, over=g) == load'}},
+        'variables': {'p': {'dims': ['t', 'g'], 'where': 't > 0', 'bounds': {'lower': 0, 'upper': 100}}},
+        'constraints': {'balance': {'dims': ['t'], 'expression': 'sum(p, over=g) == load'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(sum(p, over=g), over=t)'},
     }
     data = {'t': [0, 1, 2], 'g': ['a', 'b'], 'load': pl.DataFrame({'t': [0, 1, 2], 'value': [5.0, 4.0, 6.0]})}
@@ -87,10 +89,10 @@ def test_a_row_a_propagated_absence_deleted_is_reported_too():
         'dimensions': {'g': {'dtype': 'str'}},
         'parameters': {'cap': {'coverage': 'masked', 'dims': ['g']}, 'extra': {'coverage': 'masked', 'dims': ['g']}},
         'variables': {
-            'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}},
-            'y': {'foreach': ['g'], 'where': 'extra', 'bounds': {'lower': 0, 'upper': 0}},
+            'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}},
+            'y': {'dims': ['g'], 'where': 'extra', 'bounds': {'lower': 0, 'upper': 0}},
         },
-        'constraints': {'both': {'foreach': ['g'], 'expression': 'x + y >= 5'}},
+        'constraints': {'both': {'dims': ['g'], 'expression': 'x + y >= 5'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(x, over=g)'},
     }
     data = {
@@ -110,12 +112,12 @@ def test_a_row_a_propagated_absence_deleted_is_reported_too():
 def test_diagnostics_say_where_the_time_went(tmp_path):
     """A run that is slower than it should be can say which phase the time went to.
 
-    `timings` is advisory wall time, so nothing here asserts a magnitude —
+    `seconds` is advisory wall time, so nothing here asserts a magnitude —
     only that each phase that ran left a clock, that none ran backwards, and
     that they accumulate across calls the way `solves` counts.
     """
     with lps.build(SOLVER_VECTOR_SPEC, SOLVER_VECTOR_LOAD) as model:
-        built = model.diagnostics().timings
+        built = model.diagnostics().seconds
         assert set(built) == {'attach', 'build'}, (
             'a model only built has spent time attaching sources and building frames, nowhere else'
         )
@@ -123,7 +125,7 @@ def test_diagnostics_say_where_the_time_went(tmp_path):
 
         model.solve()
         model.write(tmp_path / 'model.lp')
-        ran = model.diagnostics().timings
+        ran = model.diagnostics().seconds
         assert set(ran) == {'attach', 'build', 'handoff', 'solve', 'write'}, (
             'a solve adds the hand-off and the solver run, a write adds the file stream'
         )
@@ -131,7 +133,7 @@ def test_diagnostics_say_where_the_time_went(tmp_path):
 
         snapshot = dict(ran)
         model.solve()
-        assert model.diagnostics().timings['solve'] >= ran['solve'], (
+        assert model.diagnostics().seconds['solve'] >= ran['solve'], (
             'the clocks accumulate across solves, the way `solves` counts'
         )
         assert ran == snapshot, 'a diagnostics snapshot is its own dict, not a view of the running clocks'
@@ -144,11 +146,11 @@ def test_diagnostics_say_where_the_time_went(tmp_path):
 SCALING = {
     'dimensions': {'unit': {'dtype': 'str'}},
     'parameters': {'small': {'dims': ['unit']}, 'large': {'dims': ['unit']}, 'cost': {'dims': ['unit']}},
-    'variables': {'p': {'foreach': ['unit'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'variables': {'p': {'dims': ['unit'], 'bounds': {'lower': 0, 'upper': 10}}},
     'constraints': {
-        'ordinary': {'foreach': ['unit'], 'expression': 'p * small >= 1'},
-        'badly_scaled': {'foreach': ['unit'], 'expression': 'p * large <= 10000000'},
-        'signed': {'foreach': ['unit'], 'expression': '0 - p * small >= -100'},
+        'ordinary': {'dims': ['unit'], 'expression': 'p * small >= 1'},
+        'badly_scaled': {'dims': ['unit'], 'expression': 'p * large <= 10000000'},
+        'signed': {'dims': ['unit'], 'expression': '0 - p * small >= -100'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost, over=unit)'},
 }
@@ -202,6 +204,96 @@ def test_the_objective_range_is_read_beside_the_matrix_and_not_in_it():
     )
 
 
+#: One variable whose bounds are the outlier and one with no finite bound at
+#: all, so the report has both the case it must name and the case it must not
+#: invent. `cap` carries a real cap and the 1e9 that a modeller writes when a
+#: connection is uncapped — the shape `examples/ports/transport_modes.yaml`
+#: ships.
+BOUNDS = {
+    'dimensions': {'unit': {'dtype': 'str'}},
+    'parameters': {'cap': {'dims': ['unit']}, 'cost': {'dims': ['unit']}},
+    'variables': {
+        'capped': {'dims': ['unit'], 'bounds': {'lower': 0, 'upper': 'cap'}},
+        'free': {'dims': ['unit'], 'bounds': {'lower': 0}},
+    },
+    'constraints': {
+        'small_rhs': {'dims': ['unit'], 'expression': 'capped + free >= 1'},
+        'large_rhs': {'dims': ['unit'], 'expression': 'capped <= 250000'},
+    },
+    'objective': {'sense': 'minimize', 'expression': 'sum(capped * cost + free * cost, over=unit)'},
+}
+
+
+BOUNDS_SOURCES = {
+    'unit': ['a', 'b'],
+    'cap': pl.DataFrame({'unit': ['a', 'b'], 'value': [50.0, 1e9]}),
+    'cost': pl.DataFrame({'unit': ['a', 'b'], 'value': [1.0, 2.0]}),
+}
+
+
+def test_the_bound_range_names_the_variable_whose_bounds_are_the_outlier():
+    """The axis a solver reports and does not repair, per declaration.
+
+    HiGHS equilibrates the matrix by itself and answers the bounds with advice
+    to the caller, so a model can be clean on ``coefficient_range`` and still be
+    the one it is complaining about. `BOUNDS` is exactly that model — every
+    coefficient is 1 and the bounds span eight orders.
+    """
+    with lps.build(BOUNDS, BOUNDS_SOURCES) as model:
+        seen = model.diagnostics()
+
+    assert seen.bound_range.to_dicts() == [{'variable': 'capped', 'smallest': 50.0, 'largest': 1e9}], (
+        'one row per variable block that declared a finite bound, and `free` declared none'
+    )
+    assert seen.coefficient_range.get_column('largest').max() == 1.0, (
+        'the matrix is clean, which is what makes the bound range the only place the fault shows'
+    )
+
+
+def test_a_bound_of_zero_or_infinity_is_not_a_magnitude():
+    """`lower: 0` and an unbounded side are excluded, so the pair reads as a solver's does.
+
+    Neither is a magnitude the solver has to represent, and a zero would make
+    every non-negative variable report a range of ``0 .. something`` — an
+    infinite conditioning number on the most ordinary declaration there is.
+    """
+    with lps.build(BOUNDS, BOUNDS_SOURCES) as model:
+        reported = model.diagnostics().bound_range.get_column('variable').to_list()
+
+    assert reported == ['capped'], '`free` is lower: 0 with no upper, so it has no finite bound and no row'
+
+
+def test_the_rhs_range_is_read_per_block_like_the_coefficients():
+    """The fourth range a solver prints, and the last one answerable per declaration."""
+    with lps.build(BOUNDS, BOUNDS_SOURCES) as model:
+        seen = model.diagnostics().rhs_range
+
+    assert seen.to_dicts() == [
+        {'constraint': 'small_rhs', 'smallest': 1.0, 'largest': 1.0},
+        {'constraint': 'large_rhs', 'smallest': 250000.0, 'largest': 250000.0},
+    ], 'one row per constraint block in build order, magnitudes like every other range'
+
+
+def test_the_four_ranges_are_four_fields_because_they_have_four_repairs():
+    """A model can be clean on one axis and the offender on another.
+
+    The reason these are not one number: `BOUNDS` has a perfect matrix, a
+    modest objective, a modest right-hand side and a bound range of 2e7. Rolled
+    together it would read as badly scaled with nothing saying which axis, which
+    is the whole-model line a solver already prints.
+    """
+    with lps.build(BOUNDS, BOUNDS_SOURCES) as model:
+        seen = model.diagnostics()
+
+    def ratio(frame):
+        return frame.select((pl.col('largest') / pl.col('smallest')).max()).item()
+
+    assert ratio(seen.coefficient_range) == 1.0, 'every coefficient in this model is 1'
+    assert ratio(seen.bound_range) == pytest.approx(2e7), 'the bounds are the fault, and only this field says so'
+    assert ratio(seen.rhs_range) == 1.0, 'each block has one right-hand side, so no block spreads'
+    assert seen.objective_range == (1.0, 2.0), 'costs are a separate axis with a separate repair'
+
+
 def test_a_model_with_no_objective_has_no_objective_range():
     """A feasibility model has no costs to be badly scaled, and says so rather than lying with zeros."""
     feasibility = {k: v for k, v in SCALING.items() if k != 'objective'}
@@ -217,8 +309,8 @@ def test_a_model_with_no_objective_has_no_objective_range():
 UNDEFINED_DIVISOR = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'d': {'coverage': 'masked', 'dims': ['f']}},
-    'variables': {'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'c': {'foreach': ['f'], 'expression': 'x / d <= 10'}},
+    'variables': {'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'c': {'dims': ['f'], 'expression': 'x / d <= 10'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
 }
 

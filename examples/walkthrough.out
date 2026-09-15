@@ -17,7 +17,7 @@ spec: examples/walkthrough.yaml
 
 [3] a spec -> the program both lanes build from  (math_spec.to_program)
     Program(
-      p: VariableDeclaration(dims=('snapshot', 'generator'), where=Mask(root=ParameterComparisonNode(name='p_max', op='>', value=0.0, dims=('generator',))), lower=Constant(value=0.0), upper=Parameter(name='p_max'), variable_type='continuous', absence='undefined')
+      p: VariableDeclaration(dims=('snapshot', 'generator'), where=Mask(root=ParameterComparisonNode(name='p_max', op='>', value=0.0, dims=('generator',))), lower=Constant(value=0.0), upper=Parameter(name='p_max'), domain='continuous', absence='undefined')
       power_balance: ConstraintDeclaration(dims=('snapshot',), lhs=Sum(operand=Variable(name='p'), over=('generator',)), sense='==', rhs=Parameter(name='load'), where=None)
       ObjectiveDeclaration(sense='minimize', expression=Sum(operand=Sum(operand=Multiply(left=Variable(name='p'), right=Parameter(name='cost')), over=('generator',)), over=('snapshot',)))
     )
@@ -94,7 +94,7 @@ spec: examples/walkthrough.yaml
     an operator that is not in the closed built-in set:
     caught by check() as SchemaError
       Constraint 'cumulative': Unknown operator 'cumsum'.
-      Available: ['at', 'shift', 'sum', 'sum_back']
+      Available: ['at', 'dual', 'shift', 'sum', 'sum_back']
       Define 'cumsum' as a macro under 'macros:' if it composes built-ins; if the math is not sayable in the language, use a declared escape.
 
     variable x variable x variable — the ceiling is degree 2, not "nonlinear is fine":

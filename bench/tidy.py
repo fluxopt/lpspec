@@ -19,10 +19,16 @@ model cannot count them — writes nothing, so every value column is complete.
 That is the same rule the language holds its own inputs to, and it is what
 makes this file loadable by lpspec without a fillna.
 
-**`phase` is why the shape is worth having.** Today it takes three values —
-``emit`` for build-and-emit, ``first`` and ``steady`` for the two halves of the
-rebuild loop. A finer split (import, ingest, build, emit, retrieve) adds values
-to that column and changes no schema, no renderer and no committed file.
+**`phase` is why the shape is worth having.** Today it takes four values —
+``emit`` for build-and-emit, ``window`` for a later window of a rolling horizon,
+``first`` and ``steady`` for the two halves of the rebuild loop. A finer split
+(import, ingest, build, emit, retrieve) adds values to that column and changes
+no schema, no renderer and no committed file.
+
+``window`` is the one the published tables do not render: `bench/report.py` and
+`bench/plot.py` take the ``emit`` phase, so a rung measuring the same cell at a
+different moment is reachable here and nowhere else — which is this file's own
+argument for existing.
 
 **The fingerprint is long too** (`--runs`): one row per fact, so a dependency
 added to `TRACKED` in `bench/conftest.py` is a row rather than a column.
@@ -92,11 +98,12 @@ def measurements(records: Iterable[dict[str, Any]], run: str) -> Iterator[dict[s
     for record in records:
         kind = record.get('record')
         if kind == 'timing':
+            phase = record.get('phase', 'emit')
             for field, metric in EMIT_METRICS:
-                row = _row(record, run, 'emit', metric, record.get(field))
+                row = _row(record, run, phase, metric, record.get(field))
                 if row is not None:
                     yield row
-            yield from _counts(record, run, 'emit')
+            yield from _counts(record, run, phase)
         elif kind == 'loop':
             for field, phase in (('first_build_seconds', 'first'), ('steady_build_seconds', 'steady')):
                 row = _row(record, run, phase, 'wall_seconds', record.get(field))

@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
+from lpspec.relational.collect import polars_engine
 from lpspec.relational.engines.polars.compiler import UNIT, ordinal
 
 if TYPE_CHECKING:
@@ -39,9 +40,8 @@ if TYPE_CHECKING:
 class Labelled:
     """One declaration's labelled frame, and the contiguous run of labels it owns.
 
-    The frame and its run move together — a dropped row renumbers both — so
-    they are one value: two registries kept in lockstep by convention was the
-    hazard. :func:`frame` numbers a declaration's survivors contiguously from
+    The frame and its run move together — a dropped row renumbers both.
+    :func:`frame` numbers a declaration's survivors contiguously from
     ``start``, which is what makes its share of a solver vector a slice.
     """
 
@@ -80,13 +80,11 @@ def frame(
     **Nothing sorts unless the data says it must.** The product is *produced*
     in declaration order, a filter keeps it and a semi-join usually does, so
     :func:`in_position_order` verifies linearly and sorts only when the engine
-    emitted another order. The unconditional sort was a third of a build on the
-    widest case measured (#520).
+    emitted another order.
 
     **Nothing renumbers unless a row was dropped**, either. With neither mask
     nor restriction, ``start + position`` *is* the label and the row-index pass
-    never runs — milliseconds per declaration, on a model that may carry dozens
-    (#520). Nothing projects there either: the query selected the dims and the
+    never runs. Nothing projects there either: the query selected the dims and the
     label in that order, so the projection the renumbered path ends on would
     copy every column to itself, and what is left to do is set the sorted flag
     the scan established.
@@ -112,7 +110,7 @@ def frame(
         numbering = pl.lit(start, dtype=pl.Int64) + numbering
     position = '#position' if dropped else label
     materialised = in_position_order(
-        surviving.select(*(dims or (UNIT,)), numbering.alias(position)).collect(engine='streaming'),
+        surviving.select(*(dims or (UNIT,)), numbering.alias(position)).collect(engine=polars_engine()),
         position,
     )
     if not dropped and dims:
@@ -128,8 +126,7 @@ def declared_height(compiler: PolarsCompiler, dims: tuple[str, ...], where: prog
 
     The count :func:`frame` would return if no variable's absence restricted it,
     so the difference between the two is the rows a propagated absence removed —
-    which nothing else records, a restricted row never existing to be counted
-    (#944).
+    which nothing else records, a restricted row never existing to be counted.
 
     **Unmasked, it is arithmetic** over the cardinalities attaching cached.
     With a mask it costs a pass over the masked product, and is therefore asked
@@ -137,7 +134,7 @@ def declared_height(compiler: PolarsCompiler, dims: tuple[str, ...], where: prog
     """
     if where is None:
         return math.prod(compiler.data.cardinality[d] for d in dims)
-    return int(compiler.frame(dims, where).select(pl.len()).collect(engine='streaming').item())
+    return int(compiler.frame(dims, where).select(pl.len()).collect(engine=polars_engine()).item())
 
 
 def _factored(
@@ -152,8 +149,7 @@ def _factored(
 
     The survivors are a rectangle — the full product of the leading dims
     against one surviving suffix set — so only the suffix is materialised and
-    ranked: on `dispatch`, the generators rather than 10M
-    ``(snapshot, generator)`` pairs. The label is then arithmetic, row-major
+    ranked. The label is then arithmetic, row-major
     over the leading dims times the surviving set's width plus a survivor's
     rank, which is the number the counted path would have counted since each
     leading coordinate sees the same survivors in the same order.
@@ -163,11 +159,10 @@ def _factored(
     ``None`` when nothing survives, the counted path already answering the
     empty case with the right columns and dtypes.
 
-    **The survivors go on the left of the cross join**, the side the streaming
-    engine cycles fastest, so survivors turning over within each head
-    coordinate is label order and :func:`in_position_order` permutes nothing
-    (#520). Which side cycles is polars' own business, asserted nowhere: the
-    verify is what makes it safe to exploit.
+    **The survivors go on the left of the cross join**, so survivors turning
+    over within each head coordinate is label order and
+    :func:`in_position_order` permutes nothing. Which side cycles is polars'
+    own business, asserted nowhere: the verify is what makes it safe to exploit.
     """
     head, kept = dims[:free], dims[free:]
     rank = '#rank'
@@ -176,7 +171,7 @@ def _factored(
         .sort([ordinal(d) for d in kept])
         .select(*kept)
         .with_row_index(rank)
-        .collect(engine='streaming')
+        .collect(engine=polars_engine())
     )
     width = survivors.height
     if width == 0:
@@ -190,7 +185,7 @@ def _factored(
             *dims,
             (pl.lit(start, dtype=pl.Int64) + pl.col(position) * width + pl.col(rank)).alias(label),
         )
-        .collect(engine='streaming')
+        .collect(engine=polars_engine())
     )
     return in_position_order(labelled, label).with_columns(pl.col(label).set_sorted())
 
@@ -200,9 +195,8 @@ def _free_prefix(dims: tuple[str, ...], touched: frozenset[str]) -> int:
 
     Leading, not merely absent: a label follows declaration order, so only a
     prefix leaves the surviving set contiguous under each of its coordinates.
-    Returns 0 when the mask reads the first dim — the case that has to count
-    its survivors the slow way — and 0 again when *no* dim is read, where the
-    split would gain nothing over the one-path arithmetic.
+    Returns 0 when the mask reads the first dim, and 0 again when *no* dim is
+    read.
     """
     free = 0
     while free < len(dims) and dims[free] not in touched:
@@ -220,8 +214,7 @@ def in_position_order(materialised: pl.DataFrame, position: str) -> pl.DataFrame
 
     One linear ``is_sorted`` against a single column, and a single-key sort
     only when the engine emitted another order. The witness column stays for a
-    caller to project away. All three orderings in the lane go through here: a
-    second copy of "check before you sort" is a second thing to get backwards.
+    caller to project away. All three orderings in the lane go through here.
     """
     if materialised.get_column(position).is_sorted():
         return materialised

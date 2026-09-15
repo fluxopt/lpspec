@@ -14,38 +14,58 @@ The dispatch model of README.md, plus one macro and one named expression — sma
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{S}$ | index $s$ — `snapshot` — dispatch periods |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units, including oil, which is retired and gets no columns at all |
+| $`\mathcal{S}`$ | index $`s`$ — `snapshot` — dispatch periods |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units, including oil, which is retired and gets no columns at all |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\bar p$ | `p_max` over $\mathcal{G}$ — installed capacity, zero for a retired unit |
-| $\ell$ | `load` over $\mathcal{S}$ — demand to be met |
-| $c$ | `cost` over $\mathcal{G}$ — marginal cost |
+| $`\bar p`$ | `p_max` over $`\mathcal{G}`$ — installed capacity, zero for a retired unit |
+| $`\ell`$ | `load` over $`\mathcal{S}`$ — demand to be met |
+| $`c`$ | `cost` over $`\mathcal{G}`$ — marginal cost |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{S} \times \mathcal{G}$ — output of a generator in a snapshot — the `where` drops the retired unit entirely, so the built model is smaller than the coordinate product |
+| $`p`$ | `p` over $`\mathcal{S} \times \mathcal{G}`$ — output of a generator in a snapshot — the `where` drops the retired unit entirely, so the built model is smaller than the coordinate product |
+
+#### Definitions
+
+| Symbol | Meaning |
+|---|---|
+| $`\mathit{total\_supply}`$ | `total_supply` over $`\mathcal{S}`$ — what the whole fleet produces in a snapshot |
 
 #### Objective
 
-$$\min \sum_{s \in \mathcal{S}} \sum_{g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
+```math
+\min \sum_{s \in \mathcal{S}} \sum_{g \in \mathcal{G}} p_{s,g} \cdot c_{g}
+```
 
 #### Subject to
 
 **`power_balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{s,g} = \ell_{s} \qquad \forall\thinspace s \in \mathcal{S}$$
+```math
+\mathit{total\_supply}_{s} = \ell_{s} \qquad \forall\, s \in \mathcal{S}
+```
+
+#### Definitions
+
+**`total_supply`**
+
+```math
+\mathit{total\_supply}_{s} = \sum_{g \in \mathcal{G}} p_{s,g} \qquad \forall\, s \in \mathcal{S}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{s,g} \le \bar p_{g} \qquad \forall\thinspace s \in \mathcal{S},\enspace g \in \mathcal{G} \thinspace:\thinspace \bar p_{g} > 0$$
+```math
+0 \le p_{s,g} \le \bar p_{g} \qquad \forall\, s \in \mathcal{S},\ g \in \mathcal{G} \,:\, \bar p_{g} > 0
+```
 
 </details>
 <!-- math:end -->
@@ -87,7 +107,7 @@ variables:
     description: >-
       output of a generator in a snapshot — the `where` drops the retired unit
       entirely, so the built model is smaller than the coordinate product
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     where: "p_max > 0"
     bounds:
       lower: 0
@@ -96,7 +116,7 @@ variables:
 constraints:
   power_balance:
     description: the fleet meets the load exactly in every snapshot
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: total_supply == load
 
 objective:
@@ -108,19 +128,17 @@ objective:
 ## What it exercises
 
 This is the model behind `python examples/walkthrough.py`, which runs it
-through every stage — YAML → schema → core AST → logical plan → model frames →
-LP text → solution — printing what each stage produces, then two models the
+through every stage, YAML → schema → core AST → logical plan → model frames →
+LP text → solution, printing what each stage produces, then two models the
 language refuses and why. The committed output is
-[examples/walkthrough.out](https://github.com/fluxopt/lpspec/blob/main/examples/walkthrough.out)
-if you would rather read than run.
+[examples/walkthrough.out](https://github.com/fluxopt/lpspec/blob/main/examples/walkthrough.out).
 
 It is the only model here that uses **tier 2**: a macro and a named
-expression. The macro does not survive the language's expansion — nothing
-downstream of `math_spec` knows it existed, which is what makes it free. The named
-expression is substituted the same way wherever a constraint uses it, but its
-name survives on the model: stage 6 reads `total_supply` back at the solution
-with `expression()`, lowered on that read rather than at build, so declaring
-it still costs the build nothing.
+expression. The macro does not survive the language's expansion, so nothing
+downstream of `math_spec` knows it existed. The named expression is
+substituted the same way wherever a constraint uses it, and its name survives
+on the model: stage 6 reads `total_supply` back at the solution with
+`evaluate()`, lowered on that read rather than at build.
 
 ---
 

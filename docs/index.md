@@ -48,17 +48,17 @@ Write the math in YAML, attach data at runtime, solve.
 
     ---
 
-    Every expression, `where` string and even *uncalled* macro template is
+    Every expression, `where` string and *uncalled* macro template is
     parsed and name-checked before a single source is attached. Errors name the
     problem and its rewrite.
 
--   :material-fence: __A finite language, with a priced way out__
+-   :material-fence: __A finite language, with no escape hatch__
 
     ---
 
-    The ceiling is a closure (relational ∩ local), not a feature race.
-    Genuinely unsayable math goes in an `escape:` island — visible in the file,
-    billed before it runs.
+    The ceiling is relational, and locality prices a new operator rather than
+    barring it. Math the language cannot express is a gap in the language, and
+    a gap closes as a macro, a primitive or a formulation.
 
 -   :material-speedometer: __Straight to the solver__
 
@@ -94,8 +94,8 @@ Write the math in YAML, attach data at runtime, solve.
 
 ### And that file says, exactly this
 
-Generated from the YAML above — no data, no solver, no second source of truth.
-Only the notation is a choice, and **How** shows the one that was made here.
+Generated from the YAML above, with no data and no solver. Only the notation
+is a choice, and **How** shows the one that was made here.
 
 <!-- home-math:begin -->
 === "The math"
@@ -106,38 +106,44 @@ Only the notation is a choice, and **How** shows the one that was made here.
 
     | Symbol | Meaning |
     |---|---|
-    | $\mathcal{S}$ | index $s$ — `snapshot` — dispatch periods |
-    | $\mathcal{G}$ | index $g$ — `generator` — generating units |
+    | $`\mathcal{S}`$ | index $`s`$ — `snapshot` — dispatch periods |
+    | $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units |
 
     #### Parameters
 
     | Symbol | Meaning |
     |---|---|
-    | $\bar p$ | `p_max` over $\mathcal{G}$ — installed capacity |
-    | $\ell$ | `load` over $\mathcal{S}$ — demand to be met |
-    | $c$ | `cost` over $\mathcal{G}$ — marginal cost |
+    | $`\bar p`$ | `p_max` over $`\mathcal{G}`$ — installed capacity |
+    | $`\ell`$ | `load` over $`\mathcal{S}`$ — demand to be met |
+    | $`c`$ | `cost` over $`\mathcal{G}`$ — marginal cost |
 
     #### Variables
 
     | Symbol | Meaning |
     |---|---|
-    | $p$ | `p` over $\mathcal{S} \times \mathcal{G}$ — output of a generator in a snapshot |
+    | $`p`$ | `p` over $`\mathcal{S} \times \mathcal{G}`$ — output of a generator in a snapshot |
 
     #### Objective
 
-    $$\min \sum_{s \in \mathcal{S},\enspace g \in \mathcal{G}} p_{s,g} \cdot c_{g}$$
+    ```math
+    \min \sum_{s \in \mathcal{S},\ g \in \mathcal{G}} p_{s,g} \cdot c_{g}
+    ```
 
     #### Subject to
 
     **`power_balance`**
 
-    $$\sum_{g \in \mathcal{G}} p_{s,g} = \ell_{s} \qquad \forall\thinspace s \in \mathcal{S}$$
+    ```math
+    \sum_{g \in \mathcal{G}} p_{s,g} = \ell_{s} \qquad \forall\, s \in \mathcal{S}
+    ```
 
     #### Variable domains
 
     **`p`**
 
-    $$0 \le p_{s,g} \le \bar p_{g} \qquad \forall\thinspace s \in \mathcal{S},\enspace g \in \mathcal{G} \thinspace:\thinspace \bar p_{g} > 0$$
+    ```math
+    0 \le p_{s,g} \le \bar p_{g} \qquad \forall\, s \in \mathcal{S},\ g \in \mathcal{G} \,:\, \bar p_{g} > 0
+    ```
 
 === "LaTeX"
 
@@ -235,8 +241,8 @@ Only the notation is a choice, and **How** shows the one that was made here.
 
     ---
 
-    A file and your tables to an answer you can read back — check, build,
-    solve, and what the engine will *not* do.
+    A file and your tables to an answer you can read back, in five steps:
+    install, check, attach, solve, read.
 
     [:octicons-arrow-right-24: The guide](guide.md)
 
@@ -244,10 +250,10 @@ Only the notation is a choice, and **How** shows the one that was made here.
 
     ---
 
-    The journey from the files an instance arrives in to one frame per
-    parameter — and what attaching accepts, refuses, and says when it refuses.
+    The recipe from the files an instance arrives in to one table per
+    parameter, and the contract for what attaching accepts and refuses.
 
-    [:octicons-arrow-right-24: Preparing the data](examples/data.md) ·
+    [:octicons-arrow-right-24: Preparing the data](howto/data.md) ·
     [The contract](reference/data.md)
 
 -   :material-view-gallery-outline: __Models__
@@ -272,7 +278,7 @@ Only the notation is a choice, and **How** shows the one that was made here.
 
     ---
 
-    Bind data, build, solve, read the answer back — and sweep the same model
+    Attach data, build, solve and read the answer back. Sweep the same model
     over scenarios or a rolling horizon.
 
     [:octicons-arrow-right-24: The API](reference/api.md) ·
@@ -283,8 +289,8 @@ Only the notation is a choice, and **How** shows the one that was made here.
 
     ---
 
-    The hard rules, the expressive ceiling, the measured cost, the module map —
-    and what we have decided never to build.
+    The hard rules, the expressive ceiling, the measured cost, the module map,
+    and what will never be built.
 
     [:octicons-arrow-right-24: About](about/index.md)
 

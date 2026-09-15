@@ -11,10 +11,10 @@ dimensions:
   line:
     dtype: str
 
-lookups:
-  gen_bus: {over: generator, into: bus}  # every generator sits on a bus
-  line_from: {over: line, into: bus}  # both endpoints are buses
-  line_to: {over: line, into: bus}
+relations:
+  gen_bus: {columns: [generator, bus], key: generator}  # every generator sits on a bus
+  line_from: {columns: [line, bus], key: line}  # both endpoints are buses
+  line_to: {columns: [line, bus], key: line}
 
 parameters:
   p_max:
@@ -31,19 +31,19 @@ parameters:
 
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds:
       lower: 0
       upper: p_max
   f:
-    foreach: [snapshot, line]
+    dims: [snapshot, line]
     bounds:
       lower: neg_cap
       upper: cap
 
 constraints:
   balance:
-    foreach: [snapshot, bus]
+    dims: [snapshot, bus]
     expression: sum(p, by=gen_bus) + sum(f, by=line_to) - sum(f, by=line_from) == load
 
 objective:

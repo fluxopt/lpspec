@@ -112,10 +112,10 @@ def test_infeasible_solve_refuses_duals(dispatch_yaml, dispatch_inputs):
 RAMP_BLOCK = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'lim': {'dims': ['t']}},
-    'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {
-        'ramp_up': {'foreach': ['t'], 'expression': "p - shift(p, over=t, offset=1, edge='wrap') <= lim"},
-        'ramp_down': {'foreach': ['t'], 'expression': "shift(p, over=t, offset=1, edge='wrap') - p <= lim"},
+        'ramp_up': {'dims': ['t'], 'expression': "p - shift(p, along=t, offset=1, edge='wrap') <= lim"},
+        'ramp_down': {'dims': ['t'], 'expression': "shift(p, along=t, offset=1, edge='wrap') - p <= lim"},
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(p, over=t)'},
 }

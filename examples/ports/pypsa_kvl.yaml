@@ -20,19 +20,19 @@ dimensions:
     description: one independent loop of the network
     dtype: str
 
-lookups:
+relations:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    columns: [generator, bus]
+    key: generator
   line_from:
     description: the bus a line leaves
-    over: line
-    into: bus
+    columns: [line, bus]
+    key: line
   line_to:
     description: the bus a line arrives at
-    over: line
-    into: bus
+    columns: [line, bus]
+    key: line
 
 parameters:
   p_nom:
@@ -60,7 +60,7 @@ parameters:
 variables:
   p:
     description: output of a generator in a snapshot
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds:
       lower: 0
       upper: p_nom
@@ -68,7 +68,7 @@ variables:
     description: >-
       flow on a line, signed towards its `line_to` bus — not chosen, but whatever
       the voltage law leaves
-    foreach: [snapshot, line]
+    dims: [snapshot, line]
     bounds:
       lower: neg_s_nom
       upper: s_nom
@@ -76,7 +76,7 @@ variables:
 constraints:
   nodal_balance:
     description: what is generated at a bus plus what arrives over the lines meets the load there
-    foreach: [snapshot, bus]
+    dims: [snapshot, bus]
     expression: >-
       sum(p, by=gen_bus)
       + sum(f, by=line_to)
@@ -90,7 +90,7 @@ constraints:
       way round they run, so this is one equation rather than a case analysis
       over the topology — and a coordinate could not hold it, being
       single-valued per label.
-    foreach: [snapshot, cycle]
+    dims: [snapshot, cycle]
     expression: sum(f * cycle_incidence, over=line) == 0
 
 objective:

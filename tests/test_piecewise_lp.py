@@ -52,11 +52,11 @@ parameters:
 
 variables:
   p:
-    foreach: [snapshot, unit]
+    dims: [snapshot, unit]
     bounds: {lower: 0, upper: 100}
     description: dispatched power
   op_cost:
-    foreach: [snapshot, unit]
+    dims: [snapshot, unit]
     bounds: {lower: 0}
     description: operating cost, read off the unit's own curve
 
@@ -71,7 +71,7 @@ piecewise:
 
 constraints:
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=unit) == load
     description: the fleet meets demand
 

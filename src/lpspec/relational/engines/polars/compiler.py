@@ -1,15 +1,13 @@
 """Logical plan → polars. Lazy: nothing is read, nothing is executed.
 
-The language compiles a spec to a plan; this compiles the plan to a query, so
-docs/about/architecture.md's admissibility test is a ``.explain()`` away. An identifier is
-a value here, never syntax.
+The language compiles a spec to a plan; this compiles the plan to a query.
 
 Column conventions, relied on by the engine:
 
 ===================  ==========================================
 frame                columns
 ===================  ==========================================
-dimension table      ``val``, ``ord``, plus declared lookups
+dimension table      ``val``, ``ord``, plus declared relations
 parameter table      ``dims…``, ``value``
 variable frame       ``dims…``, ``var_label``
 term fragment        ``dims…``, ``var_label``, ``coeff``
@@ -29,6 +27,7 @@ import polars as pl
 from math_spec import program
 
 from lpspec.errors import LpspecError
+from lpspec.relational.collect import polars_engine
 from lpspec.relational.engines.polars.fragments import (
     GROUP_RANK,
     GROUP_SIZE,
@@ -36,7 +35,9 @@ from lpspec.relational.engines.polars.fragments import (
     CompiledExpression,
     Presence,
     TermFragment,
+    absence_restrictions,
     both_regions,
+    constant_scalar,
     join_mul,
     join_on,
     join_pow,
@@ -54,7 +55,7 @@ from lpspec.relational.engines.polars.predicates import (
 from lpspec.relational.engines.polars.reindex import translate_fragment, window_fragment
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
 
     import numpy.typing as npt
     from polars._typing import JoinStrategy, MaintainOrderJoin
@@ -70,19 +71,51 @@ if TYPE_CHECKING:
 UNIT = '__unit__'
 
 
+def _presence(held: Labelled, dims: tuple[str, ...], label: str) -> pl.LazyFrame:
+    """The coordinates a declaration's rows exist at.
+
+    A **scalar** declaration has none, and ``select()`` over no dims is the
+    empty frame polars cannot represent, so the marker column carries the one
+    bit left: whether the row is there at all. It is renamed from the *label*
+    column, never a ``pl.lit()`` — a select of literals alone is length 1
+    whatever it selects from, so an absent scalar would come back present.
+    """
+    if dims:
+        return held.frame.select(*dims)
+    return held.frame.select(pl.col(label).alias(PRESENT))
+
+
+@dataclass(frozen=True)
+class Solution:
+    """What a solve left, for a compiler reading a named expression at it.
+
+    Attached, a variable compiles to its primal and ``dual(c)`` to the
+    constraint's row duals, as const fragments. ``dual`` is ``None`` where the
+    solve left no duals, and ``no_duals`` then says why, which is what reading
+    one raises.
+    """
+
+    primal: pl.Series
+    dual: pl.Series | None
+    constraints: Mapping[str, Labelled]
+    no_duals: str | None
+
+
 @dataclass(frozen=True)
 class PolarsCompiler:
     """Turn plan nodes into polars queries over the model's tidy frames.
 
-    ``data`` is everything attaching produced, frozen. ``variables`` is
-    deliberately outside it — the engine's own dict, not a copy, because a
-    variable frame appears while its declaration is built and a constraint
-    compiled afterwards has to see it.
+    ``data`` is everything attaching produced, frozen. ``variables`` is the
+    engine's own dict, not a copy: a variable frame appears while its
+    declaration is built and a constraint compiled afterwards has to see it.
+    ``solution`` is set on the compiler a read builds and on no other: with it
+    every variable and every ``dual(c)`` compiles to a value (:class:`Solution`).
     """
 
     program: program.Program
     data: AttachedSources
     variables: Mapping[str, Labelled]
+    solution: Solution | None = None
 
     # ------------------------------------------------------------------
     # frames — the masked coordinate product a declaration is instantiated over
@@ -94,19 +127,15 @@ class PolarsCompiler:
         Labels, plus the ordinals a caller sorts by so labels follow
         declaration order.
 
-        **A mask that has to join restricts by semi-join, not by value join.**
-        The predicate reads only its own dims, so it is evaluated over *their*
-        product and the full product is semi-joined against the truth set: the
-        mask's parameter columns never touch the full product, and a semi-join
-        leaves the left side's row order alone where a value join + filter does
-        not — which keeps labelling's verify-then-sort a verify.
+        A mask that has to join restricts by semi-join: the predicate reads
+        only its own dims, so it is evaluated over *their* product and the full
+        product is semi-joined against the truth set, which leaves the left
+        side's row order intact.
 
         Four shapes stay on the direct filter path, which is pointwise and
         keeps order too: a predicate that joins nothing, one reading no frame
         dim, one reading dims outside the frame (so errors name the full
-        frame), and one reading **every** frame dim — where the truth set is as
-        wide as the product and the semi-join would build it twice to save no
-        width.
+        frame), and one reading **every** frame dim.
         """
         out = self._coordinate_product(dims)
         if where is None:
@@ -127,10 +156,8 @@ class PolarsCompiler:
 
         **Folded in reverse, then projected back.** polars' streaming engine
         walks a cross join right-major, so folding backwards makes the product
-        arrive in declaration row-major order — label order, which is what lets
-        labelling and ``cols`` be read positionally instead of sorted (#433).
-        :func:`labels.frame` verifies that rather than trusting it, so the fold
-        decides speed, never correctness.
+        arrive in declaration row-major order — label order.
+        :func:`labels.frame` verifies that rather than trusting it.
 
         The empty product is one *real* row carrying only :data:`UNIT`: a
         ``where`` on a scalar declaration filters this frame, and nothing
@@ -165,14 +192,12 @@ class PolarsCompiler:
         story.
 
         *maintain_order* is asked for only by the bounds, which become ``cols``
-        and are read in order. Asking the join for that order costs an order of
-        magnitude less than sorting the same frame afterwards (#433), so it is
-        passed deliberately rather than defaulted on; every other consumer
-        verifies order where it reads.
+        and are read in order; every other consumer verifies order where it
+        reads.
         """
         declaration = self.program.parameter(param)
         assert not set(declaration.dims) - set(frame_dims), (
-            f'{subject} has dims outside the foreach dims {list(frame_dims)}'
+            f'{subject} has dims outside the frame dims {list(frame_dims)}'
         )
         table = self.data.parameters[param].rename({'value': alias})
         return join_on(frame, table, declaration.dims, how, maintain_order)
@@ -182,11 +207,7 @@ class PolarsCompiler:
     # ------------------------------------------------------------------
 
     def bounds(self, frame: pl.LazyFrame, variable: str, v: program.VariableDeclaration) -> pl.LazyFrame:
-        """*frame* with ``lb``/``ub`` columns for the variable *variable* declares as *v*.
-
-        Joins and arithmetic are one object, so a bound cannot be evaluated
-        against a frame missing what it reads.
-        """
+        """*frame* with ``lb``/``ub`` columns for the variable *variable* declares as *v*."""
         carrier = Carrier(frame)
 
         def attach_bound(f: pl.LazyFrame, alias: str, name: str) -> pl.LazyFrame:
@@ -214,16 +235,11 @@ class PolarsCompiler:
     ) -> pl.LazyFrame | None:
         """*frame* with *param* attached **by position**, or ``None`` to join.
 
-        A bound dense over the whole variable product — the ordinary shape in
-        energy modelling — would cost a full-size join against a full-size
-        coordinate product, where the eager lane gets it free from array
-        position (#511). Each parameter row's slot is its :meth:`row_major`
-        position and its value is scattered there — the table's row order is
-        nothing, and ``_scattered`` refuses a product any slot of which nothing
-        wrote.
+        Each parameter row's slot is its :meth:`row_major` position and its
+        value is scattered there — the table's row order is nothing, and
+        ``_scattered`` refuses a product any slot of which nothing wrote.
 
-        **Wrong bounds are a wrong model with no error**, so this is refused
-        unless all three hold, each a fact already computed:
+        Attached by position only where all three hold:
 
         * the parameter's dims are exactly the variable's, in the same order —
           fewer broadcast, more is already refused, a different order is a
@@ -246,19 +262,19 @@ class PolarsCompiler:
             return None
 
         position = self.row_major(v.dims, self.ordinal_of)
-        pairs = table.select(position.alias('__at__'), pl.col('value')).collect(engine='streaming')
+        pairs = table.select(position.alias('__at__'), pl.col('value')).collect(engine=polars_engine())
         return frame.with_columns(pl.Series(alias, _scattered(pairs['__at__'], pairs['value'], expected)))
 
     def row_major(self, dims: tuple[str, ...], ordinals: Callable[[str], pl.Expr]) -> pl.Expr:
         """A coordinate's row-major position in the declared product of *dims*.
 
-        The one numbering rule in the lane: a label, a bound's slot and a set's
-        position all read it, so two builds of one model agree on every index.
-        Dense over the *full* product rather than the survivors; with no dims,
-        the literal zero of the empty product's one row. *ordinals* says how
-        the frame in hand carries a dim's ordinal — a compiler frame has the
-        column beside the label, a built variable frame kept only the label
-        and reads it through :meth:`ordinal_of`.
+        A label, a bound's slot and a set's position all read this one rule, so
+        two builds of one model agree on every index. Dense over the *full*
+        product rather than the survivors; with no dims, the literal zero of the
+        empty product's one row. *ordinals* says how the frame in hand carries a
+        dim's ordinal — a compiler frame has the column beside the label, a
+        built variable frame kept only the label and reads it through
+        :meth:`ordinal_of`.
         """
         position: pl.Expr = pl.lit(0, dtype=pl.Int64)
         for d in dims:
@@ -268,11 +284,10 @@ class PolarsCompiler:
     def ordinal_of(self, dim: str) -> pl.Expr:
         """A *dim* value column as that dimension's ordinal.
 
-        **Free for a string dimension**, which is most of them: attaching encodes
-        those as an ``Enum`` over the labels in ordinal order
-        (``_Attacher.encode_dimensions``), so the physical code already *is* the
-        ordinal. Every other dtype pays a dictionary built from the dimension
-        table — one entry per label, not per row.
+        A string dimension is Enum-encoded by attaching over the labels in
+        ordinal order (``_Attacher.encode_dimensions``), so the physical code
+        already *is* the ordinal. Every other dtype uses a dictionary built from
+        the dimension table — one entry per label, not per row.
         """
         column = pl.col(dim)
         if self.data.is_enum_encoded(dim):
@@ -331,8 +346,12 @@ class PolarsCompiler:
             """``a / b``, where *b* is one variable-free factor.
 
             That it is *one* is ``degree.check_binary``'s answer, given at load
-            with no data attached, so a divisor that adds never reaches a plan.
+            with no data attached, so a divisor that adds never reaches a plan
+            from the math. A read holds an entry to no degree and has every
+            factor as a value, so there *b* is first added up to the one value
+            per coordinate the join wants.
             """
+            b = self._added_up(b)
             assert not (b.terms or b.quads), f'in {context}: a divisor carrying a variable reached the compiler'
             assert len(b.consts) == 1, 'a divisor that adds is refused at load'
             inv = b.consts[0]
@@ -344,11 +363,13 @@ class PolarsCompiler:
         def power(a: CompiledExpression, b: CompiledExpression) -> CompiledExpression:
             """``a ** b``, where neither side carries a variable.
 
-            The language refuses one that does (``math_spec.degree``), before
-            a plan exists to carry it, so a variable under a power is an
+            The language refuses one that does in the math (``math_spec.degree``),
+            before a plan exists to carry it, so a variable under a power is an
             invariant here rather than a refusal — folding its coefficient into
-            a base is what the assert stands in front of.
+            a base is what the assert stands in front of. At a read a variable
+            is its value, and a side that adds is added up first, as a divisor is.
             """
+            a, b = self._added_up(a), self._added_up(b)
             assert not (a.terms or a.quads or b.terms or b.quads), (
                 f'in {context}: a power over variables reached the compiler'
             )
@@ -411,13 +432,9 @@ class PolarsCompiler:
                 A mask that reads **no dimension** — a ``when`` of ``true``,
                 a scalar switch, and the ``otherwise`` that is the negation of
                 either — has no coordinate set to join against, so it filters
-                the piece by its own constant instead. Building one and
-                crossing against it is what the first cut did, and an empty
-                frame hands a literal back a row: both regions then landed
-                everywhere and were summed. The presence still relaxes, and
-                for the same reason as everywhere else: a constant that is
-                false leaves the region claiming nothing, and a region
-                claiming nothing may not unmake a row.
+                the piece by its own constant instead. The presence still
+                relaxes: a constant that is false leaves the region claiming
+                nothing, and a region claiming nothing may not unmake a row.
                 """
                 if truth is None:
                     carrier, condition = compile_predicate(self, p.frame, r.when, p.dims)
@@ -435,7 +452,7 @@ class PolarsCompiler:
             return map_fragments(ev(r.value), kept)
 
         def cases(e: program.Cases) -> CompiledExpression:
-            """Every region added, which is what disjoint and total buys.
+            """Every region added.
 
             No region is ranked against another and none is subtracted back
             out: the language proved them apart before any data attached, so a
@@ -457,7 +474,14 @@ class PolarsCompiler:
             if isinstance(e, program.Parameter):
                 return CompiledExpression((), (self._parameter_fragment(e.name),))
             if isinstance(e, program.Variable):
-                return CompiledExpression((self._variable_fragment(e.name),), ())
+                if self.solution is None:
+                    return CompiledExpression((self._variable_fragment(e.name),), ())
+                return CompiledExpression((), (self._solved_fragment(e.name),))
+            if isinstance(e, program.Dual):
+                assert self.solution is not None, (
+                    f'in {context}: a dual reached a build — the language keeps one out of the math'
+                )
+                return CompiledExpression((), (self._dual_fragment(e.constraint),))
             if isinstance(e, program.Negate):
                 return map_fragments(ev(e.operand), negate)
             if isinstance(e, program.Add):
@@ -501,7 +525,7 @@ class PolarsCompiler:
         Presence is what makes absence *propagate*, and it is attached only
         where the declaration asks for it — decided before any data is read.
         Two declarations carry none: an unmasked variable, which exists at every
-        coordinate of its foreach and could restrict nothing, and one declaring
+        coordinate of its dims and could restrict nothing, and one declaring
         ``absence: zero``, whose missing coordinates hold a quantity that *is*
         zero rather than one with no value. Both then leave the term simply
         absent from the rows it does not reach, which is the same arithmetic —
@@ -511,27 +535,99 @@ class PolarsCompiler:
         because dims are rewritten downstream while the presence frame is not
         — the hazard :class:`Presence` names.
         """
-        declaration = self.program.variable(name)
-        dims = declaration.dims
+        dims = self.program.variable(name).dims
         frame = self.variables[name].frame.select(*dims, 'var_label', pl.lit(1.0, dtype=pl.Float64).alias('coeff'))
+        return TermFragment(dims, frame, 'term', presences=self._variable_presences(name, dims))
+
+    def _variable_presences(self, name: str, dims: tuple[str, ...]) -> tuple[Presence, ...]:
+        declaration = self.program.variable(name)
         propagates = declaration.where is not None and declaration.absence == 'undefined'
-        presences = (Presence(self._presence(name, dims), dims),) if propagates else ()
-        return TermFragment(dims, frame, 'term', presences=presences)
+        return (Presence(_presence(self.variables[name], dims, 'var_label'), dims),) if propagates else ()
 
-    def _presence(self, name: str, dims: tuple[str, ...]) -> pl.LazyFrame:
-        """The coordinates a masked variable exists at.
+    def _solved_fragment(self, name: str) -> TermFragment:
+        """A variable at its primal — the const fragment a read compiles it to, carrying the presence its term would.
 
-        A **scalar** declaration has none, and ``select()`` over no dims is the
-        empty frame polars cannot represent, so the marker column carries the
-        one bit left: whether the row is there at all. It is renamed from a
-        real column, never a ``pl.lit()`` — a select of literals alone is
-        length 1 whatever it selects from, so an absent scalar would come back
-        present.
+        Under ``absence: zero`` a masked variable *is* zero where it has no
+        row, and a nonlinear read tells a zero from no row where affine
+        arithmetic cannot — ``0.5 ** x`` is 1 at the one and nothing at the
+        other — so its value is laid over the unmasked coordinate product,
+        zero where the variable is absent. A build's term is right as it is:
+        an absent term contributes nothing to a row either way.
         """
-        frame = self.variables[name].frame
-        if dims:
-            return frame.select(*dims)
-        return frame.select(pl.col('var_label').alias(PRESENT))
+        assert self.solution is not None
+        held, declaration = self.variables[name], self.program.variable(name)
+        dims = declaration.dims
+        keys = dims or (UNIT,)
+        rows = held.frame.select(*keys).with_columns(held.share(self.solution.primal).alias('cval'))
+        if declaration.where is not None and declaration.absence == 'zero':
+            everywhere = self.frame(dims, None).select(*keys)
+            rows = join_on(everywhere, rows, keys, 'left').with_columns(pl.col('cval').fill_null(0.0))
+        return TermFragment(dims, rows.select(*dims, 'cval'), 'const', presences=self._variable_presences(name, dims))
+
+    def _dual_fragment(self, name: str) -> TermFragment:
+        """``dual(name)`` at the solve's row duals — one value per row the constraint built, and present exactly there.
+
+        A row a mask or an absent variable unmade has no dual, so unlike a
+        variable's the presence is attached whether or not the declaration is
+        masked: which rows stand is known only once they are built.
+
+        Raises:
+            LpspecError: The solve left no duals — the sentence
+                :meth:`~lpspec.relational.result.Result.dual` gives.
+        """
+        solution = self.solution
+        assert solution is not None
+        if solution.dual is None:
+            assert solution.no_duals is not None, 'a solve without duals says why'
+            raise LpspecError(solution.no_duals)
+        held, dims = solution.constraints[name], self.program.constraints[name].dims
+        frame = held.frame.select(*dims).with_columns(held.share(solution.dual).alias('cval'))
+        return TermFragment(dims, frame, 'const', presences=(Presence(_presence(held, dims, 'row'), dims),))
+
+    def _added_up(self, compiled: CompiledExpression) -> CompiledExpression:
+        """*compiled* as one const fragment where a read gave it several — a divisor or a power's side that adds.
+
+        Only a read reaches several: at a build the language has refused a
+        divisor or a base that adds, so there the operand passes through and
+        the plan-boundary assert behind it keeps that claim. Null where no
+        piece has a value, so a divisor with a hole still reports it rather
+        than dividing by a zero the fill invented.
+        """
+        if self.solution is None or len(compiled.consts) <= 1:
+            return compiled
+        assert not (compiled.terms or compiled.quads), 'a read compiles every variable to its value'
+        fragments = compiled.consts
+        dims, restrictions = self.spanned(fragments), absence_restrictions(fragments)
+        carrier = self.frame(dims, None)
+        for restriction in restrictions:
+            carrier = restriction.restrict(carrier, restriction.keyed_by or ())
+        added = self.added(fragments, carrier, fill=False)
+        return CompiledExpression((), (TermFragment(dims, added, 'const', presences=tuple(restrictions)),))
+
+    def spanned(self, fragments: Sequence[TermFragment]) -> tuple[str, ...]:
+        """The dims *fragments* carry between them, in declaration order."""
+        union = {d for p in fragments for d in p.dims}
+        return tuple(d for d in self.program.dimensions if d in union)
+
+    def added(self, fragments: Sequence[TermFragment], carrier: pl.LazyFrame, *, fill: bool) -> pl.LazyFrame:
+        """Const *fragments* added per coordinate onto *carrier* — its columns, then ``cval``.
+
+        *carrier* is the coordinate product the sum stands over, one row per
+        coordinate of :meth:`spanned`, restricted by the caller to where every
+        variable under the fragments exists — the rows a constraint over the
+        same expression would keep. A coordinate no fragment has a value at is
+        zero under *fill*, what a read reports, and null without, what a
+        divisor keeps so the hole is reported rather than divided by.
+        """
+        assert fragments, 'an expression compiles to at least one fragment'
+        assert all(p.kind == 'const' for p in fragments), 'a read compiles every variable to its value'
+        columns = [f'__piece {i}__' for i in range(len(fragments))]
+        for p, column in zip(fragments, columns, strict=True):
+            carrier = join_on(carrier, constant_scalar(p).rename({'cval': column}), p.dims, 'left')
+        total = pl.sum_horizontal([pl.col(c).fill_null(0.0) for c in columns])
+        if not fill:
+            total = pl.when(pl.any_horizontal([pl.col(c).is_not_null() for c in columns])).then(total).otherwise(None)
+        return carrier.select(pl.exclude(columns), total.alias('cval'))
 
     # ------------------------------------------------------------------
     # shape operators — one dim rewritten per fragment
@@ -565,13 +661,12 @@ class PolarsCompiler:
         are added by the terminal aggregate as ``Sum``'s are. A group is a sum,
         so it constructs rather than ``replace``s — see :meth:`_sum_fragment`.
 
-        Grouping through several coordinates costs nothing extra here: they
-        ride the same dim table and the same single join, which is why the
-        surface is a list rather than a composition of calls.
+        Several coordinates ride the same dim table and the same single join.
         """
-        if g.over not in p.dims:
-            refuse_a_fragment_without_the_dims(p, [g.over], context, f'sum(by=) over {g.over!r}')
-        grouped = self._remap_fragment(p, g, consumed=(g.over,), produced=g.into)
+        over = g.over[0]
+        if over not in p.dims:
+            refuse_a_fragment_without_the_dims(p, [over], context, f'sum(by=) over {over!r}')
+        grouped = self._remap_fragment(p, g, consumed=g.over, produced=g.into)
         if p.kind != 'const':
             return grouped
         return replace(grouped, frame=pl.concat([grouped.frame, self._empty_groups(grouped, g)]))
@@ -582,24 +677,23 @@ class PolarsCompiler:
         One relation per coordinate, met on ``over`` by **inner** joins: a
         label some coordinate does not map has no row in that relation and so
         none here, which is what "reaches no slot" means for the whole tuple.
-        Reading several at once therefore costs joins and no null bookkeeping —
-        the tuple exists exactly where every coordinate does.
+        The tuple exists exactly where every coordinate does.
         """
         pairs = list(zip(coordinate, into, strict=True))
-        mapping, *rest = (self.data.lookups[c].select(pl.col(over), pl.col(c).alias(i)) for c, i in pairs)
+        mapping, *rest = (self.data.relations[c].select(pl.col(over), pl.col(c).alias(i)) for c, i in pairs)
         for other in rest:
             mapping = mapping.join(other, on=over, how='inner')
         return mapping
 
-    def partitioned(self, dim: str, lookup: str) -> pl.LazyFrame:
-        """*dim*'s ``(val, ord, lookup, GROUP_RANK, GROUP_SIZE)``, only for labels the map places in a group.
+    def partitioned(self, dim: str, relation: str) -> pl.LazyFrame:
+        """*dim*'s ``(val, ord, relation, GROUP_RANK, GROUP_SIZE)``, only for labels the map places in a group.
 
         The inner join is where "this coordinate is in no group" comes from:
         it has no row in the relation, so it has none here, and every rank,
         span and neighbour a walk reads sees only labels that are in one.
         """
-        rows = self.data.lookups[lookup].select(pl.col(dim).alias('val'), pl.col(lookup))
-        group = pl.col(lookup)
+        rows = self.data.relations[relation].select(pl.col(dim).alias('val'), pl.col(relation))
+        group = pl.col(relation)
         return (
             self.data.dimensions[dim]
             .join(rows, on='val', how='inner')
@@ -616,8 +710,7 @@ class PolarsCompiler:
         holds a *value* — the empty sum — and not a hole. The two are the same
         missing row to :meth:`PolarsEngine._build_constraint`'s coverage check,
         which reads what the fragment produced and cannot see why a label is
-        absent, so the value is written down here where the reason is known
-        (#1026).
+        absent, so the value is written down here where the reason is known.
 
         Several coordinates land on a *product* of targets, and a combination
         no member sits at is empty for the reason one unreached label is — so
@@ -630,7 +723,7 @@ class PolarsCompiler:
         for target in g.into[1:]:
             labels = self.data.dimensions[target].select(pl.col('val').alias(target))
             universe = universe.join(labels, how='cross')
-        reached = self._mapping(g.over, g.coordinate, g.into).select(*g.into)
+        reached = self._mapping(g.over[0], g.coordinate, g.into).select(*g.into)
         empty = universe.join(reached, on=list(g.into), how='anti')
         spanned = [d for d in p.dims if d not in g.into]
         if spanned:
@@ -655,40 +748,40 @@ class PolarsCompiler:
         """
         absent = [d for d in a.into if d not in p.dims]
         assert not absent, f'in {context}: At through {absent}, which the expression does not span'
-        remapped = self._remap_fragment(p, a, consumed=a.into, produced=(a.over,))
+        remapped = self._remap_fragment(p, a, consumed=a.into, produced=a.over)
         return replace(remapped, presences=self._pulled_back_presences(p, a))
 
     def _pulled_back_presences(self, p: TermFragment, a: program.At) -> tuple[Presence, ...]:
         """Where a pullback's variables exist, keyed by the fine dim they now span.
 
         Two absences reach the fine coordinate and :meth:`_remap_fragment`'s
-        inner join swallows both — the operand's own, and the **lookup's**,
+        inner join swallows both — the operand's own, and the **relation's**,
         where the map has no row for the label. Unreported, the term merely
         vanishes and its row survives to assert `x <= 0` where the model said
-        nothing (#968).
+        nothing.
 
-        A total lookup over an operand with nothing to report yields nothing
-        rather than a restriction admitting everything, so a model with no
-        absence in it does not pay for the machinery that carries one. The key
-        is stated rather than left implied because a later product widens the
-        fragment's dims while this frame keeps the one column that matters —
-        the hazard :class:`Presence` names.
+        A total map over an operand with nothing to report yields nothing
+        rather than a restriction admitting everything. The key is stated
+        rather than left implied because a later product widens the fragment's
+        dims while this frame keeps the one column that matters — the hazard
+        :class:`Presence` names.
         """
-        reachable = self._mapping(a.over, a.coordinate, a.into)
+        over = a.over[0]
+        reachable = self._mapping(over, a.coordinate, a.into)
         if not p.presences:
-            total = self.data.cardinality[a.over] == reachable.select(pl.len()).collect().item()
-            return () if total else (Presence(reachable.select(a.over), (a.over,)),)
+            total = self.data.cardinality[over] == reachable.select(pl.len()).collect().item()
+            return () if total else (Presence(reachable.select(over), (over,)),)
 
         def pulled(presence: Presence) -> Presence:
             keys = presence.keys(p.dims)
             if not keys:
-                return Presence(presence.restrict(reachable.select(a.over), keys), (a.over,))
+                return Presence(presence.restrict(reachable.select(over), keys), (over,))
             carries_targets = all(i in keys for i in a.into)
             source, keys = (
                 (presence.frame, keys) if carries_targets else (self.widen(presence.frame, keys, p.dims), p.dims)
             )
             kept = tuple(k for k in keys if k not in a.into)
-            return Presence(source.join(reachable, on=list(a.into), how='inner').select(*kept, a.over), (*kept, a.over))
+            return Presence(source.join(reachable, on=list(a.into), how='inner').select(*kept, over), (*kept, over))
 
         return tuple(pulled(x) for x in p.presences)
 
@@ -703,11 +796,10 @@ class PolarsCompiler:
         """Trade dims *consumed* for *produced* through *node*'s coordinates.
 
         The mapping table is :meth:`_mapping` — the declared coordinates' own
-        relations, keyed by ``over`` and named for the dims they target — and
+        tables, keyed by ``over`` and named for the dims they target — and
         the rewrite is a single inner equi-join on *consumed*. A group consumes
         ``over`` (:meth:`_group_fragment`); an ``At`` reads the same table
-        backwards (:meth:`_at_fragment`). Written once so the adjoints cannot
-        drift: a change to how the mapping joins is a change to both.
+        backwards (:meth:`_at_fragment`).
 
         One of the two sides is always a single dim — a group consumes the one
         the coordinates are over, a pullback produces it — so exactly one join
@@ -715,7 +807,7 @@ class PolarsCompiler:
         """
         dropped = set(consumed)
         keep = tuple(x for x in p.dims if x not in dropped)
-        mapping = self._mapping(node.over, node.coordinate, node.into)
+        mapping = self._mapping(node.over[0], node.coordinate, node.into)
         frame = p.frame.join(mapping, on=list(consumed), how='inner').select(*keep, *produced, *p.carried)
         return TermFragment((*keep, *produced), frame, p.kind)
 

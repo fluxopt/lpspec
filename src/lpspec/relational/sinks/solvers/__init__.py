@@ -1,7 +1,6 @@
 """The solver family: one class per solver, holding one model. See ../README.md.
 
-One module per solver, **named for the solver** — nothing here is named for the
-mechanism, because every member uses the same one. Each defines a
+One module per solver, **named for the solver**. Each defines a
 :class:`~lpspec.relational.sinks.solvers.base.Solver` subclass named for it,
 plus ``build_<name>``, the load-only seam `bench/` measures.
 ``tests/test_architecture.py`` checks all of that off the path.
@@ -29,8 +28,7 @@ if TYPE_CHECKING:
 
 __all__ = ['SOLVERS', 'Solver', 'loaded', 'solver']
 
-#: Every solver a caller may name. Closed: a dict literal, not a registry
-#: something installed can add to.
+#: Every solver a caller may name. Closed.
 SOLVERS: Mapping[str, type[Solver]] = {
     'highs': Highs,
     'gurobi': Gurobi,
@@ -40,12 +38,6 @@ SOLVERS: Mapping[str, type[Solver]] = {
 
 def solver(name: str) -> type[Solver]:
     """The solver called *name*, or why this build cannot give you it.
-
-    Both refusals land where the sink is resolved — before the build — which is
-    what makes naming a sink nothing can serve cost no model. What to do about
-    a missing package is the *member's* sentence
-    (:attr:`~lpspec.relational.sinks.solvers.base.Solver.unavailable_message`),
-    whether a solver ships or needs an extra being its own fact.
 
     Raises:
         LpspecError: A name outside the closed set.
@@ -76,16 +68,10 @@ def loaded(
 
     *held* is kept exactly when it is the named class holding a model that
     differs from this one in nothing but numbers — same
-    :attr:`~lpspec.relational.sinks.tables.Tables.structure`, same
-    options, both recorded at its load — and then the new numbers are pushed
-    onto it. The digest is the correctness floor: a model whose structure
-    moved is a different model wearing the same labels, and pushing values
-    onto it would answer a question nobody asked.
+    :attr:`~lpspec.relational.sinks.tables.Tables.structure`, same options — and
+    then the new numbers are pushed onto it.
 
-    A solver being replaced is closed here. It holds memory — and for one of
-    them a licence — that no frame in this process accounts for, so leaving it
-    to the collector would be leaving it to chance. *name* is resolved first,
-    so a caller who named nothing this build has does not first pay a release.
+    A solver being replaced is closed here. *name* is resolved first.
     """
     wanted = solver(name)
     if held is not None:

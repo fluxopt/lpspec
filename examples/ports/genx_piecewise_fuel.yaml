@@ -19,16 +19,22 @@ dimensions:
   step:
     description: a block of demand that may be shed, each dearer than the last
     dtype: int
+  commitment_mode:
+    description: the ways a plant may be committed
+    dtype: str
+  fuel_use_mode:
+    description: the ways a plant's fuel use may be read
+    dtype: str
 
-lookups:
+relations:
   commitment:
     description: whether a plant is committed unit by unit or dispatched freely
-    over: plant
-    dtype: str
+    columns: [plant, commitment_mode]
+    key: plant
   fuel_use:
     description: whether a plant's fuel use is read off the piecewise curve or a flat heat rate
-    over: plant
-    dtype: str
+    columns: [plant, fuel_use_mode]
+    key: plant
 
 parameters:
   unit_size:
@@ -106,44 +112,44 @@ parameters:
 variables:
   output:
     description: what a plant produces in an hour
-    foreach: [plant, hour]
+    dims: [plant, hour]
     bounds:
       lower: 0
   burned:
     description: fuel a plant burns running in an hour
-    foreach: [plant, hour]
+    dims: [plant, hour]
     bounds:
       lower: 0
   burned_starting:
     description: fuel a plant burns starting units in an hour
-    foreach: [plant, hour]
+    dims: [plant, hour]
     bounds:
       lower: 0
   committed:
     description: >-
       how many units of a plant are committed in an hour — counted in units and
       relaxed to a continuous variable, which is what GenX's UCommit=2 does
-    foreach: [plant, hour]
+    dims: [plant, hour]
     bounds:
       lower: 0
   starting:
     description: units of a plant brought up entering an hour
-    foreach: [plant, hour]
+    dims: [plant, hour]
     bounds:
       lower: 0
   shutting:
     description: units of a plant taken down entering an hour
-    foreach: [plant, hour]
+    dims: [plant, hour]
     bounds:
       lower: 0
   shed:
     description: demand shed out of a block in an hour
-    foreach: [step, hour]
+    dims: [step, hour]
     bounds:
       lower: 0
   units:
     description: how many units of a plant stand available all day
-    foreach: [plant]
+    dims: [plant]
     bounds:
       lower: 0
       upper: units_available
@@ -151,86 +157,86 @@ variables:
 expressions:
   started_recently:
     expression: >-
-      starting + shift(starting, over=hour, offset=1, edge='wrap')
-      + shift(starting, over=hour, offset=2, edge='wrap') + shift(starting, over=hour, offset=3, edge='wrap')
-      + shift(starting, over=hour, offset=4, edge='wrap') + shift(starting, over=hour, offset=5, edge='wrap')
+      starting + shift(starting, along=hour, offset=1, edge='wrap')
+      + shift(starting, along=hour, offset=2, edge='wrap') + shift(starting, along=hour, offset=3, edge='wrap')
+      + shift(starting, along=hour, offset=4, edge='wrap') + shift(starting, along=hour, offset=5, edge='wrap')
     description: >-
       units started in this hour or the five before it — the day is a
       representative period that repeats, so the first hour follows the last
   shut_recently:
     expression: >-
-      shutting + shift(shutting, over=hour, offset=1, edge='wrap')
-      + shift(shutting, over=hour, offset=2, edge='wrap') + shift(shutting, over=hour, offset=3, edge='wrap')
-      + shift(shutting, over=hour, offset=4, edge='wrap') + shift(shutting, over=hour, offset=5, edge='wrap')
+      shutting + shift(shutting, along=hour, offset=1, edge='wrap')
+      + shift(shutting, along=hour, offset=2, edge='wrap') + shift(shutting, along=hour, offset=3, edge='wrap')
+      + shift(shutting, along=hour, offset=4, edge='wrap') + shift(shutting, along=hour, offset=5, edge='wrap')
     description: units shut in this hour or the five before it
 
 constraints:
   meet_demand:
     description: what is produced plus what is shed meets the demand of the hour
-    foreach: [hour]
+    dims: [hour]
     expression: sum(output, over=plant) + sum(shed, over=step) == demand
 
   shed_within_step:
     description: a block sheds no more than its share of the hour's demand
-    foreach: [step, hour]
+    dims: [step, hour]
     expression: shed <= shed_limit * demand
 
   committed_units_exist:
-    foreach: [plant, hour]
+    dims: [plant, hour]
     where: "commitment == unit"
     expression: committed <= units
 
   thermal_ceiling:
     description: a committed unit produces no more than its available capacity
-    foreach: [plant, hour]
+    dims: [plant, hour]
     where: "commitment == unit"
     expression: output <= committed * unit_size * availability
 
   thermal_floor:
     description: a committed unit produces no less than its minimum
-    foreach: [plant, hour]
+    dims: [plant, hour]
     where: "commitment == unit"
     expression: output >= committed * unit_size * min_output
 
   variable_ceiling:
     description: a plant with no commitment produces no more than its available capacity
-    foreach: [plant, hour]
+    dims: [plant, hour]
     where: "commitment == free"
     expression: output <= units * unit_size * availability
 
   commitment_tracks_starts:
     description: what is committed changes only by what starts and what shuts
-    foreach: [plant, hour]
+    dims: [plant, hour]
     where: "commitment == unit"
-    expression: committed - shift(committed, over=hour, offset=1, edge='wrap') == starting - shutting
+    expression: committed - shift(committed, along=hour, offset=1, edge='wrap') == starting - shutting
 
   stay_up_once_started:
     description: a unit that started within the last six hours is still committed
-    foreach: [plant, hour]
+    dims: [plant, hour]
     where: "commitment == unit"
     expression: committed >= started_recently
 
   stay_down_once_shut:
     description: a unit that shut within the last six hours is still down
-    foreach: [plant, hour]
+    dims: [plant, hour]
     where: "commitment == unit"
     expression: units - committed >= shut_recently
 
   ramp_up:
     description: output rises no faster than the ramp allows, with extra room in the hour a unit starts
-    foreach: [plant, hour]
+    dims: [plant, hour]
     where: "commitment == unit"
     expression: >-
-      output - shift(output, over=hour, offset=1, edge='wrap')
+      output - shift(output, along=hour, offset=1, edge='wrap')
       <= ramp * unit_size * (committed - starting)
       + start_headroom * unit_size * starting
       - min_output * unit_size * shutting
 
   ramp_down:
-    foreach: [plant, hour]
+    dims: [plant, hour]
     where: "commitment == unit"
     expression: >-
-      shift(output, over=hour, offset=1, edge='wrap') - output
+      shift(output, along=hour, offset=1, edge='wrap') - output
       <= ramp * unit_size * (committed - starting)
       - min_output * unit_size * starting
       + start_headroom * unit_size * shutting
@@ -239,24 +245,24 @@ constraints:
     description: >-
       fuel use is above every piece of the curve, so at the optimum it sits on
       the binding one, and the no-load intercept is charged per committed unit
-    foreach: [plant, segment, hour]
+    dims: [plant, segment, hour]
     where: "fuel_use == curve"
     expression: burned >= fuel_slope * output + fuel_intercept * committed
 
   fuel_at_the_heat_rate:
     description: a plant with no curve burns fuel at a flat heat rate
-    foreach: [plant, hour]
+    dims: [plant, hour]
     where: "fuel_use == flat"
     expression: burned == heat_rate * output
 
   fuel_to_start:
     description: starting a unit burns its own fuel, on top of what running it burns
-    foreach: [plant, hour]
+    dims: [plant, hour]
     expression: burned_starting == unit_size * starting * start_fuel
 
   carbon_budget:
     description: a net-zero cap — what escapes capture, less what the biomass took up
-    foreach: []
+    dims: []
     expression: >-
       sum(sum(burned * emitted * weight + burned_starting * emitted_start * weight, over=hour), over=plant)
       <= carbon_cap

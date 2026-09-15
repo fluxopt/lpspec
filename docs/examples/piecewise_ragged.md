@@ -7,18 +7,18 @@ Per-generator cost curves of **different lengths**, each as long as its own data
 ## The problem
 
 A breakpoint dimension is one axis for the whole system, but a curve is per
-unit: the hydro unit here has two breakpoints, the coal plant three, the gas
-turbine four. Nothing in the model should have to know which is longest.
+unit. The hydro unit here has two breakpoints, the coal plant three, the gas
+turbine four. Nothing in the model has to know which is longest.
 
 $$p_{t,g} = \sum_{k \in \mathcal{K}_g} \lambda_{t,g,k}\, x_{g,k}, \quad
 \mathrm{cost}_{t,g} \ge \sum_{k \in \mathcal{K}_g} \lambda_{t,g,k}\, y_{g,k}, \quad
 \sum_{k \in \mathcal{K}_g} \lambda_{t,g,k} = 1$$
 
-The set the weights run over is $\mathcal{K}_g$, the curve's own — which is
-what `points: bp_x` says. Without it the shorter curves have to be padded out
-to the longest, and padding is not free: it buys a weight per unused
-breakpoint, and `method: convex` refuses it outright, since a repeated point is
-not a strictly increasing breakpoint.
+The weights run over $\mathcal{K}_g$, the curve's own breakpoint set, which
+is what `points: bp_x` says. Without it the shorter curves have to be padded
+out to the longest. Padding buys a weight per unused breakpoint, and
+`method: convex` refuses it, because a repeated point is not a strictly
+increasing breakpoint.
 
 <!-- math:begin -->
 <details markdown="1">
@@ -30,70 +30,86 @@ Least-cost dispatch where each generator's cost curve has as many breakpoints as
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{G}$ | index $g$ — `generator` — dispatchable units |
-| $\mathcal{B}$ | index $b$ — `bp` — breakpoints, as many as the longest curve needs |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — dispatchable units |
+| $`\mathcal{B}`$ | index $`b`$ — `bp` — breakpoints, as many as the longest curve needs |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{max}}$ | `p_max` over $\mathcal{G}$ — maximum dispatch |
-| $\mathrm{load}$ | `load` over $\mathcal{T}$ — demand to be met |
-| $\mathrm{bp\_x}$ | `bp_x` over $\mathcal{G} \times \mathcal{B}$ — breakpoint dispatch levels, one curve per generator and no two the same length |
-| $\mathrm{bp\_y}$ | `bp_y` over $\mathcal{G} \times \mathcal{B}$ — cost at each breakpoint |
-| $\mathrm{cost\_curve\_points}$ | `cost_curve_points` over $\mathcal{G} \times \mathcal{B}$ — where 'bp_x' has a row, and so where the curve runs |
+| $`\mathrm{p}^{\mathrm{max}}`$ | `p_max` over $`\mathcal{G}`$ — maximum dispatch |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T}`$ — demand to be met |
+| $`\mathrm{bp\_x}`$ | `bp_x` over $`\mathcal{G} \times \mathcal{B}`$ — breakpoint dispatch levels, one curve per generator and no two the same length |
+| $`\mathrm{bp\_y}`$ | `bp_y` over $`\mathcal{G} \times \mathcal{B}`$ — cost at each breakpoint |
+| $`\mathrm{cost\_curve\_points}`$ | `cost_curve_points` over $`\mathcal{G} \times \mathcal{B}`$ — where 'bp\_x' has a row, and so where the curve runs |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — dispatched power |
-| $\mathit{op\_cost}$ | `op_cost` over $\mathcal{T} \times \mathcal{G}$ — operating cost, piecewise-linear in dispatch |
-| $\mathit{cost\_curve\_lam}$ | `cost_curve_lam` over $\mathcal{T} \times \mathcal{G} \times \mathcal{B}$ — convex-combination weight on a breakpoint |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — dispatched power |
+| $`\mathit{op\_cost}`$ | `op_cost` over $`\mathcal{T} \times \mathcal{G}`$ — operating cost, piecewise-linear in dispatch |
+| $`\mathit{cost\_curve\_lam}`$ | `cost_curve_lam` over $`\mathcal{T} \times \mathcal{G} \times \mathcal{B}`$ — convex-combination weight on a breakpoint |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{max}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{max}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T}} \sum_{g \in \mathcal{G}} \mathit{op\_cost}_{t,g}$$
+```math
+\min \sum_{t \in \mathcal{T}} \sum_{g \in \mathcal{G}} \mathit{op\_cost}_{t,g}
+```
 
 #### Subject to
 
 **`balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 **`cost_curve_convexity`**
 
-$$\sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} = 1 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} = 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`cost_curve_link0`**
 
-$$p_{t,g} = \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \mathrm{bp\_x}_{g,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{t,g} = \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \mathrm{bp\_x}_{g,b} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`cost_curve_link1`**
 
-$$\mathit{op\_cost}_{t,g} \ge \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \mathrm{bp\_y}_{g,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{op\_cost}_{t,g} \ge \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \mathrm{bp\_y}_{g,b} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \mathrm{p}^{\mathrm{max}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \mathrm{p}^{\mathrm{max}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`op_cost`**
 
-$$\mathit{op\_cost}_{t,g} \ge 0 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+\mathit{op\_cost}_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`cost_curve_lam`**
 
-$$0 \le \mathit{cost\_curve\_lam}_{t,g,b} \le 1 \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G},\enspace b \in \mathcal{B} \thinspace:\thinspace \mathrm{cost\_curve\_points}_{g,b}$$
+```math
+0 \le \mathit{cost\_curve\_lam}_{t,g,b} \le 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G},\ b \in \mathcal{B} \,:\, \mathrm{cost\_curve\_points}_{g,b}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -131,13 +147,13 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: dispatched power
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_max
       op_cost:
         description: operating cost, piecewise-linear in dispatch
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
 
@@ -157,7 +173,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     constraints:
       balance:
         description: every period's demand is met
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
     objective:
@@ -205,16 +221,16 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
 
 **`points:` is what makes the curve its own.** The weights, and the segment
 binaries where a method declares them, exist only where the mask does, so the
-hydro unit carries two rather than four. The values are not asked for at the
-breakpoints it leaves out, and a gap in the middle of a curve is refused when
-data attaches — the marked breakpoints have to follow one another, though they
-need not start at the head of the axis.
+hydro unit carries two rather than four. No value is asked for at a breakpoint
+the curve leaves out. A gap in the middle of a curve is refused when data
+attaches: the marked breakpoints have to follow one another, though they need
+not start at the head of the axis.
 
-The reference next door reaches the same optimum from the **other**
-formulation: segment lines rather than weights, which is exact for a convex
-curve under minimisation and needs no auxiliary variable at all. Two
-formulations agreeing is worth more than two spellings of one, and it is also
-why this model keeps its duals — both sides stay a pure LP.
+The linopy reference reaches the same optimum from the **other** formulation:
+segment lines rather than weights, which is exact for a convex curve under
+minimisation and needs no auxiliary variable. Two formulations agreeing is a
+stronger check than two spellings of one. Both sides stay a pure LP, so this
+model keeps its duals.
 
 ---
 

@@ -51,8 +51,8 @@ DISPATCH = {
         'cost': {'dims': ['snapshot', 'generator']},
         'load': {'coverage': 'masked', 'dims': ['snapshot']},
     },
-    'variables': {'p': {'foreach': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
-    'constraints': {'balance': {'foreach': ['snapshot'], 'expression': 'sum(p, over=generator) == load'}},
+    'variables': {'p': {'dims': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
+    'constraints': {'balance': {'dims': ['snapshot'], 'expression': 'sum(p, over=generator) == load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost)'},
 }
 
@@ -82,7 +82,7 @@ DISPATCH_CAPPED = {
     'parameters': {**DISPATCH['parameters'], 'cap': {'dims': ['generator']}},
     'constraints': {
         **DISPATCH['constraints'],
-        'capped': {'foreach': ['generator'], 'expression': 'sum(p, over=snapshot) <= cap'},
+        'capped': {'dims': ['generator'], 'expression': 'sum(p, over=snapshot) <= cap'},
     },
 }
 

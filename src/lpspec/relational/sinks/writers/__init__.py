@@ -1,8 +1,7 @@
 """The writer family: the tables in, a file out. See ../README.md.
 
 One module per format, chosen by the output's **suffix** — the caller names an
-output, not a writer, because a file's format is a property of the file. Each
-answers ``(tables, path) -> None``, and streams.
+output, not a writer. Each answers ``(tables, path) -> None``, and streams.
 """
 
 from __future__ import annotations
@@ -34,8 +33,7 @@ class Writer:
     capabilities: Capabilities
 
 
-#: What can be written today, by suffix. Closed, for
-#: :data:`~lpspec.relational.sinks.solvers.SOLVERS`' reason.
+#: What can be written today, by suffix. Closed.
 WRITERS: Mapping[str, Writer] = {
     '.lp': Writer(write_lp_file, LP_FILE_CAPABILITIES),
     '.mps': Writer(write_mps_file, MPS_FILE_CAPABILITIES),

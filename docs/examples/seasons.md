@@ -10,25 +10,25 @@ A store that must come back to where it started needs its first position to read
 its last. `edge='wrap'` says that about **the axis**:
 
 ```yaml
-soc == shift(soc, over=snapshot, offset=1, edge='wrap') + inflow - release
+soc == shift(soc, along=snapshot, offset=1, edge='wrap') + inflow - release
 ```
 
-which on this instance links snapshot 7 to snapshot 1 and makes the whole
+On this instance that links snapshot 7 to snapshot 1 and makes the whole
 horizon one cycle: winter opens holding what summer left, and sells it at
-winter's best price. That is a different model, and a plausible-looking one —
-it solves, and its objective is *higher*.
+winter's best price. That is a different model. It solves, and its objective
+is *higher*.
 
 The cycle a multi-period model means is per period, and `by=` says which:
 
 ```yaml
-soc == shift(soc, over=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
+soc == shift(soc, along=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
 ```
 
 $$\mathit{soc}_{t} = \mathit{soc}_{t \ominus_{\mathrm{season\_of}(t)} 1} + \mathit{inflow}_{t} - \mathit{release}_{t}$$
 
-The translation walks inside the group the lookup makes, so a season's first
-snapshot reads that season's last, whatever length each season happens to be —
-four snapshots and three here, and nothing in the file says so.
+The translation walks inside the group the relation makes, so a season's first
+snapshot reads that season's last, whatever the season's length. Winter has
+four snapshots and summer three here, and nothing in the file says so.
 
 ## The model
 
@@ -42,53 +42,61 @@ A store that cycles inside each season rather than across the horizon, with seas
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` with $\mathrm{season\_of}: \mathcal{T} \to \mathcal{S}$ — dispatch periods in order |
-| $\mathcal{S}$ | index $s$ — `season` — the blocks the store cycles over |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{season\_of}: \mathcal{T} \to \mathcal{S}`$ — dispatch periods in order |
+| $`\mathcal{S}`$ | index $`s`$ — `season` with $`\mathrm{season\_of}: \mathcal{T} \to \mathcal{S}`$ — the blocks the store cycles over |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{inflow}$ | `inflow` over $\mathcal{T}$ — energy arriving in a snapshot, whether or not it is wanted then |
-| $\mathrm{price}$ | `price` over $\mathcal{T}$ — what one unit of release earns in a snapshot |
+| $`\mathrm{inflow}`$ | `inflow` over $`\mathcal{T}`$ — energy arriving in a snapshot, whether or not it is wanted then |
+| $`\mathrm{price}`$ | `price` over $`\mathcal{T}`$ — what one unit of release earns in a snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $\mathit{soc}$ | `soc` over $\mathcal{T}$ — energy held at the end of a snapshot |
-| $\mathit{release}$ | `release` over $\mathcal{T}$ — energy released in a snapshot |
+| $`\mathit{soc}`$ | `soc` over $`\mathcal{T}`$ — energy held at the end of a snapshot |
+| $`\mathit{release}`$ | `release` over $`\mathcal{T}`$ — energy released in a snapshot |
 
-Upright is what the model is given — a parameter such as $\mathrm{inflow}$, a coordinate map, a label — and italic is what the solver chooses, such as $\mathit{soc}$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{inflow}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{soc}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
-$t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
+$`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
-$t \ominus^{\mathrm{lookup}(t)} k$ denotes a translation counted inside the group a lookup puts $t$ in (`shift(by=lookup)`), so a term never crosses out of its own group.
+$`t \ominus^{\mathrm{relation}(t)} k`$ denotes a translation counted inside the group a relation puts $`t`$ in (`shift(by=relation)`), so a term never crosses out of its own group.
 
 #### Objective
 
-$$\max \sum_{t \in \mathcal{T}} \mathit{release}_{t} \cdot \mathrm{price}_{t}$$
+```math
+\max \sum_{t \in \mathcal{T}} \mathit{release}_{t} \cdot \mathrm{price}_{t}
+```
 
 #### Subject to
 
 **`season_balance`**
 
-$$\mathit{soc}_{t} = \mathit{soc}_{t \ominus^{\mathrm{season\_of}(t)} 1} + \mathrm{inflow}_{t} - \mathit{release}_{t} \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\mathit{soc}_{t} = \mathit{soc}_{t \ominus^{\mathrm{season\_of}(t)} 1} + \mathrm{inflow}_{t} - \mathit{release}_{t} \qquad \forall\, t \in \mathcal{T}
+```
 
 #### Variable domains
 
 **`soc`**
 
-$$0 \le \mathit{soc}_{t} \le 60 \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+0 \le \mathit{soc}_{t} \le 60 \qquad \forall\, t \in \mathcal{T}
+```
 
 **`release`**
 
-$$\mathit{release}_{t} \ge 0 \qquad \forall\thinspace t \in \mathcal{T}$$
+```math
+\mathit{release}_{t} \ge 0 \qquad \forall\, t \in \mathcal{T}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -106,11 +114,11 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: the blocks the store cycles over
         dtype: str
 
-    lookups:
+    relations:
       season_of:
         description: the season a snapshot falls in
-        over: snapshot
-        into: season
+        columns: [snapshot, season]
+        key: snapshot
 
     parameters:
       inflow:
@@ -123,13 +131,13 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       soc:
         description: energy held at the end of a snapshot
-        foreach: [snapshot]
+        dims: [snapshot]
         bounds:
           lower: 0
           upper: 60
       release:
         description: energy released in a snapshot
-        foreach: [snapshot]
+        dims: [snapshot]
         bounds:
           lower: 0
 
@@ -139,8 +147,8 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
           the level carried into a snapshot is the previous snapshot's, and a
           season's first snapshot carries from that season's own last — so each
           season ends where it began and hands the next one nothing
-        foreach: [snapshot]
-        expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
+        dims: [snapshot]
+        expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
 
     objective:
       sense: maximize
@@ -168,28 +176,24 @@ snapshot  season  price  inflow  release  soc
 7         summer  2      0       0        6    ← closes where it opened, three snapshots later
 ```
 
-Objective **74.0**. Summer is the half worth reading: it opens holding 6, sells
-that at the price-4 snapshot before its own inflow has arrived, and the inflow at
-snapshot 6 puts the 6 back so the season closes where it opened. Nothing
-constrains the level a season starts at except that it must return to it — which
-is what a cycle is, and what no clause here has to name.
+Objective **74.0**. Summer opens holding 6, sells it at the price-4 snapshot
+before its own inflow arrives, and the inflow at snapshot 6 puts the 6 back, so
+the season closes where it opened. Nothing constrains the level a season
+starts at, except that it must return to it.
 
-Written against the axis instead, the same instance gives **80.0**: the extra 6
-comes out of winter, which had it to give only because summer's closing level
-leaked across the boundary.
+The same instance written against the axis gives **80.0**: the extra 6 comes
+out of winter, which had it only because summer's closing level leaked across
+the boundary.
 
 ## Why it is one row
 
-Per-season cycling is expressible without this operator, as a level each season
-begins and ends at: a variable per season, an opening row that reads it, and a
-closing row that pins it. Substituting the closing row into the opening one
-gives exactly the equation above — three constraints and an auxiliary variable
-saying what one `by=` says, and the substitution is the proof they are the same
-model.
+Per-season cycling can be written without `by=`, as a level each season begins
+and ends at: a variable per season, an opening row that reads it, and a closing
+row that pins it. Substituting the closing row into the opening one gives the
+equation above, so the two are the same model.
 
-What the operator adds is that the boundary stops being something the file has to
-mention. There is no first snapshot named anywhere, so there is nothing to
-re-check when the horizon is renumbered, extended, or cut into different seasons.
+With `by=` no first snapshot is named anywhere, so nothing needs re-checking
+when the horizon is renumbered, extended, or cut into different seasons.
 
 ## The grouping is data
 
@@ -216,9 +220,9 @@ shape: (7, 2)
 ```
 
 A snapshot the table has no row for belongs to no season, so it reaches nothing
-and its row is not built — the same reading absence gets in
+and its row is not built. Absence reads the same way in
 [`sum(by=)`](https://math-spec.readthedocs.io/en/latest/reference/language/operators/).
 
 Compare [monthly budget](monthly_budget.md), where such a column groups a *sum*,
 and [multi-period](multi_period.md), where it carries a capacity decision down
-onto the snapshots it covers. One lookup, three jobs.
+onto the snapshots it covers. One relation, three jobs.

@@ -10,7 +10,7 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
@@ -429,8 +429,18 @@ def test_every_repository_path_a_workflow_names_exists():
 #: worth in names. Adding one is a row here, which is a line in a diff a
 #: reviewer reads; the fences elsewhere in this file work the same way.
 PUBLIC_API = {
-    'run it': {'build', 'check', 'solve', 'write'},
+    'run it': {'build', 'check', 'evaluate', 'solve', 'write'},
     'run it many times': {'solve_over', 'EachCoordinate', 'EachWindow'},
+    'carry it': {
+        'SolveArchive',
+        'SweepArchive',
+        'load_archive',
+        'load_result',
+        'load_runs',
+        'scan_archive',
+        'scan_result',
+        'scan_runs',
+    },
     'name what came back': {'Model', 'Result', 'Runs'},
     'catch it': {
         'LpspecError',
@@ -438,6 +448,7 @@ PUBLIC_API = {
         'LaneError',
         'DataError',
         'DimensionError',
+        'LayoutError',
         'SchemaError',
         'PiecewiseExpansionError',
         'NoSolutionError',
@@ -446,8 +457,8 @@ PUBLIC_API = {
 }
 
 #: The linopy lane, which is a surface of its own — deliberately two verbs:
-#: the producer, and the named-expression reader both lanes owe (#562).
-PUBLIC_API_LINOPY = {'build', 'expression'}
+#: the producer, and the expression reader both lanes owe (#562).
+PUBLIC_API_LINOPY = {'build', 'evaluate'}
 
 
 def test_the_public_surface_is_exactly_what_is_declared():
@@ -503,11 +514,11 @@ def test_the_public_surface_is_exactly_what_is_declared():
 
 
 def test_the_linopy_lane_stays_two_verbs():
-    """The lane constructs a model, and reads back what the file named.
+    """The lane constructs a model, and values an expression at its solution.
 
-    ``build`` makes a model and ``expression`` evaluates a declared named
-    quantity at its solution — the eager half of a reader both lanes owe
-    (hard rule 3), pure like the producer. What is refused here is a verb that
+    ``build`` makes a model and ``evaluate`` values an expression at its
+    solution — the eager half of a reader both lanes owe (hard rule 3), pure
+    like the producer. What is refused here is a verb that
     *attaches* to a model something else built: a file references only what it
     declares (hard rule 5), and the verb that made an exception of that is
     gone (#845). Read statically: the module imports linopy, and this must run
@@ -717,37 +728,108 @@ def test_every_plan_node_is_handled_by_the_compiler():
         assert not unhandled, f'{qualifier} nodes unknown to {module.name}: {unhandled}'
 
 
-def test_the_model_argument_is_exactly_what_the_language_takes():
-    """Every verb here opens a model the way ``to_program`` does, and no other way.
+def test_the_model_argument_is_what_the_language_takes_minus_the_lowered_form():
+    """Every verb here opens a model the way ``to_program`` does, less the one shape it refuses.
 
     ``Buildable`` is what ``check``, ``build``, ``solve``, ``write``,
-    ``solve_over``, ``Model`` and both linopy-lane verbs annotate their
-    first argument with, and each hands it straight over — so the union is
-    upstream's fact and this is the copy of it. Restated rather than imported
-    because math-spec exports no alias for it; checked here so the copy cannot
-    quietly narrow, which would refuse a shape the language accepts, or widen,
-    which would promise one it does not.
+    ``solve_over``, ``Model`` and both linopy-lane verbs annotate their first
+    argument with. It is upstream's union minus ``Program``: lowering has no
+    inverse, so an answer built from one could not name the document it came
+    from and nothing built from one could be archived. Checked here so the
+    copy cannot quietly narrow further, which would refuse a shape the
+    language accepts, or widen, which would promise one this package does not.
 
-    Textual, and deliberately: the annotations are strings under
-    ``from __future__ import annotations``, and ``get_type_hints`` cannot
-    evaluate upstream's (its ``Path`` is behind ``TYPE_CHECKING``). Splitting
-    on ``|`` holds while every member is a flat name or a subscript — a nested
-    union upstream would need this rewritten rather than merely updated.
+    Textual, and deliberately: upstream's annotation is a string under
+    ``from __future__ import annotations`` that ``get_type_hints`` cannot
+    evaluate (its ``Path`` is behind ``TYPE_CHECKING``), and ours is a ``type``
+    statement whose value would fail the same way, so it is read off the
+    source. Splitting on ``|`` holds while every member is a flat name or a
+    subscript — a nested union upstream would need this rewritten rather than
+    merely updated.
     """
     import inspect
 
     from math_spec import to_program
 
-    from lpspec.lanes import Buildable
-
     def members(annotation: str) -> set[str]:
         return {part.strip().removeprefix('program.') for part in annotation.split('|')}
 
-    upstream = str(inspect.signature(to_program).parameters['spec'].annotation)
-    assert members(Buildable) == members(upstream), (
-        f'lpspec.lanes.Buildable is {Buildable!r} and math_spec.to_program takes {upstream!r} — '
-        f'every verb passes its model straight to that function, so the two are one union'
+    upstream = members(str(inspect.signature(to_program).parameters['spec'].annotation))
+    ours = members(type_alias_value(PKG / 'lanes.py', 'Buildable'))
+    assert upstream - ours == {'Program'}, (
+        f'the language takes {sorted(upstream)} and lpspec.lanes.Buildable takes {sorted(ours)} — '
+        f'the one shape this package refuses is the lowered Program, and it refuses no other'
     )
+
+
+def type_alias_value(path: Path, name: str) -> str:
+    """The right-hand side of ``type <name> = ...`` in *path*, as source text."""
+    module = ast.parse(path.read_text())
+    for node in module.body:
+        if isinstance(node, ast.TypeAlias) and node.name.id == name:
+            return ast.unparse(node.value)
+    raise AssertionError(f'{path} declares no `type {name} = ...`')
+
+
+def test_the_sources_argument_is_one_type_at_every_door():
+    """Every verb that takes data annotates it ``Mapping[str, Source]``.
+
+    ``Source`` is the one spelling of what a name in ``sources`` may hold, and
+    it is a copy at each door: a verb that widened it back to ``Any`` would
+    promise a shape the readers refuse, and one that narrowed it would refuse
+    a shape they accept. Textual, like the ``Buildable`` check above, because
+    the annotations are strings. The linopy lane's two verbs are asked in
+    ``tests/test_linopy_lane.py``, where the extra is installed.
+    """
+    import lpspec
+    from lpspec.strategy import EachCoordinate, EachWindow, solve_over
+
+    doors = {
+        'build': lpspec.build,
+        'solve': lpspec.solve,
+        'write': lpspec.write,
+        'SolveArchive': lpspec.SolveArchive.__init__,
+        'SweepArchive': lpspec.SweepArchive.__init__,
+        'Model': lpspec.Model.__init__,
+        'Model.update': lpspec.Model.update,
+        'solve_over': solve_over,
+        'EachCoordinate.slices': EachCoordinate.slices,
+        'EachWindow.slices': EachWindow.slices,
+    }
+    assert sources_annotations(doors) == {'Mapping[str, Source]'}, (
+        f'every door takes sources as Mapping[str, Source], and these do not: {sources_annotations(doors)}'
+    )
+
+
+def test_both_lanes_lower_a_spec_through_one_function():
+    """Neither lane accepts a file the other refuses, which is what ``lowered`` is for.
+
+    This package refuses names the language allows — two in one namespace
+    differing only by case — so lowering is where that verdict is reached. A
+    module calling ``to_program`` itself would reach a different one, and the
+    lanes would disagree about what loads while both docstrings claimed they
+    could not. ``lanes.py`` is the one caller because it is what sits above
+    both.
+    """
+    import ast
+
+    calling = {
+        path.relative_to(PKG).as_posix()
+        for path in PKG.rglob('*.py')
+        for node in ast.walk(ast.parse(path.read_text()))
+        if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'to_program'
+    }
+    assert calling == {'lanes.py'}, (
+        f'to_program is called in {sorted(calling)}; every lane lowers through lanes.lowered, which is '
+        f'what refuses a spec this package cannot write down'
+    )
+
+
+def sources_annotations(doors: dict[str, Any]) -> set[str]:
+    """What each door annotates ``sources`` with — ``tests/test_linopy_lane.py`` asks the same of the lane's."""
+    import inspect
+
+    return {str(inspect.signature(door).parameters['sources'].annotation) for door in doors.values()}
 
 
 def test_every_piecewise_fact_the_language_carries_is_read_by_the_curve_guard():
@@ -775,6 +857,12 @@ def test_every_piecewise_fact_the_language_carries_is_read_by_the_curve_guard():
     )
 
 
+def _gen_bus_walk(program: Any) -> Any:
+    """One map walked one way — the shape every operator below takes a `by=` in."""
+    gen_bus = program.RelationDeclaration('gen_bus', (('g', 'g'), ('bus', 'bus')), ('g',))
+    return program.Walk(gen_bus, ('g',), ('bus',), ())
+
+
 def test_every_shape_operator_declares_its_fan_in():
     """The absence pass asks the language, so the language has to answer for each.
 
@@ -791,8 +879,8 @@ def test_every_shape_operator_declares_its_fan_in():
         type(node).__name__: program.fan_in(node)
         for node in (
             program.Sum(x, ('t',)),
-            program.GroupSum(x, 'g', ('bus',), ('b',)),
-            program.At(x, 'g', ('bus',), ('b',)),
+            program.GroupSum(x, (_gen_bus_walk(program),)),
+            program.At(x, (_gen_bus_walk(program),)),
             program.Translate(x, 't', 1, wrap=False),
             program.Window(x, 't', 3, wrap=False),
         )

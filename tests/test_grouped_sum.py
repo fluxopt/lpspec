@@ -7,7 +7,7 @@ Three-way differential on examples/transport.yaml:
      involves no sum at all)
 
 Plus ``examples/monthly_budget.yaml``, which is the same primitive over *time*:
-a lookup over ``snapshot`` groups it into months exactly as a lookup over
+a relation over ``snapshot`` groups it into months exactly as a relation over
 ``generator`` groups onto buses. The gallery page quotes its dual and prints
 its snapshot index, so a test has to hold both.
 """
@@ -88,8 +88,13 @@ def test_sum_lowers_to_one_node_per_injection_term():
     (c,) = program.constraints.values()
     assert c.dims == ('snapshot', 'bus')
     terms = _flatten(c.lhs)
-    assert GroupSum(Variable('p'), over='generator', coordinate=('gen_bus',), into=('bus',)) in terms
-    assert GroupSum(Variable('f'), over='line', coordinate=('line_to',), into=('bus',)) in terms
+    grouped = {(t.operand, t.over, t.coordinate, t.into) for t in terms if isinstance(t, GroupSum)}
+    assert (Variable('p'), ('generator',), ('gen_bus',), ('bus',)) in grouped, (
+        'generation is grouped out of generator onto bus, through gen_bus and nothing else'
+    )
+    assert (Variable('f'), ('line',), ('line_to',), ('bus',)) in grouped, (
+        'inflow is grouped out of line onto bus, through line_to and nothing else'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -171,18 +176,18 @@ PARTIAL_YAML = """
 dimensions:
   g: {dtype: str}
   item: {dtype: str}
-lookups:
-  grp: {coverage: masked, over: item, into: g}
+relations:
+  grp: {coverage: masked, columns: [item, g], key: item}
 parameters:
   cap: {dims: [item]}
   target: {dims: [g]}
 variables:
   x:
-    foreach: [item]
+    dims: [item]
     bounds: {lower: 0, upper: cap}
 constraints:
   meet:
-    foreach: [g]
+    dims: [g]
     expression: sum(x, by=grp) >= target
 objective:
   sense: minimize
@@ -191,7 +196,7 @@ objective:
 
 
 def _partial_inputs():
-    """`item` carries lookup `grp`: i0 and i1 in group g0, i2 in none."""
+    """`item` carries relation `grp`: i0 and i1 in group g0, i2 in none."""
     items = ['i0', 'i1', 'i2']
     index = pd.DataFrame({'item': items})
     grp = pd.DataFrame({'item': ['i0', 'i1'], 'g': ['g0', 'g0']})
@@ -239,10 +244,10 @@ def test_a_partial_coordinate_places_its_orphans_nowhere(tmp_path):
 
 GROUPED_ONTO_BUS = {
     'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-    'lookups': {'gen_bus': {'coverage': 'masked', 'over': 'generator', 'into': 'bus'}},
+    'relations': {'gen_bus': {'coverage': 'masked', 'columns': ['generator', 'bus'], 'key': 'generator'}},
     'parameters': {'p_max': {'dims': ['generator']}, 'load': {'dims': ['bus']}},
-    'variables': {'p': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
-    'constraints': {'balance': {'foreach': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
+    'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
+    'constraints': {'balance': {'dims': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p, over=generator)'},
 }
 
@@ -269,14 +274,14 @@ GROUPED_ONTO_BUS_SOURCES = {
 
 @pytest.mark.parametrize('sources', GROUPED_ONTO_BUS_SOURCES.values(), ids=GROUPED_ONTO_BUS_SOURCES.keys())
 def test_a_grouped_sum_lands_on_the_dimension_it_declares(sources):
-    """The result spans ``bus``'s declared index, not the labels the lookup reaches.
+    """The result spans ``bus``'s declared index, not the labels the relation reaches.
 
     A groupby yields only the labels some member points at, and in sorted
     order. Either departure — a bus no generator sits on, or a declared order
     that is not alphabetical — leaves the eager lane holding a ``bus`` that is
     not the model's ``bus``, and linopy v1 refuses the next combination, since
     it aligns on membership and order alike. The relational lane never faces
-    the question: it joins on the label and takes its rows from the foreach
+    the question: it joins on the label and takes its rows from the dims
     product, not from whatever the group produced.
     """
     with differential(GROUPED_ONTO_BUS, sources) as run:
@@ -289,12 +294,12 @@ BROADCAST_GROUP_SUM = {
         'generator': {'dtype': 'str'},
         'bus': {'dtype': 'str'},
     },
-    'lookups': {'gen_bus': {'coverage': 'masked', 'over': 'generator', 'into': 'bus'}},
+    'relations': {'gen_bus': {'coverage': 'masked', 'columns': ['generator', 'bus'], 'key': 'generator'}},
     'parameters': {'w': {'dims': ['generator']}, 'limit': {'dims': ['snapshot', 'bus']}},
-    'variables': {'x': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'variables': {'x': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
     'constraints': {
         'cap': {
-            'foreach': ['snapshot', 'bus'],
+            'dims': ['snapshot', 'bus'],
             'expression': 'sum(x * w, by=gen_bus) <= limit',
         }
     },
@@ -302,7 +307,7 @@ BROADCAST_GROUP_SUM = {
 }
 
 #: g1 and g2 share a bus, so grouping merges two rows carrying the *same*
-#: variable — which is the case a broadcast `over` creates and a `foreach` one
+#: variable — which is the case a broadcast `over` creates and a `dims:` one
 #: cannot.
 BROADCAST_SOURCES = {
     'snapshot': [0, 1],
@@ -334,13 +339,13 @@ def test_sum_over_a_broadcast_dim_still_collapses_its_terms():
     assert result.objective == pytest.approx(6.0), '3x <= 9 at b1, over two snapshots'
 
 
-def test_sum_over_a_foreach_dim_needs_no_such_collapse():
+def test_sum_over_a_declared_dim_needs_no_such_collapse():
     """The counterpart: when the variable carries the grouped dim, each merged
     row has its own label and there is nothing to add."""
     spec = override(
         BROADCAST_GROUP_SUM,
         **{
-            'variables.x.foreach': ['snapshot', 'generator'],
+            'variables.x.dims': ['snapshot', 'generator'],
             'constraints.cap.expression': 'sum(x * w, by=gen_bus) <= limit',
         },
     )
@@ -361,8 +366,8 @@ def test_sum_over_a_foreach_dim_needs_no_such_collapse():
 BROADCAST_OBJECTIVE = {
     'dimensions': {'snapshot': {'dtype': 'int'}, 'bus': {'dtype': 'str'}},
     'parameters': {'w': {'dims': ['snapshot']}, 'floor': {'dims': ['bus']}},
-    'variables': {'y': {'foreach': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'atleast': {'foreach': ['bus'], 'expression': 'y >= floor'}},
+    'variables': {'y': {'dims': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'atleast': {'dims': ['bus'], 'expression': 'y >= floor'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(y * w)'},
 }
 
@@ -524,7 +529,7 @@ def test_a_mistyped_month_is_a_typo_and_not_a_new_group(monthly):
     typo = month_of.with_columns(
         pl.when(pl.col('month') == '2030-03').then(pl.lit('2030-3')).otherwise(pl.col('month')).alias('month')
     )
-    with pytest.raises(DataError, match=r"lookup 'month_of' has value\(s\) that are not 'month' labels"):
+    with pytest.raises(DataError, match=r"relation 'month_of' has value\(s\) that are not 'month' labels"):
         lps.solve(MONTHLY_YAML, {**sources, 'month_of': typo})
 
 

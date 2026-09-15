@@ -40,7 +40,7 @@ import pytest
 
 from lpspec.errors import DataError
 from tests.conftest import law_data, law_spec, override
-from tests.differential import RTOL, differential
+from tests.differential import RTOL, both_lanes_refuse, differential
 from tests.oracle import pd
 
 # ---------------------------------------------------------------------------
@@ -55,13 +55,13 @@ def _spec(
     expression: str,
     *,
     objective: str = 'sum(x)',
-    foreach: list[str] | None = None,
+    dims: list[str] | None = None,
     also: dict | None = None,
 ) -> dict:
     """The shared model, over ``t`` unless the case says otherwise."""
     return law_spec(
         expression,
-        foreach=foreach if foreach is not None else ['t'],
+        dims=dims if dims is not None else ['t'],
         objective=objective,
         also=also,
     )
@@ -70,7 +70,7 @@ def _spec(
 def _objective_of(
     expression: str,
     objective: str = 'sum(x)',
-    foreach: list[str] | None = None,
+    dims: list[str] | None = None,
     also: dict | None = None,
 ) -> float:
     """Solve *expression* on both lanes and the LP file; return the agreed value.
@@ -78,7 +78,7 @@ def _objective_of(
     ``differential`` raises if the three disagree, so a number coming back out
     of here is already a statement that the lanes concur about this spelling.
     """
-    with differential(_spec(expression, objective=objective, foreach=foreach, also=also), DATA, lp=True) as run:
+    with differential(_spec(expression, objective=objective, dims=dims, also=also), DATA, lp=True) as run:
         return float(run.result.objective)
 
 
@@ -124,7 +124,7 @@ LAWS = [
         id='reduction-is-linear-when-every-operand-is-total',
     ),
     pytest.param(
-        "sum(shift(shift(x, over=t, offset=1, edge='wrap'), over=t, offset=-1, edge='wrap'), over=f) <= 120",
+        "sum(shift(shift(x, along=t, offset=1, edge='wrap'), along=t, offset=-1, edge='wrap'), over=f) <= 120",
         'sum(x, over=f) <= 120',
         id='cyclic-shift-is-invertible',
     ),
@@ -180,12 +180,12 @@ def test_a_term_whose_variable_is_absent_is_not_a_term_worth_zero():
     *difference between the two intents* rather than the behaviour alone.
     """
     minimise_x = 'sum((-1) * x)'
-    propagated = _objective_of('x + y >= 60', objective=minimise_x, foreach=['f', 't'])
+    propagated = _objective_of('x + y >= 60', objective=minimise_x, dims=['f', 't'])
     zero_filled = _objective_of(
         'x + y >= 60',
         objective=minimise_x,
-        foreach=['f', 't'],
-        also={'c_unsized': {'foreach': ['f', 't'], 'where': 'NOT y', 'expression': 'x >= 60'}},
+        dims=['f', 't'],
+        also={'c_unsized': {'dims': ['f', 't'], 'where': 'NOT y', 'expression': 'x >= 60'}},
     )
 
     assert propagated == pytest.approx(-(10.0 + 10.0), rel=RTOL), (
@@ -209,11 +209,11 @@ def test_absence_zero_says_at_the_declaration_what_two_blocks_said_at_the_rows()
     two_blocks = _objective_of(
         'x + y >= 60',
         objective=minimise_x,
-        foreach=['f', 't'],
-        also={'c_unsized': {'foreach': ['f', 't'], 'where': 'NOT y', 'expression': 'x >= 60'}},
+        dims=['f', 't'],
+        also={'c_unsized': {'dims': ['f', 't'], 'where': 'NOT y', 'expression': 'x >= 60'}},
     )
 
-    spec = _spec('x + y >= 60', objective=minimise_x, foreach=['f', 't'])
+    spec = _spec('x + y >= 60', objective=minimise_x, dims=['f', 't'])
     spec['variables']['y']['absence'] = 'zero'
     with differential(spec, DATA, lp=True) as run:
         declared = float(run.result.objective)
@@ -253,8 +253,8 @@ def test_shift_and_a_filled_shift_are_different_operators():
     Bare, the vacated slot is absent and the row goes with it (#289). Filled, it
     contributes the identity of the position it sits in and the row survives.
     """
-    bare = _objective_of('sum(x - shift(x, over=t, offset=1), over=f) <= 10')
-    filled = _objective_of('sum(x - shift(x, over=t, offset=1, edge=0), over=f) <= 10')
+    bare = _objective_of('sum(x - shift(x, along=t, offset=1), over=f) <= 10')
+    filled = _objective_of('sum(x - shift(x, along=t, offset=1, edge=0), over=f) <= 10')
 
     assert bare != pytest.approx(filled, rel=RTOL), (
         'a bare shift drops the first row; a filled one keeps it, so these cannot agree'
@@ -283,29 +283,29 @@ WIDE_COORDS = {
 PLAIN_COORDS = {'f': pd.Index(['a', 'b', 'c', 'd'], name='f'), 't': pd.Index([0, 1], name='t')}
 
 
-def _wide_objective_of(expression: str, *, foreach: list[str]) -> float:
+def _wide_objective_of(expression: str, *, dims: list[str]) -> float:
     """The wide fixture solved through both lanes, for one expression.
 
-    ``g`` and the lookup that reaches it exist only for the grouped cases:
+    ``g`` and the relation that reaches it exist only for the grouped cases:
     the plain fixture passes no ``g`` index, and a target with no index of its
-    own is refused rather than carried as a dangling lookup (#488).
+    own is refused rather than carried as a dangling relation (#488).
     """
-    grouped = 'g' in foreach
-    dims = {'g': {}, 'f': {}, 't': {'dtype': 'int'}} if grouped else {'f': {}, 't': {'dtype': 'int'}}
+    grouped = 'g' in dims
+    dimensions = {'g': {}, 'f': {}, 't': {'dtype': 'int'}} if grouped else {'f': {}, 't': {'dtype': 'int'}}
     spec = {
-        'dimensions': dims,
-        **({'lookups': {'grp': {'over': 'f', 'into': 'g'}}} if grouped else {}),
+        'dimensions': dimensions,
+        **({'relations': {'grp': {'columns': ['f', 'g'], 'key': 'f'}}} if grouped else {}),
         'parameters': {
             'gate': {'coverage': 'masked', 'dims': ['f'], 'dtype': 'bool'},
             'gate2': {'dims': ['f'], 'dtype': 'bool', 'coverage': 'masked'},
             'w': {'dims': ['f']},
         },
         'variables': {
-            'x': {'foreach': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
-            'y': {'foreach': ['f', 't'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
-            'v': {'foreach': ['f', 't'], 'where': 'gate2', 'bounds': {'lower': 0, 'upper': 50}},
+            'x': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
+            'y': {'dims': ['f', 't'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
+            'v': {'dims': ['f', 't'], 'where': 'gate2', 'bounds': {'lower': 0, 'upper': 50}},
         },
-        'constraints': {'c': {'foreach': foreach, 'expression': expression}},
+        'constraints': {'c': {'dims': dims, 'expression': expression}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     with differential(spec, WIDE_DATA | (WIDE_COORDS if grouped else PLAIN_COORDS), lp=True) as run:
@@ -320,8 +320,8 @@ def test_sum_does_not_distribute_over_addition_either():
     change was made on: the two spellings separate, and both lanes agree about
     where they land.
     """
-    together = _wide_objective_of('sum(x + y, by=grp) <= 120', foreach=['g', 't'])
-    apart = _wide_objective_of('sum(x, by=grp) + sum(y, by=grp) <= 120', foreach=['g', 't'])
+    together = _wide_objective_of('sum(x + y, by=grp) <= 120', dims=['g', 't'])
+    apart = _wide_objective_of('sum(x, by=grp) + sum(y, by=grp) <= 120', dims=['g', 't'])
 
     assert together == pytest.approx(640.0, rel=RTOL)
     assert apart == pytest.approx(480.0, rel=RTOL)
@@ -337,8 +337,8 @@ def test_two_masks_intersect_rather_than_applying_one_at_a_time():
     that stopped at the first, or that composed them pairwise down the addition
     tree, would still pass every single-mask test above.
     """
-    together = _wide_objective_of('sum(x + y + v, over=f) <= 120', foreach=['t'])
-    apart = _wide_objective_of('sum(x, over=f) + sum(y, over=f) + sum(v, over=f) <= 120', foreach=['t'])
+    together = _wide_objective_of('sum(x + y + v, over=f) <= 120', dims=['t'])
+    apart = _wide_objective_of('sum(x, over=f) + sum(y, over=f) + sum(v, over=f) <= 120', dims=['t'])
 
     assert together == pytest.approx(640.0, rel=RTOL)
     assert apart == pytest.approx(240.0, rel=RTOL)
@@ -352,8 +352,8 @@ def test_a_broadcast_coefficient_does_not_move_where_the_summand_exists():
     property of variables). The separation here must therefore come from `y`
     alone, exactly as in the un-weighted case.
     """
-    together = _wide_objective_of('sum(w * x + y, over=f) <= 120', foreach=['t'])
-    apart = _wide_objective_of('sum(w * x, over=f) + sum(y, over=f) <= 120', foreach=['t'])
+    together = _wide_objective_of('sum(w * x + y, over=f) <= 120', dims=['t'])
+    apart = _wide_objective_of('sum(w * x, over=f) + sum(y, over=f) <= 120', dims=['t'])
 
     assert together == pytest.approx(320.0, rel=RTOL)
     assert apart == pytest.approx(120.0, rel=RTOL)
@@ -372,10 +372,10 @@ def test_a_mask_on_a_dim_the_reduction_does_not_touch_still_propagates():
         'dimensions': {'f': {}, 't': {'dtype': 'int'}},
         'parameters': {'tgate': {'coverage': 'masked', 'dims': ['t'], 'dtype': 'bool'}},
         'variables': {
-            'x': {'foreach': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
-            'y': {'foreach': ['f', 't'], 'where': 'tgate', 'bounds': {'lower': 0, 'upper': 50}},
+            'x': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
+            'y': {'dims': ['f', 't'], 'where': 'tgate', 'bounds': {'lower': 0, 'upper': 50}},
         },
-        'constraints': {'c': {'foreach': ['t'], 'expression': 'sum(x + y, over=f) <= 120'}},
+        'constraints': {'c': {'dims': ['t'], 'expression': 'sum(x + y, over=f) <= 120'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     data = {'tgate': pd.Series([True], index=pd.Index([0], name='t'))}
@@ -397,7 +397,7 @@ def test_shift_created_absence_reaches_a_reduction_like_any_other():
 
     The shifted operand is a **separate** variable from the one the objective
     maximises, and that is what makes the case discriminating. Written as
-    ``sum(x + shift(x, over=t, offset=1), over=f)`` it is not: the ``t=1`` row bounds the
+    ``sum(x + shift(x, along=t, offset=1), over=f)`` it is not: the ``t=1`` row bounds the
     same ``x[.,0]`` that a missing restriction would bound at ``t=0``, so it
     dominates and the objective reads 120 either way. Verified by disabling the
     propagation — that spelling still passed while five other cases failed.
@@ -411,10 +411,10 @@ def test_shift_created_absence_reaches_a_reduction_like_any_other():
         'dimensions': {'f': {}, 't': {'dtype': 'int'}},
         'parameters': {},
         'variables': {
-            'x': {'foreach': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
-            'v': {'foreach': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
+            'x': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
+            'v': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
         },
-        'constraints': {'c': {'foreach': ['t'], 'expression': 'sum(x + shift(v, over=t, offset=1), over=f) <= 120'}},
+        'constraints': {'c': {'dims': ['t'], 'expression': 'sum(x + shift(v, along=t, offset=1), over=f) <= 120'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     index = {'f': pd.Index(['a', 'b'], name='f'), 't': pd.Index([0, 1], name='t')}
@@ -430,8 +430,8 @@ def test_shift_created_absence_reaches_a_reduction_like_any_other():
 DIVISOR_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'d': {'coverage': 'masked', 'dims': ['f']}},
-    'variables': {'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'c': {'foreach': ['f'], 'expression': 'x / d <= 10'}},
+    'variables': {'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'c': {'dims': ['f'], 'expression': 'x / d <= 10'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
 }
 
@@ -464,6 +464,21 @@ def test_a_sparse_divisor_is_refused_rather_than_read_as_zero():
         )
 
 
+def test_a_sparse_divisor_written_as_a_power_is_named_and_refused_on_both_lanes():
+    """The same gap under `**`, where the walk used to see nothing (#1536).
+
+    `program.children` had no branch for a power, so `d ** 2` hid `d` from every
+    walk this package asks the language for a divisor's names. The relational
+    lane named the divisor `''`, and the eager lane found no divisor to check,
+    filled the missing row with a zero coefficient and built `inf` into the
+    matrix with no refusal at all — the two lanes disagreed, and neither answer
+    was usable. energy-models/math-spec#403 fixed the walk upstream; this pins
+    what is owed here, that both lanes name `d` and refuse in one sentence.
+    """
+    spec = override(DIVISOR_SPEC, **{'constraints.c.expression': 'x / (d ** 2) <= 10'})
+    both_lanes_refuse(spec, SPARSE_D, match="parameter 'd' is used as a divisor")
+
+
 def test_a_sparse_divisor_in_the_objective_is_refused_too():
     """The refusal holds in the one declaration with no rows to mask.
 
@@ -483,6 +498,42 @@ def test_a_sparse_divisor_in_the_objective_is_refused_too():
     )
     with pytest.raises(DataError, match='used as a divisor'), differential(spec, SPARSE_D) as run:
         _ = run.result.objective
+
+
+def test_a_sparse_divisor_on_a_constant_side_is_refused_too():
+    """The one side whose null never reaches the matrix to be counted there.
+
+    `x <= h / d` divides where no variable stands, so the quotient is a
+    constant piece rather than a term and the null coefficient the check above
+    reads is not in the matrix to read. The piece is summed per coordinate on
+    its way to the row and a sum reads a null as zero, so the gap is counted
+    before that or not at all — it used to be not at all, and the row bound `x`
+    by the half of the quotient the data covered (#1465).
+    """
+    spec = override(
+        DIVISOR_SPEC,
+        **{'parameters.h': {'dims': ['f']}, 'constraints.c.expression': 'x <= h / d'},
+    )
+    data = SPARSE_D | {'h': pd.Series([10.0, 10.0], index=pd.Index(['a', 'b'], name='f'))}
+    both_lanes_refuse(spec, data, match="parameter 'd' is used as a divisor")
+
+
+def test_a_sparse_divisor_on_a_constant_side_has_the_same_escape():
+    """And the refusal is keyed to the rows built there too.
+
+    The mask answers the question on the constant side for the reason it
+    answers it under a term: the coordinate the divisor says nothing about is
+    one the model never builds a row at.
+    """
+    spec = override(
+        DIVISOR_SPEC,
+        **{'parameters.h': {'dims': ['f']}, 'constraints.c.expression': 'x <= h / d', 'constraints.c.where': 'd'},
+    )
+    data = SPARSE_D | {'h': pd.Series([10.0, 10.0], index=pd.Index(['a', 'b'], name='f'))}
+    with differential(spec, data, lp=True) as run:
+        assert float(run.result.objective) == pytest.approx(105.0, rel=RTOL), (
+            'f=a: the row binds at x <= 5. f=b: masked out, so x runs to its bound'
+        )
 
 
 def test_a_divisor_may_be_sparse_where_the_row_is_masked_out():

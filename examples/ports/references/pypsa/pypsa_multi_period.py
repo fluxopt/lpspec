@@ -65,7 +65,7 @@ def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
 
     ``tables`` is the same mapping the lpspec call attaches as ``sources``.
 
-    The port's flat ``snapshot`` axis carries a lookup into ``period``; PyPSA
+    The port's flat ``snapshot`` axis carries a relation into ``period``; PyPSA
     wants the same fact as a ``(period, timestep)`` MultiIndex, so the snapshots
     are paired with the period each falls in. ``investment_period_weightings``
     takes the port's ``period_weight`` as its ``objective`` column, and ``years``
@@ -103,7 +103,7 @@ def balance_duals(n: pypsa.Network) -> dict[str, list]:
     """The dual of the nodal balance per snapshot, keyed the way the port keys it.
 
     PyPSA's row index is ``(period, timestep)``; the port's is the flat snapshot
-    the lookup maps into a period, so the pairs are collapsed back to the port's
+    the relation maps into a period, so the pairs are collapsed back to the port's
     labels in the order the instance lists them.
     """
     dual = n.model.constraints['Bus-nodal_balance'].dual.to_series()

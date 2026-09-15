@@ -2,15 +2,13 @@
 
 **Two families.** A *solver* takes the tables and runs them (``solvers/``,
 chosen by name); a *writer* renders them to a file (``writers/``, chosen by
-suffix). They are directories rather than a convention, so
-``tests/test_architecture.py`` reads membership off the path.
+suffix). They are directories, so ``tests/test_architecture.py`` reads
+membership off the path.
 
 ``tables.py`` is what both read, and neither family imports the other.
 ``capabilities.py`` is what both *declare*, and the functions below are where
 a caller's model meets those declarations — the only place the two families are
-asked one question together, which is why ``ingestible`` is here rather than in
-``solvers/``: what a sink cannot take is refused by naming the sinks that can,
-and those live in both families.
+asked one question together.
 """
 
 from __future__ import annotations
@@ -48,9 +46,9 @@ __all__ = [
 def sink_capabilities(name: str) -> caps.Capabilities:
     """What the sink called *name* can ingest — a solver name, or a suffix.
 
-    **Answered without importing the solver**, a capability being a declared
-    table rather than a probe: one environment can check a repository of models
-    against every sink they will eventually be solved on.
+    Answered without importing the solver: a capability is a declared table
+    rather than a probe, so a repository of models can be checked against every
+    sink they will eventually be solved on.
 
     Raises:
         LpspecError: A name belonging to neither family.
@@ -63,12 +61,11 @@ def sink_capabilities(name: str) -> caps.Capabilities:
 
 
 def _blocker(name: str, needed: Collection[caps.Capability]) -> Callable[[Sequence[str]], str] | None:
-    """Why the sink called *name* refuses capabilities *needed*, or ``None``.
+    """The sink called *name*'s refusal of capabilities *needed*, or ``None``.
 
-    The one home for what "takes" means, so the refusal and the takers it
-    names cannot disagree. What comes back is the message short of its third
-    clause — a function of the takers — because naming them means asking this
-    of every other sink first.
+    The one home for what "takes" means, so the refusal and the takers it names
+    cannot disagree. What comes back is the message short of its third clause, a
+    function of the takers.
     """
     table = sink_capabilities(name)
     if missing := table.missing(needed):
@@ -79,12 +76,10 @@ def _blocker(name: str, needed: Collection[caps.Capability]) -> Callable[[Sequen
 
 
 def refusal(program: program.Program, name: str) -> str | None:
-    """Why the sink called *name* cannot take *program*, or ``None``.
+    """The sink called *name*'s refusal of *program*, or ``None`` where it takes it.
 
-    The refusal contract is **the construct, the sink, and the sinks that do
-    take it** — without that third clause an optional check only moves the
-    surprise earlier for whoever thought to ask. Two shapes, since they have
-    different remedies: a capability the sink lacks outright, and a pair it has
+    The refusal names **the construct, the sink, and the sinks that do take
+    it**. Two shapes: a capability the sink lacks outright, and a pair it has
     both halves of and refuses together.
     """
     needed = caps.required(program)
@@ -101,12 +96,7 @@ def _instead(takers: Sequence[str]) -> str:
 
 
 def _sink_refuses_combination_message(sink: str, combination: Sequence[str], takers: Sequence[str]) -> str:
-    """A sink that has both halves of a pair and refuses them together.
-
-    Its own sentence, because a caller reading "it cannot take a quadratic
-    objective" of a sink whose documentation says it can would conclude the
-    message is wrong.
-    """
+    """A sink that has both halves of a pair and refuses them together."""
     return (
         f'the {sink!r} sink takes {spelled(combination)} separately and refuses them together, '
         f'which is a limit of that solver rather than of the model. {_instead(takers)}'
@@ -125,11 +115,9 @@ def relaxations(program: program.Program, name: str) -> list[str]:
     """What the sink called *name* would rewrite to take *program*.
 
     Not refusals — the model solves — but it answers a question slightly
-    different from the one asked, which is worth saying *before* it is read.
+    different from the one asked.
 
-    In :data:`~lpspec.relational.sinks.capabilities.CAPABILITIES` order, for
-    :meth:`~lpspec.relational.sinks.capabilities.Capabilities.missing`'s reason:
-    a sink rewriting two of them reads the same way twice.
+    In :data:`~lpspec.relational.sinks.capabilities.CAPABILITIES` order.
     """
     table = sink_capabilities(name)
     needed = caps.required(program)
@@ -147,9 +135,8 @@ def relaxations(program: program.Program, name: str) -> list[str]:
 def _sink_reformulates_message(sink: str, capability: str, *, integrality_added: bool) -> str:
     """A sink meeting a capability by rewriting the model into one it takes.
 
-    *integrality_added* is the one consequence derivable here rather than
-    assumed per capability: a model that declared no integrality and reaches
-    the solver mixed-integer comes back without duals.
+    *integrality_added* marks a model that declared no integrality of its own
+    and reaches the solver mixed-integer, so it comes back without duals.
     """
     cost = (
         ' The model declared no integrality of its own and reaches the solver mixed-integer, '
@@ -166,27 +153,18 @@ def _sink_reformulates_message(sink: str, capability: str, *, integrality_added:
 def ingestible(name: str, tables: Tables, program: program.Program | None = None) -> Tables:
     """*tables* in the form the named solver can take it — sets included.
 
-    The one place a capability is acted on, and it is the *family*'s rather
-    than a member's: a solver that cannot ingest a special-ordered set is
-    handed :func:`~lpspec.relational.sinks.sos.reformulated` tables, so no
-    ``_load`` has to know the model ever carried one, and everything that
+    A solver that cannot ingest a special-ordered set is handed
+    :func:`~lpspec.relational.sinks.sos.reformulated` tables, so everything that
     reads a solve back — the span check, the label slices — sees the one model
     the solver actually holds.
 
-    Asked before the load rather than inside it because an update compares the
-    *ingested* digest: a big-M is a matrix coefficient by then, so a bound
-    that moved one is a model to load again rather than numbers to push.
+    *program* is what the refusal is decided on, and is optional. Given one, a
+    model this sink cannot take is refused **here**, before the load; without it
+    the refusal falls to the solver, which reports it as an error code from
+    inside a library.
 
-    *program* is what the refusal is decided on, and it is optional only
-    because a caller composing tables by hand has no plan to hand over: given
-    one, a model this sink cannot take is refused **here**, before the load,
-    with the same sentence ``check(spec, sink=...)`` would have given hours
-    earlier. Without it the refusal falls to the solver, which reports it as
-    an error code from inside a library.
-
-    Only ``reformulated`` is rewritten, so the rewrite and the refusal read the
-    same cell: a sink is never handed a rewrite of a construct it declared it
-    has no concept of.
+    Only ``reformulated`` capabilities are rewritten: a sink is never handed a
+    rewrite of a construct it declared it has no concept of.
 
     Returns:
         *tables* itself where nothing has to change, which is every model

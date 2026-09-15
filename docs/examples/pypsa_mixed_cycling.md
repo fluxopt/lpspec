@@ -16,9 +16,9 @@ n.add('StorageUnit', ..., cyclic_state_of_charge=[True, False])
 ```
 
 The two regimes are **one rule and a different predecessor**. A cyclic unit's
-first snapshot carries from its last; a seeded unit's carries from a level in the
-data. Here that is three blocks under complementary masks, and the masks are the
-flag itself:
+first snapshot carries from its last. A seeded unit's first snapshot carries
+from a level in the data. Here that is three blocks under complementary masks,
+and the masks are the flag itself:
 
 | Block | Where | What carries into the first snapshot |
 |---|---|---|
@@ -27,10 +27,10 @@ flag itself:
 | `energy_balance_seed` | `NOT cyclic AND position(snapshot) == 0` | `soc_initial` |
 
 `NOT` is a real complement over a boolean column, so every unit falls in exactly
-one regime — including one whose flag row is missing, which reads as not cyclic.
-The row `energy_balance_carry` does not build at each seeded unit's first
-snapshot is reported: `diagnostics().omissions` gives 1, and
-`energy_balance_seed` writes it instead.
+one regime. A unit whose flag row is missing reads as not cyclic.
+`energy_balance_carry` builds no row at a seeded unit's first snapshot,
+and that is reported: `diagnostics().omissions` gives 1. `energy_balance_seed`
+writes the row instead.
 
 ## The model
 
@@ -44,82 +44,100 @@ PyPSA's `cyclic_state_of_charge` is a column of the StorageUnit frame, so one ne
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
-| $\mathcal{S}$ | index $s$ — `storage` with $\mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}$ — storage units, each sitting on one bus |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
+| $`\mathcal{S}`$ | index $`s`$ — `storage` with $`\mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — storage units, each sitting on one bus |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{cyclic}$ | `cyclic` over $\mathcal{S}$ — whether a unit closes its own horizon. PyPSA's flag, and the one column that decides which of the two balance rules a unit obeys |
-| $\mathrm{p}^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — installed capacity of a generator |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of generation |
-| $\mathrm{storage\_p\_nom}$ | `storage_p_nom` over $\mathcal{S}$ — how fast a storage unit may charge or discharge |
-| $\mathrm{soc}^{\mathrm{max}}$ | `soc_max` over $\mathcal{S}$ — most energy a storage unit may hold |
-| $\mathrm{soc}^{\mathrm{initial}}$ | `soc_initial` over $\mathcal{S}$ — the level a seeded unit begins with. A cyclic unit has one in the data and never reads it — its own last snapshot is its opening level |
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand to be met at a bus |
+| $`\mathrm{cyclic}`$ | `cyclic` over $`\mathcal{S}`$ — whether a unit closes its own horizon. PyPSA's flag, and the one column that decides which of the two balance rules a unit obeys |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — installed capacity of a generator |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of generation |
+| $`\mathrm{storage\_p\_nom}`$ | `storage_p_nom` over $`\mathcal{S}`$ — how fast a storage unit may charge or discharge |
+| $`\mathrm{soc}^{\mathrm{max}}`$ | `soc_max` over $`\mathcal{S}`$ — most energy a storage unit may hold |
+| $`\mathrm{soc}^{\mathrm{initial}}`$ | `soc_initial` over $`\mathcal{S}`$ — the level a seeded unit begins with. A cyclic unit has one in the data and never reads it — its own last snapshot is its opening level |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand to be met at a bus |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $p^{\mathrm{dispatch}}$ | `p_dispatch` over $\mathcal{T} \times \mathcal{S}$ — power a storage unit puts onto its bus |
-| $p^{\mathrm{store}}$ | `p_store` over $\mathcal{T} \times \mathcal{S}$ — power a storage unit takes off its bus |
-| $\mathit{soc}$ | `soc` over $\mathcal{T} \times \mathcal{S}$ — energy in the store at the end of a snapshot |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`p^{\mathrm{dispatch}}`$ | `p_dispatch` over $`\mathcal{T} \times \mathcal{S}`$ — power a storage unit puts onto its bus |
+| $`p^{\mathrm{store}}`$ | `p_store` over $`\mathcal{T} \times \mathcal{S}`$ — power a storage unit takes off its bus |
+| $`\mathit{soc}`$ | `soc` over $`\mathcal{T} \times \mathcal{S}`$ — energy in the store at the end of a snapshot |
 
-Upright is what the model is given — a parameter such as $\mathrm{cyclic}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{cyclic}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
-$t \ominus k$ denotes cyclic translation: index $t-k$ taken modulo the size of the dimension (`roll`). Plain $t-k$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
+$`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
-$\mathrm{pos}(t)$ denotes where index $t$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $0$. The index itself stays the coordinate, so $t$ compares against labels and $\mathrm{pos}(t)$ against positions.
+$`\mathrm{pos}(t)`$ denotes where index $`t`$ sits along its dimension's own order — the order `shift` walks, not the order labels sort in — counted from $`0`$. The index itself stays the coordinate, so $`t`$ compares against labels and $`\mathrm{pos}(t)`$ against positions.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g}
+```
 
 #### Subject to
 
 **`nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{t,g} + \sum_{s \in \mathcal{S} \thinspace:\thinspace \mathrm{storage\_bus}(s) = b} p^{\mathrm{dispatch}}_{t,s} - \left( \sum_{s \in \mathcal{S} \thinspace:\thinspace \mathrm{storage\_bus}(s) = b} p^{\mathrm{store}}_{t,s} \right) = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{t,g} + \sum_{s \in \mathcal{S} \,:\, \mathrm{storage\_bus}(s) = b} p^{\mathrm{dispatch}}_{t,s} - \left( \sum_{s \in \mathcal{S} \,:\, \mathrm{storage\_bus}(s) = b} p^{\mathrm{store}}_{t,s} \right) = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 **`energy_balance_cyclic`**
 
-$$\mathit{soc}_{t,s} = \mathit{soc}_{t \ominus 1,s} + p^{\mathrm{store}}_{t,s} - p^{\mathrm{dispatch}}_{t,s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \mathrm{cyclic}_{s}$$
+```math
+\mathit{soc}_{t,s} = \mathit{soc}_{t \ominus 1,s} + p^{\mathrm{store}}_{t,s} - p^{\mathrm{dispatch}}_{t,s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \mathrm{cyclic}_{s}
+```
 
 **`energy_balance_carry`**
 
-$$\mathit{soc}_{t,s} = \mathit{soc}_{t - 1,s} + p^{\mathrm{store}}_{t,s} - p^{\mathrm{dispatch}}_{t,s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \neg \mathrm{cyclic}_{s}$$
+```math
+\mathit{soc}_{t,s} = \mathit{soc}_{t - 1,s} + p^{\mathrm{store}}_{t,s} - p^{\mathrm{dispatch}}_{t,s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \neg \mathrm{cyclic}_{s}
+```
 
 **`energy_balance_seed`**
 
-$$\mathit{soc}_{t,s} = \mathrm{soc}^{\mathrm{initial}}_{s} + p^{\mathrm{store}}_{t,s} - p^{\mathrm{dispatch}}_{t,s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S} \thinspace:\thinspace \neg \mathrm{cyclic}_{s} \wedge \mathrm{pos}(t) = 0$$
+```math
+\mathit{soc}_{t,s} = \mathrm{soc}^{\mathrm{initial}}_{s} + p^{\mathrm{store}}_{t,s} - p^{\mathrm{dispatch}}_{t,s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S} \,:\, \neg \mathrm{cyclic}_{s} \wedge \mathrm{pos}(t) = 0
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`p_dispatch`**
 
-$$0 \le p^{\mathrm{dispatch}}_{t,s} \le \mathrm{storage\_p\_nom}_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+0 \le p^{\mathrm{dispatch}}_{t,s} \le \mathrm{storage\_p\_nom}_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`p_store`**
 
-$$0 \le p^{\mathrm{store}}_{t,s} \le \mathrm{storage\_p\_nom}_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+0 \le p^{\mathrm{store}}_{t,s} \le \mathrm{storage\_p\_nom}_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 **`soc`**
 
-$$0 \le \mathit{soc}_{t,s} \le \mathrm{soc}^{\mathrm{max}}_{s} \qquad \forall\thinspace t \in \mathcal{T},\enspace s \in \mathcal{S}$$
+```math
+0 \le \mathit{soc}_{t,s} \le \mathrm{soc}^{\mathrm{max}}_{s} \qquad \forall\, t \in \mathcal{T},\ s \in \mathcal{S}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -145,15 +163,15 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: storage units, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       storage_bus:
         description: the bus a storage unit sits on
-        over: storage
-        into: bus
+        columns: [storage, bus]
+        key: storage
 
     parameters:
       cyclic:
@@ -186,25 +204,25 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
       p_dispatch:
         description: power a storage unit puts onto its bus
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: storage_p_nom
       p_store:
         description: power a storage unit takes off its bus
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: storage_p_nom
       soc:
         description: energy in the store at the end of a snapshot
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: soc_max
@@ -212,7 +230,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     constraints:
       nodal_balance:
         description: what is generated at a bus, plus what the stores give back, meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(p_dispatch, by=storage_bus)
@@ -223,23 +241,23 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: >-
           a cyclic unit's level wraps at the horizon, so its first snapshot inherits
           from its last and it ends every horizon where it began
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         where: "cyclic"
-        expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap') + p_store - p_dispatch
+        expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap') + p_store - p_dispatch
 
       energy_balance_carry:
         description: >-
           a seeded unit carries from the snapshot before, and has no predecessor at
           the first — the vacated position is absent, so that row is not built here
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         where: "NOT cyclic"
-        expression: soc == shift(soc, over=snapshot, offset=1) + p_store - p_dispatch
+        expression: soc == shift(soc, along=snapshot, offset=1) + p_store - p_dispatch
 
       energy_balance_seed:
         description: >-
           and the row the vacated position left is written here instead, from the
           level the unit was handed
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         where: "NOT cyclic AND position(snapshot) == 0"
         expression: soc == soc_initial + p_store - p_dispatch
 
@@ -302,7 +320,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
 
 ## Both flags bind
 
-Neither regime is decoration on this instance — flipping either changes the
+Neither regime is decoration on this instance. Flipping either flag changes the
 answer, in opposite directions:
 
 | Instance | Objective |
@@ -311,10 +329,10 @@ answer, in opposite directions:
 | `ring` flipped to seeded | 4400.0 |
 | `seasonal` flipped to cyclic | 7200.0 |
 
-`ring` carries a `soc_initial` of 20 that it never reads, which is the point of
-the first row: a cyclic unit ignores the level in the data, and flipping its flag
-hands it 400 of free energy. `seasonal`'s 30 is worth 2400, because a cyclic unit
-must give back everything it spends.
+`ring` carries a `soc_initial` of 20 that it never reads. A cyclic unit ignores
+the level in the data, and flipping its flag hands it 400 of free energy.
+`seasonal`'s 30 is worth 2400, because a cyclic unit must give back everything
+it spends.
 
 ## What the answer looks like
 
@@ -327,13 +345,12 @@ snapshot  price   ring   seasonal
 ```
 
 The price is the dual of `nodal_balance`: 20 where the base plant is marginal
-and 80 at the snapshot where the peaker runs, which is what makes moving energy
-worth anything at all.
+and 80 at the snapshot where the peaker runs. That spread is what makes moving
+energy worth anything.
 
 ## What this model is for
 
-It is the shape neither storage model has. The two differ by one deleted
-`where`, and each is uniform — so nothing in the corpus exercised *a data column
-choosing between two boundary regimes* until this one. The finding is that it
-needs no language feature: three blocks, complementary masks, and the dropped row
-visible in `omissions`.
+*A data column choosing between two boundary regimes.* Neither storage model
+has that shape: the two differ by one deleted `where`, and each is uniform. It
+needs no language feature: three blocks, complementary masks, and the dropped
+row visible in `omissions`.

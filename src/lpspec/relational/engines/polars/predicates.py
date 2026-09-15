@@ -2,18 +2,18 @@
 
 The plan's predicate nodes in, a boolean expression out — and the frame the
 walk had to join parameters onto to build it, since a mask reads values the
-product does not carry. Two returns rather than one because the joins happen
-*during* the walk: the condition is built first and the frame read after.
+product does not carry. The joins happen *during* the walk: the condition is
+built first and the frame read after.
 
 A closed vocabulary of its own — comparisons against a parameter, a dimension
-label, a position along a dimension, a lookup, and the three connectives — so
-it is a module rather than a method. It takes the
+label, a position along a dimension, a relation, and the three connectives. It
+takes the
 :class:`~lpspec.relational.engines.polars.compiler.PolarsCompiler` as an
 argument and holds nothing.
 
 :class:`Carrier` lives here too, and the bounds walk imports it: both walks
 that read parameters build an expression over columns they are joining on as
-they go, and this is the larger of the two.
+they go.
 """
 
 from __future__ import annotations
@@ -86,8 +86,7 @@ def compile_predicate(
     **A name the mask is certain of is joined rather than left-joined**,
     and a certain variable is semi-joined and never read
     (:func:`_certain_names`). An atom over a missing value reads as false
-    either way, so the strategies differ only in *where* the row is dropped,
-    and the inner join saves the width of the product it is dropped from.
+    either way, so the strategies differ only in *where* the row is dropped.
 
     ``VariableDefinedNode`` is the one atom answered by a join rather than a
     column test — existence lives in the variable's own frame — keyed by
@@ -107,7 +106,7 @@ def compile_predicate(
             lambda f, alias: compiler.parameter_join(f, param, dims, alias, f"where-parameter '{param}'", how),
         )
 
-    def refuse_outside_foreach(reading: str, dimension: str) -> None:
+    def refuse_outside_frame(reading: str, dimension: str) -> None:
         """A mask reading a dim the frame does not span — the plan's refusal, asserted here.
 
         Reducing a mask over an unlisted dim would admit a row wherever *any*
@@ -115,10 +114,10 @@ def compile_predicate(
         before a plan exists to carry it, so the frame planner states it as the
         invariant it now is.
         """
-        assert dimension in dims, f'where-comparison on {reading} is outside the foreach dims {list(dims)}'
+        assert dimension in dims, f'where-comparison on {reading} is outside the frame dims {list(dims)}'
 
     def join_ordinal(dimension: str) -> str:
-        refuse_outside_foreach(f"dimension '{dimension}'", dimension)
+        refuse_outside_frame(f"dimension '{dimension}'", dimension)
         return carrier.once(
             f'__where ord {dimension}__',
             lambda f, alias: f.join(
@@ -130,13 +129,15 @@ def compile_predicate(
 
     def join_group_offset(p: program.DimensionPositionNode) -> str:
         """One column: the row's ordinal minus its own group's target ordinal."""
-        refuse_outside_foreach(f"dimension '{p.name}'", p.name)
-        table = compiler.partitioned(p.name, str(p.by))
-        _refuse_short_groups(p, table)
+        refuse_outside_frame(f"dimension '{p.name}'", p.name)
+        assert p.partition is not None, 'an ungrouped position counts along the axis and asks for no table'
+        by = p.partition.name
+        table = compiler.partitioned(p.name, by)
+        _refuse_short_groups(p, by, table)
         target = pl.lit(p.position) if p.position >= 0 else pl.col(GROUP_SIZE) + p.position
         offset = pl.col(GROUP_RANK) - target
         return carrier.once(
-            f'__where ord {p.name} by {p.by}__',
+            f'__where ord {p.name} by {by}__',
             lambda f, alias: f.join(
                 table.select(pl.col('val').alias(p.name), offset.alias(alias)),
                 on=p.name,
@@ -144,12 +145,12 @@ def compile_predicate(
             ),
         )
 
-    def join_lookup(lookup: str, over: str) -> str:
-        refuse_outside_foreach(f"lookup '{lookup}' reading dimension '{over}'", over)
+    def join_relation(relation: str, over: str) -> str:
+        refuse_outside_frame(f"relation '{relation}' reading dimension '{over}'", over)
         return carrier.once(
-            f'__where lookup {lookup}__',
+            f'__where relation {relation}__',
             lambda f, alias: f.join(
-                compiler.data.lookups[lookup].select(pl.col(over), pl.col(lookup).alias(alias)),
+                compiler.data.relations[relation].select(pl.col(over), pl.col(relation).alias(alias)),
                 on=over,
                 how='left',
             ),
@@ -159,24 +160,24 @@ def compile_predicate(
         if isinstance(p, program.ParameterComparisonNode):
             return _compare(pl.col(join_param(p.name)), p.op, p.value)
         if isinstance(p, program.DimensionComparisonNode):
-            refuse_outside_foreach(f"dimension '{p.name}'", p.name)
+            refuse_outside_frame(f"dimension '{p.name}'", p.name)
             return _compare(_dimension_column(p.name, p.value), p.op, p.value)
         if isinstance(p, program.DimensionPositionNode):
-            if p.by is not None:
+            if p.partition is not None:
                 return falsy_if_null(_COLUMN_COMPARISONS[p.op](pl.col(join_group_offset(p)), pl.lit(0)))
             at = _position_ordinal(p, compiler.data.cardinality[p.name])
             return _COLUMN_COMPARISONS[p.op](pl.col(join_ordinal(p.name)), pl.lit(at))
-        if isinstance(p, program.LookupComparisonNode):
-            column = pl.col(join_lookup(p.name, p.over))
+        if isinstance(p, program.RelationComparisonNode):
+            column = pl.col(join_relation(p.name, p.dims[0]))
             if isinstance(p.value, str):
                 column = column.cast(pl.String)
             return _compare(column, p.op, p.value)
-        if isinstance(p, program.LookupPairComparisonNode):
-            left = pl.col(join_lookup(p.name, p.over))
-            right = pl.col(join_lookup(p.other, p.over))
+        if isinstance(p, program.RelationPairComparisonNode):
+            left = pl.col(join_relation(p.name, p.dims[0]))
+            right = pl.col(join_relation(p.other, p.dims[0]))
             return _COLUMN_COMPARISONS[p.op](left, right)
-        if isinstance(p, program.LookupDefinedNode):
-            return pl.col(join_lookup(p.name, p.over)).is_not_null()
+        if isinstance(p, program.RelationDefinedNode):
+            return pl.col(join_relation(p.name, p.dims[0])).is_not_null()
         if isinstance(p, program.ParameterDefinedNode):
             return _defined(pl.col(join_param(p.name)), compiler.program.parameter(p.name).dtype)
         if isinstance(p, program.VariableDefinedNode):
@@ -218,23 +219,22 @@ def _certain_names(mask: program.Mask) -> frozenset[str]:
     return frozenset(a.name for a in mask.conjuncts if isinstance(a, atoms))
 
 
-def _refuse_short_groups(p: program.DimensionPositionNode, table: pl.LazyFrame) -> None:
+def _refuse_short_groups(p: program.DimensionPositionNode, by: str, table: pl.LazyFrame) -> None:
     """Refuse a position no coordinate of some group occupies.
 
     The ungrouped counterpart is :func:`_position_ordinal`, and the reason is
     the same one construct-wide: a boundary clause that silently seeds no row
     leaves that group's recurrence unanchored. Grouping only multiplies the
-    chance — one short period is enough — so it is checked per group, which
-    costs one pass over the table the mask is about to join anyway.
+    chance — one short period is enough — so it is checked per group.
 
     *table* is :meth:`PolarsCompiler.partitioned`'s, so a coordinate in no
     group is not in it and no group of ``None`` can be counted short.
     """
     needed = p.position + 1 if p.position >= 0 else -p.position
-    sizes = table.select(str(p.by), GROUP_SIZE).unique().collect()
+    sizes = table.select(by, GROUP_SIZE).unique().collect()
     short = sorted(str(g) for g, n in sizes.iter_rows() if n < needed)
     if short:
-        raise DataError(short_groups_message(p.name, str(p.by), p.op, p.position, short))
+        raise DataError(short_groups_message(p.name, by, p.op, p.position, short))
 
 
 def falsy_if_null(condition: pl.Expr) -> pl.Expr:
@@ -251,8 +251,7 @@ def _position_ordinal(p: program.DimensionPositionNode, cardinality: int) -> int
 
     A negative position counts from the end. Out of range is an error rather
     than a predicate matching nothing: a boundary clause that silently seeds
-    no row leaves the recurrence unanchored, which is the failure this
-    construct exists to make impossible.
+    no row leaves the recurrence unanchored.
     """
     at = p.position + cardinality if p.position < 0 else p.position
     if not 0 <= at < cardinality:
@@ -272,9 +271,7 @@ def _dimension_column(dimension: str, value: float | str | datetime.date) -> pl.
     return column.cast(pl.String) if isinstance(value, str) else column
 
 
-#: The comparison operators, evaluated column against column — the one table,
-#: so a seventh operator added to :data:`program.PredicateOperator` fails here
-#: rather than falling through a second copy.
+#: The comparison operators, evaluated column against column.
 _COLUMN_COMPARISONS: dict[program.PredicateOperator, Callable[[pl.Expr, pl.Expr], pl.Expr]] = {
     '==': lambda left, right: left == right,
     '!=': lambda left, right: left != right,

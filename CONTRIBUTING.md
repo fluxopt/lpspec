@@ -108,11 +108,14 @@ pixi run docs        # http://127.0.0.1:8000, live-reloading
 pixi run docs-build  # what CI runs, and what Read the Docs runs
 ```
 
-**A page states a rule or argues for one, and that decides where it goes.**
-`docs/guide.md`, `docs/examples/` and `docs/reference/` are the path a reader
-writing or running a model takes; design notes, measured cost, project
-direction and the changelog live under `docs/about/`, reachable and out of the
-way.
+**What a page is for decides where it goes, in the nav and in the tree.** A
+tutorial (`docs/`), a how-to guide (`docs/howto/`), reference
+(`docs/reference/`, and the model pages in `docs/examples/`) or explanation
+(`docs/about/`) — the four kinds of [Diátaxis](https://diataxis.fr) — and one
+page is one kind. The rules each kind has to meet, and the sentence-level bar,
+are in [the docs-writing skill](.claude/skills/docs-writing/SKILL.md). Design
+notes, measured cost, project direction and the changelog are explanation,
+reachable and out of the way.
 
 Three rules on top of that, each enforced, so none has to be remembered:
 
@@ -219,10 +222,10 @@ declared `escape:` island rather than into the language.
 
 Read, in order:
 
-1. [the deliberate non-primitives](https://math-spec.readthedocs.io/en/latest/about/ceiling/#deliberate-non-primitives) — parity with
+1. [the deliberate non-primitives](https://math-spec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives) — parity with
    another tool is not by itself a reason to add anything, and several
    plausible-sounding features are refused there on purpose;
-2. [the ceiling in math-spec](https://math-spec.readthedocs.io/en/latest/about/ceiling/#two-tiers-and-the-ceiling) —
+2. [the limits in math-spec](https://math-spec.readthedocs.io/en/latest/about/limits/#what-a-new-primitive-has-to-satisfy) —
    the admissibility test;
 3. [the extension checklists](docs/about/architecture.md#extension-checklists), which sit directly under that
    test. They stay there rather than moving here: *may I?* and *how?* are one

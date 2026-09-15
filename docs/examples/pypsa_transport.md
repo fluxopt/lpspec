@@ -16,54 +16,62 @@ PyPSA linear optimal power flow at its smallest: a transport model — linear ma
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods |
-| $\mathcal{B}$ | index $b$ — `bus` — network nodes |
-| $\mathcal{G}$ | index $g$ — `generator` with $\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}$ — generating units, each sitting on one bus |
-| $\mathcal{L}$ | index $l$ — `link` with $\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\enspace \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}$ — controllable connections, each joining two buses |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
+| $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — controllable connections, each joining two buses |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{p}^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — installed capacity of a generator |
-| $\mathrm{marginal\_cost}$ | `marginal_cost` over $\mathcal{G}$ — cost of one unit of output |
-| $\mathrm{rating}$ | `rating` over $\mathcal{L}$ — most a link may carry towards its `link_to` bus |
-| $\mathrm{neg\_rating}$ | `neg_rating` over $\mathcal{L}$ — most a link may carry the other way, negative by convention |
-| $\mathrm{load}$ | `load` over $\mathcal{T} \times \mathcal{B}$ — demand at each bus in each snapshot |
+| $`\mathrm{p}^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — installed capacity of a generator |
+| $`\mathrm{marginal\_cost}`$ | `marginal_cost` over $`\mathcal{G}`$ — cost of one unit of output |
+| $`\mathrm{rating}`$ | `rating` over $`\mathcal{L}`$ — most a link may carry towards its `link_to` bus |
+| $`\mathrm{neg\_rating}`$ | `neg_rating` over $`\mathcal{L}`$ — most a link may carry the other way, negative by convention |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{T} \times \mathcal{B}`$ — demand at each bus in each snapshot |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p$ | `p` over $\mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot |
-| $f$ | `f` over $\mathcal{T} \times \mathcal{L}$ — PyPSA's p0 — flow measured at the link's `link_from` end, so a positive value withdraws there and injects at `link_to` |
+| $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
+| $`f`$ | `f` over $`\mathcal{T} \times \mathcal{L}`$ — PyPSA's p0 — flow measured at the link's `link_from` end, so a positive value withdraws there and injects at `link_to` |
 
-Upright is what the model is given — a parameter such as $\mathrm{p}^{\mathrm{nom}}$, a coordinate map, a label — and italic is what the solver chooses, such as $p$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g}$$
+```math
+\min \sum_{t \in \mathcal{T},\ g \in \mathcal{G}} p_{t,g} \cdot \mathrm{marginal\_cost}_{g}
+```
 
 #### Subject to
 
 **`nodal_balance`**
 
-$$\sum_{g \in \mathcal{G} \thinspace:\thinspace \mathrm{gen\_bus}(g) = b} p_{t,g} + \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{link\_to}(l) = b} f_{t,l} - \left( \sum_{l \in \mathcal{L} \thinspace:\thinspace \mathrm{link\_from}(l) = b} f_{t,l} \right) = \mathrm{load}_{t,b} \qquad \forall\thinspace t \in \mathcal{T},\enspace b \in \mathcal{B}$$
+```math
+\sum_{g \in \mathcal{G} \,:\, \mathrm{gen\_bus}(g) = b} p_{t,g} + \sum_{l \in \mathcal{L} \,:\, \mathrm{link\_to}(l) = b} f_{t,l} - \left( \sum_{l \in \mathcal{L} \,:\, \mathrm{link\_from}(l) = b} f_{t,l} \right) = \mathrm{load}_{t,b} \qquad \forall\, t \in \mathcal{T},\ b \in \mathcal{B}
+```
 
 #### Variable domains
 
 **`p`**
 
-$$0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\thinspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+0 \le p_{t,g} \le \mathrm{p}^{\mathrm{nom}}_{g} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`f`**
 
-$$\mathrm{neg\_rating}_{l} \le f_{t,l} \le \mathrm{rating}_{l} \qquad \forall\thinspace t \in \mathcal{T},\enspace l \in \mathcal{L}$$
+```math
+\mathrm{neg\_rating}_{l} \le f_{t,l} \le \mathrm{rating}_{l} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -86,19 +94,19 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: controllable connections, each joining two buses
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       link_from:
         description: the bus a link leaves
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
       link_to:
         description: the bus a link arrives at
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
 
     parameters:
       p_nom:
@@ -120,7 +128,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
@@ -128,7 +136,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: >-
           PyPSA's p0 — flow measured at the link's `link_from` end, so a positive value
           withdraws there and injects at `link_to`
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         bounds:
           lower: neg_rating
           upper: rating
@@ -136,7 +144,7 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
     constraints:
       nodal_balance:
         description: what is generated at a bus plus what arrives over the links meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(f, by=link_to)
@@ -200,31 +208,26 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         return n
     ```
 
-**Read this comparison carefully — it flatters neither side fairly.** PyPSA is
-a *domain package*: `n.add('Generator', ...)` and `n.add('Link', ...)` carry a
-power-systems model inside them, so the reference is short because someone
-already wrote the power flow. Against that, the YAML looks more explicit rather
-than shorter, and it should — it is stating the constraint PyPSA implies.
-
-The comparison against a general-purpose alternative is on
-[the Dantzig page](transport_dantzig.md), where both sides write the maths out.
+**PyPSA is a domain package, so its tab is short.** `n.add('Generator', ...)`
+and `n.add('Link', ...)` carry a power-systems model inside them. The YAML
+states the nodal balance PyPSA implies, so it is more explicit rather than
+shorter. [The Dantzig page](transport_dantzig.md) compares against a
+general-purpose alternative, where both sides write the maths out.
 
 ## What it exercises
 
-The smallest whole PyPSA model. Reproducing a full PyPSA objective means
-reproducing marginal *and* capital cost, ramp limits, storage cycling and KVL
-at once, and a mismatch then implicates five features instead of one. So each
-feature is switched off in PyPSA and reproduced here separately: **a transport
-model** (this one) · [ramp limits](pypsa_ramp.md) ·
-[storage](pypsa_storage.md) · [a cyclic horizon](pypsa_cyclic_storage.md) ·
-[KVL](pypsa_kvl.md).
+The smallest whole PyPSA model. A full PyPSA objective mixes marginal and
+capital cost, ramp limits, storage cycling and KVL, so a mismatch would
+implicate five features at once. Each feature is therefore switched off in
+PyPSA and reproduced in its own model: **a transport model** (this one) ·
+[ramp limits](pypsa_ramp.md) · [storage](pypsa_storage.md) ·
+[a cyclic horizon](pypsa_cyclic_storage.md) · [KVL](pypsa_kvl.md).
 
-**This model hit the ceiling once**, and that is recorded rather than worked
-around quietly: PyPSA's `p_min_pu = -1` is a bound of `-rating`, an expression
-this language cannot yet put in `bounds:`. It ships as a `neg_rating` column
-instead, and the gap is [issue #31](https://github.com/fluxopt/lpspec/issues/31)
-with the verdict *primitive*. See
-[the ledger](index.md#ledger--what-a-port-could-not-say).
+**This model hit the ceiling once.** PyPSA's `p_min_pu = -1` is a bound of
+`-rating`, an expression `bounds:` cannot take. It ships as a `neg_rating`
+column instead. The gap is
+[issue #31](https://github.com/fluxopt/lpspec/issues/31), verdict *primitive*,
+and [the ledger](index.md#ledger--what-a-port-could-not-say) records it.
 
 ---
 

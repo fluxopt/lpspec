@@ -21,7 +21,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from lpspec.errors import DataError, LaneError, LanguageError
+from lpspec.errors import DataError, LaneError, LanguageError, LpspecError
 from lpspec.sources import tidy_sources
 from tests.conftest import EXAMPLES_DIR, schema_of
 from tests.differential import differential
@@ -53,6 +53,16 @@ def test_nothing_is_patched_onto_linopy_model():
     """Importing lpspec_linopy must not touch linopy.Model."""
     assert not hasattr(linopy.Model, 'from_yaml')
     assert not hasattr(linopy.Model, 'yaml')
+
+
+def test_the_lane_takes_sources_as_the_one_type():
+    """The lane's two verbs annotate ``sources`` the way every door in ``api.py`` does."""
+    from tests.test_architecture import sources_annotations
+
+    doors = {'build': lpspec_linopy.build, 'evaluate': lpspec_linopy.evaluate}
+    assert sources_annotations(doors) == {'Mapping[str, Source]'}, (
+        f'both lane verbs take sources as Mapping[str, Source], and these do not: {sources_annotations(doors)}'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -264,7 +274,7 @@ def _lowered(text, parameters=('p_max',), dimensions=('g',)):
     spec = {
         'dimensions': {d: {'dtype': 'int' if d == 't' else 'str'} for d in dimensions},
         'parameters': {name: {'dims': list(dimensions)} for name in parameters},
-        'variables': {'x': {'foreach': list(dimensions), 'where': text, 'bounds': {'lower': 0, 'upper': 1}}},
+        'variables': {'x': {'dims': list(dimensions), 'where': text, 'bounds': {'lower': 0, 'upper': 1}}},
         'objective': {'sense': 'minimize', 'expression': 'sum(x)'},
     }
     program = to_program(spec)
@@ -315,7 +325,7 @@ _MINIMAL = """
       g: {dtype: str}
     variables:
       p:
-        foreach: [g]
+        dims: [g]
 """
 
 
@@ -328,7 +338,9 @@ def _has_note(exc: BaseException, substring: str) -> bool:
 #: the bound. The declaration it names is reached through `note()` rather than
 #: written into the message, which is the half of this the load errors cannot
 #: exercise.
-_UNCOVERED_BOUND = "parameters:\n  cap: {coverage: masked, dims: [g]}\nconstraints:\n  c:\n    foreach: [g]\n    expression: 'p <= cap'\n"
+_UNCOVERED_BOUND = (
+    "parameters:\n  cap: {coverage: masked, dims: [g]}\nconstraints:\n  c:\n    dims: [g]\n    expression: 'p <= cap'\n"
+)
 _NO_ROWS = {'g': ['a'], 'cap': pd.Series([], index=pd.Index([], name='g', dtype='object'), dtype='float64')}
 
 
@@ -344,7 +356,7 @@ _NO_ROWS = {'g': ['a'], 'cap': pd.Series([], index=pd.Index([], name='g', dtype=
             id='malformed-where',
         ),
         pytest.param(
-            "constraints:\n  c:\n    foreach: [g]\n    expression: 'p + 1'\n",
+            "constraints:\n  c:\n    dims: [g]\n    expression: 'p + 1'\n",
             {},
             ValueError,
             'exactly one comparison',
@@ -360,7 +372,7 @@ _NO_ROWS = {'g': ['a'], 'cap': pd.Series([], index=pd.Index([], name='g', dtype=
             id='objective-with-comparison',
         ),
         pytest.param(
-            "constraints:\n  c:\n    foreach: []\n    expression: '1 <= 2'\n",
+            "constraints:\n  c:\n    dims: []\n    expression: '1 <= 2'\n",
             {},
             ValueError,
             'decides nothing',
@@ -426,11 +438,11 @@ def test_the_two_lanes_agree_about_a_masked_variable_without_the_harness(tmp_pat
               gate: {coverage: masked, dims: [f], dtype: bool}
               relmax: {coverage: masked, dims: [f]}
             variables:
-              x: {foreach: [f], bounds: {lower: 0, upper: 100}}
-              size: {foreach: [f], where: gate, bounds: {lower: 0, upper: 50}}
+              x: {dims: [f], bounds: {lower: 0, upper: 100}}
+              size: {dims: [f], where: gate, bounds: {lower: 0, upper: 50}}
             constraints:
               env:
-                foreach: [f]
+                dims: [f]
                 expression: "x - relmax * size <= 0"
             objective:
               sense: maximize
@@ -464,8 +476,8 @@ SCALAR_SWITCH = {
     'dimensions': {'i': {'dtype': 'int'}},
     'parameters': {'on': {'dims': [], 'dtype': 'bool'}},
     'variables': {
-        'x': {'foreach': ['i'], 'bounds': {'lower': 1, 'upper': 5}, 'where': 'on'},
-        'y': {'foreach': ['i'], 'bounds': {'lower': 2, 'upper': 5}},
+        'x': {'dims': ['i'], 'bounds': {'lower': 1, 'upper': 5}, 'where': 'on'},
+        'y': {'dims': ['i'], 'bounds': {'lower': 2, 'upper': 5}},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(x) + sum(y)'},
 }
@@ -503,10 +515,10 @@ def test_a_missing_bound_is_refused_at_build_with_the_native_lane_s_message(yaml
           ub: {coverage: masked, dims: [f]}
           live: {coverage: masked, dims: [f], dtype: bool}
         variables:
-          x: {foreach: [f], bounds: {lower: 0, upper: ub}}
+          x: {dims: [f], bounds: {lower: 0, upper: ub}}
         constraints:
           c:
-            foreach: [f]
+            dims: [f]
             expression: x <= 100
         objective:
           sense: maximize
@@ -522,7 +534,7 @@ def test_a_missing_bound_is_refused_at_build_with_the_native_lane_s_message(yaml
         lpspec_linopy.build(spec, data)
 
     masked = yaml_file(
-        spec.read_text().replace('{foreach: [f], bounds:', '{foreach: [f], where: live, bounds:'),
+        spec.read_text().replace('{dims: [f], bounds:', '{dims: [f], where: live, bounds:'),
         'masked.yaml',
     )
     built = lpspec_linopy.build(masked, data)
@@ -543,14 +555,16 @@ parameters:
   load: {coverage: masked, dims: [snapshot]}
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds: {lower: 0, upper: p_max}
 expressions:
   total_gen: sum(p, over=generator)
   spend: sum(p * cost, over=generator)
+  squared: sum(p * p, over=generator)
+  price: dual(balance)
 constraints:
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: total_gen == load
 objective:
   sense: minimize
@@ -559,7 +573,8 @@ objective:
 
 #: Distinct costs and a load exceeding the cheap generator's capacity make the
 #: dispatch unique, so the two lanes' expression values are comparable exactly
-#: rather than up to an alternative optimum.
+#: rather than up to an alternative optimum. No load sits at a capacity, so the
+#: duals are unique too, which is what lets ``price`` be compared lane to lane.
 EXPRESSION_DATA = {
     'snapshot': [0, 1, 2],
     'generator': ['g1', 'g2'],
@@ -569,25 +584,73 @@ EXPRESSION_DATA = {
 }
 
 
+#: ``EXPRESSION_YAML`` with ``p`` masked out at the generator whose ``p_max`` is
+#: zero and declared ``absence: zero``, plus one entry only a nonlinear read can
+#: tell apart from an affine one.
+ZERO_ABSENCE_YAML = EXPRESSION_YAML.replace(
+    '    bounds: {lower: 0, upper: p_max}\n',
+    '    bounds: {lower: 0, upper: p_max}\n    where: p_max > 0\n    absence: zero\n',
+).replace(
+    '  spend: sum(p * cost, over=generator)\n',
+    '  spend: sum(p * cost, over=generator)\n  grown: sum(0.5 ** p, over=generator)\n',
+)
+
+ZERO_ABSENCE_DATA = {**EXPRESSION_DATA, 'p_max': pd.Series({'g1': 200.0, 'g2': 0.0})}
+
+
+def test_the_two_lanes_agree_on_an_absent_slot_declared_zero_under_a_nonlinear_read(yaml_file):
+    """`absence: zero` is a zero on both lanes, so `0.5 ** p` reads `0.5 ** 0`, which is 1, at the masked generator on each."""
+    path = yaml_file(ZERO_ABSENCE_YAML, 'zero_absence.yaml')
+    with differential(path, ZERO_ABSENCE_DATA) as run:
+        tidy = run.result.evaluate('grown')
+        eager = lpspec_linopy.evaluate(run.model, path, 'grown', dict(ZERO_ABSENCE_DATA))
+        got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
+        want = {int(k): float(v) for k, v in eager.to_series().items()}
+        assert got == pytest.approx(want), 'the two lanes disagree about an absent slot declared zero'
+        assert all(v == pytest.approx(1.0) for v in want.values()), (
+            'each snapshot reads 1, the absent generator as 0.5 ** 0, plus a term below double precision from the present one'
+        )
+
+
+def test_a_dual_on_a_solve_that_left_none_is_refused_on_this_lane_too(yaml_file):
+    """An integer variable makes duals undefined; linopy stores HiGHS's zeros for a MIP, so the read refuses by the declaration rather than reading a number that means nothing."""
+    path = yaml_file(
+        EXPRESSION_YAML.replace(
+            '    dims: [snapshot, generator]\n', '    dims: [snapshot, generator]\n    domain: integer\n'
+        ),
+        'integer.yaml',
+    )
+    built = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
+    built.solve(solver_name='highs')
+    with pytest.raises(LpspecError, match='duals are undefined'):
+        lpspec_linopy.evaluate(built, path, 'price', dict(EXPRESSION_DATA))
+    assert float(lpspec_linopy.evaluate(built, path, 'spend', dict(EXPRESSION_DATA)).sum()) > 0, (
+        'the refusal is per entry: the affine one still reads'
+    )
+
+
 @pytest.mark.parametrize(
     'name',
     [
         pytest.param('total_gen', id='referenced-by-a-constraint'),
         pytest.param('spend', id='declared-but-never-referenced'),
+        pytest.param('squared', id='degree-two-in-an-entry-the-math-never-reads'),
+        pytest.param('price', id='reading-a-dual'),
     ],
 )
 def test_the_two_lanes_agree_on_a_named_expression(yaml_file, name):
-    """`result.expression(name)` and the lane's `expression` read one value.
+    """`result.evaluate(name)` and the lane's `evaluate` read one value.
 
     Including the standalone case: the rules for named expressions guarantees a never-referenced
     expression is parsed and name-checked, and #562 makes it readable — on
-    the eager lane by building the declared expression on the solved model and
-    taking linopy's native `.solution`.
+    the eager lane by evaluating the declared expression at the solved model's
+    `.solution` and `.dual` arrays, which is what lets an entry of any degree,
+    and one reading a dual, be read on both lanes.
     """
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
     with differential(path, EXPRESSION_DATA) as run:
-        tidy = run.result.expression(name)
-        eager = lpspec_linopy.expression(run.model, path, name, dict(EXPRESSION_DATA))
+        tidy = run.result.evaluate(name)
+        eager = lpspec_linopy.evaluate(run.model, path, name, dict(EXPRESSION_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
         assert got == pytest.approx(want), f"the two lanes disagree about named expression '{name}'"
@@ -609,10 +672,10 @@ parameters:
   bp_y: {dims: [generator, bp]}
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds: {lower: 0, upper: p_max}
   op_cost:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds: {lower: 0}
 piecewise:
   cost_curve:
@@ -626,7 +689,7 @@ expressions:
   spend: sum(op_cost, over=generator)
 constraints:
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) == load
 objective:
   sense: minimize
@@ -669,18 +732,39 @@ def test_a_named_expression_reads_off_a_masked_curve(yaml_file):
     """
     path = yaml_file(MASKED_CURVE_YAML, 'masked_curve.yaml')
     with differential(path, MASKED_CURVE_DATA) as run:
-        tidy = run.result.expression('spend')
-        eager = lpspec_linopy.expression(run.model, path, 'spend', dict(MASKED_CURVE_DATA))
+        tidy = run.result.evaluate('spend')
+        eager = lpspec_linopy.evaluate(run.model, path, 'spend', dict(MASKED_CURVE_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
         assert got == pytest.approx(want), 'the two lanes disagree about a named expression over a masked curve'
 
 
-def test_the_lane_refuses_an_unknown_expression_name(yaml_file):
+def test_the_lane_values_an_expression_the_file_never_declared(yaml_file):
+    """An expression string is what `evaluate` takes, alongside a name the file declares.
+
+    Both spellings reach the same node — the language substitutes a declared
+    name where it stands — so the reader that used to refuse a string now
+    answers one, and `total_gen`'s own body is the check.
+    """
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
     m = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
-    with pytest.raises(KeyError, match='never an expression string'):
-        lpspec_linopy.expression(m, path, 'sum(p, over=generator)', dict(EXPRESSION_DATA))
+    m.solve(solver_name='highs')
+    written = lpspec_linopy.evaluate(m, path, 'sum(p, over=generator)', dict(EXPRESSION_DATA))
+    declared = lpspec_linopy.evaluate(m, path, 'total_gen', dict(EXPRESSION_DATA))
+    assert float(written.sum()) == pytest.approx(float(declared.sum())), (
+        'the body and the name it is declared under are one expression, so they read one value'
+    )
+
+
+def test_the_lane_refuses_an_expression_against_a_lowered_program(yaml_file):
+    """A Program is what a model lowered to, and lowering does not run backwards."""
+    from math_spec import to_program
+
+    path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
+    m = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
+    m.solve(solver_name='highs')
+    with pytest.raises(LpspecError, match='lowered Program'):
+        lpspec_linopy.evaluate(m, to_program(path), 'total_gen', dict(EXPRESSION_DATA))
 
 
 def test_one_set_of_tables_reaches_both_lanes(dispatch_yaml, dispatch_frame_inputs, tmp_path):
@@ -720,7 +804,7 @@ def test_the_lane_takes_a_model_the_same_three_ways_the_runner_does(tmp_path, as
     raw = {
         'dimensions': {'g': {'dtype': 'str'}},
         'parameters': {'cap': {'coverage': 'masked', 'dims': ['g']}},
-        'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+        'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     path = tmp_path / 'm.yaml'
@@ -735,8 +819,8 @@ def test_the_lane_takes_a_model_the_same_three_ways_the_runner_does(tmp_path, as
 _BARE_SHIFT = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'eff': {'dims': ['t']}},
-    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
-    'constraints': {'c': {'foreach': ['t'], 'expression': 'x <= shift(eff, over=t, offset=1)'}},
+    'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
+    'constraints': {'c': {'dims': ['t'], 'expression': 'x <= shift(eff, along=t, offset=1)'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
 }
 
@@ -765,7 +849,7 @@ def test_a_construct_the_streaming_lane_refuses_is_refused_here_too():
 OBJECTIVE_CONSTANT = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'standing': {'dims': []}},
-    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 1}}},
+    'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 1}}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x) + standing'},
 }
 
@@ -793,6 +877,38 @@ def test_a_construct_this_lane_cannot_build_is_refused_in_its_own_words():
     )
 
 
+#: The terms on the right of the comparison. The language puts them on neither
+#: side — `ConstraintDeclaration` says which side a consumer gathers them onto
+#: is its own arrangement — and linopy takes them only on the left.
+TERM_ON_THE_RIGHT = {
+    'dimensions': {'g': {'dtype': 'str'}},
+    'parameters': {'cap': {'dims': ['g']}, 'cost': {'dims': ['g']}},
+    'variables': {'p': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'limit': {'dims': ['g'], 'expression': 'cap >= p'}},
+    'objective': {'sense': 'maximize', 'expression': 'sum(cost * p, over=g)'},
+}
+
+TERM_ON_THE_RIGHT_DATA = {'g': ['a', 'b'], 'cap': {'a': 10.0, 'b': 20.0}, 'cost': {'a': 1.0, 'b': 1.0}}
+
+
+def test_a_constraint_carrying_its_terms_on_the_right_builds_on_both_lanes():
+    """Was: the lane handed the sides to `add_constraints` in declared order,
+    and linopy accepts a term only on the left, so `cap >= p` came back as
+    ``TypeError: `lhs` must be a LinearExpression, Variable, Constraint, tuple,
+    or callable, got DataArray`` — linopy's own sentence, naming neither the
+    file nor the declaration. The relational lane solved it the whole time
+    (#1534).
+
+    The swap has to flip the sense with it, which the objective is what tells:
+    read as `p >= cap` both variables would run to their bound of 100.
+    """
+    with differential(TERM_ON_THE_RIGHT, TERM_ON_THE_RIGHT_DATA) as agreed:
+        assert agreed.oracle == pytest.approx(30.0), 'each generator is capped by its own row, at 10 and at 20'
+        assert set(np.unique(agreed.model.constraints['limit'].sign.values)) == {'<='}, (
+            'the swap flips the sense with it: `cap >= p` is built as `p <= cap`'
+        )
+
+
 def test_a_file_that_declares_no_labels_at_all_is_refused_on_both_lanes():
     """The index is what says which labels exist, on either lane.
 
@@ -806,7 +922,7 @@ def test_a_file_that_declares_no_labels_at_all_is_refused_on_both_lanes():
     spec = {
         'dimensions': {'g': {}},
         'parameters': {'cap': {'coverage': 'masked', 'dims': ['g']}, 'cost': {'dims': ['g']}},
-        'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+        'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x * cost)'},
     }
     sources = {
@@ -832,10 +948,10 @@ def test_from_yaml_fails_before_data_validation(tmp_path):
         '  g: {dtype: str}\n'
         'variables:\n'
         '  p:\n'
-        '    foreach: [g]\n'
+        '    dims: [g]\n'
         'constraints:\n'
         '  cap:\n'
-        '    foreach: [g]\n'
+        '    dims: [g]\n'
         '    expression: pp <= 100\n'
     )
     with pytest.raises(ValueError, match="'pp' not found"):

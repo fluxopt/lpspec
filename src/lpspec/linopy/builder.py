@@ -21,14 +21,15 @@ from typing import TYPE_CHECKING, Any, assert_never
 import numpy as np
 from math_spec import program
 
-from lpspec.errors import DataError, LaneError, null_bounds_message
+from lpspec.errors import DataError, LaneError, LpspecError, null_bounds_message
 from lpspec.lanes import LANES
 from lpspec.linopy import absence
 from lpspec.linopy._notes import note
 from lpspec.linopy.coverage import check_constant_side_covers, check_divisors_cover, gaps_under
 from lpspec.linopy.operators import operator_at, operator_grouped_sum, operator_shift, operator_sum, operator_sum_back
-from lpspec.linopy.where import EvaluationContext, as_linopy_mask, bound_lookup, evaluate_where
+from lpspec.linopy.where import EvaluationContext, as_linopy_mask, bound_relation, evaluate_where
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
+from lpspec.relations import maps_out_of, partition_of
 
 if TYPE_CHECKING:
     import linopy
@@ -78,8 +79,8 @@ def _build_variables(ctx: EvaluationContext) -> None:
                 coords=coords,
                 name=name,
                 mask=as_linopy_mask(mask),
-                binary=vdef.variable_type == 'binary',
-                integer=vdef.variable_type == 'integer',
+                binary=vdef.domain == 'binary',
+                integer=vdef.domain == 'integer',
             )
 
 
@@ -97,9 +98,8 @@ def _check_bounds_are_defined(name: str, vdef: program.VariableDeclaration, data
 def _bound(bound: program.ExpressionNode, dataset: xr.Dataset) -> Any:
     """A bound as linopy takes it: the literal, or the named parameter's array.
 
-    Read raw rather than through :func:`absence.coefficient`: the absence
-    rules' zero is a coefficient and never a bound, so a gap has to survive to
-    :func:`_check_bounds_are_defined` instead of being filled in.
+    A gap is not filled here: absence's zero is a coefficient and never a
+    bound, so a gap survives to :func:`_check_bounds_are_defined`.
     """
     if isinstance(bound, program.Constant):
         return bound.value
@@ -115,12 +115,7 @@ def _bound(bound: program.ExpressionNode, dataset: xr.Dataset) -> Any:
 
 
 def _build_sos(ctx: EvaluationContext) -> None:
-    """Attach every ``sos:`` block to the variable it names.
-
-    linopy holds a set the same way the language declares one — a variable, a
-    dimension of it, a type — so this is the block handed over, not a
-    formulation rebuilt.
-    """
+    """Attach every ``sos:`` block to the variable it names."""
     for name, sos in ctx.program.sos.items():
         with note(f"while building sos '{name}'"):
             ctx.model.add_sos_constraints(
@@ -139,8 +134,7 @@ def _build_sos(ctx: EvaluationContext) -> None:
 def _refuse_what_the_lane_cannot_build(p: program.Program) -> None:
     """Refuse a construct the language accepts and this lane cannot build, before linopy is asked.
 
-    What the lane lacks is :data:`lpspec.lanes.LANES`'s to say; refused in the
-    language's own words rather than as linopy's ``NotImplementedError``.
+    What the lane lacks is :data:`lpspec.lanes.LANES`'s to say.
     """
     if missing := LANES['linopy'].missing(required(p)):
         raise LaneError(lane_cannot_build_message('linopy', missing))
@@ -161,7 +155,28 @@ def _build_constraints(ctx: EvaluationContext) -> None:
             if _term_free(lhs) and _term_free(rhs):
                 continue
 
-            ctx.model.add_constraints(lhs, _SIGN_MAP[row.sense], rhs, name=name, mask=as_linopy_mask(mask))
+            term, other, sense = _sides(lhs, rhs, row.sense)
+            ctx.model.add_constraints(term, _SIGN_MAP[sense], other, name=name, mask=as_linopy_mask(mask))
+
+
+#: What reading a comparison from its other side does to it.
+_FLIPPED: dict[program.ConstraintSense, program.ConstraintSense] = {'==': '==', '<=': '>=', '>=': '<='}
+
+
+def _sides(lhs: Any, rhs: Any, sense: program.ConstraintSense) -> tuple[Any, Any, program.ConstraintSense]:
+    """The comparison with a term on the left, which is the only side linopy takes one on.
+
+    Either side may carry the terms — ``cap >= p`` and ``p <= cap`` both build
+    — and ``add_constraints`` accepts an expression as its ``lhs`` alone,
+    answering anything else with a ``TypeError`` naming a linopy type. Reading
+    the row from the other side reverses the comparison.
+
+    Reached only once a side is known to carry a term, so the ``rhs`` returned
+    where the ``lhs`` is term-free is the one that does.
+    """
+    if not _term_free(lhs):
+        return lhs, rhs, sense
+    return rhs, lhs, _FLIPPED[sense]
 
 
 def _term_free(side: Any) -> bool:
@@ -218,12 +233,7 @@ OBJECTIVE_CONSTANT_IS_A_LANE_GAP = (
 
 
 def _refuse_an_objective_constant(expr: Any) -> None:
-    """Refuse an objective this lane cannot build, before linopy is asked.
-
-    linopy's own refusal names neither the file nor the other lane. A check
-    rather than a `try`, because the upstream message is not a contract and a
-    nonzero constant is the whole of what it means.
-    """
+    """Refuse an objective this lane cannot build, before linopy is asked."""
     const = getattr(expr, 'const', None)
     if const is not None and bool(np.any(np.asarray(const) != 0)):
         raise LaneError(OBJECTIVE_CONSTANT_IS_A_LANE_GAP)
@@ -245,7 +255,12 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
         return node.value
 
     if isinstance(node, program.Variable):
-        return absence.variable_term(ctx.model.variables[node.name], ctx.program.variable(node.name).absence)
+        variable, declared = ctx.model.variables[node.name], ctx.program.variable(node.name).absence
+        return absence.variable_value(variable, declared) if ctx.solved else absence.variable_term(variable, declared)
+
+    if isinstance(node, program.Dual):
+        assert ctx.solved, 'a dual reached a build — the language keeps one out of the math'
+        return _dual(node.constraint, ctx)
 
     if isinstance(node, program.Parameter):
         return absence.coefficient(ctx.dataset[node.name])
@@ -274,13 +289,15 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
     if isinstance(node, program.GroupSum):
         return operator_grouped_sum(
             _eval(node.operand, ctx),
-            _lookup_arrays(node.over, node.coordinate, ctx),
+            _relation_arrays(node.over[0], node.coordinate, ctx),
             into=node.into,
             labels=ctx.master_coords,
         )
 
     if isinstance(node, program.At):
-        return operator_at(_eval(node.operand, ctx), _lookup_arrays(node.over, node.coordinate, ctx), into=node.into)
+        return operator_at(
+            _eval(node.operand, ctx), _relation_arrays(node.over[0], node.coordinate, ctx), into=node.into
+        )
 
     if isinstance(node, program.Translate):
         return operator_shift(
@@ -307,16 +324,38 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
     assert_never(node)
 
 
+def _dual(name: str, ctx: EvaluationContext) -> xr.DataArray:
+    """``dual(name)`` at the solve — linopy's own ``.dual`` on the constraint.
+
+    Refused on a model declaring integrality before linopy is asked: HiGHS
+    hands a MIP back with a dual of zero on every row, and linopy stores it,
+    so the number would be read rather than the absence the other lane
+    reports.
+
+    Raises:
+        LpspecError: A variable declares integrality, so the duals are
+            undefined; or the solver stored none.
+    """
+    discrete = sorted(n for n, v in ctx.program.variables.items() if v.domain != 'continuous')
+    if discrete:
+        raise LpspecError(
+            f'named expression reads dual({name}), and duals are undefined for a mixed-integer model: '
+            f'{", ".join(discrete)} declare integrality. Read it off a continuous model.'
+        )
+    try:
+        return ctx.model.constraints[name].dual
+    except AttributeError:
+        raise LpspecError(
+            f'named expression reads dual({name}), and this solve stored no duals — the solver returned none.'
+        ) from None
+
+
 def _in_region(value: Any, mask: xr.DataArray) -> Any:
     """*value* where the region holds, and a hard zero everywhere else.
 
-    A **fill**, not a multiplication. Multiplying would carry the value's own
-    absence out of the region that owns it: the ``otherwise`` of a commitment
-    file shifts with no fill and so has nothing at the first snapshot, which
-    times a false mask is still nothing rather than zero, and the row the
-    other regions do cover would be unmade by a region that does not claim it.
-    Inside the mask absence still stands. A bare number is the one value with
-    no absence to protect, so there the mask multiplies.
+    A **fill**, not a multiplication: inside the mask absence still stands, and
+    outside it the value is a hard zero. A bare number has no absence to
+    protect, so there the mask multiplies.
     """
     if hasattr(value, 'to_linexpr'):
         value = value.to_linexpr()
@@ -346,19 +385,20 @@ def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
 
 
 def _partition(node: program.Translate | program.Window, ctx: EvaluationContext) -> Any:
-    """The lookup a windowed operator may not reach across, as its values.
+    """The relation a windowed operator may not reach across, as its values.
 
     **Named for the dimension its values are labels of**, not for itself: an
     amount declared over the group's own dim is read through this array by
     :func:`~lpspec.linopy.operators._per_group`, which pairs the two by that
     name.
     """
-    if node.partition is None:
+    by = partition_of(node)
+    if by is None:
         return None
-    array = bound_lookup(node.partition, node.dimension, ctx.dim_coords)
-    return array.rename(ctx.program.dimension(node.dimension).targets[node.partition])
+    array = bound_relation(by, node.dimension, ctx.dim_coords)
+    return array.rename(maps_out_of(ctx.program, node.dimension)[by])
 
 
-def _lookup_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The declared lookups *names* as arrays over *over*, in the order the plan wrote them."""
-    return tuple(bound_lookup(name, over, ctx.dim_coords) for name in names)
+def _relation_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
+    """The declared maps *names* as arrays over *over*, in the order the plan wrote them."""
+    return tuple(bound_relation(name, over, ctx.dim_coords) for name in names)

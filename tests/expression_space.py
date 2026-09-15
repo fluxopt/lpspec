@@ -114,7 +114,7 @@ def shifted(a: Node, over: str) -> Node | None:
     """
     if over not in a.dims:
         return None
-    return Node(f'shift({a}, over={over}, offset=1)', a.dims, a.degree, total=False)
+    return Node(f'shift({a}, along={over}, offset=1)', a.dims, a.degree, total=False)
 
 
 #: Every way to grow an expression by one node. Ordered, so the enumeration is
@@ -151,11 +151,11 @@ def expressions(depth: int) -> tuple[Node, ...]:
 def row_spec(node: Node) -> dict:
     """The shared fixture's model, with *node* as its one binding row.
 
-    ``foreach`` is the expression's own dimensions: anything else is a row
+    ``dims`` is the expression's own dimensions: anything else is a row
     repeated across a dimension the expression does not carry, which the
     language refuses — so it is computed rather than searched for.
     """
-    return law_spec(f'{node} <= 10', foreach=sorted(node.dims))
+    return law_spec(f'{node} <= 10', dims=sorted(node.dims))
 
 
 # ---------------------------------------------------------------------------

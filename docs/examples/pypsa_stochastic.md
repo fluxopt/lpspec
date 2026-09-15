@@ -4,15 +4,15 @@ Three futures over one network: the fleet is built before anyone knows which arr
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **33940.0**, matched to `rtol=1e-09`.
 
-`n.set_scenarios` makes a network stochastic, and what it does is add one
-dimension to some variables and not others:
+`n.set_scenarios` makes a network stochastic by adding one dimension to some
+variables and not others:
 
 ```
 Generator-p_nom  ('name',)
 Generator-p      ('scenario', 'name', 'snapshot')
 ```
 
-That is the whole two-stage program. Capacity is a **first-stage** decision — one
+That is the whole two-stage program. Capacity is a **first-stage** decision: one
 number per generator, spanning no scenario, because it is taken while all three
 futures are still open. Dispatch is **second stage**, one per future, chosen once
 the load is known. `define_objective` then runs every term through `_expected`,
@@ -27,8 +27,8 @@ The three futures differ in one thing, the load:
 | `cold` | 0.3 | 130 | 160 | 110 |
 | `severe` | 0.1 | 170 | 210 | 140 |
 
-`base` costs 150 to build and 10 to run, `peak` 120 and 70 — so the mix, not just
-the total, is what the expectation decides.
+`base` costs 150 to build and 10 to run, `peak` 120 and 70, so the expectation
+decides the mix as well as the total.
 
 ## The model
 
@@ -42,56 +42,66 @@ PyPSA stochastic optimisation: one network and three futures, where capacity is 
 
 | Symbol | Meaning |
 |---|---|
-| $\mathcal{S}$ | index $s$ — `scenario` — the futures the fleet is built against, one of which will happen |
-| $\mathcal{T}$ | index $t$ — `snapshot` — dispatch periods, the same in every future |
-| $\mathcal{G}$ | index $g$ — `generator` — generating units, each built once and run in every future |
+| $`\mathcal{S}`$ | index $`s`$ — `scenario` — the futures the fleet is built against, one of which will happen |
+| $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods, the same in every future |
+| $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units, each built once and run in every future |
 
 #### Parameters
 
 | Symbol | Meaning |
 |---|---|
-| $\mathrm{probability}$ | `probability` over $\mathcal{S}$ — how likely a future is — the weights the expectation is taken with |
-| $\mathrm{load}$ | `load` over $\mathcal{S} \times \mathcal{T}$ — demand to be met, and the one thing that differs between futures |
-| $\mathrm{capex}$ | `capex` over $\mathcal{G}$ — cost of holding one unit of capacity over the horizon |
-| $\mathrm{opex}$ | `opex` over $\mathcal{G}$ — cost of one unit of output |
+| $`\mathrm{probability}`$ | `probability` over $`\mathcal{S}`$ — how likely a future is — the weights the expectation is taken with |
+| $`\mathrm{load}`$ | `load` over $`\mathcal{S} \times \mathcal{T}`$ — demand to be met, and the one thing that differs between futures |
+| $`\mathrm{capex}`$ | `capex` over $`\mathcal{G}`$ — cost of holding one unit of capacity over the horizon |
+| $`\mathrm{opex}`$ | `opex` over $`\mathcal{G}`$ — cost of one unit of output |
 
 #### Variables
 
 | Symbol | Meaning |
 |---|---|
-| $p^{\mathrm{nom}}$ | `p_nom` over $\mathcal{G}$ — capacity built at a generator — the first-stage decision, which spans no scenario because it is taken before anyone knows which future arrived |
-| $p$ | `p` over $\mathcal{S} \times \mathcal{T} \times \mathcal{G}$ — output of a generator in a snapshot of a future — the second-stage decision, one per scenario |
+| $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{G}`$ — capacity built at a generator — the first-stage decision, which spans no scenario because it is taken before anyone knows which future arrived |
+| $`p`$ | `p` over $`\mathcal{S} \times \mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot of a future — the second-stage decision, one per scenario |
 
-Upright is what the model is given — a parameter such as $\mathrm{probability}$, a coordinate map, a label — and italic is what the solver chooses, such as $p^{\mathrm{nom}}$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the model is given — a parameter such as $`\mathrm{probability}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p^{\mathrm{nom}}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
-$$\min \sum_{s \in \mathcal{S},\enspace t \in \mathcal{T},\enspace g \in \mathcal{G}} p_{s,t,g} \cdot \mathrm{opex}_{g} \cdot \mathrm{probability}_{s} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capex}_{g}$$
+```math
+\min \sum_{s \in \mathcal{S},\ t \in \mathcal{T},\ g \in \mathcal{G}} p_{s,t,g} \cdot \mathrm{opex}_{g} \cdot \mathrm{probability}_{s} + \sum_{g \in \mathcal{G}} p^{\mathrm{nom}}_{g} \cdot \mathrm{capex}_{g}
+```
 
 #### Subject to
 
 **`within_capacity`**
 
-$$p_{s,t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\thinspace s \in \mathcal{S},\enspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{s,t,g} \le p^{\mathrm{nom}}_{g} \qquad \forall\, s \in \mathcal{S},\ t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 **`power_balance`**
 
-$$\sum_{g \in \mathcal{G}} p_{s,t,g} = \mathrm{load}_{s,t} \qquad \forall\thinspace s \in \mathcal{S},\enspace t \in \mathcal{T}$$
+```math
+\sum_{g \in \mathcal{G}} p_{s,t,g} = \mathrm{load}_{s,t} \qquad \forall\, s \in \mathcal{S},\ t \in \mathcal{T}
+```
 
 #### Variable domains
 
 **`p_nom`**
 
-$$p^{\mathrm{nom}}_{g} \ge 0 \qquad \forall\thinspace g \in \mathcal{G}$$
+```math
+p^{\mathrm{nom}}_{g} \ge 0 \qquad \forall\, g \in \mathcal{G}
+```
 
 **`p`**
 
-$$p_{s,t,g} \ge 0 \qquad \forall\thinspace s \in \mathcal{S},\enspace t \in \mathcal{T},\enspace g \in \mathcal{G}$$
+```math
+p_{s,t,g} \ge 0 \qquad \forall\, s \in \mathcal{S},\ t \in \mathcal{T},\ g \in \mathcal{G}
+```
 
 </details>
 <!-- math:end -->
 
-The tabs start from [the instance's tables](data.md) — one frame per parameter.
+The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
 === "lpspec"
 
@@ -134,14 +144,14 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: >-
           capacity built at a generator — the first-stage decision, which spans no
           scenario because it is taken before anyone knows which future arrived
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
       p:
         description: >-
           output of a generator in a snapshot of a future — the second-stage
           decision, one per scenario
-        foreach: [scenario, snapshot, generator]
+        dims: [scenario, snapshot, generator]
         bounds:
           lower: 0
 
@@ -150,12 +160,12 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         description: >-
           a generator produces no more than the capacity built for it, in every
           snapshot of every future — one capacity spanning three scenarios of rows
-        foreach: [scenario, snapshot, generator]
+        dims: [scenario, snapshot, generator]
         expression: p <= p_nom
 
       power_balance:
         description: what runs in this snapshot of this future meets the load there
-        foreach: [scenario, snapshot]
+        dims: [scenario, snapshot]
         expression: sum(p, over=generator) == load
 
     objective:
@@ -214,25 +224,23 @@ The tabs start from [the instance's tables](data.md) — one frame per parameter
         return n
     ```
 
-**The expectation is doing work, and here is what it is worth.** Collapse the
-three futures into their probability-weighted mean load — 116, 141, 101 — and the
-same network builds **141 MW of `base` and no `peak` at all**, for 24730.0. That
-fleet has no dispatch in the severe future, which asks for 210: the
-expected-value model does not merely cost less, it answers a question nobody
-posed. `what_the_mean_would_build()` in the reference prints it.
+**The expectation is doing work.** Collapse the three futures into their
+probability-weighted mean load, 116, 141, 101, and the same network builds
+**141 MW of `base` and no `peak` at all**, for 24730.0. That fleet has no
+feasible dispatch in the severe future, which asks for 210.
+`what_the_mean_would_build()` in the reference prints it.
 
-**One capacity, three scenarios of rows.** `within_capacity` is `p <= p_nom` with
-a `foreach` of `[scenario, snapshot, generator]` against a variable declared over
-`[generator]` — nine rows reading one column, which is how a first-stage decision
-is coupled to a second-stage one. Nothing in the language had to learn about
-stages: the dim algebra broadcasts the capacity because the constraint's frame
-says to.
+**One capacity, three scenarios of rows.** `within_capacity` is `p <= p_nom`
+with a `dims:` of `[scenario, snapshot, generator]` against a variable declared
+over `[generator]`: nine rows reading one column. That is how a first-stage
+decision couples to a second-stage one. The dim algebra broadcasts the capacity
+because the constraint's frame says to.
 
 **Prices carry the probability, and they add up to the capital cost.** The nodal
 price in `mild` is 6.0 rather than 10.0, because the term it prices is weighted
-by 0.6 — a PyPSA user reading `marginal_price` off a stochastic network is
-reading a *weighted* price, and both implementations agree on that. The scarcity
-rents are where the two stages meet:
+by 0.6. `marginal_price` off a stochastic PyPSA network is a *weighted* price,
+and both implementations agree on that. The scarcity rents are where the two
+stages meet:
 
 | | snapshot 0 | 1 | 2 |
 |---|---|---|---|
@@ -240,15 +248,14 @@ rents are where the two stages meet:
 | `cold` | 3 | **21** | 3 |
 | `severe` | 7 | **127** | 1 |
 
-`base` is at its capacity in three cells, and the rents there — 18 in `cold`, 6
-and 126 in `severe` — sum to 150, its cost to build. `peak` is at capacity in one
+`base` is at its capacity in three cells, and the rents there (18 in `cold`, 6
+and 126 in `severe`) sum to 150, its cost to build. `peak` is at capacity in one
 cell, and its rent there is 120, its cost to build. A capacity that is chosen
 once is paid for by every future that runs it out.
 
 ## What it exercises
 
-Two variables that deliberately span different dimensions, coupled by a
-constraint whose frame is the wider of the two, and an objective that reduces one
-of them against a probability. The claim is not that the math is hard — it is
-that *structure comes from data*: nothing here declares a stage, and the two
-stages are visible only in which dimensions each `foreach` lists.
+Two variables that span different dimensions, coupled by a constraint whose
+frame is the wider of the two, and an objective that reduces one of them against
+a probability. Nothing here declares a stage. The two stages are visible only in
+which dimensions each `dims:` lists.

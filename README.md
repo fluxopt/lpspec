@@ -4,24 +4,33 @@
 
 Write the math in YAML, attach data at runtime, solve. Today that means linear and
 mixed-integer programs. The model is never a dense Python object: it is tidy
-frames — masks are absent rows, and a variable's label *is* the solver's own
+tables — masks are absent rows, and a variable's label *is* the solver's own
 column index — assembled relationally and handed to the solver in batches.
 
 The consequence worth the headline is **cost to a loaded solver** — YAML and
 data in, a populated solver out, no LP file anywhere in between. Measured
-against linopy's own best path to the same place, on the top rung of
-each of five benchmark cases — 1M to 12M variables
+against linopy's own best path to the same place, through HiGHS — the solver
+`lps.solve` reaches for when you name none
 ([benchmarks](docs/about/benchmarks.md)):
 
-- **2–4x faster on four of the five**, and 1.13x slower on the fifth, which is
-  in the ladder to be lost — its parameters are dense over the whole variable
-  product, the one shape that suits an array engine.
-- **Lower peak on all five**, from 0.95x to 0.32x. The margins are narrow at
-  the top because HiGHS's own copy of the model dominates once it is loaded, and
-  nothing on either side can shrink it.
+- **1.01x to 1.29x faster**, on `dispatch` at 10M variables and `fleet` at 12M,
+  at 0.83x and 0.84x of linopy's peak memory.
+- **Most of what that measures is the solver, not either library.** Of lpspec's
+  1.51 s at 10M variables, 0.57 s is the build and 0.94 s is HiGHS taking the
+  model.
 
-Read the sink you use: through the *LP file* the picture is closer, and on one
-case we are behind on peak. That table is in the same file, next to this one.
+**Through Gurobi the ranking holds and the margin narrows**, to 1.04x to 1.17x
+across four models at 0.73x to 0.98x of the peak. There is less of either
+library left in it. The same 10M-variable model costs 9.85 s to a loaded Gurobi
+and 1.51 s to a loaded HiGHS. Raw `gurobipy`, with no modelling layer at all,
+costs 9.31 s of that 9.85 s: lpspec adds 0.54 s to the floor and linopy adds
+1.98 s, so the libraries land 1.15x apart while what each adds is 3.7x apart.
+Read the sink you use; the page has a table per sink.
+
+**Every case in that ladder is dense**: no mask in it removes a row, and a dense
+coordinate product is the shape an array engine is built for. Sparsity is what
+this engine is designed around, and nothing published measures it yet. The
+sparse cases are [on the list](docs/about/benchmarks.md#not-measured-yet).
 
 A third property is architectural rather than measured, and named here as such:
 **nothing accumulates between builds** — no process-wide state, no lifetime to
@@ -68,12 +77,12 @@ parameters:
   cost:  {dims: [generator]}
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     where: "p_max > 0"
     bounds: {lower: 0, upper: p_max}
 constraints:
   power_balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) == load
 objective:
   sense: minimize
@@ -96,13 +105,13 @@ sources = {
 
 result = lps.solve('dispatch.yaml', sources)
 print(result.objective)  # 1920.0
-print(result.primal('p'))  # a tidy frame: (snapshot, generator, value)
+print(result.primal('p'))  # a tidy table: (snapshot, generator, value)
 print(result.dual('power_balance'))  # the price at each snapshot
 ```
 
 Sources can also be pandas or pyarrow objects, or parquet paths — anything
 exposing the Arrow PyCapsule protocol is accepted, and the recogniser imports
-none of them. Results come back as frames, so nothing has to be released and
+none of them. Results come back as tables, so nothing has to be released and
 no dataframe library is a dependency: `result.to_pandas('p')`,
 `.to_dataarray('p')` and `.to_parquet(dir)` are the bridges out, each named for
 what it costs.
@@ -120,9 +129,10 @@ what it costs.
 - **Fail early, fail loud** — every expression, `where` string and even *uncalled*
   macro template is parsed and name-checked before a single source is attached.
   Errors name the problem and its rewrite; nothing falls back silently.
-- **A finite language with a priced way out** — the ceiling is a closure
-  (relational ∩ local), not a feature race; genuinely unsayable math
-  goes in an `escape:` island, visible in the file and billed before it runs.
+- **A finite language, with no escape hatch** — the ceiling is relational, and
+  locality prices a new operator rather than barring it. Math the language
+  cannot express is a gap in the language. A gap closes as a macro, a primitive
+  or a formulation.
 
 The second use case is taking the same file to [linopy](https://github.com/PyPSA/linopy)
 instead of solving it here. One import decides which lane builds it; the
@@ -145,7 +155,7 @@ construct outside the language is a load error naming its rewrite.
 
 Start with [**running a model**](docs/guide.md) — a file and your tables to an
 answer, with the language in five links. Then
-[preparing the data](docs/examples/data.md) and
+[preparing the data](docs/howto/data.md) and
 [what attaching refuses](docs/reference/data.md), the
 [Python API](docs/reference/api.md) for the verbs, and
 [the examples](docs/examples/index.md) to browse. What a file may contain is
@@ -158,7 +168,7 @@ to work on it,
 
 To see it rather than read it, `python examples/walkthrough.py` runs one small
 model through every stage — YAML → schema → core AST → logical plan → model
-frames → LP text → solution — printing the artifact each stage produces. It
+tables → LP text → solution — printing the artifact each stage produces. It
 also runs two models the language refuses, and says why. Its output is
 committed as [examples/walkthrough.out](examples/walkthrough.out), if you would
 rather read it than run it.
@@ -176,7 +186,7 @@ polars, pandas or xarray objects, Arrow tables, or parquet paths. MIT licensed.
 
 ## Prior art
 
-The surface — YAML math, a block per component, `foreach:`, a `where:` string —
+The surface — YAML math, a block per component, `dims:`, a `where:` string —
 comes from [Calliope](https://github.com/calliope-project/calliope);
 [linopy](https://github.com/PyPSA/linopy) supplies the shared vocabulary, the
 oracle and every benchmark denominator. What was taken from each, and how to

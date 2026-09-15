@@ -20,7 +20,7 @@ import pytest
 import lpspec as lps
 from lpspec.errors import DataError
 from tests.conftest import by_coord, override
-from tests.differential import RTOL, differential
+from tests.differential import RTOL, both_lanes_refuse, differential
 from tests.oracle import pd
 
 #: A masked variable broadcast onto a wider frame, then reduced back. `p` is
@@ -39,10 +39,10 @@ BROADCAST_MASK_SPEC = {
         'installed': {'coverage': 'masked', 'dims': ['node', 'tech']},
     },
     'variables': {
-        'p': {'foreach': ['node', 'tech'], 'where': 'installed > 0', 'bounds': {'lower': 0, 'upper': 'installed'}},
+        'p': {'dims': ['node', 'tech'], 'where': 'installed > 0', 'bounds': {'lower': 0, 'upper': 'installed'}},
     },
     'constraints': {
-        'balance': {'foreach': ['node', 'carrier'], 'expression': 'sum(p * produces, over=tech) == demand'},
+        'balance': {'dims': ['node', 'carrier'], 'expression': 'sum(p * produces, over=tech) == demand'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost)'},
 }
@@ -57,8 +57,8 @@ def _grid(dims, labels, values):
 SPARSE_COEFFICIENT_SPEC = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'c': {'coverage': 'masked', 'dims': ['t']}, 'w': {'coverage': 'masked', 'dims': ['t']}},
-    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'cap': {'foreach': ['t'], 'expression': 'w * x <= c'}},
+    'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {'cap': {'dims': ['t'], 'expression': 'w * x <= c'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x, over=t)'},
 }
 
@@ -103,6 +103,28 @@ def test_a_sparse_constant_side_is_refused_on_both_lanes():
         pass
 
 
+@pytest.mark.parametrize(
+    'constraint',
+    [
+        pytest.param({'dims': ['t'], 'expression': 'w * x <= c'}, id='at the row key'),
+        pytest.param({'dims': [], 'expression': 'sum(w * x, over=t) <= sum(c, over=t)'}, id='under a sum'),
+        pytest.param({'dims': ['t'], 'expression': 'w * x <= c + sum(c, over=t)'}, id='beside a sum of itself'),
+    ],
+)
+def test_the_same_hole_is_refused_however_far_it_stands_from_the_row(constraint):
+    """A reduction between the parameter and the row hid the hole from one lane.
+
+    `sum` reads a missing coordinate as no summand rather than as a gap — the
+    relational lane sums each constant piece per coordinate before asking the
+    assembled constant for its nulls, so the answer came back complete and
+    `<= 9` stood where the data said nothing. The eager lane asks the
+    parameter, which is the only shape a reduction cannot flatten, and both
+    lanes now do (#1465).
+    """
+    spec = override(SPARSE_COEFFICIENT_SPEC, **{'constraints.cap': constraint})
+    both_lanes_refuse(spec, SPARSE_CONSTANT_DATA, match="parameter 'c' covers 1 fewer")
+
+
 def test_a_where_is_the_escape_from_the_constant_side_check():
     """Masking the coordinate answers the question, so it is not refused.
 
@@ -118,14 +140,58 @@ def test_a_where_is_the_escape_from_the_constant_side_check():
         )
 
 
+def test_a_constant_piece_beside_a_term_is_refused_on_both_lanes():
+    """A parameter added beside a variable term is a constant piece, not skipped (#1521).
+
+    `w * x + c <= 100` reads `w * x <= 100` where the file says `w * x <= 100 - c`,
+    the missing `c` filled with the zero that is a bound. The eager check asked
+    its question of a side carrying no variable, so a piece beside a term went
+    unasked and the lane built the wrong row in silence; the relational lane,
+    asking of every constant fragment, refused alone.
+    """
+    spec = override(SPARSE_COEFFICIENT_SPEC, **{'constraints.cap.expression': 'w * x + c <= 100'})
+    both_lanes_refuse(spec, SPARSE_CONSTANT_DATA, match="parameter 'c' covers 1 fewer")
+
+
+def test_a_constant_piece_beside_a_term_is_refused_through_a_reduction():
+    """The same piece under a sum, where both lanes were blind (#1521).
+
+    `sum(w * x, over=t) + sum(c, over=t) <= 100` sums the gap away before either
+    lane's per-coordinate check can see it — the eager lane skipped the side for
+    its variable, the relational lane could not see the hole through the sum
+    (#1465's mechanism) — so the parameter is asked directly, of both lanes now.
+    """
+    spec = override(
+        SPARSE_COEFFICIENT_SPEC,
+        **{'constraints.cap': {'dims': [], 'expression': 'sum(w * x, over=t) + sum(c, over=t) <= 100'}},
+    )
+    both_lanes_refuse(spec, SPARSE_CONSTANT_DATA, match="parameter 'c' covers 1 fewer")
+
+
+def test_a_sparse_coefficient_beside_a_constant_piece_is_still_a_zero():
+    """The widened check still reads a sparse coefficient as a zero (#1521).
+
+    `w * x + c <= 100` with `w` short and `c` whole builds and both lanes agree:
+    `w` is a coefficient wherever a variable stands with it, so its missing row
+    is the zero the absence rules allow rather than an uncovered bound — only the
+    piece `c`, which no variable stands with, is owed its coordinates.
+    """
+    data = {'t': [0, 1, 2], 'w': pd.Series({1: 1.0, 2: 1.0}), 'c': pd.Series({0: 5.0, 1: 4.0, 2: 5.0})}
+    spec = override(SPARSE_COEFFICIENT_SPEC, **{'constraints.cap.expression': 'w * x + c <= 100'})
+    with differential(spec, data, lp=True) as run:
+        assert run.result.objective == pytest.approx(10.0 + 10.0 + 10.0, rel=RTOL), (
+            't=0: w absent, so its term is zero and x runs to its bound; elsewhere the bound is slack'
+        )
+
+
 #: `south` is a load-only bus: both generators sit on `north`, so the group
 #: behind `south`'s constant side has no members at all.
 GROUPED_CONSTANT_SPEC = {
     'dimensions': {'generator': {}, 'bus': {'dtype': 'str'}},
-    'lookups': {'gen_bus': {'coverage': 'masked', 'over': 'generator', 'into': 'bus'}},
+    'relations': {'gen_bus': {'coverage': 'masked', 'columns': ['generator', 'bus'], 'key': 'generator'}},
     'parameters': {'capacity': {'coverage': 'masked', 'dims': ['generator']}},
-    'variables': {'imports': {'foreach': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'import_limit': {'foreach': ['bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}},
+    'variables': {'imports': {'dims': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'import_limit': {'dims': ['bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(imports, over=bus)'},
 }
 
@@ -165,9 +231,9 @@ SPANNED_GROUPED_CONSTANT_SPEC = {
     **GROUPED_CONSTANT_SPEC,
     'dimensions': {**GROUPED_CONSTANT_SPEC['dimensions'], 'snapshot': {'dtype': 'int'}},
     'parameters': {'capacity': {'dims': ['snapshot', 'generator']}},
-    'variables': {'imports': {'foreach': ['snapshot', 'bus'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'variables': {'imports': {'dims': ['snapshot', 'bus'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {
-        'import_limit': {'foreach': ['snapshot', 'bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}
+        'import_limit': {'dims': ['snapshot', 'bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(sum(imports, over=bus), over=snapshot)'},
 }
@@ -204,14 +270,14 @@ def test_an_empty_group_spanning_another_dim_is_zero_at_every_coordinate():
 PLURAL_GROUPED_CONSTANT_SPEC = {
     **GROUPED_CONSTANT_SPEC,
     'dimensions': {**GROUPED_CONSTANT_SPEC['dimensions'], 'technology': {'dtype': 'str'}},
-    'lookups': {
-        'gen_bus': {'coverage': 'masked', 'over': 'generator', 'into': 'bus'},
-        'gen_tech': {'over': 'generator', 'into': 'technology'},
+    'relations': {
+        'gen_bus': {'coverage': 'masked', 'columns': ['generator', 'bus'], 'key': 'generator'},
+        'gen_tech': {'columns': ['generator', 'technology'], 'key': 'generator'},
     },
-    'variables': {'imports': {'foreach': ['bus', 'technology'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'variables': {'imports': {'dims': ['bus', 'technology'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {
         'import_limit': {
-            'foreach': ['bus', 'technology'],
+            'dims': ['bus', 'technology'],
             'expression': 'imports <= sum(capacity, by=[gen_bus, gen_tech])',
         }
     },
@@ -268,10 +334,10 @@ ABSENT_VARIABLE_SPEC = {
         'cost': {'coverage': 'masked', 'dims': ['f']},
     },
     'variables': {
-        'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
-        'size': {'foreach': ['f'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
+        'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
+        'size': {'dims': ['f'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
     },
-    'constraints': {'envelope': {'foreach': ['f'], 'expression': 'x - relmax * size <= 0'}},
+    'constraints': {'envelope': {'dims': ['f'], 'expression': 'x - relmax * size <= 0'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost, over=f)'},
 }
 
@@ -311,12 +377,12 @@ DEFINED_SPEC = {
         'cost': {'coverage': 'masked', 'dims': ['f']},
     },
     'variables': {
-        'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
-        'size': {'foreach': ['f'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
+        'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
+        'size': {'dims': ['f'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
     },
     'constraints': {
-        'envelope_sized': {'foreach': ['f'], 'where': 'size', 'expression': 'x - relmax * size <= 0'},
-        'envelope_unsized': {'foreach': ['f'], 'where': 'NOT size', 'expression': 'x <= 0'},
+        'envelope_sized': {'dims': ['f'], 'where': 'size', 'expression': 'x - relmax * size <= 0'},
+        'envelope_unsized': {'dims': ['f'], 'where': 'NOT size', 'expression': 'x <= 0'},
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost, over=f)'},
 }
@@ -350,10 +416,10 @@ ABSENT_COEFFICIENT_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'relmax': {'coverage': 'masked', 'dims': ['f']}, 'cost': {'coverage': 'masked', 'dims': ['f']}},
     'variables': {
-        'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
-        'size': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 50}},
+        'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
+        'size': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 50}},
     },
-    'constraints': {'envelope': {'foreach': ['f'], 'expression': 'x - relmax * size <= 0'}},
+    'constraints': {'envelope': {'dims': ['f'], 'expression': 'x - relmax * size <= 0'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost, over=f)'},
 }
 
@@ -390,10 +456,10 @@ SCALAR_MASKED_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'cost': {'coverage': 'masked', 'dims': ['f']}, 'budget': {'dims': []}},
     'variables': {
-        'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
-        'slack': {'foreach': [], 'where': 'budget > 1000', 'bounds': {'lower': 0, 'upper': 10}},
+        'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
+        'slack': {'dims': [], 'where': 'budget > 1000', 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'cap': {'foreach': [], 'expression': 'sum(x, over=f) - slack <= budget'}},
+    'constraints': {'cap': {'dims': [], 'expression': 'sum(x, over=f) - slack <= budget'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost)'},
 }
 
