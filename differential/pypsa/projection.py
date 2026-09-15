@@ -21,6 +21,20 @@ import yaml
 NAME = re.compile(r'\b[A-Za-z_][A-Za-z0-9_]*\b')
 
 
+def _relation_dims(relation: dict[str, Any]) -> set[str]:
+    """The dimensions a relation declaration names, read off the raw block.
+
+    This module shapes YAML before the language reads it, so both spellings of
+    ``columns:`` are read here rather than off a loaded declaration: a list
+    names each column after its dimension, a mapping names the dimension per
+    column.
+    """
+    columns = relation['columns']
+    if isinstance(columns, dict):
+        return set(columns.values())
+    return {columns} if isinstance(columns, str) else set(columns)
+
+
 def terms(expression: str) -> list[str]:
     """The top-level additive terms of *expression*, each carrying its own sign."""
     out, depth, start = [], 0, 0
@@ -132,7 +146,7 @@ def project(raw: dict[str, Any], parity: dict[str, Any]) -> dict[str, Any]:
     for p in parameters.values():
         dims |= set(p.get('dims', []))
     for lk in relations.values():
-        dims |= {lk['over'], lk.get('into')} - {None}
+        dims |= _relation_dims(lk)
     dimensions = {n: d for n, d in raw['dimensions'].items() if n in dims}
     out = {k: v for k, v in raw.items() if k in ('version', 'description')}
     out['dimensions'] = dimensions

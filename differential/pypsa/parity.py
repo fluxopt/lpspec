@@ -176,7 +176,7 @@ def prepared(spec: Path, n, stem: str | None = None) -> dict[str, object]:
     losses = keywords(stem).get('transmission_losses', {}) if stem else {}
     segments = int(losses.get('segments', 0)) if isinstance(losses, dict) else int(losses or 0)
     dims = {name: p.dims for name, p in declared.parameters.items()} | {
-        name: [relation.over] for name, relation in declared.relations.items()
+        name: list(relation.keys) for name, relation in declared.relations.items()
     }
     return {
         name: flattened(name, table, dims.get(name, []))

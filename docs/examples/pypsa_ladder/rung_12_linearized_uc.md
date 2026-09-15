@@ -311,13 +311,28 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
           data prep'}
       load: {description: 'demands, each on one bus'}
     relations:
-      Generator_bus: {description: the bus a generator sits on, columns: [generator, bus], key: generator}
-      Link_bus0: {description: the bus a link leaves, columns: [link, bus], key: link}
-      Link_output_link: {description: the link an output port belongs to, columns: [link_output, link], key: link_output}
-      Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
-          A link of three output ports is three labels here rather than a third relation, so the file states
-          any number of them', columns: [link_output, bus], key: link_output}
-      Load_bus: {description: the bus a load sits on, columns: [load, bus], key: load}
+      Generator_bus:
+        description: the bus a generator sits on
+        columns: [generator, bus]
+        key: generator
+      Link_bus0:
+        description: the bus a link leaves
+        columns: [link, bus]
+        key: link
+      Link_output_link:
+        description: the link an output port belongs to
+        columns: [link_output, link]
+        key: link_output
+      Link_output_bus:
+        description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
+          output ports is three labels here rather than a third relation, so the file states any number of
+          them
+        columns: [link_output, bus]
+        key: link_output
+      Load_bus:
+        description: the bus a load sits on
+        columns: [load, bus]
+        key: load
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
