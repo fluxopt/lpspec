@@ -4,11 +4,9 @@ Which generators are *on*, not just how much they produce — a binary per gener
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **24900**, matched to `rtol=1e-09`.
 
-**The corpus's MILP entry.** Every other verified model is a pure continuous
-LP; this one carries integrality, which is what the gallery's construct matrix
-had no verified example of. One bus and no network, deliberately: a model that
-fails to match should implicate one feature, and here that feature is
-commitment.
+**Integrality enters here.** Every model above is a continuous LP; this one
+carries a binary status. One bus and no network: a model that fails to match
+should implicate one feature, and here that feature is commitment.
 
 `min_up_time` and `min_down_time` are left at 0 here;
 [minimum up and down times](pypsa_min_up_down.md) is the model that writes them.
@@ -284,16 +282,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **The first snapshot is not like the others.** PyPSA's default is that a unit
-was already up before the horizon began, so the start-up row is slackened to
+was already up before the horizon began. The start-up row is slackened to
 `>= -1` there and never binds, while the shut-down row still charges a unit
-that begins the horizon *off*. `peak` does, so the instance pays a shut-down it
-never visibly performs. That asymmetry is PyPSA's, it is worth 50 here, and
-reproducing it is most of what makes this a fidelity test rather than a
-plausible-looking rewrite.
+that begins the horizon off. `peak` begins off, so the instance pays a
+shut-down it never visibly performs. That asymmetry is PyPSA's, and it is
+worth 50 here.
 
-Two `where` clauses on one constraint block is how the language says "this row
-differs at the boundary" — the same shape [storage](storage.md) uses for its
-initial state of charge.
+Two `where` clauses on one constraint block say that the row differs at the
+boundary, the shape [storage](storage.md) uses for its initial state of
+charge.
 
 ## What it costs
 

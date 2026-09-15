@@ -6,21 +6,20 @@ The loss on a line is `r · s²`. PyPSA approximates it from below with a fan of
 
 For each segment *k* PyPSA takes the point `p_k = k/segments · s_nom`, draws the
 tangent to the loss curve there, and adds it once for each sign of the flow.
-Every one is a half-plane on `(loss, s)`, so the whole approximation is linear
-rows and **no auxiliary variable at all** — the objective pushes the loss down,
-the tangents hold it up, and it settles on the curve.
+Each tangent is a half-plane on `(loss, s)`, so the approximation is linear
+rows and no auxiliary variable. The objective pushes the loss down, the
+tangents hold it up, and it settles on the curve.
 
-Six snapshots, three busy and three quiet: the flows have to reach the **early**
-segments of the fan as well as the top of it. With the busy snapshots alone only
-two of five half-planes ever bound, and the other three coefficients could have
-been anything without the port noticing.
+Six snapshots, three busy and three quiet, so the flows reach the early
+segments of the fan as well as the top. With the busy snapshots alone only two
+of five half-planes bind, and the other three coefficients could be anything
+without the port noticing.
 
-The network is a path, `b0—b1—b2—b3`, radial on purpose: with no independent
-cycle there is no voltage law to satisfy, so a mismatch here implicates the loss
-approximation rather than the technique of [Kirchhoff's voltage law](pypsa_kvl.md). The last line has
-**no resistance** — PyPSA gives every passive branch a loss variable and lets
-`r = 0` pin it to nothing, while the port declares one only where there is a
-curve to approximate.
+The network is a path, `b0—b1—b2—b3`. With no independent cycle there is no
+voltage law to satisfy, so a mismatch implicates the loss approximation rather
+than [Kirchhoff's voltage law](pypsa_kvl.md). The last line has no resistance.
+PyPSA gives every passive branch a loss variable and lets `r = 0` pin it to
+nothing; the port declares one only where there is a curve to approximate.
 
 ## The model
 
@@ -329,80 +328,67 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         return n
     ```
 
-**The rating covers the flow *and* its loss.** This is the one row that is not
-obvious from the formulation, and getting it wrong is invisible in two snapshots
-out of three: with losses enabled PyPSA replaces the flow bound `|s| ≤ s_nom`
-with `s + loss ≤ s_nom` and `s − loss ≥ −s_nom`. So the loss eats into the
-capacity rather than riding on top of it, and the flow limit stops being a bound
-and becomes a row. A first draft of this port kept the bound, matched PyPSA
-exactly at snapshots 0 and 2, and pushed the flow to a full 120 at snapshot 1
-where PyPSA stops at 115.97 — 115.97 + 4.03 being exactly 120.
+**The rating covers the flow *and* its loss.** With losses enabled PyPSA
+replaces the flow bound `|s| ≤ s_nom` with the rows `s + loss ≤ s_nom` and
+`s − loss ≥ −s_nom`. The loss eats into the capacity rather than riding on top
+of it. Keeping the bound instead matches PyPSA at snapshots 0 and 2 and pushes
+the flow to 120 at snapshot 1, where PyPSA stops at 115.97 plus 4.03 of loss.
 
 **Losses put a gradient in the prices.** Between `b0` and `b2` the recorded duals
-climb `10.00 → 85.78 → 90.00`: power is worth more the further it has to travel,
-which is the entire point of modelling losses and something no objective figure
-shows. Across the **lossless** line the price does not move at all — `b3` differs
-from `b2` only because the local generator sets it.
+climb `10.00 → 85.78 → 90.00`: power is worth more the further it travels,
+which no objective figure shows. Across the lossless line the price does not
+move. `b3` differs from `b2` only because the local generator sets it.
 
-**The mask needs `absence: zero`, and the instance proves it.** `loss` is
-declared `where: loss_max`, so the resistanceless line has no loss variable. But
-`loss` also appears as a bare term in the rating rows — `f + loss <= s_nom` —
-and a constraint naming a masked variable loses its **row**. Without
-`absence: zero` those two rows vanish for that line, it becomes uncapacitated,
-and the model reports a cheaper answer with nothing flagged:
+**The mask needs `absence: zero`.** `loss` is declared `where: loss_max`, so
+the resistanceless line has no loss variable. `loss` also appears as a bare
+term in the rating rows, `f + loss <= s_nom`, and a constraint naming a masked
+variable loses its row. Without `absence: zero` those two rows vanish for that
+line, it becomes uncapacitated, and the model reports a cheaper answer:
 
 | spelling | rows | `omissions` | objective |
 |---|---|---|---|
 | `where:` + `absence: zero` | 132 | 0 | **24114.24** ✔ |
 | `where:` alone | 120 | **2** | 17514.24 ✘ |
 
-Twenty-seven per cent low, and an optimal status — but no longer silent: since
-[#944](https://github.com/fluxopt/lpspec/issues/944) a row a propagated absence
-deleted is counted, so `diagnostics().omissions` names the two rating rows that
-went. The wrong model announces itself where it used to shrug.
+Twenty-seven per cent low, with an optimal status. `diagnostics().omissions`
+([#944](https://github.com/fluxopt/lpspec/issues/944)) counts the two rating
+rows a propagated absence deleted, so the wrong model announces itself.
 
 **`r` is 0.0003, not a per-unit textbook figure.** PyPSA's loss term is
-`r_pu_eff · s²` with `s` in MW, so a resistance chosen for a per-unit base makes
-the loss exceed the flow — at `r = 0.05` this instance is *infeasible*, the
-generators unable to cover a loss larger than the demand. At this value losses
-run about 3% of throughput.
+`r_pu_eff · s²` with `s` in MW, so a resistance chosen for a per-unit base
+makes the loss exceed the flow. At `r = 0.05` this instance is infeasible: the
+generators cannot cover a loss larger than the demand. At 0.0003 losses run
+about 3% of throughput.
 
-**PyPSA's *other* loss mode is this same model.** Its default is secants rather
-than tangents — secants lie above a convex curve where tangents lie below, so
-they overestimate the losses these underestimate — and it emits the identical
-rows: one half-plane per segment per sign of the flow. Only the coefficients
-differ, and how many of them there are.
+**PyPSA's other loss mode is this same model.** Its default is secants rather
+than tangents. Secants lie above a convex curve where tangents lie below, so
+they overestimate the losses these underestimate. PyPSA emits the identical
+rows, one half-plane per segment per sign of the flow. Only the coefficients
+differ, and how many there are. So the secant mode gets no model
+file of its own. `test_the_two_loss_approximations_are_one_model` binds this
+model to the secant coefficients and reaches PyPSA's secant optimum.
 
-So it gets no model file of its own. `test_the_two_loss_approximations_are_one_model`
-binds *this* model to those coefficients and reaches PyPSA's own secant optimum,
-which is the stronger claim: the two approximations are one thing the language
-says once.
-
-That is also why the model's parameters are called `loss_slope` and
-`loss_offset` rather than anything with *tangent* in it, and why the
-coefficients are **dumped** from PyPSA rather than recomputed here. Where the
-breakpoints fall is the instance's business — a secant's come out of an error
-tolerance, and even their number does — and the model asks only for a slope and
-an offset per segment.
+The parameters are therefore `loss_slope` and `loss_offset`, with nothing
+tangent-specific in the name, and the coefficients are dumped from PyPSA
+rather than recomputed here. Where the breakpoints fall is the instance's
+business; a secant's come out of an error tolerance, and so does their number.
+The model asks only for a slope and an offset per segment.
 
 ## What it exercises
 
-A third dimension that exists only to index an approximation — `segment` is not
-a thing in the network, it is a row multiplier — and a variable pinned between
-an objective pushing down and a fan of constraints pushing up, with no equality
-defining it anywhere.
+A third dimension that exists only to index an approximation: `segment` is not
+a thing in the network, it is a row multiplier. And a variable pinned between
+an objective pushing down and a fan of constraints pushing up, with no
+equality defining it.
 
 The tangent slopes and offsets ship as data. `2 · r · p_k` is arithmetic, and a
 coefficient here takes a name or a number, the same reason
-[storage units](pypsa_storage.md) ships `soc_max` rather than a ratio. That is the
-ergonomics case for a method deriving the fan from the curve: two columns and a
-segment count instead of six precomputed rows. What it is **not** is a
-capability gap — this port needs no construct the language lacks.
+[storage units](pypsa_storage.md) ships `soc_max` rather than a ratio. This
+port needs no construct the language lacks.
 
 [`method: lp`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#lp-the-one-that-declares-nothing)
-emits rows of exactly this shape — one linear row per piece, no auxiliary
-variable — but it is **not** a drop-in here, and the difference is the whole
-approximation. It states the lines through consecutive breakpoints, which for a
-convex curve lie *above* it; PyPSA's tangents lie *below*. The two bracket
-`r · s²` from opposite sides, so swapping one for the other moves the optimum
-rather than restating it, and this port keeps the fan PyPSA publishes.
+emits rows of this shape, one linear row per piece and no auxiliary variable,
+but it is not a drop-in here. It states the lines through consecutive
+breakpoints, which for a convex curve lie above it; PyPSA's tangents lie
+below. The two bracket `r · s²` from opposite sides, so swapping one for the
+other moves the optimum. This port keeps the fan PyPSA publishes.

@@ -4,20 +4,18 @@ Visit every city once and come home, as cheaply as possible. The most famous pro
 
 > **✔ Verified against TSPLIB's published optimum** — **2085**, matched to `rtol=1e-09`. Instance `gr17` (Groetschel, 17 cities, explicit distance matrix).
 
-**It is not out of reach.** This page exists because "we can't do TSP" was
-plausible enough to be worth testing rather than asserting, and it turned out
-to be wrong.
+**It is not out of reach.** Miller–Tucker–Zemlin (MTZ) is inside the language.
+Only lazy subtour generation is outside it.
 
 ## What genuinely is refused, and why
 
-TSP's textbook formulation — Dantzig–Fulkerson–Johnson — forbids subtours with
-one constraint per subset of cities:
+TSP's textbook formulation, Dantzig–Fulkerson–Johnson (DFJ), forbids subtours
+with one constraint per subset of cities:
 
 $$\sum_{i \in S}\sum_{j \in S} x_{ij} \le |S| - 1 \qquad \text{for every subset } S$$
 
 Every row is linear and there are finitely many, so DFJ is an ordinary MILP.
-The question is which parts of it this language can say, and the answer is
-narrower than "none":
+Which parts of it the language can say:
 
 | | Status |
 |---|---|
@@ -25,23 +23,20 @@ narrower than "none":
 | DFJ, subsets **generated lazily** | **outside** — solve, find violations, add rows, re-solve is an *algorithm*, not a model. Nothing declarative describes it |
 | MTZ | sayable, and what this port uses |
 
-So the honest refusal is only the second row. The first is not a language limit
-at all: it is 2ⁿ rows, which stops being practical somewhere around twenty
-cities — a data-size wall, not a ceiling. That distinction is worth being
-precise about: a data-dependent *row count* is not itself a refusal — the
-[cycle basis](pypsa_kvl.md) has one and is ordinary — so what rules DFJ out at
-scale is the size of the data, not the shape of the language.
+The refusal is only the second row. The first is not a language limit: it is 2ⁿ
+rows, which stops being practical somewhere around twenty cities. A
+data-dependent *row count* is not itself a refusal, since the
+[cycle basis](pypsa_kvl.md) has one and is ordinary. What rules DFJ out at scale
+is the size of the data, not the shape of the language.
 
-**Lazy generation is the thing every serious TSP code actually does**, which is
-why "lpspec can express TSP" and "lpspec is a good way to solve a large TSP"
-are different sentences, and only the first is true.
+**Lazy generation is what every serious TSP code does.** lpspec can express TSP.
+It is not a good way to solve a large one.
 
 ## What that leaves
 
-Miller–Tucker–Zemlin, the polynomial alternative: give each city a position in
-the tour and require that an arc `i → j` puts `j` later than `i`. O(n²) rows,
-every one of them known before the data is read — static, relational, degree 1.
-Inside the language, and it always was.
+MTZ, the polynomial alternative: give each city a position in the tour and
+require that an arc `i → j` puts `j` later than `i`. O(n²) rows, every one known
+before the data is read: static, relational, degree 1. Inside the language.
 
 ## The model
 
@@ -193,10 +188,10 @@ objective:
   expression: sum(travel * distance)
 ```
 
-**One shape here is worth the whole page.** MTZ needs `u` — the tour position —
-at *both ends of the same row*: `u_i − u_j`. A variable indexed by one
-dimension appearing twice under two different roles is exactly the kind of
-self-join that looks like it should need a primitive.
+**The tour position sits at both ends of one row.** MTZ needs `u`, the tour
+position, at *both ends of the same row*: `u_i − u_j`. A variable indexed by one
+dimension appears twice under two different roles, a self-join that looks like
+it should need a primitive.
 
 It does not. Declare the identity map from `city` onto each end of the pair:
 
@@ -206,20 +201,18 @@ lookups:
   as_to: {over: city, into: to_city}
 ```
 
-and `sum(u, by=as_from)` becomes a **relabel** rather than a
-reduction — the map is one-to-one, so nothing is added up; `u` simply moves
-from the `city` axis onto the `from_city` axis. Doing it twice with different
-lookups puts the same variable at both ends of one row.
-
-That is `sum(by=)` doing a job it was not designed for and handling it because
-[topology is data](pypsa_transport.md): a lookup is a join, and a join
-does not care whether it is many-to-one or one-to-one.
+and `sum(u, by=as_from)` becomes a **relabel** rather than a reduction. The map
+is one-to-one, so nothing is added up: `u` moves from the `city` axis onto the
+`from_city` axis. Doing it twice with different lookups puts the same variable
+at both ends of one row. A lookup is a join, and a join does not care whether it
+is many-to-one or one-to-one ([topology is data](pypsa_transport.md)).
 
 **The diagonal takes care of itself.** `distance` has no row where a city meets
-itself, `travel`'s `where` is that parameter, and absence spreads — so every
-row mentioning a self-arc simply is not built. No `i ≠ j` guard is written
-anywhere, because [dimension-to-dimension comparison is not in the
-language](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#where-strings) and here it is not needed.
+itself, `travel`'s `where` is that parameter, and absence spreads, so no row
+mentioning a self-arc is built. No `i ≠ j` guard is written anywhere.
+[Dimension-to-dimension comparison is not in the
+language](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#where-strings),
+and here it is not needed.
 
 ## What it finds
 
@@ -230,14 +223,12 @@ c01 → c16 → c12 → c09 → c05 → c02 → c10 → c11 → c03
     → c15 → c14 → c17 → c06 → c08 → c07 → c13 → c04 → c01
 ```
 
-Length **2085**, TSPLIB's published optimum. One tour, not several — which is
-the whole thing MTZ is there to guarantee, and worth checking on the primal
-rather than trusting the objective, since a subtour-ridden solution would be
-*cheaper*, not more expensive.
+Length **2085**, TSPLIB's published optimum. One tour, not several, which is
+what MTZ guarantees. Check that on the primal rather than trusting the
+objective, because a solution with subtours would be *cheaper*.
 
-It solves in about two and a half seconds. MTZ's LP relaxation is famously
-weak — that is the price of the formulation being small, and it is why nobody
-solves large instances this way.
+It solves in about two and a half seconds. MTZ's LP relaxation is weak, which is
+the price of a small formulation and why nobody solves large instances this way.
 
 ## What it exercises
 
@@ -245,6 +236,4 @@ solves large instances this way.
 comparing a dimension against a string label, sparsity standing in for an
 `i ≠ j` guard, and `binary` over a two-dimensional index.
 
-No new construct. The honest summary is that the ceiling refuses an
-*algorithm*, not a *problem* — and the corpus is a better place to find that
-out than an argument.
+No new construct. The ceiling refuses an *algorithm*, not a *problem*.

@@ -6,17 +6,17 @@ Converters whose flows share one curve, where **how many flows** is data.
 
 ## The problem
 
-A converter ties its flows together through one operating point: a boiler burns
-fuel to make heat, a CHP unit burns fuel to make heat *and* power. The curve is
-one convex combination per converter, and the number of expressions it ties is a
-property of the system, not of the file — two flows here, three there, and a
-unit with a fourth is a row in a table.
+A converter ties its flows together through one operating point: a boiler
+burns fuel to make heat, a CHP (combined heat and power) unit burns fuel to
+make heat *and* power. The curve is one convex combination per converter. How
+many flows it ties is a property of the system, not of the file: two here,
+three there, and a unit with a fourth is a row in a table.
 
 $$\mathit{rate}_{f,t} = \sum_{k \in \mathcal{K}_{c(f)}} \lambda_{c(f),t,k}\, v_{f,k} \qquad \forall\thinspace f, t$$
 
 [`piecewise:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/) cannot say that: its `links:`
 are a list, so the arity would have to be written out. **The formulation it
-would have emitted is four declarations**, and each is ordinary:
+would have emitted is four ordinary declarations:**
 
 | what | how |
 |---|---|
@@ -276,14 +276,14 @@ lookup does, and it is data.
 
 **The mask is the variable's own.** `where: bp_present` decides which weights
 exist, and an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set is over the
-members present — so the boiler's three-breakpoint curve and the CHP's four sit
+members present, so the boiler's three-breakpoint curve and the CHP's four sit
 on one axis with nothing padded. A solver without SOS gets binaries and big-M
-rows for the same set, which is why `big_m: 1` is there: a weight is at most 1.
+rows for the same set; `big_m: 1` is the bound those rows use, because a weight
+is at most 1.
 
-The comparison is worth reading in the other tab. linopy ties N expressions to
-one basis too — that is what `add_piecewise_formulation` does — but the pairs
-are an argument list, so the arity is written out per converter in a Python
-loop. That loop is what moves into the data here.
+linopy's `add_piecewise_formulation` ties N expressions to one basis too, but
+its pairs are an argument list, so the linopy tab writes the arity out per
+converter in a Python loop. That loop is what moves into the data here.
 
 ---
 

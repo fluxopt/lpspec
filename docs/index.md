@@ -48,7 +48,7 @@ Write the math in YAML, attach data at runtime, solve.
 
     ---
 
-    Every expression, `where` string and even *uncalled* macro template is
+    Every expression, `where` string and *uncalled* macro template is
     parsed and name-checked before a single source is attached. Errors name the
     problem and its rewrite.
 

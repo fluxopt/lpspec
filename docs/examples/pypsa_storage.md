@@ -4,13 +4,13 @@
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **15253.178322993519**, matched to `rtol=1e-09`.
 
-Non-cyclic: the horizon starts at `soc_initial` and its end is free. Closing
-that loop is [cyclic storage](pypsa_cyclic_storage.md), kept separate so it can
-fail on its own.
+Non-cyclic: the horizon starts at `soc_initial` and its end is free.
+[Cyclic storage](pypsa_cyclic_storage.md) closes that loop, kept separate so
+it can fail on its own.
 
-The battery sits at `south`, where the expensive oil generator is. It displaces
-oil **entirely** — every snapshot runs oil at zero — and drains to empty by the
-third, which is what a free end-of-horizon buys you.
+The battery sits at `south`, beside the expensive oil generator. It displaces
+oil entirely: every snapshot runs oil at zero. It drains to empty by the third
+snapshot, which is what a free end of horizon buys.
 
 ## The model
 
@@ -377,19 +377,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **Two efficiencies, on opposite sides of the division.** PyPSA splits a storage
-unit's power into two non-negative variables rather than one signed one,
-precisely so charging and discharging can be derated differently:
-`p_store * efficiency_store` on the way in, `p_dispatch / efficiency_dispatch`
-on the way out.
+unit's power into two non-negative variables rather than one signed one.
+Charging and discharging then derate differently: `p_store * efficiency_store`
+on the way in, `p_dispatch / efficiency_dispatch` on the way out.
 
 **`standing_loss` decays only what was carried over.** PyPSA does not apply it
 to `soc_initial`, so the first snapshot is its own equation rather than a
-carry-over with a seeded value. Applying the loss to the seed as well — a one-token
-change, and the reading most people would call obvious — moves the objective to
-**15272.957445031367**, about 20 out of 15253. Wrong by 0.13%: far too small to
-notice by eye on a plot, far too large to be rounding. That gap is the entire
-argument for checking against somebody else's number instead of against a
-result that merely looks sensible.
+carry-over with a seeded value. Applying the loss to the seed as well, a
+one-token change, moves the objective to **15272.957445031367**. That is wrong
+by 0.13%: too small to see on a plot, too large to be rounding.
 
 ## What it exercises
 
@@ -398,5 +394,5 @@ a five-term `sum(by=)` nodal balance — generators, both ends of every link,
 and both directions of storage, all projected onto `bus`.
 
 It also asks for [#31](https://github.com/fluxopt/lpspec/issues/31) a third
-time: `soc_max` is `p_nom × max_hours` in PyPSA, and a bound here takes a name
+time. `soc_max` is `p_nom × max_hours` in PyPSA, and a bound here takes a name
 or a number, so the product ships as a column.

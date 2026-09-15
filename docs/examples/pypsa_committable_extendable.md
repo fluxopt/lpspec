@@ -6,9 +6,9 @@ A minimum output that is a share of a capacity still being decided: two variable
 
 [Unit commitment](pypsa_unit_commitment.md) holds capacity fixed, so
 `p >= p_min_pu * p_nom * status` is a parameter against a variable and stays
-degree 1. Make the capacity a decision and the same sentence is a product of two
-of them — the one shape in PyPSA's committable machinery that cannot be written
-down as it reads.
+degree 1. Make the capacity a decision and the same row is a product of two
+variables. That is the one shape in PyPSA's committable machinery that cannot
+be written as it reads.
 
 PyPSA's answer is three rows and a constant *M* (`constraints.py:304`):
 
@@ -19,9 +19,10 @@ PyPSA's answer is three rows and a constant *M* (`constraints.py:304`):
 | `p - p_nom <= 0` | the capacity limit, committed or not |
 
 *M* is not free. PyPSA takes `p_nom_max * p_max_pu` where a maximum is declared
-and otherwise **infers a scale from the network** — which is what
-`create_model(committable_big_m=...)` exists to override. This instance declares
-`p_nom_max`, so *M* is 100 on both sides: the port passes that number as data.
+and otherwise **infers a scale from the network**, which
+`create_model(committable_big_m=...)` overrides. This instance declares
+`p_nom_max`, so *M* is 100 on both sides, and the port passes that number as
+data.
 
 ## The model
 
@@ -260,26 +261,23 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **The commitment binds, and the relaxation says by how much.** `flex` builds 75
-and runs 75, 30, 75, 0: at snapshot 1 it sits exactly on its floor
-(`0.4 × 75 = 30`), and at snapshot 3 the load of 20 is below that floor, so it
+and runs 75, 30, 75, 0. At snapshot 1 it sits exactly on its floor
+(`0.4 × 75 = 30`). At snapshot 3 the load of 20 is below that floor, so it
 shuts off and `peak` covers. Relax the status to `[0, 1]` on the same rows and
-the answer drops to **18200.0** — a third of a power station committed, which is
-what the integrality is worth here.
+the answer drops to **18200.0**, with a third of a power station committed. That
+gap is what the integrality is worth here.
 
-**The big-M is written, not inferred, and that is the ergonomics finding.**
-`big_m` is a parameter like any other, and its *presence* is what marks a unit as
-committed — the `status` variable and the two commitment rows carry
-`where: big_m`. Passing the number costs one column and reads as data, which is
-what PyPSA already asks of its own users. What it does not do is check that the
-number is large enough: too small a *M* silently cuts the feasible set, exactly
-as it would in PyPSA, and [#220](https://github.com/fluxopt/lpspec/issues/220)
-is the language half — a big-M derived from the declared `p_nom_max` rather than
-supplied beside it.
+**The big-M is written, not inferred.** `big_m` is a parameter like any other,
+and its *presence* marks a unit as committed. The `status` variable and the two
+commitment rows carry `where: big_m`. Nothing checks that the number is large
+enough. Too small an *M* silently cuts the feasible set, as it would in PyPSA.
+[#220](https://github.com/fluxopt/lpspec/issues/220) asks for a big-M derived
+from the declared `p_nom_max` rather than supplied beside it.
 
 ## PyPSA's own relaxation of this model is not a relaxation
 
 Running the same instance with `linearized_unit_commitment=True` reaches
-**32100.0** — *above* the integer 21700.0, with `flex` pinned off in every
+**32100.0**, *above* the integer 21700.0, with `flex` pinned off in every
 snapshot:
 
 ```
@@ -287,11 +285,11 @@ Generator-com-p-current:       +1 Generator-p[2, flex] - 0 Generator-status[2, f
 Generator-com-partly-start-up: +1 Generator-p[2, flex] - 1 Generator-p[1, flex] - 0 Generator-status[2, flex] <= -0.0
 ```
 
-The tightening block PyPSA adds where start-up and shut-down costs match is built
-from the `p_nom` **column**, which is 0 for a unit not yet built, so every
+The tightening block PyPSA adds where start-up and shut-down costs match is
+built from the `p_nom` **column**, which is 0 for a unit not yet built. Every
 coefficient collapses and the rows read `p <= 0`. Filed as
-[#989](https://github.com/fluxopt/lpspec/issues/989) to report upstream. It is
-why the relaxation quoted above is taken on the port's own model instead.
+[#989](https://github.com/fluxopt/lpspec/issues/989) to report upstream. That
+is why the relaxation above is taken on the port's own model instead.
 
 ## What it exercises
 

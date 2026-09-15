@@ -5,16 +5,12 @@ A unit may be committed by a third. PyPSA ships this as a mode, not as a debuggi
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **5540.0**, matched to `rtol=1e-09`.
 
 [Unit commitment](pypsa_unit_commitment.md) is a MILP. Its linear relaxation
-keeps every constraint exactly where it is and declares the status and the two
-transition variables in [0, 1] instead of {0, 1}. The interesting question is
-not whether the relaxation is expressible — it obviously is — but whether the
-model file can say *both* without duplicating a single row.
-
-It can: three `domain:` lines carry the whole relaxation, and every row the two
-models share is byte-identical. They part company in one place, and not over
-integrality — this instance starts every unit off, where the integer port takes
-PyPSA's default of a unit already running, so the first snapshot's two
-transition rows are not the same two rows.
+keeps every constraint where it is and declares the status and the two
+transition variables in [0, 1] instead of {0, 1}. Three `domain:` lines carry
+the whole relaxation, and every row the two models share is byte-identical.
+They part company in one place, and not over integrality. This instance starts
+every unit off, where the integer port takes PyPSA's default of a unit already
+running, so the first snapshot's two transition rows differ.
 
 ## The model
 
@@ -263,34 +259,30 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         return n
     ```
 
-**A bound, not an approximation to be trusted.** The relaxed statuses come out
-at 0.3, 0.9, 0.8 and 0.8 — a third of a power station — and the same instance
-solved as a MILP costs **11900.0** against this **5540.0**. Less than half. The
-gap is what a minimum-output constraint is worth once you are allowed to commit
-a fraction of a unit, and it is worth seeing on a model this small.
+**A bound, not an approximation to trust.** The relaxed statuses come out at
+0.3, 0.9, 0.8 and 0.8, a third of a power station. The same instance solved as
+a MILP costs **11900.0** against this **5540.0**, less than half. The gap is
+what a minimum-output constraint is worth once a fraction of a unit may be
+committed.
 
 **This is the only committable model in the corpus with duals.** Integrality
-makes a dual solution undefined, so `pypsa_unit_commitment` and
-[minimum up and down times](pypsa_min_up_down.md) both record an objective and
-nothing else. Relaxing the status turns the model back into an LP, which is most
-of why the mode exists — and so this port records a price vector too.
+leaves a dual solution undefined, so `pypsa_unit_commitment` and
+[minimum up and down times](pypsa_min_up_down.md) record an objective and
+nothing else. Relaxing the status turns the model back into an LP, which is
+most of why the mode exists, so this port records a price vector too.
 
-**`base` carries deliberately unequal start-up and shut-down costs.** PyPSA
-tightens the relaxation with an extra dispatch-limit block wherever a
-generator's two costs *match*, and that block reaches for the ramp-limit
-parameters — a second feature. So `base` is left untightened, and PyPSA logs
-that it is proceeding without it. `peak` is not: its two costs are both zero, so
-PyPSA does emit the tightening there — four blocks of three rows this port has
-not got. Every one of them collapses to a row the port already holds, because
-`p_min_pu` is 0 and there are no ramp limits: `p ≤ p_nom · status`, or that same
-row differenced against the snapshot before. Which is why the objective and the
-price vector still agree to `rtol=1e-09` — the two are the same model here by
-redundancy, not row for row.
+**`base` carries unequal start-up and shut-down costs.** PyPSA tightens the
+relaxation with an extra dispatch-limit block wherever a generator's two costs
+match. That block reaches for the ramp-limit parameters, a second feature. So
+`base` is left untightened, and PyPSA logs that it is proceeding without
+it. `peak` has two costs of zero, so PyPSA does emit the tightening there:
+four blocks of three rows this port does not hold. Each collapses to a row the
+port already has, because `p_min_pu` is 0 and there are no ramp limits:
+`p ≤ p_nom · status`, or that row differenced against the snapshot before. The
+objective and the price vector therefore agree to `rtol=1e-09`; the two are
+the same model by redundancy, not row for row.
 
 ## What it exercises
 
-That integrality is **one declaration on a variable** and nothing above it
-cares. Every row the two ports share is byte-identical, and `domain: binary`
-against a `[0, 1]` bound is the whole of the relaxation; what else differs is
-the first snapshot's initial conditions, which are an instance choice rather
-than a consequence of relaxing anything.
+Integrality as one declaration on a variable, with nothing above it caring:
+`domain: binary` against a `[0, 1]` bound is the whole of the relaxation.

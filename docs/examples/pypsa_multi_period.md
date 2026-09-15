@@ -4,14 +4,12 @@ A build year and a lifetime decide which rows an asset appears in, and each peri
 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **85300.0**, matched to `rtol=1e-09`.
 
-The corpus has a [multi-period](multi_period.md) model already, but not PyPSA's
-version of it: no build years, no lifetimes, no discounting, and no asset that
-exists in one period and not the next. This model is those four.
+The [multi-period](multi_period.md) model has no build years, no lifetimes, no
+discounting, and no asset that exists in one period and not the next. This
+model is those four, as PyPSA writes them.
 
-Three generators, one of each case. `coal` is built in 2030 with a lifetime of
-5 and has retired by 2040; `gas` is built in 2030 and lives through both;
-`wind` is built in 2040 and exists in no row before it. All three are built and
-all three run, so none is decoration.
+Three generators, one of each case. All three are built and all three run, so
+none is decoration.
 
 | | build year | lifetime | exists in | capacity built |
 |---|---|---|---|---|
@@ -239,9 +237,9 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **Capacity is paid for once per period the asset stands in.** `gas` is active in
-both, so its capital cost enters twice — at 1.0 for 2030 and 0.7 for 2040 —
-while `coal` pays once and `wind` pays once, discounted. That is what
-`p_nom * capex * activity * period_weight` says: the term is summed over the
+both, so its capital cost enters twice, at 1.0 for 2030 and 0.7 for 2040.
+`coal` pays once and `wind` pays once, discounted. That is what
+`p_nom * capex * activity * period_weight` says. The term is summed over the
 `(period, generator)` pairs the activity table holds, which is PyPSA's
 `weighted_cost` loop over `investment_period_weightings.objective`
 (`optimize.py:322`) written as one product.
@@ -249,25 +247,21 @@ while `coal` pays once and `wind` pays once, discounted. That is what
 **The other weighting does not reach the objective.**
 `investment_period_weightings.years` is 10 for both periods here and changes
 nothing, because `capital_cost` is given directly rather than annuitised from an
-`overnight_cost` (`costs.py:119`). Worth knowing before reading a PyPSA
-objective and expecting to find the decade in it — the port carries no `years`
-parameter for exactly that reason.
+`overnight_cost` (`costs.py:119`). The port carries no `years` parameter.
 
-**A retired asset is pinned, not absent — the one place the port and PyPSA
-differ in shape.** PyPSA gives `coal` no dispatch variable in 2040 at all
+**A retired asset is pinned, not absent**, the one place the port and PyPSA
+differ in shape. PyPSA gives `coal` no dispatch variable in 2040 at all
 (`Generator-p` is masked to the active pairs). The port keeps the variable and
 multiplies its capacity bound by the activity read down through the period
-lookup, so `p <= p_nom * 0` holds it at zero. Same optimum, same duals — a
-variable pinned to `[0, 0]` contributes nothing — but not the same model on
+lookup, so `p <= p_nom * 0` holds it at zero. Same optimum and same duals, since
+a variable pinned to `[0, 0]` contributes nothing, but not the same model on
 paper.
 
 Writing the absence exactly would need `where: at(activity, by=period_of)` on
 the variable, and a `where:` cannot call `at()`: its grammar compares a name
-against a literal. A second table keyed by `(snapshot, generator)` would work
-and would state one fact twice, which is worse. So this model is a live consumer
-of [#982](https://github.com/fluxopt/lpspec/issues/982), which asks whether a
-mask may read a parameter one declared lookup away — or whether the pin is the
-answer.
+against a literal. A second table keyed by `(snapshot, generator)` would state
+one fact twice. [#982](https://github.com/fluxopt/lpspec/issues/982) asks
+whether a mask may read a parameter one declared lookup away.
 
 ## What it exercises
 

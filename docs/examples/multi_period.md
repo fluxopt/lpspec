@@ -11,14 +11,14 @@ $$p_{t,g} \quad\le\quad \hat p_{\thinspace\mathrm{period}(t),\thinspace g}$$
 
 Two dimensions cannot state this at the resolution a real study wants.
 `period × snapshot` is a **rectangle**, so every period gets the same number of
-snapshots — and a study that models 2030 hourly and 2050 in four-hour blocks is
-asking for exactly the opposite.
+snapshots. A study that models 2030 hourly and 2050 in four-hour blocks wants
+the opposite.
 
 So `snapshot` is one flat dimension carrying $\mathrm{period}$ as a
-[lookup](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#lookups), the same way `generator`
+[lookup](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#lookups), as `generator`
 carries $\mathrm{bus}$ in [transport](transport.md). Ragged periods then cost
 nothing: a lookup is a per-row column, and four snapshots in 2030 beside two in
-2050 is just a column with four of one value and two of another.
+2050 is a column with four of one value and two of another.
 
 ## Both directions of one mapping
 
@@ -36,13 +36,12 @@ within_cap:
   expression: p <= at(p_nom, by=period_of)
 ```
 
-`at` and `sum(by=)` take the same one argument because the lookup names one
-mapping table and the operator says which direction it is walked.
+`at` and `sum(by=)` take the same argument: the lookup names one table, and
+the operator says which direction it is walked.
 
-A per-period **parameter** needs neither: data prep can join it onto the
-snapshot index before the model sees it. `p_nom` is a **variable**, and a
-variable is not data to be joined — which is the line between the two, and why
-the pullback is a construct in the language rather than a step before it.
+A per-period **parameter** needs neither: join it onto the snapshot index
+before the model sees it. `p_nom` is a **variable**, which no join can reach,
+so the pullback is a construct in the language.
 
 <!-- math:begin -->
 <details markdown="1">
@@ -216,19 +215,20 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 ## Reading the answer
 
-Costs are chosen so each period picks a different technology, which is what
-makes the per-period capacity visible rather than incidental:
+On the smaller instance `tests/test_at.py` holds, costs are chosen so each
+period picks a different technology, which makes the per-period capacity
+visible:
 
 | period | wind | gas |
 |---|---|---|
 | 2030 | 20 | 10 |
 | 2050 | 60 | 0 |
 
-2030 peaks at 30 and splits the build — wind is dearer to install but free to
+2030 peaks at 30 and splits the build: wind is dearer to install but free to
 run. 2050 peaks at 60 with every snapshot weighted four times, so the operating
 term dominates and the whole build goes to wind. Objective **750.0**, agreed
 integer for integer by both lanes.
 
-The weights are the reason the two periods are comparable at all: a coarse
-snapshot standing for four hours contributes four hours of operating cost, so a
-period is not made cheap by being modelled coarsely.
+The weights make the two periods comparable: a coarse snapshot standing for
+four hours contributes four hours of operating cost, so a period is not made
+cheap by being modelled coarsely.
