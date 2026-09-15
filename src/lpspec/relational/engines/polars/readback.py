@@ -8,6 +8,7 @@ import polars as pl
 from math_spec import program
 
 from lpspec.errors import DataError, LpspecError, sparse_divisor_message, unknown_name_message
+from lpspec.relational.collect import polars_engine
 from lpspec.relational.engines.polars import labels
 from lpspec.relational.engines.polars.fragments import absence_restrictions
 from lpspec.relational.result import ConstraintRow
@@ -330,6 +331,6 @@ def expression_frame(name: str, expr: program.ExpressionNode, compiler: PolarsCo
     dims = compiler.spanned(fragments)
     carrier = labels.frame(compiler, dims, None, _EXPRESSION_ROW, 0, absence_restrictions(fragments)).lazy()
     added = compiler.added(fragments, carrier, fill=True)
-    out = added.select(_EXPRESSION_ROW, *dims, pl.col('cval').alias('value')).collect(engine='streaming')
+    out = added.select(_EXPRESSION_ROW, *dims, pl.col('cval').alias('value')).collect(engine=polars_engine())
     ordered = labels.in_position_order(out, _EXPRESSION_ROW).drop(_EXPRESSION_ROW)
     return ordered.with_columns(pl.col(d).cast(pl.String) for d in string_dims(compiler.data, dims))

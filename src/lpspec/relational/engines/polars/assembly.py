@@ -19,6 +19,7 @@ from math_spec import program
 
 from lpspec.errors import DataError, null_bounds_message, sparse_divisor_message, uncovered_constant_message
 from lpspec.relational import sinks
+from lpspec.relational.collect import polars_engine
 from lpspec.relational.engines.polars import labels
 from lpspec.relational.engines.polars.compiler import PolarsCompiler
 from lpspec.relational.engines.polars.fragments import (
@@ -261,7 +262,7 @@ class Assembly:
             coefficient is zero owns no entries and is not thereby a row with
             no terms.
         """
-        stacked = pl.concat(pieces).collect(engine='streaming').rechunk()
+        stacked = pl.concat(pieces).collect(engine=polars_engine()).rechunk()
         self._refuse_undefined_divisors(stacked, name, *expressions)
         pruned = _pruned(stacked)
         term_rows = stacked.get_column('row').unique() if pruned.height != stacked.height else None
@@ -284,7 +285,7 @@ class Assembly:
             .group_by('row', 'col')
             .agg(pl.col('coeff').sum())
             .sort('row', 'col')
-            .collect(engine='streaming')
+            .collect(engine=polars_engine())
         )
         return _pruned(aggregated), term_rows if term_rows is not None else _ordered_rows(aggregated)
 
@@ -314,7 +315,7 @@ class Assembly:
         bounded = labels.in_position_order(
             self.compiler.bounds(labelled.lazy(), name, v)
             .select('var_label', pl.col('lb').cast(pl.Float64), pl.col('ub').cast(pl.Float64))
-            .collect(engine='streaming'),
+            .collect(engine=polars_engine()),
             'var_label',
         )
         cols = bounded.select('lb', 'ub', pl.lit(v.domain, dtype=_DTYPES['vtype']).alias('vtype'))
@@ -365,7 +366,7 @@ class Assembly:
             ((place // span) * stride + place % stride).alias('#set position'),
             ((place // stride) % cardinality[s.over] + 1).cast(_DTYPES['weight']).alias('weight'),
             col.cast(_DTYPES['col']).alias('col'),
-        ).collect(engine='streaming')
+        ).collect(engine=polars_engine())
 
         position = pl.col('#set position')
         grouped = placed if placed.get_column('#set position').is_sorted() else placed.sort('#set position', 'weight')
@@ -453,7 +454,7 @@ class Assembly:
             pl.lit(c.sense, dtype=SENSE).alias('sense'),
             accumulated.cast(pl.Float64).alias('rhs'),
             *([uncovered.alias(gap_column)] if uncovered is not None else []),
-        ).collect(engine='streaming')
+        ).collect(engine=polars_engine())
 
         if uncovered is not None:
             gaps = int(rows.get_column(gap_column).sum())
@@ -593,14 +594,14 @@ class Assembly:
             )
             for p, sign in quads
         ]
-        stacked = pl.concat(pieces).collect(engine='streaming')
+        stacked = pl.concat(pieces).collect(engine=polars_engine())
         self._refuse_undefined_divisors(stacked, f"constraint '{name}'", c.lhs, c.rhs)
         return _without_zeros(
             stacked.lazy()
             .group_by('row', 'col_l', 'col_r')
             .agg(pl.col('coeff').sum())
             .sort('row', 'col_l', 'col_r')
-            .collect(engine='streaming')
+            .collect(engine=polars_engine())
         )
 
     def _drop_termless_rows(
@@ -671,10 +672,10 @@ class Assembly:
         pieces = [
             p.frame.select(pl.col('var_label').cast(_DTYPES['col']).alias('col'), pl.col('coeff')) for p in comp.terms
         ]
-        stacked = pl.concat(pieces).collect(engine='streaming')
+        stacked = pl.concat(pieces).collect(engine=polars_engine())
         self._refuse_undefined_divisors(stacked, 'objective', o.expression)
         if _repeats_a_label(stacked.get_column('col'), self.n_cols):
-            stacked = stacked.lazy().group_by('col').agg(pl.col('coeff').sum()).collect(engine='streaming')
+            stacked = stacked.lazy().group_by('col').agg(pl.col('coeff').sum()).collect(engine=polars_engine())
         objective = _without_zeros(stacked)
         self.measured.objective_range = _magnitude_range(objective, 'coeff')
         return objective
@@ -698,10 +699,12 @@ class Assembly:
         if not quads:
             return None
         pieces = [p.frame.select(*_ordered_pair(), pl.col('coeff')) for p in quads]
-        stacked = pl.concat(pieces).collect(engine='streaming')
+        stacked = pl.concat(pieces).collect(engine=polars_engine())
         self._refuse_undefined_divisors(stacked, 'objective', expression)
         if stacked.select(pl.struct('col_l', 'col_r').n_unique()).item() != stacked.height:
-            stacked = stacked.lazy().group_by('col_l', 'col_r').agg(pl.col('coeff').sum()).collect(engine='streaming')
+            stacked = (
+                stacked.lazy().group_by('col_l', 'col_r').agg(pl.col('coeff').sum()).collect(engine=polars_engine())
+            )
         return _without_zeros(stacked.sort('col_l', 'col_r'))
 
 
