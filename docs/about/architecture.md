@@ -548,6 +548,7 @@ is structure.
 | `archive.py` | above the runner and the fold: `load_archive` / `scan_archive` and the two values they give back, `SolveArchive` and `SweepArchive`. It reads; it never writes |
 | `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `LANES`, what each lane can build, read by `check` without the extra |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
+| `assumptions.py` | an `assumptions:` block checked at the door: every entry's `holds` evaluated where its `where` admits, through the relational lane's predicate compiler, and the data refused in the language's own words at the first coordinate it fails |
 | `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `lps.`; a wording lives here only where two modules raise it |
