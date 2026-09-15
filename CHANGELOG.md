@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.331](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.330...v0.0.1-alpha.331) (2026-09-15)
+
+
+### Features
+
+* **language:** a variable, a constraint and a cased expression declare their shape as dims, as a parameter does ([#1634](https://github.com/fluxopt/lpspec/issues/1634)) ([7bdcdeb](https://github.com/fluxopt/lpspec/commit/7bdcdeb85b0702d91cb42eae1b18e9541a322b08))
+
 ## [0.0.1-alpha.330](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.329...v0.0.1-alpha.330) (2026-09-15)
 
 
