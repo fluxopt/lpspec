@@ -1,35 +1,28 @@
-"""The archive's layout: what holds a spec, its data and its answer, as a zip or a directory.
+"""The archive's layout: a spec, its data and its answer as a directory, or that directory zipped.
 
 ``model.yaml``, one ``sources/<key>.parquet`` per key the file declares,
-``answer/`` in the layout both answers already save, and ``axis.json`` where
-the sources are cut. The same members either way — a zip is the directory
-packed, which is why one of them is read where it lies and the other has to be
-unpacked first.
-
-Below :mod:`lpspec.api` and :mod:`lpspec.strategy`, which write archives;
-:mod:`lpspec.archive` sits above all three and reads what is written here.
+``sources.parquet`` digesting them, ``answer/`` in the layout both answers
+save, and ``axis.json`` where the sources are cut. A directory archive is read
+where it lies; a zip is unpacked first.
 """
 
 from __future__ import annotations
 
-import io
 import json
 import shutil
 import tempfile
 import zipfile
 from contextlib import contextmanager
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
 from lpspec.errors import LayoutError
-from lpspec.lanes import lowered
-from lpspec.relational.parquet import METRICS_FILE, RECORD_FILE, consolidated, digest_of_bytes, digest_of_file
-from lpspec.sources import supplied, tidy_sources
+from lpspec.relational.parquet import METRICS_FILE, RECORD_FILE, consolidated, digest_of_file
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Iterable, Iterator, Mapping
 
     from math_spec import Spec
 
@@ -39,22 +32,14 @@ if TYPE_CHECKING:
 #: archive holds, a sweep being the one whose sources are cut.
 MODEL_MEMBER = 'model.yaml'
 AXIS_MEMBER = 'axis.json'
-#: ``(run, source, digest)`` for every member of ``sources/``, beside that
-#: directory rather than in it — everything under ``sources/`` is a source
-#: table keyed by its stem.
 DIGESTS_MEMBER = 'sources.parquet'
-SOURCES_DIR = PurePosixPath('sources')
-ANSWER_DIR = PurePosixPath('answer')
+SOURCES_DIR = 'sources'
+ANSWER_DIR = 'answer'
 
 
 @contextmanager
 def beside(out: Path) -> Iterator[Path]:
-    """A scratch directory on the filesystem *out* will land on, gone when the block ends.
-
-    Where a caller has to lay an answer out before it is packed. The archive's
-    own directory is made first, so the scratch and the file it feeds share a
-    filesystem and the pack is a copy rather than a move across devices.
-    """
+    """A scratch directory beside *out*, gone when the block ends, where an answer is laid out before it is packed."""
     out.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=out.parent) as scratch:
         yield Path(scratch)
@@ -63,26 +48,23 @@ def beside(out: Path) -> Iterator[Path]:
 def check_the_target(out: Path) -> None:
     """Refuse a directory target that already holds something, before anything is solved.
 
-    Called both where the archive is asked for and where it is written. A
-    ``.zip`` target is replaced; a non-empty directory target is refused,
-    since a directory archive is written whole rather than merged.
+    A ``.zip`` target is replaced; a directory archive is written whole rather
+    than merged into what is there.
     """
     if out.suffix != '.zip' and out.is_dir() and any(out.iterdir()):
         raise LayoutError(
             f'{str(out)!r} already holds something, and a directory archive is written whole rather than '
             f'merged into what is there. Name a directory that does not exist, or delete this one. A .zip '
-            f'target is replaced instead, one file over another being a single step.'
+            f'target is replaced instead.'
         )
 
 
 def _staging_for(out: Path) -> Path:
     """A staging directory of this writer's own, beside *out*.
 
-    Unique rather than derived from *out*: two writers archiving to one path
-    would otherwise share a staging area, and the second to open it would clear
-    the first's members, leaving a torn archive to be renamed into place and
-    reported as written. Beside *out* so landing it is a rename rather than a
-    copy across devices.
+    One per writer: two writers archiving to one path would otherwise share a
+    staging area, and the second to open it would clear the first's members.
+    Beside *out* so landing it is a rename rather than a copy across devices.
     """
     out.parent.mkdir(parents=True, exist_ok=True)
     return Path(tempfile.mkdtemp(dir=out.parent, prefix=out.name + '.'))
@@ -93,200 +75,98 @@ def write_archive(
     spec: Spec,
     sources: Mapping[str, Source],
     *,
-    checked: Mapping[str, Source],
-    whole: Mapping[str, pl.LazyFrame],
+    tables: Mapping[str, pl.LazyFrame],
     axis: Mapping[str, Any] | None,
-    answer: Path | None,
+    answer: Path,
 ) -> Path:
-    """Write a spec, its data and its answer to *out* — one zip, or a directory.
-
-    **The suffix decides**, as :func:`~lpspec.api.write`'s does: ``.zip`` packs
-    the layout into one file, and anything else lays the same members out in a
-    directory. A directory is read where it lies, because the parquet files are
-    already where a scan needs them; a zip has to be unpacked first.
+    """Write a spec, its data and its answer to *out*: a directory, or one zip where the suffix is ``.zip``.
 
     Args:
-        out: Where to write, ``.zip`` or a directory. Its parent is made if it
-            does not exist.
+        out: Where to write. Its parent is made if it does not exist.
         spec: The spec as written, held as ``model.yaml``.
-        sources: What was attached, keyed as the file declares, and the whole
-            of what the archive holds. A parquet path is copied as its own
-            bytes; anything else is written as the tidy table it stands for.
-            A name *checked* carries and this does not is one the axis made,
-            such as a window's local index, and is not written: the axis in
-            the archive makes it again.
-        checked: The sources the declarations are checked against — all of
-            them for one solve, one slice for a sweep, whose whole sources
-            carry a column the model does not declare.
-        whole: What to write instead of the checked frame, which is how a
-            sliced source reaches the archive carrying every slice's rows.
+        sources: What was attached, keyed as the file declares. A parquet path
+            is copied as its own bytes; anything else is written as *tables*
+            has it.
+        tables: The tidy table each source stands for, for every source that
+            is not a path.
         axis: The axis manifest, or ``None`` where the sources are not cut.
-        answer: A directory already holding the answer's own layout — a spill,
-            or one :func:`beside` handed the caller — or ``None``.
+        answer: A directory holding the answer's own layout. Its record and
+            metrics, which a spill writes per slice, land as one file each,
+            stamped with the archive's name.
 
     Returns:
-        *out*, which lands whole or not at all: it is built under a
-        neighbouring name and renamed into place, so a write that does not
-        finish leaves nothing under either.
-
-    Raises:
-        LanguageError: A model the language does not accept.
-        DataError: A source that is missing, unreadable or the wrong shape.
-        LayoutError: A directory target that already holds something.
+        *out*, which lands whole or not at all: it is built beside its name
+        and renamed into place.
     """
-    check_the_target(out)
-    program = lowered(spec)
-    frames = supplied(program, tidy_sources(program, checked))
+    zipped = out.suffix == '.zip'
+    run = out.name.removesuffix('.zip')
     staging = _staging_for(out)
     part = staging / out.name
-    members = _Members.under(part, zipped=out.suffix == '.zip')
+    tree = staging / 'tree' if zipped else part
     try:
-        run = out.name.removesuffix('.zip')
-        members.put(MODEL_MEMBER, spec.to_yaml().encode())
+        (tree / SOURCES_DIR).mkdir(parents=True)
+        (tree / MODEL_MEMBER).write_bytes(spec.to_yaml().encode())
         digests: dict[str, str] = {}
-        for name, frame in frames.items():
-            if name not in sources:
-                continue
-            member = str(SOURCES_DIR / f'{name}.parquet')
-            given = sources[name]
+        for name, given in sources.items():
+            member = tree / SOURCES_DIR / f'{name}.parquet'
             if isinstance(given, (str, Path)):
-                members.copy(Path(given), member)
-                digests[name] = digest_of_file(Path(given))
+                shutil.copyfile(given, member)
             else:
-                buffer = io.BytesIO()
-                whole.get(name, frame).collect().write_parquet(buffer, compression='zstd')
-                encoded = buffer.getvalue()
-                members.put(member, encoded)
-                digests[name] = digest_of_bytes(encoded)
-        members.put(DIGESTS_MEMBER, _digest_table(digests, run=run))
+                tables[name].collect().write_parquet(member, compression='zstd')
+            digests[name] = digest_of_file(member)
+        _digest_table(digests, run).write_parquet(tree / DIGESTS_MEMBER)
         if axis is not None:
-            members.put(AXIS_MEMBER, json.dumps(axis).encode())
-        if answer is not None:
-            _put_the_answer(members, answer, run=run)
-        members.close()
+            (tree / AXIS_MEMBER).write_text(json.dumps(axis))
+        _copy_the_answer(answer, tree / ANSWER_DIR, run)
+        if zipped:
+            _pack(tree, part)
     except BaseException:
-        members.discard()
         shutil.rmtree(staging, ignore_errors=True)
         raise
-    if out.suffix != '.zip' and out.is_dir():
+    if not zipped and out.is_dir():
         out.rmdir()
     part.replace(out)
-    staging.rmdir()
+    shutil.rmtree(staging)
     return out
 
 
-def _digest_table(digests: Mapping[str, str], *, run: str) -> bytes:
-    """``(run, source, digest)`` as parquet bytes, in source order.
-
-    Sorted so one model's data digests to one table whoever assembled the
-    sources, a mapping's order being the caller's and not the model's.
-
-    Stamped with *run* so a table read across a directory of archives says
-    which one each row came from; the run leads rather than trails, as the
-    column every row of one archive shares.
-    """
-    frame = pl.DataFrame(
-        {
-            'run': [run] * len(digests),
-            'source': sorted(digests),
-            'digest': [digests[name] for name in sorted(digests)],
-        },
+def _digest_table(digests: Mapping[str, str], run: str) -> pl.DataFrame:
+    """``(run, source, digest)`` in source order, so one model's data digests to one table whoever assembled it."""
+    names = sorted(digests)
+    return pl.DataFrame(
+        {'run': [run] * len(names), 'source': names, 'digest': [digests[name] for name in names]},
         schema={'run': pl.String, 'source': pl.String, 'digest': pl.String},
     )
-    buffer = io.BytesIO()
-    frame.write_parquet(buffer)
-    return buffer.getvalue()
 
 
-def _put_the_answer(members: _Members, answer: Path, *, run: str) -> None:
-    """*answer*'s layout into *members*, its record consolidated and stamped with *run*.
-
-    The frames are copied as they lie — a spilled sweep is archived without
-    being re-materialised. The record and the metrics, which a spill writes
-    one file per slice, are consolidated to one file each and stamped with
-    *run*, so a table concatenated across a warehouse of archives attributes
-    each row.
-    """
+def _copy_the_answer(answer: Path, into: Path, run: str) -> None:
+    """*answer*'s layout under *into*, its record and metrics as one file each, stamped with *run*."""
     consolidating = (RECORD_FILE, METRICS_FILE)
+    apart = {*consolidating, *(file.removesuffix('.parquet') for file in consolidating)}
+    shutil.copytree(answer, into, ignore=lambda at, names: apart & set(names) if Path(at) == answer else set())
     for file in consolidating:
         stamped = consolidated(answer, file).with_columns(pl.lit(run, dtype=pl.String).alias('run'))
-        buffer = io.BytesIO()
-        stamped.write_parquet(buffer, compression='zstd')
-        members.put(str(ANSWER_DIR / file), buffer.getvalue())
-    apart = {*consolidating, *(file.removesuffix('.parquet') for file in consolidating)}
-    for path in sorted(answer.rglob('*')):
-        if path.is_file() and path.relative_to(answer).parts[0] not in apart:
-            members.copy(path, str(ANSWER_DIR / path.relative_to(answer).as_posix()))
+        stamped.write_parquet(into / file, compression='zstd')
 
 
-class _Members:
-    """Somewhere to put the layout's members, whether that is a zip or a directory.
-
-    Everything lands inside the caller's staging directory so the real one
-    appears whole.
-    """
-
-    def __init__(self, part: Path, archive: zipfile.ZipFile | None) -> None:
-        self._part = part
-        self._archive = archive
-
-    @classmethod
-    def under(cls, part: Path, *, zipped: bool) -> _Members:
-        """A part-file zip, or a part directory ready to be filled."""
-        if zipped:
-            return cls(part, zipfile.ZipFile(part, 'w', compression=zipfile.ZIP_STORED))
-        shutil.rmtree(part, ignore_errors=True)
-        part.mkdir(parents=True)
-        return cls(part, None)
-
-    def put(self, member: str, data: bytes) -> None:
-        """Write *data* as *member*."""
-        if self._archive is not None:
-            self._archive.writestr(member, data)
-            return
-        self._at(member).write_bytes(data)
-
-    def copy(self, file: Path, member: str) -> None:
-        """Copy *file*'s own bytes in as *member*, decoding nothing."""
-        if self._archive is not None:
-            self._archive.write(file, member)
-            return
-        shutil.copyfile(file, self._at(member))
-
-    def close(self) -> None:
-        """Finish the container, leaving the part ready to be renamed."""
-        if self._archive is not None:
-            self._archive.close()
-
-    def discard(self) -> None:
-        """Leave nothing behind, whichever shape was being written."""
-        if self._archive is not None:
-            self._archive.close()
-            self._part.unlink(missing_ok=True)
-            return
-        shutil.rmtree(self._part, ignore_errors=True)
-
-    def _at(self, member: str) -> Path:
-        under = self._part / member
-        under.parent.mkdir(parents=True, exist_ok=True)
-        return under
+def _pack(tree: Path, into: Path) -> None:
+    """*tree* as one zip at *into*, its members stored rather than compressed, parquet being compressed already."""
+    with zipfile.ZipFile(into, 'w', compression=zipfile.ZIP_STORED) as packed:
+        for file in sorted(tree.rglob('*')):
+            if file.is_file():
+                packed.write(file, file.relative_to(tree).as_posix())
 
 
-def opened(path: str | Path, into: Path | None) -> Path:
-    """Where an archive's members are on disk, unpacking it first if it is one file.
-
-    A directory archive is read where it lies: its parquet files are already
-    where a scan needs them, so there is nothing to unpack. A zip needs
-    somewhere writable to unpack into.
+def opened(path: str | Path, into: str | Path | None) -> Path:
+    """Where an archive's members are on disk, unpacking it first if it is a zip.
 
     Args:
         path: The archive, a ``.zip`` or a directory.
         into: Where to unpack a zip, made if it does not exist. Refused for a
-            directory archive, which needs none.
+            directory archive, which is read where it lies.
 
     Returns:
-        The directory the members are in — *into* for a zip, *path* itself for
-        a directory.
+        *path* for a directory archive, *into* for a zip.
 
     Raises:
         LayoutError: A member outside the layout, no ``model.yaml``, a zip
@@ -301,7 +181,7 @@ def opened(path: str | Path, into: Path | None) -> Path:
                 f'{str(held)!r} is a directory archive, so it is read where it lies and into= has nothing to '
                 f'do. Drop into=; it is for unpacking a .zip.'
             )
-        _check_the_layout(held, _members_under(held))
+        _check_the_layout(held, (file.relative_to(held).as_posix() for file in held.rglob('*') if file.is_file()))
         return held
     if into is None:
         raise LayoutError(
@@ -309,44 +189,25 @@ def opened(path: str | Path, into: Path | None) -> Path:
             f'archive is read where it lies and needs none.'
         )
     with zipfile.ZipFile(held) as archive:
-        _check_the_layout(held, [PurePosixPath(name) for name in archive.namelist() if not name.endswith('/')])
+        _check_the_layout(held, (name for name in archive.namelist() if not name.endswith('/')))
         archive.extractall(into)
-    return into
+    return Path(into)
 
 
-def members_of(under: Path) -> list[PurePosixPath]:
-    """Every member the layout holds, relative to the directory they are in."""
-    return _members_under(under)
-
-
-def _members_under(under: Path) -> list[PurePosixPath]:
-    return [PurePosixPath(file.relative_to(under).as_posix()) for file in sorted(under.rglob('*')) if file.is_file()]
-
-
-def _check_the_layout(named: Path, members: list[PurePosixPath]) -> None:
+def _check_the_layout(named: Path, members: Iterable[str]) -> None:
     """Refuse anything that is not this layout, before a byte is unpacked."""
-    strays = [str(m) for m in members if not _in_the_layout(m)]
-    if strays or PurePosixPath(MODEL_MEMBER) not in members:
-        raise LayoutError(_not_an_archive_message(named, strays))
-
-
-def is_source_member(member: PurePosixPath) -> bool:
-    """Whether *member* is one of the ``sources/`` tables."""
-    return member.parent == SOURCES_DIR and member.suffix == '.parquet'
-
-
-def _in_the_layout(member: PurePosixPath) -> bool:
-    return (
-        member in (PurePosixPath(MODEL_MEMBER), PurePosixPath(AXIS_MEMBER), PurePosixPath(DIGESTS_MEMBER))
-        or is_source_member(member)
-        or ANSWER_DIR in member.parents
-    )
-
-
-def _not_an_archive_message(path: str | Path, strays: list[str]) -> str:
-    found = f'holds {strays}' if strays else "has no 'model.yaml'"
-    return (
-        f'{path} is not an archive: it {found}. One that archive= writes holds exactly '
-        f"'model.yaml', one 'sources/<key>.parquet' per key the file declares, 'sources.parquet' digesting "
-        f"them, 'answer/' holding what the solve returned, and 'axis.json' where its sources are sliced."
-    )
+    found = sorted(members)
+    strays = [
+        member
+        for member in found
+        if member not in {MODEL_MEMBER, AXIS_MEMBER, DIGESTS_MEMBER}
+        and not member.startswith(f'{ANSWER_DIR}/')
+        and not (member.startswith(f'{SOURCES_DIR}/') and member.endswith('.parquet') and member.count('/') == 1)
+    ]
+    if strays or MODEL_MEMBER not in found:
+        what = f'holds {strays}' if strays else f'has no {MODEL_MEMBER!r}'
+        raise LayoutError(
+            f'{named} is not an archive: it {what}. One that archive= writes holds exactly '
+            f"'model.yaml', one 'sources/<key>.parquet' per key the file declares, 'sources.parquet' digesting "
+            f"them, 'answer/' holding what the solve returned, and 'axis.json' where its sources are sliced."
+        )
