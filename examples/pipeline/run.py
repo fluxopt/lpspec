@@ -82,7 +82,7 @@ def solve_scenario(scn: dict, generators: pl.DataFrame, snapshots: pl.DataFrame)
         'name': scn['name'],
         'feasible': True,
         'objective': result.objective,
-        'emissions': float(result.expression('emissions')['value'].sum()),
+        'emissions': float(result.evaluate('emissions')['value'].sum()),
         'peak_price': float(prices['price'].max()),
         'dispatch': dispatch,
         'prices': prices.with_columns(pl.lit(scn['name']).alias('scenario')),
