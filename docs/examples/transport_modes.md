@@ -133,18 +133,18 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       moved:
         description: tonnes sent over a connection
-        foreach: [connection]
+        dims: [connection]
         bounds:
           lower: min_load
           upper: max_load
 
     constraints:
       within_stock:
-        foreach: [depot]
+        dims: [depot]
         expression: sum(moved, by=origin) <= stock
 
       move_the_lot:
-        foreach: []
+        dims: []
         expression: sum(moved, over=connection) == total_to_move
 
     objective:

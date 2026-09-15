@@ -126,7 +126,7 @@ def project(raw: dict[str, Any], parity: dict[str, Any]) -> dict[str, Any]:
     lookups = {n: lk for n, lk in raw.get('lookups', {}).items() if n in mentioned}
     dims: set[str] = set()
     for block in (*variables.values(), *constraints.values()):
-        dims |= set(block.get('foreach', []))
+        dims |= set(block.get('dims', []))
     for p in parameters.values():
         dims |= set(p.get('dims', []))
     for lk in lookups.values():
@@ -146,7 +146,7 @@ def project(raw: dict[str, Any], parity: dict[str, Any]) -> dict[str, Any]:
 
 
 class _Compact(yaml.SafeDumper):
-    """Lists and scalar-only mappings inline — ``foreach: [snapshot, generator]``, ``bounds: {lower: 0}`` — as the file writes them."""
+    """Lists and scalar-only mappings inline — ``dims: [snapshot, generator]``, ``bounds: {lower: 0}`` — as the file writes them."""
 
 
 def _inline_list(dumper: yaml.SafeDumper, data: list) -> yaml.Node:

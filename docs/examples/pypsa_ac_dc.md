@@ -273,59 +273,59 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: generator capacity to hold, built on top of what already stands
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: p_nom_min
       f:
         description: >-
           flow on a line, signed towards its `line_to` bus — not chosen, but whatever
           the voltage law leaves
-        foreach: [snapshot, line]
+        dims: [snapshot, line]
       s_nom:
         description: line capacity to build
-        foreach: [line]
+        dims: [line]
         bounds:
           lower: 0
       g:
         description: >-
           flow on a link, signed towards the bus it delivers at — chosen, which is
           what makes it a link and not a line
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
       link_p_nom:
         description: link capacity to build
-        foreach: [link]
+        dims: [link]
         bounds:
           lower: 0
 
     constraints:
       within_capacity:
         description: a generator produces no more than the built capacity available to it
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= p_nom * p_max_pu
 
       line_upper:
-        foreach: [snapshot, line]
+        dims: [snapshot, line]
         expression: f <= s_nom
       line_lower:
-        foreach: [snapshot, line]
+        dims: [snapshot, line]
         expression: f >= -s_nom
       link_upper:
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         expression: g <= link_p_nom * link_p_max_pu
       link_lower:
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         expression: g >= link_p_nom * link_p_min_pu
 
       nodal_balance:
         description: >-
           what is generated at a bus plus what arrives over the lines and links
           meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(f, by=line_to) - sum(f, by=line_from)
@@ -334,7 +334,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
       kirchhoff_voltage_law:
         description: around each independent cycle the impedance-weighted flows sum to zero
-        foreach: [snapshot, cycle]
+        dims: [snapshot, cycle]
         expression: sum(f * cycle_incidence, over=line) == 0
 
       co2_budget:
@@ -342,7 +342,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           PyPSA's primary-energy constraint — a generator's emissions are its
           output divided by its efficiency, priced at its carrier's rate, and the
           horizon's total stays inside the budget
-        foreach: []
+        dims: []
         expression: >-
           sum(sum(p * at(co2_per_mwh, by=gen_carrier) / efficiency, over=generator), over=snapshot)
           <= co2_limit

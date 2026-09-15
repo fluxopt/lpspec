@@ -196,7 +196,7 @@ class PolarsCompiler:
         """
         declaration = self.program.parameter(param)
         assert not set(declaration.dims) - set(frame_dims), (
-            f'{subject} has dims outside the foreach dims {list(frame_dims)}'
+            f'{subject} has dims outside the frame dims {list(frame_dims)}'
         )
         table = self.data.parameters[param].rename({'value': alias})
         return join_on(frame, table, declaration.dims, how, maintain_order)
@@ -524,7 +524,7 @@ class PolarsCompiler:
         Presence is what makes absence *propagate*, and it is attached only
         where the declaration asks for it — decided before any data is read.
         Two declarations carry none: an unmasked variable, which exists at every
-        coordinate of its foreach and could restrict nothing, and one declaring
+        coordinate of its dims and could restrict nothing, and one declaring
         ``absence: zero``, whose missing coordinates hold a quantity that *is*
         zero rather than one with no value. Both then leave the term simply
         absent from the rows it does not reach, which is the same arithmetic —

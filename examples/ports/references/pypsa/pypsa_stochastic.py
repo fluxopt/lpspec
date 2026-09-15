@@ -23,7 +23,7 @@ variables alone: ``Generator-p`` comes out with dims ``(scenario, name,
 snapshot)`` and ``Generator-p_nom`` with dims ``(name,)``. Capacity is chosen
 once and lives through all three futures; dispatch is chosen after the load is
 known. That is the whole content of the port, and it states it by giving
-``p`` a ``scenario`` in its ``foreach`` and ``p_nom`` none.
+``p`` a ``scenario`` in its ``dims`` and ``p_nom`` none.
 
 **Every objective term is weighted, capital cost included.** ``define_objective``
 splits into ``capex_terms`` and ``opex_terms`` and runs both through

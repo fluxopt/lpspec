@@ -128,7 +128,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
@@ -136,7 +136,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           PyPSA's p0 — flow measured at the link's `link_from` end, so a positive value
           withdraws there and injects at `link_to`
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         bounds:
           lower: neg_rating
           upper: rating
@@ -144,7 +144,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       nodal_balance:
         description: what is generated at a bus plus what arrives over the links meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(f, by=link_to)

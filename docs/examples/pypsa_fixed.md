@@ -152,12 +152,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
       p_nom:
         description: capacity built at a generator
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
           upper: p_nom_max
@@ -165,14 +165,14 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       within_capacity:
         description: a generator produces no more than the capacity built for it
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p <= p_nom
 
       capacity_fixed:
         description: >-
           a generator whose capacity is already decided holds exactly that — the
           row exists only where the table has one
-        foreach: [generator]
+        dims: [generator]
         where: p_nom_set
         expression: p_nom == p_nom_set
 
@@ -180,13 +180,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           a generator scheduled for a snapshot delivers exactly its schedule there,
           and is free everywhere else
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: p_set
         expression: p == p_set
 
       nodal_balance:
         description: what is generated at a bus meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(p, by=gen_bus) == load
 
     objective:

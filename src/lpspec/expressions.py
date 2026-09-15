@@ -35,7 +35,7 @@ def lower(spec: Spec, expression: str | Mapping[str, Any]) -> ExpressionNode:
         spec: The model the expression is written against. It supplies every
             name the expression may use; one it does not declare is refused.
         expression: What one ``expressions:`` entry takes — a string, or the
-            mapping carrying ``cases:`` with ``foreach:`` and ``otherwise:``.
+            mapping carrying ``cases:`` with ``dims:`` and ``otherwise:``.
 
     Returns:
         The node a declared named expression of *spec* lowers to.

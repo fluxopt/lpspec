@@ -13,18 +13,18 @@ parameters:
 variables:
   p:
     description: output of a generator in a snapshot
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds: {lower: 0}
 constraints:
   capacity:
     description: >-
       output is capped by the proposed capacity, derated by availability — and
       its duals are the slope of the optimality cut
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     expression: p <= cap_hat * avail
   balance:
     description: the fleet covers the load in every snapshot
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) >= load
 objective:
   sense: minimize

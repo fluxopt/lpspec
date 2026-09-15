@@ -13,20 +13,20 @@ parameters:
 variables:
   cap:
     description: capacity to build
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0, upper: 100}
   p:
     description: output of a generator in a snapshot
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds: {lower: 0}
 constraints:
   capacity:
     description: output is capped by the capacity built, derated by availability
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     expression: p <= cap * avail
   balance:
     description: the fleet covers the load in every snapshot
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) >= load
 objective:
   sense: minimize

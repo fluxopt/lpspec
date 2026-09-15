@@ -50,8 +50,8 @@ if TYPE_CHECKING:
 SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
     'parameters': {'cost': {'dims': ['f']}, 'cap': {'dims': ['f']}},
-    'variables': {'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-    'constraints': {'k': {'foreach': ['f'], 'expression': 'x <= cap'}},
+    'variables': {'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'constraints': {'k': {'dims': ['f'], 'expression': 'x <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost)'},
 }
 
@@ -251,8 +251,8 @@ def test_a_hole_in_a_scalar_parameter_is_refused_on_both_lanes(tmp_path: Path):
     spec = {
         'dimensions': {'f': {'dtype': 'str'}},
         'parameters': {'rate': {'dims': []}},
-        'variables': {'x': {'foreach': ['f'], 'bounds': {'lower': 0, 'upper': 1}}},
-        'constraints': {'k': {'foreach': ['f'], 'expression': 'x <= 1'}},
+        'variables': {'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 1}}},
+        'constraints': {'k': {'dims': ['f'], 'expression': 'x <= 1'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x * rate)'},
     }
     path = _written(tmp_path, spec)
@@ -266,8 +266,8 @@ def test_a_hole_in_a_scalar_parameter_is_refused_on_both_lanes(tmp_path: Path):
 POSITION_SPEC = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
     'parameters': {'lead': {'dims': ['g'], 'dtype': 'int'}, 'demand': {'dims': ['g', 't']}},
-    'variables': {'x': {'foreach': ['g', 't'], 'bounds': {'lower': 0}}},
-    'constraints': {'c': {'foreach': ['g', 't'], 'expression': 'shift(x, over=t, offset=lead, edge=0) >= demand'}},
+    'variables': {'x': {'dims': ['g', 't'], 'bounds': {'lower': 0}}},
+    'constraints': {'c': {'dims': ['g', 't'], 'expression': 'shift(x, over=t, offset=lead, edge=0) >= demand'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x)'},
 }
 
@@ -303,8 +303,8 @@ def test_whole_numbers_serve_a_float_declaration(tmp_path: Path):
     spec = {
         'dimensions': {'g': {'dtype': 'str'}},
         'parameters': {'cost': {'dims': ['g'], 'dtype': 'float'}},
-        'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 1}}},
-        'constraints': {'k': {'foreach': [], 'expression': 'sum(x, over=g) <= 9'}},
+        'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 1}}},
+        'constraints': {'k': {'dims': [], 'expression': 'sum(x, over=g) <= 9'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(x * cost)'},
     }
     path = _written(tmp_path, spec)
@@ -321,8 +321,8 @@ def test_whole_numbers_serve_a_float_declaration(tmp_path: Path):
 FLAG_SPEC = {
     'dimensions': {'g': {'dtype': 'str'}},
     'parameters': {'active': {'dims': ['g'], 'dtype': 'bool'}},
-    'variables': {'x': {'foreach': ['g'], 'where': 'active', 'bounds': {'lower': 0, 'upper': 1}}},
-    'constraints': {'k': {'foreach': [], 'expression': 'sum(x, over=g) <= 9'}},
+    'variables': {'x': {'dims': ['g'], 'where': 'active', 'bounds': {'lower': 0, 'upper': 1}}},
+    'constraints': {'k': {'dims': [], 'expression': 'sum(x, over=g) <= 9'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
 }
 
@@ -363,8 +363,8 @@ def test_a_bare_where_on_a_string_parameter_asks_whether_it_has_a_row(tmp_path: 
     spec = {
         'dimensions': {'g': {'dtype': 'str'}},
         'parameters': {'fuel': {'dims': ['g'], 'dtype': 'str'}},
-        'variables': {'x': {'foreach': ['g'], 'where': 'fuel', 'bounds': {'lower': 0, 'upper': 1}}},
-        'constraints': {'k': {'foreach': [], 'expression': 'sum(x, over=g) <= 9'}},
+        'variables': {'x': {'dims': ['g'], 'where': 'fuel', 'bounds': {'lower': 0, 'upper': 1}}},
+        'constraints': {'k': {'dims': [], 'expression': 'sum(x, over=g) <= 9'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     path = _written(tmp_path, spec)
@@ -380,8 +380,8 @@ LOOKUP_SPEC = {
     'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
     'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}},
     'parameters': {'p_max': {'dims': ['g']}},
-    'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
-    'constraints': {'k': {'foreach': ['b'], 'expression': 'sum(x, by=gen_bus) <= 10'}},
+    'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
+    'constraints': {'k': {'dims': ['b'], 'expression': 'sum(x, by=gen_bus) <= 10'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
 }
 
@@ -473,7 +473,7 @@ def test_a_lookup_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_pa
     spec = {
         **LOOKUP_SPEC,
         'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
-        'constraints': {'k': {'foreach': ['b'], 'expression': 'sum(x, by=gen_bus) <= 3'}},
+        'constraints': {'k': {'dims': ['b'], 'expression': 'sum(x, by=gen_bus) <= 3'}},
     }
     path = _written(tmp_path, spec)
     clean = {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], b=['n', 'n'])}
@@ -534,8 +534,8 @@ TEMPORAL_LOOKUP_SPEC = {
     'dimensions': {'g': {}, 'd': {'dtype': 'datetime'}},
     'lookups': {'day_of': {'over': 'g', 'into': 'd'}},
     'parameters': {'p_max': {'dims': ['g']}, 'cap': {'dims': ['d']}},
-    'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
-    'constraints': {'k': {'foreach': ['d'], 'expression': 'sum(x, by=day_of) <= cap'}},
+    'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
+    'constraints': {'k': {'dims': ['d'], 'expression': 'sum(x, by=day_of) <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x, over=g)'},
 }
 
@@ -645,7 +645,7 @@ def test_a_series_shallower_than_the_declared_dims_is_refused_on_both_lanes(tmp_
     spec = {
         'dimensions': {'g': {'dtype': 'str'}, 'b': {'dtype': 'str'}},
         'parameters': {'p_max': {'dims': ['g', 'b']}},
-        'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 1}}},
+        'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 1}}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     path = _written(tmp_path, spec)
@@ -690,8 +690,8 @@ def test_an_entity_table_is_a_dimension_index_columns_and_all(tmp_path):
         'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
         'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}},
         'parameters': {'cap': {'dims': ['g']}},
-        'variables': {'x': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-        'constraints': {'k': {'foreach': ['b'], 'expression': 'sum(x, by=gen_bus) <= 100'}},
+        'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+        'constraints': {'k': {'dims': ['b'], 'expression': 'sum(x, by=gen_bus) <= 100'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
     path = _written(tmp_path, spec)

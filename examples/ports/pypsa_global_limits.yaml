@@ -80,38 +80,38 @@ parameters:
 variables:
   p:
     description: output of a generator in a snapshot
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds:
       lower: 0
   p_nom:
     description: capacity built at a generator
-    foreach: [generator]
+    dims: [generator]
     bounds:
       lower: 0
   g:
     description: flow on a link, towards the bus it delivers at
-    foreach: [snapshot, link]
+    dims: [snapshot, link]
     bounds:
       lower: 0
   link_p_nom:
     description: capacity built on a link
-    foreach: [link]
+    dims: [link]
     bounds:
       lower: 0
 
 constraints:
   within_capacity:
     description: a generator produces no more than the built capacity available to it
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     expression: p <= p_nom * p_max_pu
 
   within_link_capacity:
-    foreach: [snapshot, link]
+    dims: [snapshot, link]
     expression: g <= link_p_nom
 
   nodal_balance:
     description: what is generated at a bus plus what arrives over the links meets the load there
-    foreach: [snapshot, bus]
+    dims: [snapshot, bus]
     expression: >-
       sum(p, by=gen_bus)
       + sum(g, by=link_to) - sum(g, by=link_from)
@@ -122,7 +122,7 @@ constraints:
       a carrier with an energy limit delivers no more than it over the horizon —
       the generators are grouped onto the carrier they burn, which is the
       selection PyPSA makes by querying its own table
-    foreach: [carrier]
+    dims: [carrier]
     where: energy_cap
     expression: sum(sum(p, by=gen_carrier), over=snapshot) <= energy_cap
 
@@ -131,7 +131,7 @@ constraints:
       a bus that caps a carrier holds no more of it than that — one grouping
       lands the built capacity on the (bus, carrier) pair the limit is keyed by,
       so no selector column and no mask stand between the two
-    foreach: [bus, carrier]
+    dims: [bus, carrier]
     where: bus_capacity_cap
     expression: sum(p_nom, by=[gen_bus, gen_carrier]) <= bus_capacity_cap
 
@@ -139,14 +139,14 @@ constraints:
     description: >-
       capacity times length, summed over the links — a limit on how much network
       is built, in the unit a planner is granted
-    foreach: []
+    dims: []
     expression: sum(link_p_nom * link_length, over=link) <= volume_cap
 
   transmission_cost:
     description: >-
       the same set weighted by money instead of distance, which is why the two
       limits are not each other: the long link is the cheap one
-    foreach: []
+    dims: []
     expression: sum(link_p_nom * link_capital_cost, over=link) <= expansion_cost_cap
 
 objective:

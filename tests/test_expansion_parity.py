@@ -35,12 +35,12 @@ macros:
     template: sum(array * weights, over=over)
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     where: "p_max > 0"
     bounds: {lower: 0, upper: p_max}
 constraints:
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: total_generation == load
 objective:
   sense: minimize

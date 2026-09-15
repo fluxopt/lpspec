@@ -199,19 +199,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           capacity built at a generator — the first-stage decision, taken before
           anyone knows which future arrived
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
       p:
         description: output of a generator in a snapshot of a future
-        foreach: [scenario, snapshot, generator]
+        dims: [scenario, snapshot, generator]
         bounds:
           lower: 0
       excess:
         description: >-
           how far a future's operating cost runs past the level the tail begins at,
           and zero for the futures that do not reach it
-        foreach: [scenario]
+        dims: [scenario]
         bounds:
           lower: 0
       tail_start:
@@ -219,10 +219,10 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the level the tail begins at — the value at risk, which the epigraph rows
           pin to the alpha quantile of the operating cost rather than the model
           declaring it
-        foreach: []
+        dims: []
       tail_average:
         description: the average operating cost of the futures beyond that level
-        foreach: []
+        dims: []
 
     expressions:
       operating_cost:
@@ -234,19 +234,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           a generator produces no more than the capacity built for it, in every
           snapshot of every future
-        foreach: [scenario, snapshot, generator]
+        dims: [scenario, snapshot, generator]
         expression: p <= p_nom
 
       power_balance:
         description: what runs in this snapshot of this future meets the load there
-        foreach: [scenario, snapshot]
+        dims: [scenario, snapshot]
         expression: sum(p, over=generator) == load
 
       tail_excess:
         description: >-
           a future's excess reaches at least past the level the tail begins at,
           which with the lower bound of zero makes it the positive part
-        foreach: [scenario]
+        dims: [scenario]
         expression: excess >= operating_cost - tail_start
 
       tail_definition:
@@ -255,7 +255,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           excess divided by the tail's own probability, both sides multiplied by that
           probability — the epigraph that makes a quantile average linear, and the
           objective's weight on it is what pulls it tight
-        foreach: []
+        dims: []
         expression: >-
           (1 - alpha) * (tail_average - tail_start)
           >= sum(probability * excess, over=scenario)
@@ -374,7 +374,7 @@ carries that scale; the nodal prices, which is what a PyPSA user reads, do not.
 
 ## What it exercises
 
-Scalar variables and a scalar row (`foreach: []`) beside dimensioned ones, a
+Scalar variables and a scalar row (`dims: []`) beside dimensioned ones, a
 named expression reused in two places — the epigraph rows and the objective — and
 an auxiliary variable bounded below by an expression over *other* variables,
 which is the shape every linearised risk, regret or minimax measure takes. The

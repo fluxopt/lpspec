@@ -37,15 +37,15 @@ CAPPED_BY_REGION = {
         'hi': {'dims': ['t']},
         'cost': {'dims': ['t']},
     },
-    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 1000}}},
+    'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 1000}}},
     'expressions': {
         'cap': {
-            'foreach': ['t'],
+            'dims': ['t'],
             'cases': {'flagged': {'when': 'flag', 'expression': 'hi'}},
             'otherwise': 5,
         }
     },
-    'constraints': {'under_cap': {'foreach': ['t'], 'expression': 'x <= cap'}},
+    'constraints': {'under_cap': {'dims': ['t'], 'expression': 'x <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost)'},
 }
 
@@ -148,7 +148,7 @@ def test_a_region_whose_mask_reads_no_dimension(flagged, objective, reads):
     spec = CAPPED_BY_REGION | {
         'parameters': CAPPED_BY_REGION['parameters'] | {'flag_all': {'dims': [], 'dtype': 'bool'}},
         'expressions': {
-            'cap': {'foreach': ['t'], 'cases': {'flagged': {'when': 'flag_all', 'expression': 'hi'}}, 'otherwise': 5}
+            'cap': {'dims': ['t'], 'cases': {'flagged': {'when': 'flag_all', 'expression': 'hi'}}, 'otherwise': 5}
         },
     }
     sources = _frames(
@@ -171,12 +171,12 @@ CARRIED_IN = {
         'cost': {'dims': ['g']},
     },
     'variables': {
-        'p': {'foreach': ['t', 'g'], 'bounds': {'lower': 0, 'upper': 'cap'}},
-        'on': {'foreach': ['t', 'g'], 'domain': 'binary'},
+        'p': {'dims': ['t', 'g'], 'bounds': {'lower': 0, 'upper': 'cap'}},
+        'on': {'dims': ['t', 'g'], 'domain': 'binary'},
     },
     'expressions': {
         'carried': {
-            'foreach': ['t', 'g'],
+            'dims': ['t', 'g'],
             'cases': {
                 'never_off': {'when': 'not switchable', 'expression': 1},
                 'boundary': {'when': 'switchable and position(t) == 0', 'expression': 'before'},
@@ -186,10 +186,10 @@ CARRIED_IN = {
         }
     },
     'constraints': {
-        'meet_load': {'foreach': ['t'], 'expression': 'sum(p, over=g) == load'},
-        'runs_only_when_on': {'foreach': ['t', 'g'], 'expression': 'p <= on * cap'},
+        'meet_load': {'dims': ['t'], 'expression': 'sum(p, over=g) == load'},
+        'runs_only_when_on': {'dims': ['t', 'g'], 'expression': 'p <= on * cap'},
         'ramp': {
-            'foreach': ['t', 'g'],
+            'dims': ['t', 'g'],
             'expression': 'p - shift(p, over=t, offset=1, edge=0) <= step * carried + first_step * (1 - carried)',
         },
     },
@@ -300,7 +300,7 @@ def test_a_region_that_claims_nothing_does_not_unmake_the_row():
         'parameters': CARRIED_IN['parameters'] | {'everywhere': {'dims': [], 'dtype': 'bool'}},
         'expressions': {
             'carried': {
-                'foreach': ['t', 'g'],
+                'dims': ['t', 'g'],
                 'cases': {'always': {'when': 'everywhere', 'expression': 1}},
                 'otherwise': 'shift(on, over=t, offset=1)',
             }
@@ -331,7 +331,7 @@ def test_one_parameter_answering_for_two_regions():
     spec = CAPPED_BY_REGION | {
         'expressions': {
             'cap': {
-                'foreach': ['t'],
+                'dims': ['t'],
                 'cases': {
                     'flagged': {'when': 'flag', 'expression': 'hi'},
                     'unflagged': {'when': 'not flag', 'expression': 'hi * 2'},
@@ -355,7 +355,7 @@ def test_a_divisor_is_asked_for_data_only_where_its_region_applies():
     spec = CAPPED_BY_REGION | {
         'expressions': {
             'cap': {
-                'foreach': ['t'],
+                'dims': ['t'],
                 'cases': {'flagged': {'when': 'flag', 'expression': 'hi / rate'}},
                 'otherwise': 5,
             },
@@ -378,7 +378,7 @@ def test_a_hole_in_a_divisor_inside_its_region_is_still_refused():
     spec = CAPPED_BY_REGION | {
         'expressions': {
             'cap': {
-                'foreach': ['t'],
+                'dims': ['t'],
                 'cases': {'flagged': {'when': 'flag', 'expression': 'hi / rate'}},
                 'otherwise': 5,
             },
@@ -397,7 +397,7 @@ SUMMED_BY_REGION = CAPPED_BY_REGION | {
     'parameters': CAPPED_BY_REGION['parameters'] | {'hi': {'dims': ['t', 'g']}},
     'expressions': {
         'cap': {
-            'foreach': ['t'],
+            'dims': ['t'],
             'cases': {'flagged': {'when': 'flag', 'expression': 'sum(hi, over=g)'}},
             'otherwise': 5,
         }

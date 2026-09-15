@@ -205,7 +205,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
@@ -213,7 +213,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           flow on a line, signed towards its `to` bus — unbounded here, because the
           rating covers the flow and its loss and so is a row rather than a bound
-        foreach: [snapshot, line]
+        dims: [snapshot, line]
       loss:
         description: >-
           the energy a line dissipates carrying its flow — pushed down by the
@@ -222,7 +222,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           resistance dissipates nothing, which is a loss of zero rather than a
           quantity with no value, so the balances and ratings that name it keep
           their rows.
-        foreach: [snapshot, line]
+        dims: [snapshot, line]
         where: loss_max
         absence: zero
         bounds:
@@ -235,7 +235,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           what is generated at a bus plus what arrives over the lines meets the load
           there, less half of each incident line's loss — PyPSA's convention is that
           a branch dissipates half at either end
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(f, by=to) - sum(f, by=from)
@@ -246,12 +246,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           a line's rating limits what it carries plus what it dissipates, so the
           loss eats into the capacity rather than riding on top of it
-        foreach: [snapshot, line]
+        dims: [snapshot, line]
         expression: f + loss <= s_nom
 
       within_rating_reverse:
         description: the same limit for flow the other way
-        foreach: [snapshot, line]
+        dims: [snapshot, line]
         expression: f - loss >= neg_s_nom
 
       loss_above_segment_forward:
@@ -259,13 +259,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the loss sits above every one of its half-planes, which for a convex
           curve is the whole approximation. Only the lines that have a curve get a
           fan.
-        foreach: [snapshot, line, segment]
+        dims: [snapshot, line, segment]
         where: loss_max
         expression: loss + loss_slope * f >= loss_offset
 
       loss_above_segment_reverse:
         description: the same fan mirrored, because the loss depends on the flow's magnitude
-        foreach: [snapshot, line, segment]
+        dims: [snapshot, line, segment]
         where: loss_max
         expression: loss - loss_slope * f >= loss_offset
 

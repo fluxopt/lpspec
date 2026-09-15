@@ -106,7 +106,7 @@ def compile_predicate(
             lambda f, alias: compiler.parameter_join(f, param, dims, alias, f"where-parameter '{param}'", how),
         )
 
-    def refuse_outside_foreach(reading: str, dimension: str) -> None:
+    def refuse_outside_frame(reading: str, dimension: str) -> None:
         """A mask reading a dim the frame does not span — the plan's refusal, asserted here.
 
         Reducing a mask over an unlisted dim would admit a row wherever *any*
@@ -114,10 +114,10 @@ def compile_predicate(
         before a plan exists to carry it, so the frame planner states it as the
         invariant it now is.
         """
-        assert dimension in dims, f'where-comparison on {reading} is outside the foreach dims {list(dims)}'
+        assert dimension in dims, f'where-comparison on {reading} is outside the frame dims {list(dims)}'
 
     def join_ordinal(dimension: str) -> str:
-        refuse_outside_foreach(f"dimension '{dimension}'", dimension)
+        refuse_outside_frame(f"dimension '{dimension}'", dimension)
         return carrier.once(
             f'__where ord {dimension}__',
             lambda f, alias: f.join(
@@ -129,7 +129,7 @@ def compile_predicate(
 
     def join_group_offset(p: program.DimensionPositionNode) -> str:
         """One column: the row's ordinal minus its own group's target ordinal."""
-        refuse_outside_foreach(f"dimension '{p.name}'", p.name)
+        refuse_outside_frame(f"dimension '{p.name}'", p.name)
         table = compiler.partitioned(p.name, str(p.by))
         _refuse_short_groups(p, table)
         target = pl.lit(p.position) if p.position >= 0 else pl.col(GROUP_SIZE) + p.position
@@ -144,7 +144,7 @@ def compile_predicate(
         )
 
     def join_lookup(lookup: str, over: str) -> str:
-        refuse_outside_foreach(f"lookup '{lookup}' reading dimension '{over}'", over)
+        refuse_outside_frame(f"lookup '{lookup}' reading dimension '{over}'", over)
         return carrier.once(
             f'__where lookup {lookup}__',
             lambda f, alias: f.join(
@@ -158,7 +158,7 @@ def compile_predicate(
         if isinstance(p, program.ParameterComparisonNode):
             return _compare(pl.col(join_param(p.name)), p.op, p.value)
         if isinstance(p, program.DimensionComparisonNode):
-            refuse_outside_foreach(f"dimension '{p.name}'", p.name)
+            refuse_outside_frame(f"dimension '{p.name}'", p.name)
             return _compare(_dimension_column(p.name, p.value), p.op, p.value)
         if isinstance(p, program.DimensionPositionNode):
             if p.by is not None:

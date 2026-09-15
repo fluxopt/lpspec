@@ -6,7 +6,7 @@ for anyone comparing lpspec with either project or citing it.
 **[Calliope](https://github.com/calliope-project/calliope) (Apache-2.0) is
 where this surface comes from.** The surface is the YAML you write, and it is
 their design: solver-ready math declared as a reviewable file, a block per
-component, `foreach:` for the list of dimensions, a `where:` string over
+component, `dims:` for the list of dimensions, a `where:` string over
 `AND`/`OR`/`NOT`, `bounds:`, `active:`. So is parsing the strings with
 pyparsing rather than `eval`. Our `expressions` is their `global_expressions`,
 and our `piecewise` is their `piecewise_constraints`. What is ours is the
