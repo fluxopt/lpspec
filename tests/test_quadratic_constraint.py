@@ -43,12 +43,12 @@ SPEC = {
     'dimensions': {'g': {'dtype': 'str'}},
     'parameters': {'floor': {'dims': []}},
     'variables': {
-        'p': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
-        'q': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
+        'p': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
+        'q': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 10}},
     },
     'constraints': {
-        'cap': {'foreach': [], 'expression': 'sum(p, over=g) <= 9'},
-        'coupled': {'foreach': ['g'], 'expression': 'p * q >= floor'},
+        'cap': {'dims': [], 'expression': 'sum(p, over=g) <= 9'},
+        'coupled': {'dims': ['g'], 'expression': 'p * q >= floor'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p + q, over=g)'},
 }
@@ -92,7 +92,7 @@ def test_the_two_encodings_reach_one_optimum(expression, tmp_path):
     """One path goes through ``addMQConstr`` and numpy, the other through the
     writer's text and Gurobi's parser: a coefficient doubled, a pair
     transposed or a linear half dropped shows up as two different numbers."""
-    varied = spec(constraints={**SPEC['constraints'], 'coupled': {'foreach': ['g'], 'expression': expression}})
+    varied = spec(constraints={**SPEC['constraints'], 'coupled': {'dims': ['g'], 'expression': expression}})
     with lps.solve(varied, SOURCES, solver_name='gurobi') as direct:
         assert direct.is_ok
         path = tmp_path / 'model.lp'
@@ -146,8 +146,8 @@ def test_quadratic_declarations_take_the_tail_of_the_label_space():
     here, deliberately: the ordering is the engine's, not the author's."""
     first = spec(
         constraints={
-            'coupled': {'foreach': ['g'], 'expression': 'p * q >= floor'},
-            'cap': {'foreach': [], 'expression': 'sum(p, over=g) <= 9'},
+            'coupled': {'dims': ['g'], 'expression': 'p * q >= floor'},
+            'cap': {'dims': [], 'expression': 'sum(p, over=g) <= 9'},
         }
     )
     with lps.build(first, SOURCES) as model:
@@ -184,7 +184,7 @@ def test_asking_for_prices_on_a_nonconvex_row_says_which_option_did_it():
     alone it arrives as a ``GurobiError`` naming a parameter they set for an
     unrelated reason. Convexity is data, so nothing could refuse it earlier."""
     nonconvex = spec(
-        constraints={'coupled': {'foreach': ['g'], 'expression': 'p * p + q * q >= floor'}},
+        constraints={'coupled': {'dims': ['g'], 'expression': 'p * p + q * q >= floor'}},
     )
     assert lps.solve(nonconvex, SOURCES, solver_name='gurobi').objective == pytest.approx(4.0, rel=RTOL), (
         'the nonconvex region solves by default — spatial branch-and-bound needs no parameter'
@@ -195,7 +195,7 @@ def test_asking_for_prices_on_a_nonconvex_row_says_which_option_did_it():
 
 def _entries(expression: str, sources=None) -> pl.DataFrame:
     """The quadratic stream of a model whose row is *expression*."""
-    varied = spec(constraints={'coupled': {'foreach': ['g'], 'expression': expression}})
+    varied = spec(constraints={'coupled': {'dims': ['g'], 'expression': expression}})
     with lps.build(varied, dict(sources or SOURCES)) as model:
         return model._engine._model.qmatrix
 
@@ -223,7 +223,7 @@ def test_a_quadratic_row_is_structure_whole_and_a_update_reloads():
     """
     weighted = spec(
         parameters={'floor': {'dims': []}, 'weight': {'dims': ['g']}},
-        constraints={'coupled': {'foreach': ['g'], 'expression': 'p * q * weight >= floor'}},
+        constraints={'coupled': {'dims': ['g'], 'expression': 'p * q * weight >= floor'}},
     )
     both = {**SOURCES, 'weight': pl.DataFrame({'g': ['a', 'b'], 'value': [1.0, 1.0]})}
     heavier = {**SOURCES, 'weight': pl.DataFrame({'g': ['a', 'b'], 'value': [2.0, 2.0]})}

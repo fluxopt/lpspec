@@ -429,7 +429,7 @@ def test_every_repository_path_a_workflow_names_exists():
 #: worth in names. Adding one is a row here, which is a line in a diff a
 #: reviewer reads; the fences elsewhere in this file work the same way.
 PUBLIC_API = {
-    'run it': {'build', 'check', 'solve', 'write'},
+    'run it': {'build', 'check', 'evaluate', 'solve', 'write'},
     'run it many times': {'solve_over', 'EachCoordinate', 'EachWindow'},
     'carry it': {
         'SolveArchive',
@@ -457,8 +457,8 @@ PUBLIC_API = {
 }
 
 #: The linopy lane, which is a surface of its own — deliberately two verbs:
-#: the producer, and the named-expression reader both lanes owe (#562).
-PUBLIC_API_LINOPY = {'build', 'expression'}
+#: the producer, and the expression reader both lanes owe (#562).
+PUBLIC_API_LINOPY = {'build', 'evaluate'}
 
 
 def test_the_public_surface_is_exactly_what_is_declared():
@@ -514,11 +514,11 @@ def test_the_public_surface_is_exactly_what_is_declared():
 
 
 def test_the_linopy_lane_stays_two_verbs():
-    """The lane constructs a model, and reads back what the file named.
+    """The lane constructs a model, and values an expression at its solution.
 
-    ``build`` makes a model and ``expression`` evaluates a declared named
-    quantity at its solution — the eager half of a reader both lanes owe
-    (hard rule 3), pure like the producer. What is refused here is a verb that
+    ``build`` makes a model and ``evaluate`` values an expression at its
+    solution — the eager half of a reader both lanes owe (hard rule 3), pure
+    like the producer. What is refused here is a verb that
     *attaches* to a model something else built: a file references only what it
     declares (hard rule 5), and the verb that made an exception of that is
     gone (#845). Read statically: the module imports linopy, and this must run

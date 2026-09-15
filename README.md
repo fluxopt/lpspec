@@ -77,12 +77,12 @@ parameters:
   cost:  {dims: [generator]}
 variables:
   p:
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     where: "p_max > 0"
     bounds: {lower: 0, upper: p_max}
 constraints:
   power_balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) == load
 objective:
   sense: minimize
@@ -129,9 +129,10 @@ what it costs.
 - **Fail early, fail loud** — every expression, `where` string and even *uncalled*
   macro template is parsed and name-checked before a single source is attached.
   Errors name the problem and its rewrite; nothing falls back silently.
-- **A finite language with a priced way out** — the ceiling is a closure
-  (relational ∩ local), not a feature race; genuinely unsayable math
-  goes in an `escape:` island, visible in the file and billed before it runs.
+- **A finite language, with no escape hatch** — the ceiling is relational, and
+  locality prices a new operator rather than barring it. Math the language
+  cannot express is a gap in the language. A gap closes as a macro, a primitive
+  or a formulation.
 
 The second use case is taking the same file to [linopy](https://github.com/PyPSA/linopy)
 instead of solving it here. One import decides which lane builds it; the
@@ -185,7 +186,7 @@ polars, pandas or xarray objects, Arrow tables, or parquet paths. MIT licensed.
 
 ## Prior art
 
-The surface — YAML math, a block per component, `foreach:`, a `where:` string —
+The surface — YAML math, a block per component, `dims:`, a `where:` string —
 comes from [Calliope](https://github.com/calliope-project/calliope);
 [linopy](https://github.com/PyPSA/linopy) supplies the shared vocabulary, the
 oracle and every benchmark denominator. What was taken from each, and how to

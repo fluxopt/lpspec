@@ -26,8 +26,8 @@ from tests.differential import differential
 SPEC = {
     'dimensions': {'g': {'dtype': 'str'}},
     'parameters': {'cost': {'dims': ['g']}, 'growth': {'dims': []}, 'period': {'dims': ['g']}},
-    'variables': {'p': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'meet': {'foreach': [], 'expression': 'sum(p) >= 12'}},
+    'variables': {'p': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {'meet': {'dims': [], 'expression': 'sum(p) >= 12'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost / growth ** period)'},
 }
 
@@ -110,8 +110,8 @@ def test_a_power_outside_the_language_is_refused_at_the_plan_boundary(expression
     spec = {
         'dimensions': {'g': {'dtype': 'str'}},
         'parameters': {'growth': {'dims': []}, 'period': {'dims': ['g']}},
-        'variables': {'p': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 10}}},
-        'constraints': {'meet': {'foreach': [], 'expression': 'sum(p) >= 1'}},
+        'variables': {'p': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 10}}},
+        'constraints': {'meet': {'dims': [], 'expression': 'sum(p) >= 1'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(p * growth)'},
     }
     sources = {

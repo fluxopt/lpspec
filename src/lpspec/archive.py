@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 from math_spec import to_spec
 
-from lpspec.api import load_result, scan_result
+from lpspec.api import attach_readers, load_result, scan_result
 from lpspec.errors import LayoutError, LpspecError
 from lpspec.layout import (
     ANSWER_DIR,
@@ -44,7 +44,15 @@ from lpspec.layout import (
     opened,
 )
 from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of, row_of
-from lpspec.strategy import EachCoordinate, EachWindow, Runs, axis_from, load_runs, scan_runs
+from lpspec.strategy import (
+    EachCoordinate,
+    EachWindow,
+    Runs,
+    attach_sweep_readers,
+    axis_from,
+    load_runs,
+    scan_runs,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -107,7 +115,9 @@ class SweepArchive:
     sweep's sources carry the column it slices on, which the model does not
     declare, so they are legible only beside it.
 
-    ``lps.solve_over(sweep.spec, sweep.sources, sweep.axis)`` runs it again.
+    ``lps.solve_over(sweep.spec, sweep.sources, sweep.axis, carry=sweep.carry)``
+    runs it again — the carry included, without which a re-run of a chained
+    sweep would drop the coupling and answer a different question.
 
     Attributes:
         spec: The spec as written, as :class:`SolveArchive` holds it.
@@ -115,6 +125,9 @@ class SweepArchive:
             rows. A table or a path, as :class:`SolveArchive` holds them.
         axis: :class:`~lpspec.strategy.EachCoordinate` or
             :class:`~lpspec.strategy.EachWindow`, the axis that cut them.
+        carry: ``{parameter: variable}`` the sweep chained its slices with, empty
+            where it chained none. Stored because neither the spec nor the
+            frames record it, and a re-run needs it to be the same sweep.
         answer: Every slice's answers, keyed by slice — **held** from
             :func:`load_archive`, so :meth:`~lpspec.strategy.Runs.primal` and
             its siblings answer, and **spilled** from :func:`scan_archive`,
@@ -129,6 +142,7 @@ class SweepArchive:
     spec: Spec
     sources: Mapping[str, Source]
     axis: EachCoordinate | EachWindow
+    carry: Mapping[str, str]
     answer: Runs
     source_digests: pl.DataFrame
 
@@ -279,8 +293,11 @@ def _archive_under(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
     axis_member = under / AXIS_MEMBER
     if not axis_member.is_file():
         saved = under / ANSWER_DIR
-        answer = (load_result if whole else scan_result)(saved)
+        answer = attach_readers((load_result if whole else scan_result)(saved), spec, sources)
         return SolveArchive(spec, sources, answer, digests, _metrics_in(saved))
-    axis = axis_from(json.loads(axis_member.read_text()))
+    manifest = json.loads(axis_member.read_text())
+    axis = axis_from(manifest)
+    carry = manifest.get('carry', {})
     slices = (load_runs if whole else scan_runs)(under / ANSWER_DIR)
-    return SweepArchive(spec, sources, axis, slices, digests)
+    answer = attach_sweep_readers(slices, spec, sources, axis, carry)
+    return SweepArchive(spec, sources, axis, carry, answer, digests)

@@ -230,31 +230,31 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
       f:
         description: flow on a link, signed towards its `link_to` bus
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         bounds:
           lower: neg_rating
           upper: rating
       p_dispatch:
         description: power a storage unit puts onto its bus
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: storage_p_nom
       p_store:
         description: power a storage unit takes off its bus
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: storage_p_nom
       soc:
         description: energy in the store at the end of a snapshot
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: soc_max
@@ -264,7 +264,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           what is generated at a bus, plus what arrives over the links and out of
           the stores, meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(f, by=link_to)
@@ -274,11 +274,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           == load
 
       ramp_up:
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p - shift(p, over=snapshot, offset=1) <= ramp_limit_up * p_nom
 
       ramp_down:
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: shift(p, over=snapshot, offset=1) - p <= ramp_limit_down * p_nom
 
       energy_balance:
@@ -286,7 +286,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the level carried into a snapshot, decayed, plus what was stored and less
           what was taken — and it wraps at the horizon, so the first snapshot
           inherits from the last
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         expression: >-
           soc == shift(soc, over=snapshot, offset=1, edge='wrap') * (1 - standing_loss)
           + p_store * efficiency_store

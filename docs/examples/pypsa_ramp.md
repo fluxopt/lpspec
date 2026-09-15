@@ -162,13 +162,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
       f:
         description: flow on a link, signed towards its `link_to` bus
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         bounds:
           lower: neg_rating
           upper: rating
@@ -176,7 +176,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       nodal_balance:
         description: what is generated at a bus plus what arrives over the links meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(f, by=link_to)
@@ -184,11 +184,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           == load
 
       ramp_up:
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: p - shift(p, over=snapshot, offset=1) <= ramp_limit_up * p_nom
 
       ramp_down:
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         expression: shift(p, over=snapshot, offset=1) - p <= ramp_limit_down * p_nom
 
     objective:

@@ -38,8 +38,10 @@ memory. That is neither a fallback nor a dialect: one language, and the second
 and the build is relational, so nothing dense is ever materialised. Peak memory
 tracks the model rather than a number someone guessed. What is missing is the
 *declaration*: there is no way to say "build this within N gigabytes or fail".
-The honest version is partition-wise execution, which the locality
-closure already guarantees is safe.
+The honest version is partition-wise execution. Every operator in the language
+today reads a bounded number of rows per output row, so the partitions are
+already safe. An operator that reads a whole table would put one full pass
+before the partitions rather than rule them out.
 
 **A solve that explains itself.** A solved model should tell you why it is
 infeasible, what a row costs and what changed since the last solve. It should

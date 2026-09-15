@@ -550,10 +550,10 @@ parameters:
 
 variables:
   p:
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0, upper: p_max}
   op_cost:
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0}
 
 piecewise:
@@ -566,7 +566,7 @@ piecewise:
 
 constraints:
   balance:
-    foreach: []
+    dims: []
     expression: sum(p, over=generator) == load
 
 objective:
@@ -811,7 +811,7 @@ def test_a_gate_that_does_not_exist_leaves_the_curve_ungated(nonconvex_inputs, m
     raw = raw_of(GATED_YAML)
     raw['piecewise']['cost_curve']['method'] = method
     raw['parameters']['gate_rows'] = {'dims': ['snapshot'], 'dtype': 'bool'}
-    raw['variables']['u'] = {'foreach': ['snapshot'], 'domain': 'binary', 'where': 'gate_rows'}
+    raw['variables']['u'] = {'dims': ['snapshot'], 'domain': 'binary', 'where': 'gate_rows'}
 
     gated = [True, False] * 6
     data = {
@@ -839,7 +839,7 @@ def test_a_masked_gate_declaring_its_absence_pins_the_curve_off(nonconvex_inputs
     raw = raw_of(GATED_YAML)
     raw['parameters']['gate_rows'] = {'dims': ['snapshot'], 'dtype': 'bool'}
     raw['variables']['u'] = {
-        'foreach': ['snapshot'],
+        'dims': ['snapshot'],
         'domain': 'binary',
         'where': 'gate_rows',
         'absence': 'zero',

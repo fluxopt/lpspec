@@ -30,8 +30,8 @@ def _spec(objective: str = 'sum(x, over=snapshot)') -> dict:
         },
         'lookups': {'period_of': {'over': 'snapshot', 'into': 'period'}},
         'parameters': {'load': {'dims': ['snapshot']}},
-        'variables': {'x': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
-        'constraints': {'c': {'foreach': ['snapshot'], 'expression': 'x >= load'}},
+        'variables': {'x': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
+        'constraints': {'c': {'dims': ['snapshot'], 'expression': 'x >= load'}},
         'objective': {'sense': 'minimize', 'expression': objective},
     }
 
@@ -82,7 +82,7 @@ def test_a_by_typo_is_offered_the_lookups_it_could_have_meant():
     spec = _spec()
     spec['dimensions']['bus'] = {'dtype': 'str'}
     spec['lookups']['bus_of'] = {'over': 'snapshot', 'into': 'bus'}
-    spec['constraints']['c'] = {'foreach': ['bus'], 'expression': 'sum(x, by=bus_ov) >= load'}
+    spec['constraints']['c'] = {'dims': ['bus'], 'expression': 'sum(x, by=bus_ov) >= load'}
     with pytest.raises(LpspecError, match=r'by=bus_ov\) does not name a lookup') as caught:
         lps.check(spec)
     assert "'bus_of'" in str(caught.value), 'a typo is answered with the lookups that were declared'
@@ -110,8 +110,8 @@ def test_a_dimension_grouped_into_draws_no_advice():
         'dimensions': {'bus': {}, 'generator': {}},
         'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
         'parameters': {'cost': {'dims': ['generator']}},
-        'variables': {'p': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 1}}},
-        'constraints': {'c': {'foreach': ['generator'], 'expression': 'p <= 1'}},
+        'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 1}}},
+        'constraints': {'c': {'dims': ['generator'], 'expression': 'p <= 1'}},
         'objective': {
             'sense': 'minimize',
             'expression': 'sum(sum(p * cost, by=gen_bus), over=bus)',
@@ -155,8 +155,8 @@ def _unused_target_spec(month: dict) -> dict:
             'month_of': {'over': 'snapshot', 'into': 'month'},
         },
         'parameters': {'cap': {'dims': ['period']}},
-        'variables': {'p': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
-        'constraints': {'budget': {'foreach': ['period'], 'expression': 'sum(p, by=period_of) <= cap'}},
+        'variables': {'p': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
+        'constraints': {'budget': {'dims': ['period'], 'expression': 'sum(p, by=period_of) <= cap'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(p, over=snapshot)'},
     }
 
@@ -249,8 +249,8 @@ NETWORK = {
         'voltage': {'over': 'line', 'into': 'kv'},
     },
     'parameters': {'cap': {'dims': ['line']}, 'price': {'dims': ['line']}},
-    'variables': {'f': {'foreach': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-    'constraints': {'ceiling': {'foreach': ['line'], 'expression': 'f <= cap'}},
+    'variables': {'f': {'dims': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'constraints': {'ceiling': {'dims': ['line'], 'expression': 'f <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(f * price)'},
 }
 
@@ -349,9 +349,9 @@ def test_a_where_on_a_lookup_outside_the_frame_is_refused():
     frame — otherwise the mask would silently reduce over an unlisted dim."""
     spec = {
         **NETWORK,
-        'variables': {'f': {'foreach': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+        'variables': {'f': {'dims': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {
-            'ceiling': {'foreach': ['bus'], 'where': 'voltage == 220', 'expression': 'sum(f, by=send) <= 100'}
+            'ceiling': {'dims': ['bus'], 'where': 'voltage == 220', 'expression': 'sum(f, by=send) <= 100'}
         },
     }
     with pytest.raises(LpspecError, match=r"where-lookup 'voltage' reads dims \['line'\] outside the frame"):
@@ -458,8 +458,8 @@ BASE = {
     'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
     'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
     'parameters': {'cost': {'dims': ['generator']}, 'load': {'dims': ['bus']}},
-    'variables': {'p': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'balance': {'foreach': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
+    'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {'balance': {'dims': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost)'},
 }
 
@@ -656,8 +656,8 @@ TWO_MAPS = {
         'line_to': {'over': 'line', 'into': 'bus'},
     },
     'parameters': {'flow_max': {'dims': ['line']}, 'load': {'dims': ['bus']}},
-    'variables': {'f': {'foreach': ['line'], 'bounds': {'lower': 0, 'upper': 'flow_max'}}},
-    'constraints': {'served': {'foreach': ['bus'], 'expression': 'sum(f, by=line_to) >= load'}},
+    'variables': {'f': {'dims': ['line'], 'bounds': {'lower': 0, 'upper': 'flow_max'}}},
+    'constraints': {'served': {'dims': ['bus'], 'expression': 'sum(f, by=line_to) >= load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(f, over=line)'},
 }
 
@@ -696,8 +696,8 @@ POSITIONAL = {
     'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
     'lookups': {'g_of': {'over': 't', 'into': 'g'}},
     'parameters': {'cost': {'dims': ['t']}, 'cap': {'dims': ['t']}},
-    'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
-    'constraints': {'c': {'foreach': ['t'], 'expression': 'x >= cap'}},
+    'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
+    'constraints': {'c': {'dims': ['t'], 'expression': 'x >= cap'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x * cost, over=t)'},
 }
 

@@ -147,13 +147,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: dispatched power
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_max
       op_cost:
         description: operating cost, piecewise-linear in dispatch
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
 
@@ -173,7 +173,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       balance:
         description: every period's demand is met
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
     objective:

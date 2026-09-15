@@ -40,12 +40,12 @@ COMMITMENT: dict[str, Any] = {
     'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
     'parameters': {'p_max': {'dims': ['g']}, 'load': {'dims': ['t']}},
     'variables': {
-        'p': {'foreach': ['t', 'g'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
-        'u': {'foreach': ['t', 'g'], 'domain': 'binary'},
+        'p': {'dims': ['t', 'g'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
+        'u': {'dims': ['t', 'g'], 'domain': 'binary'},
     },
     'constraints': {
-        'commit': {'foreach': ['t', 'g'], 'expression': 'p <= p_max * u'},
-        'balance': {'foreach': ['t'], 'expression': 'sum(p, over=g) == load'},
+        'commit': {'dims': ['t', 'g'], 'expression': 'p <= p_max * u'},
+        'balance': {'dims': ['t'], 'expression': 'sum(p, over=g) == load'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
 }
@@ -100,10 +100,10 @@ def test_a_row_too_wide_to_spell_out_summarises_instead_of_truncating() -> None:
         'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
         'parameters': {'cost': {'dims': ['g']}, 'load': {'dims': ['t']}},
         'variables': {
-            'p': {'foreach': ['t', 'g'], 'bounds': {'lower': 0, 'upper': 100}},
-            'slack': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 9}},
+            'p': {'dims': ['t', 'g'], 'bounds': {'lower': 0, 'upper': 100}},
+            'slack': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 9}},
         },
-        'constraints': {'balance': {'foreach': ['t'], 'expression': 'sum(p * cost, over=g) + slack * 1000 >= load'}},
+        'constraints': {'balance': {'dims': ['t'], 'expression': 'sum(p * cost, over=g) + slack * 1000 >= load'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
     }
     data = {
@@ -253,8 +253,8 @@ def test_the_row_read_is_the_row_the_solver_was_given() -> None:
 PRECISE: dict[str, Any] = {
     'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
     'parameters': {'cost': {'dims': ['g']}, 'load': {'dims': ['t']}},
-    'variables': {'p': {'foreach': ['t', 'g'], 'bounds': {'lower': 0}}},
-    'constraints': {'balance': {'foreach': ['t'], 'expression': 'sum(p * cost, over=g) >= load'}},
+    'variables': {'p': {'dims': ['t', 'g'], 'bounds': {'lower': 0}}},
+    'constraints': {'balance': {'dims': ['t'], 'expression': 'sum(p * cost, over=g) >= load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
 }
 
@@ -309,10 +309,10 @@ def test_a_declaration_over_no_dims_carries_no_bracket() -> None:
     spec = {
         'dimensions': {'g': {'dtype': 'str'}},
         'variables': {
-            'p': {'foreach': ['g'], 'bounds': {'lower': 0}},
-            'z': {'foreach': [], 'bounds': {'lower': 0}},
+            'p': {'dims': ['g'], 'bounds': {'lower': 0}},
+            'z': {'dims': [], 'bounds': {'lower': 0}},
         },
-        'constraints': {'total': {'foreach': [], 'expression': 'sum(p, over=g) + z <= 10'}},
+        'constraints': {'total': {'dims': [], 'expression': 'sum(p, over=g) + z <= 10'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(p) + z'},
     }
     with lps.build(spec, {'g': ['wind', 'gas']}) as model:
@@ -325,8 +325,8 @@ def test_a_dimension_called_name_is_still_a_coordinate() -> None:
     spec = {
         'dimensions': {'name': {'dtype': 'str'}},
         'parameters': {'p_max': {'dims': ['name']}},
-        'variables': {'p': {'foreach': ['name'], 'bounds': {'lower': 0}}},
-        'constraints': {'cap': {'foreach': ['name'], 'expression': 'p <= p_max'}},
+        'variables': {'p': {'dims': ['name'], 'bounds': {'lower': 0}}},
+        'constraints': {'cap': {'dims': ['name'], 'expression': 'p <= p_max'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
     }
     data = {'name': ['wind', 'gas'], 'p_max': pl.DataFrame({'name': ['wind', 'gas'], 'value': [40.0, 200.0]})}

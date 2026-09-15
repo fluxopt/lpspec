@@ -15,9 +15,14 @@ import importlib.util
 from dataclasses import dataclass
 from datetime import datetime  # noqa: TC003  — a Record annotation this module writes
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from lpspec.errors import LpspecError, NoSolutionError, unknown_name_message
+from lpspec.errors import (
+    LpspecError,
+    NoSolutionError,
+    no_model_behind_this_answer_message,
+    unknown_name_message,
+)
 from lpspec.relational.parquet import (
     RECORD_FILE,
     RECORD_SCHEMA,
@@ -356,6 +361,29 @@ def _named(frames: Mapping[str, pl.LazyFrame], name: str, kind: str) -> pl.LazyF
         raise KeyError(unknown_name_message(kind, name, frames)) from None
 
 
+def evaluated(
+    declared: Mapping[str, Callable[[], pl.DataFrame]],
+    evaluator: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None,
+    expression: str | Mapping[str, Any],
+) -> pl.DataFrame:
+    """*expression* valued: by the declared reader that holds it, else lowered by *evaluator*.
+
+    The one rule every ``evaluate`` shares. A declared name is served by its own
+    reader first, so it costs no lowering and answers off an archive that
+    retains no model; anything else is what *evaluator* lowers, and where there
+    is none the refusal says so.
+
+    Raises:
+        LpspecError: *expression* is not a declared name and *evaluator* is
+            ``None``.
+    """
+    if isinstance(expression, str) and expression in declared:
+        return declared[expression]()
+    if evaluator is None:
+        raise LpspecError(no_model_behind_this_answer_message())
+    return evaluator(expression)
+
+
 @dataclass
 class Result:
     """What a solve returned — the outcome, and access to any values.
@@ -389,11 +417,16 @@ class Result:
     #: How much of the session this solve kept, read off what actually ran —
     #: never off what was asked for.
     _kept: Keep
-    #: One deferred reader per declared named expression. Nothing about an
-    #: expression is lowered or compiled until its reader is called. Released
-    #: with the primals by :meth:`close`, since each holds this build's frames
-    #: and values.
+    #: One deferred reader per declared named expression, and the ad-hoc
+    #: evaluator — what :meth:`evaluate` reads through and what :meth:`save`
+    #: writes. Nothing is compiled until a reader is called; the pair is
+    #: composed above the lane so the evaluator may read the model as written
+    #: (hard rule 2). ``_evaluate`` is ``None`` where there is no such model —
+    #: a build off an already-lowered ``Program``, or an answer read back off
+    #: disk. Released with the primals by :meth:`close`, since each holds this
+    #: build's frames and values.
     _expressions: Mapping[str, Callable[[], pl.DataFrame]] | None = None
+    _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = None
     #: Why there are no duals, when a solve that left values still has none.
     #: ``None`` whenever :attr:`_duals` holds them.
     _no_duals: str | None = None
@@ -544,39 +577,36 @@ class Result:
         frames = self._readable(self._activities, f"the activity of '{name}'")
         return _named(frames, name, 'constraint').collect(engine='streaming')
 
-    def expression(self, name: str) -> pl.DataFrame:
-        """The value of named expression *name* at this solution — ``(dims…, value)``.
+    def evaluate(self, expression: str | Mapping[str, Any]) -> pl.DataFrame:
+        """The value of *expression* at this solution — ``(dims…, value)``.
 
-        The quantity the model declares under ``expressions:``, evaluated at
-        the solve's primal values and aggregated to the expression's own dims —
-        :meth:`primal`'s shape and order, over those dims in declaration order.
-        Lowered and compiled on this call, not at build, so a model that reads
-        no expression pays for none.
+        *expression* is what one ``expressions:`` entry takes: a name the file
+        declares, an expression string, or the mapping carrying ``cases:``
+        with ``dims:`` and ``otherwise:``. It may use every name the model
+        declares and only those. The value is aggregated to the expression's
+        own dims, in declaration order, rows in label order over them —
+        :meth:`primal`'s shape and order.
 
-        Takes a **declared name only**, never an expression string: what is
-        readable is exactly what the file names, so the quantity a constraint
-        bounds and the quantity a report reads are one definition.
+        A declared name is served by its own reader, compiled on this call and
+        never lowered again, so a model whose expressions go unread compiles
+        none of them. Anything else lowers the model as written, which costs
+        what ``check`` costs.
 
         Raises:
             NoSolutionError: The solve left no values to read.
-            LpspecError: This result was closed.
-            DataError: A divisor with no value where the expression divides.
-            KeyError: No named expression is called *name*.
+            LpspecError: This result was closed; the model was built from an
+                already-lowered ``Program`` or read back off disk, so there is
+                nothing to lower an undeclared expression against; or a divisor
+                with no value where the expression divides.
+            LanguageError: A construct outside the language, or a name the
+                model does not declare.
         """
-        self._readable(self._primals, f"expression '{name}'")
-        readers = self._expressions or {}
-        try:
-            reader = readers[name]
-        except KeyError:
-            raise KeyError(
-                unknown_name_message('named expression', name, readers)
-                + ' expression() takes a name declared under expressions:, never an expression string.'
-            ) from None
-        return reader()
+        self._readable(self._primals, 'an expression')
+        return evaluated(self._expressions or {}, self._evaluate, expression)
 
     def _frame(self, name: str, kind: str) -> pl.DataFrame:
         """*name* through the reader *kind* names — the dispatch every bridge shares."""
-        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.expression}[reader_kind(kind)]
+        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.evaluate}[reader_kind(kind)]
         return reader(name)
 
     def _names(self, kind: str) -> tuple[str, ...]:
@@ -620,8 +650,7 @@ class Result:
 
         One kind per call: a dual and a variable of the same name would
         collide, and mean something else per row. Each arrives dense over its
-        own dims, all at once — on a large model name the few you need, or use
-        :meth:`save`, which writes every kind.
+        own dims, all at once — on a large model name the few you need.
 
         Args:
             names: What to include; none means every name of *kind*.
@@ -641,7 +670,7 @@ class Result:
         for every constraint where the duals are defined, and
         ``expression/<name>.parquet`` for every named expression this data
         can evaluate — an integer variable leaves the duals out, and an
-        expression that fails on this data is left out, :meth:`expression`
+        expression that fails on this data is left out, :meth:`evaluate`
         still saying why. The primals are streamed to disk in
         :meth:`primal`'s order, so the same model and data write the same
         bytes.
@@ -656,7 +685,7 @@ class Result:
         whose absence is never per-constraint. Written because a directory
         that simply lacks a file cannot tell "there is none, and here is why"
         from "no such name", which is the one thing :meth:`dual` and
-        :meth:`expression` do say.
+        :meth:`evaluate` do say.
 
         A solve that left no values writes the record and nothing else. A run
         that came back infeasible is an answer a set of saved cases needs on
@@ -715,6 +744,7 @@ class Result:
         :class:`~lpspec.api.Model`'s to close.
         """
         self._primals = self._duals = self._activities = self._expressions = None
+        self._evaluate = None
 
     def __enter__(self) -> Result:
         return self

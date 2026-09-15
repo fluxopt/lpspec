@@ -176,7 +176,7 @@ def refuse_a_fragment_without_the_dims(p: TermFragment, dims: list[str], context
     eager lane builds — `check` passes, so `LanguageError` would be a lie — and
     it is reachable from ordinary YAML wherever a scalar is added beside a term.
     A **term** lacking them is not reachable that way: `dims_of` gives every
-    term the foreach dims at load, so reaching here means the plan is
+    term the frame dims at load, so reaching here means the plan is
     malformed.
 
     *operator* is the surface spelling, not the plan node: the reader wrote
