@@ -130,8 +130,28 @@ def _loaded(sink: str, model: Any) -> Any:
     return build_highs(_tables(model))
 
 
-def window(sink: str, prepared: tuple[Path, dict[str, str]]) -> Any:
-    """Window one, built and loaded before the clock; what every later one costs.
+def window_setup(sink: str, prepared: tuple[Path, dict[str, str]]) -> tuple[tuple[Any, ...], dict[str, Any]]:
+    """Window one, built and loaded before the clock, and held for the one that is timed.
+
+    Runs as pytest-benchmark's pedantic ``setup``: untracked, so the build is
+    outside ``peak``, and inside the spawned child, so the model is rebuilt
+    there rather than shipped to it. Returns the ``(args, kwargs)`` pair that
+    convention feeds to :func:`window`.
+
+    Nothing is released: the model and its solver are what a rolling horizon
+    holds between windows, so the peak this measurement reports should include
+    them. ``setup`` is untracked but resident, which is exactly that — and the
+    pass is isolated, so the process carries them away.
+    """
+    import lpspec as lps
+
+    spec, sources = prepared
+    model = lps.build(spec, sources)
+    return (model, _loaded(sink, model), sources), {}
+
+
+def window(model: Any, solver: Any, sources: dict[str, str]) -> Counts:
+    """What the second window of a rolling horizon costs, and every one after.
 
     A rolling horizon re-attaches data of the same shape and never reloads the
     solver: ``update`` rebuilds the tables against the new numbers and ``push``
@@ -145,23 +165,10 @@ def window(sink: str, prepared: tuple[Path, dict[str, str]]) -> Any:
     costs is the shape of the data, not its values, and generating a second set
     inside the clock would charge this arm for the harness's work. The digest
     matches either way, so the path taken is the one a driver takes.
-
-    Nothing is released: the model and its solver are what a rolling horizon
-    holds between windows, so the peak this measurement reports should include
-    them. The pass is isolated, so the process carries them away.
     """
-    import lpspec as lps
-
-    spec, sources = prepared
-    model = lps.build(spec, sources)
-    solver = _loaded(sink, model)
-
-    def step() -> Counts:
-        model.update(sources)
-        solver.push(_tables(model))
-        return _counts(_tables(model), nonzeros=True)
-
-    return step
+    model.update(sources)
+    solver.push(_tables(model))
+    return _counts(_tables(model), nonzeros=True)
 
 
 def build_only(prepared: tuple[Path, dict[str, str]]) -> Counts:

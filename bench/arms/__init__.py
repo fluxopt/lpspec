@@ -12,6 +12,18 @@ Each arm module defines:
     build_only(prepared) -> Counts
     objective(prepared) -> float
 
+and, where the library has a rolling-horizon answer at all, the pair that rung
+is measured through — offered together or not at all:
+
+    window_setup(sink, prepared) -> (args, kwargs)
+    window(*args, **kwargs) -> Counts
+
+``window_setup`` is pytest-benchmark's pedantic ``setup``: it runs untracked
+before each sample, so whatever a window is priced *against* — a built model, a
+loaded solver — is outside the clock, and it runs in the spawned child, so that
+state is rebuilt there rather than shipped to it. What it returns feeds
+``window``, which is the one later window that gets timed.
+
 ``Prepared`` is opaque to the harness: it hands the token from `prepare` to the
 verb without looking inside, so an arm's own bookkeeping — validating paths,
 resolving a writer backend — is described once and lands where it belongs.
@@ -24,7 +36,11 @@ no counterpart to be charged for it.
 
 **Every verb is top-level and picklable**, because ``benchmem(isolate=True)``
 sends it to a fresh process: peak RSS is a property of a process, and two
-measurements in one interpreter report the larger of them twice.
+measurements in one interpreter report the larger of them twice. That is why
+pre-clock state is built by ``window_setup`` in the child and not by a verb that
+*returns* a closure over it — a closure does not pickle, and a rung written that
+way raises before anything is timed rather than reporting a number that is wrong
+(#1617). `bench/test_harness.py` holds both halves of this.
 
 **The library is imported inside the verb, never at module scope.** The import
 is part of what an arm costs — a modelling library's alone can exceed lpspec's

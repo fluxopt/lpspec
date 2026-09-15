@@ -85,7 +85,19 @@ def build_and_emit(sink: str, prepared: Prepared) -> Counts:
         return _counts(m)
 
 
-def window(sink: str, prepared: Prepared) -> Any:
+def window_setup(sink: str, prepared: Prepared) -> tuple[tuple[Any, ...], dict[str, Any]]:
+    """Nothing to hold between windows, so nothing is built before the clock.
+
+    The other arm carries a model and a loaded solver out of its setup. linopy
+    carries nothing, because a rebuild is what its next window does, so this
+    hands :func:`window` the same lightweight token :func:`prepare` produced and
+    the whole rebuild lands inside the measurement. That asymmetry is the rung's
+    finding rather than a handicap arranged here.
+    """
+    return (sink, prepared), {}
+
+
+def window(sink: str, prepared: Prepared) -> Counts:
     """Every window is a fresh build, because linopy has no verb for a second one.
 
     Not a handicap arranged here. linopy's model is constructed from its data,
@@ -94,11 +106,7 @@ def window(sink: str, prepared: Prepared) -> Any:
     comparison this rung draws is between re-attaching and rebuilding, and
     rebuilding is linopy's honest answer rather than a slow path chosen for it.
     """
-
-    def step() -> Counts:
-        return build_and_emit(sink, prepared)
-
-    return step
+    return build_and_emit(sink, prepared)
 
 
 def build_only(prepared: Prepared) -> Counts:
