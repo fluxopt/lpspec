@@ -191,10 +191,10 @@ BY_PARAMETER = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
     'parameters': {'lead': {'dims': ['g'], 'dtype': 'int'}, 'usable': {'dims': ['t']}},
     'variables': {
-        'level': {'foreach': ['g', 't'], 'where': 'usable > 0', 'bounds': {'lower': 0, 'upper': 10}},
-        'take': {'foreach': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}},
+        'level': {'dims': ['g', 't'], 'where': 'usable > 0', 'bounds': {'lower': 0, 'upper': 10}},
+        'take': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'link': {'foreach': ['g', 't'], 'expression': 'take <= shift(level, over=t, offset=lead, edge=0)'}},
+    'constraints': {'link': {'dims': ['g', 't'], 'expression': 'take <= shift(level, over=t, offset=lead, edge=0)'}},
     'objective': {
         'sense': 'maximize',
         'expression': 'sum(sum(take, over=g), over=t) - 1000 * sum(sum(level, over=g), over=t)',
@@ -298,8 +298,8 @@ def test_a_group_less_coordinate_stays_absent_under_a_mask_that_removes_nothing(
 BY_PARAMETER_CONSTANT = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
     'parameters': {'lead': {'dims': ['g'], 'dtype': 'int'}, 'eff': {'dims': ['g', 't']}},
-    'variables': {'x': {'foreach': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'link': {'foreach': ['g', 't'], 'expression': 'x * shift(eff, over=t, offset=lead, edge=1) <= 10'}},
+    'variables': {'x': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {'link': {'dims': ['g', 't'], 'expression': 'x * shift(eff, over=t, offset=lead, edge=1) <= 10'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(sum(x, over=g), over=t)'},
 }
 
@@ -329,10 +329,8 @@ PER_GROUP_OFFSET = {
     'dimensions': {'t': {'dtype': 'int'}, 'period': {'dtype': 'int'}},
     'lookups': {'period_of': {'over': 't', 'into': 'period'}},
     'parameters': {'lead': {'dims': ['period'], 'dtype': 'int'}, 'v': {'dims': ['t']}},
-    'variables': {'p': {'foreach': ['t'], 'bounds': {'lower': -100, 'upper': 100}}},
-    'constraints': {
-        'reads': {'foreach': ['t'], 'expression': 'p == shift(v, over=t, offset=lead, by=period_of, edge=0)'}
-    },
+    'variables': {'p': {'dims': ['t'], 'bounds': {'lower': -100, 'upper': 100}}},
+    'constraints': {'reads': {'dims': ['t'], 'expression': 'p == shift(v, over=t, offset=lead, by=period_of, edge=0)'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
 }
 
@@ -344,11 +342,11 @@ PER_GROUP_OFFSET_TERMS = {
     'lookups': {'season_of': {'over': 't', 'into': 'season'}},
     'parameters': {'lead': {'dims': ['season'], 'dtype': 'int'}, 'cap': {'dims': ['t']}},
     'variables': {
-        'level': {'foreach': ['t'], 'bounds': {'lower': 'cap', 'upper': 'cap'}},
-        'take': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 100}},
+        'level': {'dims': ['t'], 'bounds': {'lower': 'cap', 'upper': 'cap'}},
+        'take': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 100}},
     },
     'constraints': {
-        'link': {'foreach': ['t'], 'expression': 'take <= shift(level, over=t, offset=lead, by=season_of, edge=0)'}
+        'link': {'dims': ['t'], 'expression': 'take <= shift(level, over=t, offset=lead, by=season_of, edge=0)'}
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(take, over=t)'},
 }
@@ -359,9 +357,9 @@ PER_ENTITY_AND_PER_GROUP = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
     'lookups': {'season_of': {'over': 't', 'into': 'season'}},
     'parameters': {'lead': {'dims': ['g', 'season'], 'dtype': 'int'}, 'v': {'dims': ['g', 't']}},
-    'variables': {'p': {'foreach': ['g', 't'], 'bounds': {'lower': -100, 'upper': 100}}},
+    'variables': {'p': {'dims': ['g', 't'], 'bounds': {'lower': -100, 'upper': 100}}},
     'constraints': {
-        'reads': {'foreach': ['g', 't'], 'expression': 'p == shift(v, over=t, offset=lead, by=season_of, edge=0)'}
+        'reads': {'dims': ['g', 't'], 'expression': 'p == shift(v, over=t, offset=lead, by=season_of, edge=0)'}
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
 }
@@ -473,7 +471,7 @@ RAMP_SPEC = override(
     **{
         'parameters.ramp_max': {'dims': ['generator']},
         'constraints.ramp_up': {
-            'foreach': ['snapshot', 'generator'],
+            'dims': ['snapshot', 'generator'],
             'where': 'snapshot > 0',
             'expression': 'p - shift(p, over=snapshot, offset=1) <= ramp_max',
         },
@@ -519,10 +517,10 @@ dimensions: {t: {dtype: int}}
 parameters:
   eff: {dims: [t]}
 variables:
-  x: {foreach: [t], bounds: {lower: 0, upper: 100}}
+  x: {dims: [t], bounds: {lower: 0, upper: 100}}
 constraints:
   c:
-    foreach: [t]
+    dims: [t]
     expression: "x * shift(eff, over=t, offset=1, edge=1) <= 10"
 objective: {sense: maximize, expression: "sum(x, over=t)"}
 """
@@ -552,13 +550,13 @@ def test_the_fill_a_product_wants_is_one_not_zero():
 EDGE_SPEC = {
     'dimensions': {'t': {'dtype': 'int'}, 'wrap': {'dtype': 'str'}},
     'parameters': {'c': {'dims': ['t']}},
-    'variables': {'x': {'foreach': ['t', 'wrap'], 'bounds': {'lower': 0, 'upper': 5}}},
+    'variables': {'x': {'dims': ['t', 'wrap'], 'bounds': {'lower': 0, 'upper': 5}}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * c)'},
 }
 
 
 def _with(expr):
-    return {**EDGE_SPEC, 'constraints': {'r': {'foreach': ['t', 'wrap'], 'expression': expr}}}
+    return {**EDGE_SPEC, 'constraints': {'r': {'dims': ['t', 'wrap'], 'expression': expr}}}
 
 
 @pytest.mark.parametrize(
@@ -606,13 +604,13 @@ def test_a_quoted_keyword_outside_a_kwarg_does_not_parse():
 
 def _shift_over_data(where: str | None = None, edge: str | None = None) -> dict[str, object]:
     shift = f'shift(dt, over=t, offset=1, edge={edge})' if edge else 'shift(dt, over=t, offset=1)'
-    constraint: dict[str, object] = {'foreach': ['t'], 'expression': f'x <= {shift}'}
+    constraint: dict[str, object] = {'dims': ['t'], 'expression': f'x <= {shift}'}
     if where is not None:
         constraint['where'] = where
     return {
         'dimensions': {'t': {'dtype': 'int'}},
         'parameters': {'dt': {'dims': ['t']}},
-        'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
+        'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
         'constraints': {'c': constraint},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
     }
@@ -685,8 +683,8 @@ def test_a_nested_shift_agrees_with_the_oracle(rhs: str):
     spec = {
         'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
         'parameters': {'c': {'dims': ['g']}},
-        'variables': {'p': {'foreach': ['t', 'g'], 'bounds': {'lower': 0, 'upper': 5}}},
-        'constraints': {'k': {'foreach': ['t', 'g'], 'expression': f'p <= 0.5 * {rhs} + 1'}},
+        'variables': {'p': {'dims': ['t', 'g'], 'bounds': {'lower': 0, 'upper': 5}}},
+        'constraints': {'k': {'dims': ['t', 'g'], 'expression': f'p <= 0.5 * {rhs} + 1'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(p * c)'},
     }
     data = {'t': [0, 1, 2, 3, 4], 'g': ['a', 'b'], 'c': pd.Series([1.0, 2.0], index=pd.Index(['a', 'b'], name='g'))}
@@ -720,10 +718,10 @@ def test_an_offset_may_differ_per_entity(edge: str):
             'c': {'dims': ['g']},
             'demand': {'dims': ['g', 't']},
         },
-        'variables': {'order': {'foreach': ['g', 't'], 'bounds': {'lower': 0, 'upper': 9}}},
+        'variables': {'order': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 9}}},
         'constraints': {
             'arrive': {
-                'foreach': ['g', 't'],
+                'dims': ['g', 't'],
                 'expression': f'shift(order, over=t, offset=lead, edge={edge}) >= demand',
             }
         },
@@ -762,8 +760,8 @@ def test_a_named_offset_must_say_what_the_vacated_positions_contribute():
     spec = {
         'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
         'parameters': {'lead': {'dims': ['g'], 'dtype': 'int'}},
-        'variables': {'x': {'foreach': ['g', 't'], 'bounds': {'lower': 0, 'upper': 1}}},
-        'constraints': {'k': {'foreach': ['g', 't'], 'expression': 'x >= shift(x, over=t, offset=lead)'}},
+        'variables': {'x': {'dims': ['g', 't'], 'bounds': {'lower': 0, 'upper': 1}}},
+        'constraints': {'k': {'dims': ['g', 't'], 'expression': 'x >= shift(x, over=t, offset=lead)'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(x * 1.0)'},
     }
     with pytest.raises(LanguageError, match='vacated positions absent'):
@@ -774,8 +772,8 @@ def _reindexed_parameter_spec(op: str) -> dict:
     return {
         'dimensions': {'t': {'dtype': 'int'}},
         'parameters': {'dt': {'dims': ['t']}},
-        'variables': {'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 100}}},
-        'constraints': {'r': {'foreach': ['t'], 'expression': f'x <= {op}'}},
+        'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 100}}},
+        'constraints': {'r': {'dims': ['t'], 'expression': f'x <= {op}'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x, over=t)'},
     }
 

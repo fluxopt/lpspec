@@ -43,22 +43,22 @@ parameters:
 
 variables:
   soc:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0, upper: 100}
     description: energy stored at the end of a period
   out:
-    foreach: [snapshot]
+    dims: [snapshot]
     bounds: {lower: 0, upper: 100}
     description: energy released in a period
 
 constraints:
   soc_start:
-    foreach: [snapshot]
+    dims: [snapshot]
     where: "position(snapshot) == 0"
     expression: soc == soc_initial + inflow - out
     description: the first period has no predecessor, so it carries the initial level
   soc_carry:
-    foreach: [snapshot]
+    dims: [snapshot]
     where: "position(snapshot) != 0"
     expression: soc == shift(soc, over=snapshot, offset=1) + inflow - out
     description: every later period carries the previous one's level
@@ -146,7 +146,7 @@ def test_a_negative_position_counts_from_the_end():
     cyclic = SPEC.replace(
         """objective:""",
         """  soc_final:
-    foreach: [snapshot]
+    dims: [snapshot]
     where: "position(snapshot) == -1"
     expression: soc >= 10
     description: the last period ends with at least ten stored
@@ -243,11 +243,11 @@ parameters:
   price: {dims: [snapshot]}
 
 variables:
-  soc: {foreach: [snapshot], bounds: {lower: 0, upper: 100}}
+  soc: {dims: [snapshot], bounds: {lower: 0, upper: 100}}
 
 constraints:
   pin:
-    foreach: [snapshot]
+    dims: [snapshot]
     where: "WHERE"
     expression: soc == 5
 
@@ -448,12 +448,12 @@ parameters:
   price: {dims: [snapshot]}
 
 variables:
-  soc: {foreach: [snapshot], bounds: {lower: 0, upper: 60}}
-  release: {foreach: [snapshot], bounds: {lower: 0, upper: 100}}
+  soc: {dims: [snapshot], bounds: {lower: 0, upper: 60}}
+  release: {dims: [snapshot], bounds: {lower: 0, upper: 100}}
 
 constraints:
   season_balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: soc == shift(soc, over=snapshot, offset=1, EDGE) + inflow - release
 
 objective:

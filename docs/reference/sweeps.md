@@ -88,7 +88,7 @@ how a model masks, so the gap is reported rather than refused.
 ## Reading a sweep
 
 **`Runs` reads like [`Result`](api.md#reading-a-result), one dimension wider.**
-`primal`, `dual`, `expression`, `to_pandas`, `to_dataarray`, `to_dataset` and
+`primal`, `dual`, `evaluate`, `to_pandas`, `to_dataarray`, `to_dataset` and
 `save` keep their names, and every table has the slice key prepended.
 
 **You name the extra dimension, not the library.** `EachCoordinate('scenario')`
@@ -102,7 +102,7 @@ keyword on the readers, not a reader of its own:
 runs.primal('soc')  # (snapshot_start, t, value) — keyed by slice
 runs.primal('soc', original_index=True)  # (snapshot, value) — the answer
 runs.dual('balance', original_index=True)  # the same, for a price
-runs.expression('spend', original_index=True)  # the model's own quantity, over real coordinates
+runs.evaluate('spend', original_index=True)  # the model's own quantity, over real coordinates
 ```
 
 For `EachWindow` this is the stitched answer over the global labels. Each
@@ -147,7 +147,7 @@ already hold: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 |---|---|
 | **everything a slice produced is kept** | Every variable's primals and every constraint's duals come back through `runs.primal(name)` and `runs.dual(name)`. Each slice's *model* is released as the loop goes, so build peak stays at one slice. |
 | **duals are keyed, never combined** | `runs.dual(name)` has the shape of `runs.primal(name)`; averaging, taking the last or reading one slice alone is yours to do. A slice whose model had an integer variable contributes no duals, and `runs.objective` says which slice. |
-| **expressions are evaluated per slice** | Every declared `expressions:` name is evaluated at each slice's solution and read through `runs.expression(name)`. Under `original_index=True` only the rows each window owns survive, so summing the stitched table cannot double-count the lookahead. A quantity *reduced over* the sliced dimension is refused there, and the error names the per-slice read. |
+| **expressions are evaluated per slice** | Every declared `expressions:` name is evaluated at each slice's solution and read through `runs.evaluate(name)`, and an expression the file never named through the same verb off a sweep archive. Under `original_index=True` only the rows each window owns survive, so summing the stitched table cannot double-count the lookahead. A quantity *reduced over* the sliced dimension is refused there, and the error names the per-slice read. |
 | **no aggregate objective** | `objective` is a table keyed by slice. Scenarios are a distribution, not a sum, and summing window objectives double-counts the overlap. |
 | **the lookahead is `t >= step`** | Overlapping windows return every row they solved, lookahead included. What each window owns is `runs.primal('soc').filter(pl.col('t') < step)`. |
 | **a slice that did not solve contributes no rows** | A `primal` table can be shorter than the sweep. `objective` is always one row per slice and records which did not solve, holding null where a slice reached no objective. |

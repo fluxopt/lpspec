@@ -131,13 +131,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       soc:
         description: energy held at the end of a snapshot
-        foreach: [snapshot]
+        dims: [snapshot]
         bounds:
           lower: 0
           upper: 60
       release:
         description: energy released in a snapshot
-        foreach: [snapshot]
+        dims: [snapshot]
         bounds:
           lower: 0
 
@@ -147,7 +147,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the level carried into a snapshot is the previous snapshot's, and a
           season's first snapshot carries from that season's own last — so each
           season ends where it began and hands the next one nothing
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
 
     objective:

@@ -156,13 +156,13 @@ parameters:
 variables:
   p:
     description: dispatched power
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds:
       lower: 0
       upper: p_max
   op_cost:
     description: operating cost, piecewise-linear in dispatch
-    foreach: [snapshot, generator]
+    dims: [snapshot, generator]
     bounds:
       lower: 0
 
@@ -180,7 +180,7 @@ piecewise:
 
 constraints:
   balance:
-    foreach: [snapshot]
+    dims: [snapshot]
     expression: sum(p, over=generator) == load
 
 objective:

@@ -150,13 +150,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
       g:
         description: what a link takes in during a snapshot, at the bus it leaves
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         bounds:
           lower: 0
           upper: link_p_nom
@@ -169,7 +169,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           meets the load. `edge=0` is what a non-cyclic delay means: a snapshot
           earlier than a link's delay receives nothing over it, there being no such
           snapshot to have taken anything in.
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(shift(g, over=snapshot, offset=delay, edge=0) * efficiency, by=link_to)

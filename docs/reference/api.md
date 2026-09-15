@@ -28,6 +28,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `math_spec.to_spec(spec)` | the file as written, for editing and typesetting; the language's own verb |
 | `lps.build(spec, sources)` | attach data and build; returns a `Model` |
 | `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
+| `lps.evaluate(spec, sources, expression)` | a spec of parameters and expressions, no variables: one expression read as arithmetic, with no solver; returns its frame |
 | `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
 | `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
 | `archive=` on `lps.solve`, `model.solve`, `lps.solve_over` | write the spec, its data and this answer as one zip: [Archiving a model](#archiving-a-model) |
@@ -283,7 +284,8 @@ result.kept  # how much of the session this solve kept: 'nothing', 'solver' or '
 result.primal('p')  # tidy table (dims…, value) in label order — the native shape
 result.dual('power_balance')  # shadow prices, same shape, same join
 result.activity('power_balance')  # each row's left-hand side at the solution
-result.expression('co2')  # a named expression at the solution, over its own dims
+result.evaluate('co2')  # a named expression at the solution, over its own dims
+result.evaluate('sum(p * rate)')  # a quantity the file never named, same shape
 
 result.to_pandas('p')  # the same, as a DataFrame
 result.to_dataarray('p')  # the same, labelled: .sel / resample / plot
@@ -306,7 +308,8 @@ xarray, from the `[linopy]` extra.
 |---|---|
 | **`is_ok` is not `has_primal`** | `is_ok` rolls up the termination condition. `has_primal` adds the solver's verdict on whether an incumbent exists, and every reader gates on it. A MIP that hits `time_limit` before a feasible point is `ok` with nothing to read |
 | **reading with no primal raises** | `NoSolutionError`; `objective` is `nan`. `save` is the exception: it writes the record and no frames, an infeasible run being an answer a set of saved cases needs on disk |
-| **`expression` takes a declared name** | the value of a [named expression](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions) at the solution, aggregated to its own dimensions; never an expression string. An unknown name is a `KeyError` listing what is declared. It is compiled at the read, so unread expressions cost nothing |
+| **`evaluate` takes what an `expressions:` entry takes** | a name the file declares, an expression string, or the mapping that carries `cases:`. A declared name is the value of that [named expression](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions) at the solution, aggregated to its own dimensions, served by the reader already holding it and compiled at the read, so unread expressions cost nothing. Anything else lowers the model again, which costs what `check` costs. It may use every name the solved model declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read |
+| **an undeclared expression names nothing** | so it is not a *kind*: `save` does not write it and a sweep does not spill it. A declared expression is: `save` writes it under `expression/`, and it rides every bridge as `kind='expression'`. To keep a quantity, declare it under `expressions:` and read it by name |
 | **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `LpspecError`. Any integer or binary variable makes duals undefined |
 | **a solver can make a model mixed-integer** | an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set reaches a solver with no SOS concept as binaries, so an otherwise continuous model solved on `highs` has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
@@ -610,7 +613,7 @@ The options are applied when Gurobi's environment is created, which
 ## The linopy lane
 
 A *lane* is one of the two ways a spec is executed; the verbs above are the
-relational lane. `lpspec.linopy.build` and `lpspec.linopy.expression` (the
-`[linopy]` extra) build the same YAML as a `linopy.Model`, and read a named
+relational lane. `lpspec.linopy.build` and `lpspec.linopy.evaluate` (the
+`[linopy]` extra) build the same YAML as a `linopy.Model`, and read an
 expression back off a solved one.
 [Relationship to linopy](../about/linopy.md#3-it-is-a-lane) documents them.

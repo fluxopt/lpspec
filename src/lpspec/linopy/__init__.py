@@ -8,14 +8,15 @@ caller then owns. Both accept *exactly* the same language, which is what makes
 the differential tests an oracle rather than a comparison of dialects.
 
 Two functions — a producer and a reader — and both are **pure**: YAML goes in,
-a model or a value comes out, and nothing is retained. :func:`expression` takes
+a model or a value comes out, and nothing is retained. :func:`evaluate` takes
 ``sources`` again rather than remembering what :func:`build` saw::
 
     from lpspec import linopy as lpspec_linopy
 
     m = lpspec_linopy.build('spec.yaml', {...})
     m.solve(...)
-    lpspec_linopy.expression(m, 'spec.yaml', 'co2', {...})
+    lpspec_linopy.evaluate(m, 'spec.yaml', 'co2', {...})  # a name the file declares
+    lpspec_linopy.evaluate(m, 'spec.yaml', 'sum(p * rate)', {...})  # one it never did
 
 The same spec on the other lane, which streams::
 
@@ -45,8 +46,8 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(msg) from exc
 
 
-from lpspec.errors import unknown_name_message
-from lpspec.lanes import lowered
+from lpspec import expressions
+from lpspec.lanes import declared, lowered
 from lpspec.linopy._notes import note
 from lpspec.linopy.builder import _eval, build_model
 from lpspec.linopy.loader import dimension_coords, load_parameters
@@ -55,12 +56,13 @@ from lpspec.sources import tidy_sources
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from typing import Any
 
     from lpspec.lanes import Buildable, Source
 
 linopy.options['semantics'] = 'v1'
 
-__all__ = ['build', 'expression']
+__all__ = ['build', 'evaluate']
 
 
 def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
@@ -94,19 +96,24 @@ def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
     return built
 
 
-def expression(
+def evaluate(
     built: linopy.Model,
     spec: Buildable,
-    name: str,
+    expression: str | Mapping[str, Any],
     sources: Mapping[str, Source],
 ) -> xarray.DataArray:
-    """Evaluate named expression *name* of *spec* at *built*'s solution.
+    """Evaluate *expression*, written in *spec*'s namespace, at *built*'s solution.
+
+    The eager half of :meth:`lpspec.Result.evaluate`. Pure like :func:`build` —
+    nothing is retained, so *sources* is taken again rather than remembered.
 
     Args:
         built: A solved model carrying this file's variables.
-        spec: The file declaring the expression, as :func:`build` takes it.
-        name: A name declared under ``expressions:`` — never an expression
-            string.
+        spec: The model the expression is written against, as :func:`build`
+            takes it — but not a lowered ``Program``.
+        expression: What ``expressions:`` takes — a string, or the mapping
+            carrying ``cases:`` with ``dims:`` and ``otherwise:``. A name
+            *spec* declares works too.
         sources: As :func:`build` takes them.
 
     Returns:
@@ -114,25 +121,21 @@ def expression(
         (0-dimensional for a variable-free scalar expression).
 
     Raises:
-        KeyError: No named expression called *name*.
         LanguageError: A construct the language does not accept, in the file or
-            in the expression.
+            in the expression, or a name *spec* does not declare.
         DataError: A source that does not fit the file.
-        LpspecError: The expression reads a dual and the solve left none.
+        LpspecError: A lowered ``Program`` as *spec*, or an expression that
+            reads a dual where the solve left none.
     """
-    with note(f"while reading named expression '{name}' from {_named(spec)}"):
-        program = lowered(spec)
-        if name not in program.named_expressions:
-            raise KeyError(
-                unknown_name_message('named expression', name, program.named_expressions)
-                + ' expression() takes a name declared under expressions:, never an expression string.'
-            )
-        expression = program.named_expressions[name].expression
+    with note(f'while evaluating an expression against {_named(spec)}'):
+        written = declared(spec)
+        node = expressions.lower(written, expression)
+        program = lowered(written)
         tidy = tidy_sources(program, sources)
         master_coords, dim_coords = dimension_coords(program, tidy)
         dataset = load_parameters(program, tidy, master_coords)
         context = EvaluationContext(dataset, master_coords, built, dim_coords, program, solved=True)
-        value = _eval(expression, context)
+        value = _eval(node, context)
         if isinstance(value, xarray.DataArray):
             return value
         return xarray.DataArray(float(value))

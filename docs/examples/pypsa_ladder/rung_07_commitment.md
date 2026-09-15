@@ -445,121 +445,121 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
     variables:
       Generator_p:
         description: '`Generator-p` — output of a generator in a snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
       Link_p:
         description: '`Link-p` — PyPSA''s `p0`, the flow measured at the `Link_bus0` end: a positive value
           withdraws there and injects at every bus the link''s output ports deliver to'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
       Generator_status:
         description: '`Generator-status` — how much of a committable unit is on: an integer the rows below
           cap at one, or at the module count where the build is modular'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
       Generator_start_up:
         description: '`Generator-start_up` — how much of a committable unit turns on this snapshot, capped
           as the status is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
       Generator_shut_down:
         description: '`Generator-shut_down` — how much of a committable unit turns off this snapshot, capped
           as the status is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         domain: integer
         bounds: {lower: 0}
       Generator_p_nom_ext:
         description: '`Generator-p_nom` — nominal power where it is a decision; the parameter of the same
           PyPSA name carries the fixed regime'
-        foreach: [generator]
+        dims: [generator]
         where: Generator_p_nom_extendable
     constraints:
       Generator_fix_p_lower:
         description: '`Generator-fix-p-lower` — a fixed generator outputs at least its minimum'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom
       Generator_fix_p_upper:
         description: '`Generator-fix-p-upper` — a fixed generator outputs at most what is available'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: not Generator_p_nom_extendable AND not Generator_committable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom
       Link_fix_p_lower:
         description: '`Link-fix-p-lower` — a fixed link carries at least its minimum, negative for the other
           way'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p >= Link_p_min_pu * Link_p_nom
       Link_fix_p_upper:
         description: '`Link-fix-p-upper` — a fixed link carries at most its nominal power'
-        foreach: [snapshot, link]
+        dims: [snapshot, link]
         where: not Link_p_nom_extendable
         expression: Link_p <= Link_p_max_pu * Link_p_nom
       Generator_com_p_lower:
         description: '`Generator-com-p-lower` — a committed unit outputs at least its minimum; off, at least
           nothing'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND not Generator_p_nom_extendable
         expression: Generator_p >= Generator_p_min_pu * Generator_p_nom * Generator_status
       Generator_com_p_upper:
         description: '`Generator-com-p-upper` — a committed unit outputs at most what is available; off, at
           most nothing'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND not Generator_p_nom_extendable
         expression: Generator_p <= Generator_p_max_pu * Generator_p_nom * Generator_status
       Generator_com_transition_start_up:
         description: '`Generator-com-transition-start-up` — turning on is a start, counted against the state
           the unit carried into the snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         expression: Generator_start_up >= Generator_status - Generator_previous_status
       Generator_com_transition_shut_down:
         description: '`Generator-com-transition-shut-down` — turning off is a stop, counted against the state
           the unit carried into the snapshot'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable
         expression: Generator_shut_down >= Generator_previous_status - Generator_status
       Generator_com_up_time:
         description: '`Generator-com-up-time` — a unit started within its own minimum up time is still on.
           The first snapshot''s share of the window is the brought-in up time''s, which the must-stay-up mask
           carries'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_min_up_time > 0 AND position(snapshot) > 0
         expression: sum_back(Generator_start_up, over=snapshot, within=Generator_min_up_time) <= Generator_status
       Generator_com_down_time:
         description: '`Generator-com-down-time` — a unit stopped within its own minimum down time is still
           off'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_min_down_time > 0 AND position(snapshot) > 0
         expression: sum_back(Generator_shut_down, over=snapshot, within=Generator_min_down_time) <= 1 - Generator_status
       Generator_com_status_must_stay_up:
         description: '`Generator-com-status-min_up_time_must_stay_up` — a unit still serving the up time it
           brought in stays on'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND Generator_must_stay_up
         expression: Generator_status == 1
       Generator_status_p_fixed_upper:
         description: '`Generator-status-p-fixed-upper` — a status is at most the modules in place, an explicit
           row as PyPSA writes it: one where the build is not modular, and the fixed build''s whole count of
           modules where it is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND NOT (Generator_p_nom_extendable AND Generator_p_nom_mod > 0)
         expression: Generator_status <= Generator_modules_installed
       Generator_start_up_p_fixed_upper:
         description: '`Generator-start_up-p-fixed-upper` — a start is at most the modules in place, an explicit
           row as PyPSA writes it: one where the build is not modular, and the fixed build''s whole count of
           modules where it is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND NOT (Generator_p_nom_extendable AND Generator_p_nom_mod > 0)
         expression: Generator_start_up <= Generator_modules_installed
       Generator_shut_down_p_fixed_upper:
         description: '`Generator-shut_down-p-fixed-upper` — a stop is at most the modules in place, an explicit
           row as PyPSA writes it: one where the build is not modular, and the fixed build''s whole count of
           modules where it is'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_committable AND NOT (Generator_p_nom_extendable AND Generator_p_nom_mod > 0)
         expression: Generator_shut_down <= Generator_modules_installed
       Generator_p_ramp_limit_up:
@@ -567,7 +567,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
           of the build, and a committed one no further than its start-up ramp in the snapshot it turns on.
           A unit that came into the horizon running brought an unknown output, so it carries no row at the
           first snapshot — nor does any unit a big M releases instead'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_ramp_limit_up AND NOT (Generator_committable AND Generator_p_nom_extendable) AND
           (position(snapshot) > 0 OR (Generator_committable AND Generator_status_initial == 0))
         expression: Generator_p - Generator_previous_p <= Generator_ramp_up_allowance
@@ -576,7 +576,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
           of the build, and a committed one no further than its shut-down ramp in the snapshot it turns off.
           A unit that came into the horizon running brought an unknown output, so it carries no row at the
           first snapshot — nor does any unit a big M releases instead'
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: Generator_ramp_limit_down AND NOT (Generator_committable AND Generator_p_nom_extendable) AND
           (position(snapshot) > 0 OR (Generator_committable AND Generator_status_initial == 0))
         expression: Generator_previous_p - Generator_p <= Generator_ramp_down_allowance
@@ -585,28 +585,28 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
           less what the links take away, plus what arrives over them after losses and any delay at every port
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: sum(Generator_p, by=Generator_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
           by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
     expressions:
       Generator_previous_status:
         description: the commitment state a generator carries into a snapshot — the state it brought into
           the horizon at the first, the previous snapshot's after that
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: Generator_status_initial}
         otherwise: shift(Generator_status, over=snapshot, offset=1)
       Generator_previous_p:
         description: the output a generator carries into a snapshot — nothing at the start of the horizon,
           which is why a unit that came in running carries no ramp row there
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           opening: {when: position(snapshot) == 0, expression: 0}
         otherwise: shift(Generator_p, over=snapshot, offset=1)
       Generator_ramp_up_allowance:
         description: how far a generator may raise output between two snapshots — its ramp limit of the build
           while it stays on, plus its start-up ramp in the snapshot it turns on
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           committed: {when: Generator_committable, expression: Generator_ramp_limit_up * Generator_p_nom *
               Generator_previous_status + Generator_ramp_limit_start_up * Generator_p_nom * (Generator_status
@@ -615,7 +615,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
       Generator_ramp_down_allowance:
         description: how far a generator may lower output between two snapshots — its ramp limit of the build
           while it stays on, plus its shut-down ramp in the snapshot it turns off
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         cases:
           committed: {when: Generator_committable, expression: Generator_ramp_limit_down * Generator_p_nom
               * Generator_status + Generator_ramp_limit_shut_down * Generator_p_nom * (Generator_previous_status
@@ -626,7 +626,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
           delayed by the port's `delay`; where the port is `cyclic_delay` the delayed flow wraps from the
           horizon's end, and where it is not the flow still in transit at the first snapshots is lost. A port
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
-        foreach: [snapshot, link_output]
+        dims: [snapshot, link_output]
         cases:
           wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
               Link_efficiency, over=snapshot, offset=Link_output_delay, edge=''wrap'')'}
@@ -635,7 +635,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
       Generator_p_nom_effective:
         description: the build a generator's limits are taken against — the chosen one where it is extendable,
           the given one otherwise
-        foreach: [generator]
+        dims: [generator]
         cases:
           extendable: {when: Generator_p_nom_extendable, expression: Generator_p_nom_ext}
         otherwise: Generator_p_nom

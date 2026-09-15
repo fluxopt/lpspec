@@ -237,18 +237,18 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
       f:
         description: flow on a line, signed towards its `line_to` bus
-        foreach: [line]
+        dims: [line]
         bounds:
           lower: neg_cap
           upper: cap
       r:
         description: reserve held against an offer
-        foreach: [offer]
+        dims: [offer]
         bounds:
           lower: 0
 
@@ -260,7 +260,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       balance:
         description: what is generated at a bus plus what arrives over the lines meets the load there
-        foreach: [bus]
+        dims: [bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(f, by=line_to)
@@ -268,26 +268,26 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           == load
       export_cap:
         description: a line carries no more than the bus it leaves is allowed to export
-        foreach: [line]
+        dims: [line]
         expression: f <= at(bus_cap, by=line_from)
       requirement:
         description: the offers made into a market fill its requirement
-        foreach: [market]
+        dims: [market]
         expression: sum(r, by=market_of) >= req
       headroom:
         description: a generator's output plus the reserve it holds stays inside its capacity
-        foreach: [generator]
+        dims: [generator]
         expression: p + reserve_of <= p_max
       offer_cap:
         description: >-
           an offer is capped by its tranche's share of its generator's capacity —
           two other dimensions' parameters pulled back through two legs of one edge
           set
-        foreach: [offer]
+        dims: [offer]
         expression: r <= at(tranche_frac, by=tranche_of) * at(p_max, by=gen_of)
       zone_cover:
         description: the weighted reserve of the generators backing a zone covers its requirement
-        foreach: [zone]
+        dims: [zone]
         expression: sum(zone_share * reserve_of, over=generator) >= zone_req
 
     objective:

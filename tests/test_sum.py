@@ -34,7 +34,7 @@ SPELLINGS = {
 
 
 def _spec(budget: str, *, where: str | None = None) -> dict:
-    variable: dict = {'foreach': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}
+    variable: dict = {'dims': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}
     if where is not None:
         variable['where'] = where
     return {
@@ -45,7 +45,7 @@ def _spec(budget: str, *, where: str | None = None) -> dict:
             'cap': {'dims': []},
         },
         'variables': {'p': variable},
-        'constraints': {'budget': {'foreach': [], 'expression': f'{budget} <= cap'}},
+        'constraints': {'budget': {'dims': [], 'expression': f'{budget} <= cap'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(p)'},
     }
 

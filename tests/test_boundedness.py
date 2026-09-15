@@ -18,10 +18,10 @@ FREE_SLACK = {
     'dimensions': {'t': {'dtype': 'int'}},
     'parameters': {'cap': {'dims': ['t']}, 'cost': {'dims': ['t']}},
     'variables': {
-        'x': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 'cap'}},
-        'slack': {'foreach': ['t']},
+        'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 'cap'}},
+        'slack': {'dims': ['t']},
     },
-    'constraints': {'limit': {'foreach': ['t'], 'expression': 'x <= cap'}},
+    'constraints': {'limit': {'dims': ['t'], 'expression': 'x <= cap'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x + slack, over=t)'},
 }
 

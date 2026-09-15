@@ -144,14 +144,14 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           capacity built at a generator — the first-stage decision, which spans no
           scenario because it is taken before anyone knows which future arrived
-        foreach: [generator]
+        dims: [generator]
         bounds:
           lower: 0
       p:
         description: >-
           output of a generator in a snapshot of a future — the second-stage
           decision, one per scenario
-        foreach: [scenario, snapshot, generator]
+        dims: [scenario, snapshot, generator]
         bounds:
           lower: 0
 
@@ -160,12 +160,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           a generator produces no more than the capacity built for it, in every
           snapshot of every future — one capacity spanning three scenarios of rows
-        foreach: [scenario, snapshot, generator]
+        dims: [scenario, snapshot, generator]
         expression: p <= p_nom
 
       power_balance:
         description: what runs in this snapshot of this future meets the load there
-        foreach: [scenario, snapshot]
+        dims: [scenario, snapshot]
         expression: sum(p, over=generator) == load
 
     objective:
@@ -232,7 +232,7 @@ expected-value model does not merely cost less, it answers a question nobody
 posed. `what_the_mean_would_build()` in the reference prints it.
 
 **One capacity, three scenarios of rows.** `within_capacity` is `p <= p_nom` with
-a `foreach` of `[scenario, snapshot, generator]` against a variable declared over
+a `dims:` of `[scenario, snapshot, generator]` against a variable declared over
 `[generator]` — nine rows reading one column, which is how a first-stage decision
 is coupled to a second-stage one. Nothing in the language had to learn about
 stages: the dim algebra broadcasts the capacity because the constraint's frame
@@ -261,4 +261,4 @@ Two variables that deliberately span different dimensions, coupled by a
 constraint whose frame is the wider of the two, and an objective that reduces one
 of them against a probability. The claim is not that the math is hard — it is
 that *structure comes from data*: nothing here declares a stage, and the two
-stages are visible only in which dimensions each `foreach` lists.
+stages are visible only in which dimensions each `dims:` lists.

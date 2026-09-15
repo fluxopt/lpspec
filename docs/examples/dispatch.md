@@ -95,7 +95,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         where: "p_max > 0"
         bounds:
           lower: 0
@@ -103,7 +103,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     constraints:
       power_balance:
-        foreach: [snapshot]
+        dims: [snapshot]
         expression: sum(p, over=generator) == load
 
     objective:

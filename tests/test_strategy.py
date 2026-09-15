@@ -50,23 +50,23 @@ WINDOW = {
         'soc_initial': {'dims': []},
     },
     'variables': {
-        'p': {'foreach': ['t', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
-        'charge': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 30}},
-        'discharge': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 30}},
-        'soc': {'foreach': ['t'], 'bounds': {'lower': 0, 'upper': 100}},
+        'p': {'dims': ['t', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
+        'charge': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 30}},
+        'discharge': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 30}},
+        'soc': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 100}},
     },
     'constraints': {
         'balance': {
-            'foreach': ['t'],
+            'dims': ['t'],
             'expression': 'sum(p, over=generator) + discharge - charge == load',
         },
         'soc_open': {
-            'foreach': ['t'],
+            'dims': ['t'],
             'where': 't == 0',
             'expression': 'soc == soc_initial + charge * 0.9 - discharge',
         },
         'soc_step': {
-            'foreach': ['t'],
+            'dims': ['t'],
             'where': 't > 0',
             'expression': 'soc == shift(soc, over=t, offset=1) + charge * 0.9 - discharge',
         },
@@ -91,23 +91,23 @@ MULTI_STORE = {
         'efficiency': {'dims': ['storage']},
     },
     'variables': {
-        'p': {'foreach': ['t', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
-        'charge': {'foreach': ['t', 'storage'], 'bounds': {'lower': 0, 'upper': 5}},
-        'discharge': {'foreach': ['t', 'storage'], 'bounds': {'lower': 0, 'upper': 5}},
-        'soc': {'foreach': ['t', 'storage'], 'bounds': {'lower': 0, 'upper': 100}},
+        'p': {'dims': ['t', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
+        'charge': {'dims': ['t', 'storage'], 'bounds': {'lower': 0, 'upper': 5}},
+        'discharge': {'dims': ['t', 'storage'], 'bounds': {'lower': 0, 'upper': 5}},
+        'soc': {'dims': ['t', 'storage'], 'bounds': {'lower': 0, 'upper': 100}},
     },
     'constraints': {
         'balance': {
-            'foreach': ['t'],
+            'dims': ['t'],
             'expression': 'sum(p, over=generator) + sum(discharge, over=storage) - sum(charge, over=storage) == load',
         },
         'soc_open': {
-            'foreach': ['t', 'storage'],
+            'dims': ['t', 'storage'],
             'where': 't == 0',
             'expression': 'soc == soc_initial + charge * efficiency - discharge',
         },
         'soc_step': {
-            'foreach': ['t', 'storage'],
+            'dims': ['t', 'storage'],
             'where': 't > 0',
             'expression': 'soc == shift(soc, over=t, offset=1) + charge * efficiency - discharge',
         },
@@ -126,12 +126,12 @@ MYOPIC = {
         'demand': {'dims': []},
     },
     'variables': {
-        'build': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 50}},
-        'total': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 200}},
+        'build': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 50}},
+        'total': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 200}},
     },
     'constraints': {
-        'accumulate': {'foreach': ['generator'], 'expression': 'total == existing + build'},
-        'meet': {'foreach': [], 'expression': 'sum(total, over=generator) >= demand'},
+        'accumulate': {'dims': ['generator'], 'expression': 'total == existing + build'},
+        'meet': {'dims': [], 'expression': 'sum(total, over=generator) >= demand'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(build * cost, over=generator)'},
 }
@@ -615,7 +615,7 @@ def test_a_stitched_expression_prices_only_the_rows_a_window_owns(priced):
     exceed it — the overlap is in the keyed frames, which is the double-count
     the stitched read exists to drop.
     """
-    stitched = priced.expression('spend', original_index=True)
+    stitched = priced.evaluate('spend', original_index=True)
     assert stitched.columns == ['snapshot', 'value']
     assert stitched['snapshot'].to_list() == list(range(12)), 'one value per coordinate, like a stitched primal'
 
@@ -627,18 +627,18 @@ def test_a_stitched_expression_prices_only_the_rows_a_window_owns(priced):
         .sort('snapshot')
     )
     assert stitched['value'].to_list() == pytest.approx(by_hand['value'].to_list())
-    assert priced.expression('spend')['value'].sum() > stitched['value'].sum(), (
+    assert priced.evaluate('spend')['value'].sum() > stitched['value'].sum(), (
         'the keyed frames still carry the lookahead rows, so their sum double-counts'
     )
 
 
 def test_a_quantity_reduced_over_the_sliced_dimension_has_no_way_back(priced):
     """Per window it reads; over the original index the refusal says why not."""
-    keyed = priced.expression('window_spend')
+    keyed = priced.evaluate('window_spend')
     assert keyed.columns == ['snapshot_start', 'value']
     assert keyed.height == len(priced), 'one total per window, keyed like objective'
     with pytest.raises(lps.LpspecError, match='reduced over the sliced dimension'):
-        priced.expression('window_spend', original_index=True)
+        priced.evaluate('window_spend', original_index=True)
 
 
 def test_each_slice_expression_matches_solving_that_slice_alone():
@@ -650,8 +650,8 @@ def test_each_slice_expression_matches_solving_that_slice_alone():
         one = scenario_sources()
         one['load'] = _draw(one, scenario)
         with lps.solve(spec, one) as result:
-            alone = result.expression('spend')
-            folded = runs.expression('spend').filter(pl.col('scenario') == scenario).drop('scenario')
+            alone = result.evaluate('spend')
+            folded = runs.evaluate('spend').filter(pl.col('scenario') == scenario).drop('scenario')
             assert folded['value'].to_list() == pytest.approx(alone['value'].to_list()), (
                 'a slice read out of the sweep is the slice solved alone'
             )
@@ -659,7 +659,7 @@ def test_each_slice_expression_matches_solving_that_slice_alone():
 
 def test_an_expression_the_sweep_does_not_hold_says_what_it_does_hold(priced):
     with pytest.raises(lps.LpspecError, match="no named expression 'nope' in this sweep"):
-        priced.expression('nope')
+        priced.evaluate('nope')
 
 
 def test_an_expression_no_slice_could_evaluate_carries_its_reason():
@@ -678,9 +678,9 @@ def test_an_expression_no_slice_could_evaluate_carries_its_reason():
         runs = lps.solve_over(spec, sources, lps.EachWindow('snapshot', steps=6, lookahead=0, into='t'))
 
     assert runs.primal('p').height > 0, 'the failing expression must not fail the sweep'
-    assert runs.expression('spend').height > 0, 'nor take the healthy expression with it'
+    assert runs.evaluate('spend').height > 0, 'nor take the healthy expression with it'
     with pytest.raises(lps.LpspecError, match='scale'):
-        runs.expression('ratio')
+        runs.evaluate('ratio')
 
 
 #: Six coordinates, three windows of two, whatever the coordinates *are*.
@@ -1185,7 +1185,7 @@ def test_every_executor_carries_expressions_the_same(make_executor):
     with _entered(make_executor()) as live:
         parallel = lps.solve_over(spec, sources, lps.EachCoordinate('scenario'), executor=live)
 
-    assert parallel.expression('spend').equals(sequential.expression('spend')), (
+    assert parallel.evaluate('spend').equals(sequential.evaluate('spend')), (
         'a sweep reads the same named expression under any executor'
     )
 
@@ -1384,7 +1384,7 @@ def test_save_writes_what_a_spill_writes_and_the_directory_reads_back_as_one(pri
     assert reopened.objective.equals(priced.objective)
     assert reopened.scan('soc').collect().equals(priced.primal('soc'))
     assert reopened.scan('balance', 'dual').collect().equals(priced.dual('balance'))
-    assert reopened.scan('spend', 'expression').collect().equals(priced.expression('spend'))
+    assert reopened.scan('spend', 'expression').collect().equals(priced.evaluate('spend'))
 
 
 def test_a_sweep_keys_every_file_it_writes_with_one_type(priced, tmp_path):
@@ -1679,7 +1679,7 @@ def _horizon(constraint: dict, **parameters: dict) -> dict:
 
 
 def test_a_window_over_a_horizon_budget_is_refused_with_the_change_that_would_lift_it():
-    spec = _horizon({'foreach': [], 'expression': 'sum(discharge, over=t) <= 100'})
+    spec = _horizon({'dims': [], 'expression': 'sum(discharge, over=t) <= 100'})
     with pytest.raises(lps.LpspecError, match=r"constraint 'extra': sums over t") as refused:
         lps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
     assert 'sum_back(within=n)' in str(refused.value), 'the refusal names the rolling form that windows'
@@ -1688,9 +1688,7 @@ def test_a_window_over_a_horizon_budget_is_refused_with_the_change_that_would_li
 def test_a_window_must_look_ahead_as_far_as_the_rows_read():
     """`shift(load, over=t, offset=-2)` reads two rows ahead; a contiguous
     window would read past its end, an overlap of two covers it."""
-    spec = _horizon(
-        {'foreach': ['t'], 'expression': 'sum(p, over=generator) >= shift(load, over=t, offset=-2, edge=0)'}
-    )
+    spec = _horizon({'dims': ['t'], 'expression': 'sum(p, over=generator) >= shift(load, over=t, offset=-2, edge=0)'})
     with pytest.raises(lps.LpspecError, match=r'looks ahead by 0 coordinate\(s\), and the model reads 2 ahead'):
         lps.solve_over(spec, horizon_sources(8), lps.EachWindow('snapshot', steps=4, lookahead=0, into='t'))
     runs = lps.solve_over(spec, horizon_sources(8), lps.EachWindow('snapshot', steps=4, lookahead=2, into='t'))
@@ -1724,7 +1722,7 @@ def test_an_offset_the_data_decides_is_read_off_the_data(delays, axis, refused):
     """`shift(..., offset=delay)` names a parameter, so the language cannot say
     how far a row reads; the driver reads the values, whose sign says which way."""
     spec = _horizon(
-        {'foreach': ['t', 'generator'], 'expression': 'p >= shift(p, over=t, offset=delay, edge=0) - 100'},
+        {'dims': ['t', 'generator'], 'expression': 'p >= shift(p, over=t, offset=delay, edge=0) - 100'},
         delay={'dims': ['generator'], 'dtype': 'int'},
     )
     sources = {**horizon_sources(8), 'delay': pl.DataFrame({'generator': GENERATORS, 'value': delays})}
@@ -1740,7 +1738,7 @@ def test_a_reach_a_lookup_decides_is_refused_with_the_lookup_named():
     whether a window cuts a group is nothing the driver computes."""
     spec = _horizon(
         {
-            'foreach': ['t', 'generator'],
+            'dims': ['t', 'generator'],
             'expression': 'p >= shift(p, over=t, offset=1, by=day_of, edge=0) - at(day_cap, by=day_of)',
         },
         day_cap={'dims': ['day']},
@@ -1752,7 +1750,7 @@ def test_a_reach_a_lookup_decides_is_refused_with_the_lookup_named():
 
 
 def test_a_position_the_model_counts_is_a_warning_and_the_windows_still_solve():
-    spec = _horizon({'foreach': ['t'], 'where': 'position(t) == 0', 'expression': 'soc <= 50'})
+    spec = _horizon({'dims': ['t'], 'where': 'position(t) == 0', 'expression': 'soc <= 50'})
     with pytest.warns(lps.LpspecWarning, match=r"constraint 'extra': counts a position along t"):
         runs = lps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
     assert len(runs) == 2, 'a restart is reported, not refused'
@@ -1771,7 +1769,7 @@ def test_an_offset_is_read_off_every_shape_a_source_may_arrive_in(delay):
     """The reach is the same whatever the caller wrote, because the least value
     of a source does not depend on the labels it is spread over."""
     spec = _horizon(
-        {'foreach': ['t', 'generator'], 'expression': 'p >= shift(p, over=t, offset=delay, edge=0) - 100'},
+        {'dims': ['t', 'generator'], 'expression': 'p >= shift(p, over=t, offset=delay, edge=0) - 100'},
         delay={'dims': ['generator'], 'dtype': 'int'},
     )
     with pytest.raises(lps.LpspecError, match='the model reads 3 ahead'):
@@ -2024,7 +2022,7 @@ def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_
     assert not runs._primals and not runs._duals and not runs._expressions, 'a spilled sweep holds no frame'
     assert runs.scan('soc').collect().equals(priced.primal('soc'))
     assert runs.scan('balance', 'dual').collect().equals(priced.dual('balance'))
-    assert runs.scan('spend', 'expression').collect().equals(priced.expression('spend'))
+    assert runs.scan('spend', 'expression').collect().equals(priced.evaluate('spend'))
     assert runs.scan('soc', original_index=True).collect().equals(priced.primal('soc', original_index=True))
     assert not list(tmp_path.rglob('*.part')), 'every file landed under its final name'
 
@@ -2034,7 +2032,7 @@ def test_a_spilled_sweep_holds_nothing_and_scans_back_what_it_wrote(priced, tmp_
     [
         pytest.param(lambda runs: runs.primal('soc'), id='primal'),
         pytest.param(lambda runs: runs.dual('balance'), id='dual'),
-        pytest.param(lambda runs: runs.expression('spend'), id='expression'),
+        pytest.param(lambda runs: runs.evaluate('spend'), id='expression'),
         pytest.param(lambda runs: runs.save('elsewhere'), id='save'),
         pytest.param(lambda runs: runs.to_dataset(), id='to_dataset'),
     ],
@@ -2172,3 +2170,88 @@ def test_an_export_reads_the_key_off_each_frame_and_skips_an_empty_one(sweep):
     by_key = strategy._by_key([empty, *frames], sweep.key_name)
     assert list(by_key) == ['high', 'low', 'mid'], 'one entry per frame that has rows, keyed by its own key'
     assert all(sweep.key_name not in frame.columns for frame in by_key.values()), 'the key column is dropped'
+
+
+def test_a_sweep_archive_carries_its_carry(tmp_path):
+    """The carry is config the frames do not hold, so the archive stores it beside the axis."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll')
+    assert lps.load_archive(tmp_path / 'roll').carry == {'soc_initial': 'soc'}, 'the carry reads back as it was given'
+
+
+def test_a_sweep_archive_with_no_carry_reads_an_empty_carry(tmp_path):
+    """A sweep that chained nothing carries nothing — the manifest omits the key and the reader defaults it."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'plain')
+    assert lps.load_archive(tmp_path / 'plain').carry == {}, 'no carry given, none stored, an empty mapping read back'
+
+
+def test_a_carried_sweep_reruns_from_its_archive_with_the_stored_carry(tmp_path):
+    """The stored carry is what makes a re-run the same sweep: with it the chained answer is reproduced."""
+    original = lps.solve_over(
+        WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll'
+    )
+    packed = lps.load_archive(tmp_path / 'roll')
+    rerun = lps.solve_over(packed.spec, packed.sources, packed.axis, carry=packed.carry)
+    assert rerun.primal('soc').equals(original.primal('soc')), 'the re-run with the stored carry matches the archive'
+
+
+def test_a_sweep_archive_evaluates_a_quantity_the_file_never_named_per_slice(tmp_path):
+    """`Runs.evaluate` reads an undeclared quantity at each slice's own solution — matches solving that slice alone."""
+    axis = lps.EachCoordinate('scenario')
+    lps.solve_over(DISPATCH, scenario_sources(), axis, archive=tmp_path / 'study.zip')
+    sweep = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'out')
+    expr = 'sum(p * cost, over=generator)'
+    swept = sweep.answer.evaluate(expr)
+    for key, slice_sources in axis.slices(scenario_sources()):
+        live = lps.solve(DISPATCH, slice_sources).evaluate(expr)
+        got = swept.filter(pl.col(sweep.answer.key_name) == key).drop(sweep.answer.key_name)
+        columns = live.columns[:-1]
+        assert got.sort(columns).equals(live.sort(columns)), f'slice {key!r} evaluates at its own primal, no re-solve'
+
+
+def test_a_scanned_sweep_archive_evaluates_the_same(tmp_path):
+    """A sweep left on disk (`scan_archive`) evaluates against those frames, the same values held reads."""
+    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), archive=tmp_path / 'study.zip')
+    expr = 'sum(p * cost, over=generator)'
+    whole = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'whole').answer.evaluate(expr)
+    scanned = lps.scan_archive(tmp_path / 'study.zip', tmp_path / 'scan').answer.evaluate(expr)
+    assert scanned.equals(whole), 'a scanned sweep evaluates against the frames on disk, the same answer'
+
+
+def test_a_live_sweep_has_no_model_to_evaluate_against():
+    """A Runs a live solve returned retains no model, so an undeclared expression says why — the archive is what carries one — while a declared name is stitched from what the sweep holds."""
+    spec = override(DISPATCH, **{'expressions.spend': 'sum(p * cost, over=generator)'})
+    runs = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'))
+    with pytest.raises(lps.LpspecError, match='no model behind it'):
+        runs.evaluate('sum(p, over=generator)')
+    assert runs.evaluate('spend')['scenario'].n_unique() == len(runs), (
+        'the declared name answers without a model, stitched from every slice'
+    )
+
+
+def test_evaluate_across_a_sweep_refuses_an_expression_that_reads_a_carried_parameter(tmp_path):
+    """The narrow gap: a carried value is a previous slice's answer, not stored data, so evaluate refuses it."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll.zip')
+    sweep = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll')
+    assert sweep.answer.evaluate('sum(p * cost)').height, 'an expression over static data evaluates per slice'
+    with pytest.raises(lps.LpspecError, match='carried'):
+        sweep.answer.evaluate('sum(soc_initial)')
+
+
+def test_evaluate_over_the_original_index_reindexes_like_primal(tmp_path):
+    """`evaluate(original_index=True)` reuses the reindex `primal` does — the sliced dim back, the slice key gone."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'roll.zip')
+    answer = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
+    reindexed = answer.evaluate('sum(p, over=generator)', original_index=True)
+    assert reindexed.columns == ['snapshot', 'value'], 'the sliced dim is restored and the slice key dropped'
+    by_hand = answer.primal('p', original_index=True).group_by('snapshot').agg(pl.col('value').sum()).sort('snapshot')
+    assert reindexed.sort('snapshot').equals(by_hand.select('snapshot', 'value')), (
+        'the evaluated expression reindexed equals the primal reindexed and summed by hand'
+    )
+
+
+def test_evaluate_over_the_original_index_refuses_a_quantity_reduced_over_the_sliced_dim(tmp_path):
+    """A scalar-per-window quantity has no local index to restore, so original_index refuses it — as `expression` does."""
+    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'roll.zip')
+    answer = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
+    with pytest.raises(lps.LpspecError, match="over 'snapshot'"):
+        answer.evaluate('sum(p * cost)', original_index=True)

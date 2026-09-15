@@ -178,11 +178,11 @@ parameters:
   target: {dims: [g]}
 variables:
   x:
-    foreach: [item]
+    dims: [item]
     bounds: {lower: 0, upper: cap}
 constraints:
   meet:
-    foreach: [g]
+    dims: [g]
     expression: sum(x, by=grp) >= target
 objective:
   sense: minimize
@@ -241,8 +241,8 @@ GROUPED_ONTO_BUS = {
     'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
     'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
     'parameters': {'p_max': {'dims': ['generator']}, 'load': {'dims': ['bus']}},
-    'variables': {'p': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
-    'constraints': {'balance': {'foreach': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
+    'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
+    'constraints': {'balance': {'dims': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p, over=generator)'},
 }
 
@@ -276,7 +276,7 @@ def test_a_grouped_sum_lands_on_the_dimension_it_declares(sources):
     that is not alphabetical — leaves the eager lane holding a ``bus`` that is
     not the model's ``bus``, and linopy v1 refuses the next combination, since
     it aligns on membership and order alike. The relational lane never faces
-    the question: it joins on the label and takes its rows from the foreach
+    the question: it joins on the label and takes its rows from the dims
     product, not from whatever the group produced.
     """
     with differential(GROUPED_ONTO_BUS, sources) as run:
@@ -291,10 +291,10 @@ BROADCAST_GROUP_SUM = {
     },
     'lookups': {'gen_bus': {'over': 'generator', 'into': 'bus'}},
     'parameters': {'w': {'dims': ['generator']}, 'limit': {'dims': ['snapshot', 'bus']}},
-    'variables': {'x': {'foreach': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'variables': {'x': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
     'constraints': {
         'cap': {
-            'foreach': ['snapshot', 'bus'],
+            'dims': ['snapshot', 'bus'],
             'expression': 'sum(x * w, by=gen_bus) <= limit',
         }
     },
@@ -302,7 +302,7 @@ BROADCAST_GROUP_SUM = {
 }
 
 #: g1 and g2 share a bus, so grouping merges two rows carrying the *same*
-#: variable — which is the case a broadcast `over` creates and a `foreach` one
+#: variable — which is the case a broadcast `over` creates and a `dims:` one
 #: cannot.
 BROADCAST_SOURCES = {
     'snapshot': [0, 1],
@@ -334,13 +334,13 @@ def test_sum_over_a_broadcast_dim_still_collapses_its_terms():
     assert result.objective == pytest.approx(6.0), '3x <= 9 at b1, over two snapshots'
 
 
-def test_sum_over_a_foreach_dim_needs_no_such_collapse():
+def test_sum_over_a_declared_dim_needs_no_such_collapse():
     """The counterpart: when the variable carries the grouped dim, each merged
     row has its own label and there is nothing to add."""
     spec = override(
         BROADCAST_GROUP_SUM,
         **{
-            'variables.x.foreach': ['snapshot', 'generator'],
+            'variables.x.dims': ['snapshot', 'generator'],
             'constraints.cap.expression': 'sum(x * w, by=gen_bus) <= limit',
         },
     )
@@ -361,8 +361,8 @@ def test_sum_over_a_foreach_dim_needs_no_such_collapse():
 BROADCAST_OBJECTIVE = {
     'dimensions': {'snapshot': {'dtype': 'int'}, 'bus': {'dtype': 'str'}},
     'parameters': {'w': {'dims': ['snapshot']}, 'floor': {'dims': ['bus']}},
-    'variables': {'y': {'foreach': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'atleast': {'foreach': ['bus'], 'expression': 'y >= floor'}},
+    'variables': {'y': {'dims': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'atleast': {'dims': ['bus'], 'expression': 'y >= floor'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(y * w)'},
 }
 

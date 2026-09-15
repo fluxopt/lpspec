@@ -21,15 +21,15 @@ parameters:
 variables:
   build:
     description: capacity added in this period
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0}
   total:
     description: capacity standing after this period's build, and what the next period inherits
-    foreach: [generator]
+    dims: [generator]
     bounds: {lower: 0}
   p:
     description: output of a generator in one hour of a typical day
-    foreach: [day, hour, generator]
+    dims: [day, hour, generator]
     bounds: {lower: 0}
 
 constraints:
@@ -39,17 +39,17 @@ constraints:
       lives in the model rather than the driver because a carry is a copy and
       never arithmetic: accumulation is math, and math belongs in the file a
       reviewer reads and the oracle checks.
-    foreach: [generator]
+    dims: [generator]
     expression: total == existing + build
 
   capacity:
     description: output is capped by the standing capacity, derated by availability
-    foreach: [day, hour, generator]
+    dims: [day, hour, generator]
     expression: p <= total * avail
 
   balance:
     description: the fleet meets the load exactly in every hour of every typical day
-    foreach: [day, hour]
+    dims: [day, hour]
     expression: sum(p, over=generator) == load
 
 objective:

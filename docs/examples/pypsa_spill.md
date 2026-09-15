@@ -179,25 +179,25 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     variables:
       p:
         description: output of a generator in a snapshot
-        foreach: [snapshot, generator]
+        dims: [snapshot, generator]
         bounds:
           lower: 0
           upper: p_nom
       p_dispatch:
         description: power a storage unit puts onto its bus
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: storage_p_nom
       p_store:
         description: power a storage unit takes off its bus
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: storage_p_nom
       soc:
         description: energy in the store at the end of a snapshot
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         bounds:
           lower: 0
           upper: soc_max
@@ -207,7 +207,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           arrival. A unit that receives no inflow has none to let go, which is a
           spill of zero rather than a quantity with no value — so the energy
           balance keeps its row there.
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         where: "inflow != 0"
         absence: zero
         bounds:
@@ -219,7 +219,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           what is generated at a bus, plus what comes out of the stores less what
           goes into them, meets the load there
-        foreach: [snapshot, bus]
+        dims: [snapshot, bus]
         expression: >-
           sum(p, by=gen_bus)
           + sum(p_dispatch, by=storage_bus)
@@ -228,7 +228,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
       energy_balance_initial:
         description: the first snapshot's level is carried from the initial state of charge
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         where: "position(snapshot) == 0"
         expression: soc == soc_initial + p_store - p_dispatch + inflow - spill
 
@@ -236,7 +236,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           the level carried into a snapshot, plus what was stored and what arrived,
           less what was taken and what was let go
-        foreach: [snapshot, storage]
+        dims: [snapshot, storage]
         expression: >-
           soc == shift(soc, over=snapshot, offset=1)
           + p_store - p_dispatch + inflow - spill

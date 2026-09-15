@@ -110,11 +110,11 @@ parameters:
 variables:
   is_open:
     description: is this warehouse open? The only integrality in the model
-    foreach: [warehouse]
+    dims: [warehouse]
     domain: binary
   serve:
     description: the share of a customer's demand served from a warehouse
-    foreach: [warehouse, customer]
+    dims: [warehouse, customer]
     bounds:
       lower: 0
       upper: 1
@@ -122,7 +122,7 @@ variables:
 constraints:
   every_customer_served:
     description: a customer's demand is met in full, from one warehouse or several
-    foreach: [customer]
+    dims: [customer]
     expression: sum(serve, over=warehouse) == 1
 
   only_from_open_warehouses:
@@ -132,7 +132,7 @@ constraints:
       but much weaker relaxation, and the LP bound is what makes this instance
       solve at all. It is also why serve comes out integral on its own, with no
       integrality declared on it.
-    foreach: [warehouse, customer]
+    dims: [warehouse, customer]
     expression: serve - is_open <= 0
 
 objective:

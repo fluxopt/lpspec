@@ -57,8 +57,8 @@ REACH = {
         'demand': {'dims': ['zone']},
         'levy': {'dims': []},
     },
-    'variables': {'p': {'foreach': ['plant'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'meet': {'foreach': ['zone'], 'expression': 'sum(reach * p, over=plant) >= demand'}},
+    'variables': {'p': {'dims': ['plant'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'constraints': {'meet': {'dims': ['zone'], 'expression': 'sum(reach * p, over=plant) >= demand'}},
     #: `levy` is the objective's **constant** — the one term with no column, so
     #: it reaches a solver by neither of the two routes the others take.
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost) + levy'},
@@ -634,12 +634,12 @@ def test_a_update_can_grow_a_dimension():
             'cut_slope': {'dims': ['cut', 'generator']},
         },
         'variables': {
-            'cap': {'foreach': ['generator'], 'bounds': {'lower': 0, 'upper': 100}},
-            'theta': {'foreach': [], 'bounds': {'lower': 0}},
+            'cap': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 100}},
+            'theta': {'dims': [], 'bounds': {'lower': 0}},
         },
         'constraints': {
             'optimality_cut': {
-                'foreach': ['cut'],
+                'dims': ['cut'],
                 'expression': 'theta >= cut_const + sum(cut_slope * cap, over=generator)',
             }
         },

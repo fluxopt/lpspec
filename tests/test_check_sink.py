@@ -26,8 +26,8 @@ from lpspec.relational.sinks.writers import WRITERS
 PLAIN = {
     'dimensions': {'g': {'dtype': 'str'}},
     'parameters': {'cost': {'dims': ['g']}},
-    'variables': {'p': {'foreach': ['g'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'total': {'foreach': [], 'expression': 'sum(p, over=g) <= 5'}},
+    'variables': {'p': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 10}}},
+    'constraints': {'total': {'dims': [], 'expression': 'sum(p, over=g) <= 5'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost, over=g)'},
 }
 
@@ -39,7 +39,7 @@ WITH_A_SET = PLAIN | {'sos': {'pick': {'variable': 'p', 'over': 'g', 'type': 1}}
 #: it: the first constructs a shipped sink refuses outright.
 WITH_A_QUADRATIC_OBJECTIVE = PLAIN | {'objective': {'sense': 'minimize', 'expression': 'sum(p * p, over=g)'}}
 WITH_A_QUADRATIC_ROW = PLAIN | {
-    'constraints': {**PLAIN['constraints'], 'ball': {'foreach': ['g'], 'expression': 'p * p <= 9'}}
+    'constraints': {**PLAIN['constraints'], 'ball': {'dims': ['g'], 'expression': 'p * p <= 9'}}
 }
 
 
@@ -157,7 +157,7 @@ def test_a_sink_excluding_a_pair_says_so_rather_than_denying_the_half(monkeypatc
 
     monkeypatch.setitem(SOLVERS, 'stub', Stub)
     integral = WITH_A_SET | {
-        'variables': {'p': {'foreach': ['g'], 'domain': 'integer', 'bounds': {'lower': 0, 'upper': 10}}}
+        'variables': {'p': {'dims': ['g'], 'domain': 'integer', 'bounds': {'lower': 0, 'upper': 10}}}
     }
     message = sinks.refusal(_program(integral), 'stub')
     assert message is not None
