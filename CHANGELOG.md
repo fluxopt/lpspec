@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.334](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.333...v0.0.1-alpha.334) (2026-09-15)
+
+
+### Features
+
+* **language:** a model states its topology as relations, the way math-spec 0.0.0-alpha.89 does ([#1646](https://github.com/fluxopt/lpspec/issues/1646)) ([1fd8926](https://github.com/fluxopt/lpspec/commit/1fd892677e4929da7158e8032f64190a1684fe31))
+
 ## [0.0.1-alpha.333](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.332...v0.0.1-alpha.333) (2026-09-15)
 
 
