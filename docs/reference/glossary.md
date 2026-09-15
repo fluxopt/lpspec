@@ -31,7 +31,7 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 
 **Result**
 : One answer read back from a solve: `objective`, `primal(name)`,
-  `dual(name)`, `expression(name)`. It owns its tables, so it outlives its
+  `dual(name)`, `evaluate(name)`. It owns its tables, so it outlives its
   model.
 
 **Archive**

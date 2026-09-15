@@ -235,7 +235,7 @@ Adding a port is four files and five rules:
 ## PyPSA, one feature at a time
 
 **[The PyPSA ladder](pypsa_ladder.md) is the conformance instrument.** It
-holds fifteen networks, each carrying what the one below it did not. Each
+holds sixteen networks, each carrying what the one below it did not. Each
 is solved through PyPSA and through lpspec and compared four ways: the
 objective, the constraint and variable names, the size of the model handed to
 the solver, and every constraint's dual. A difference needs a recorded reason

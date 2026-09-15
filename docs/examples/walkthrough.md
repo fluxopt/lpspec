@@ -128,19 +128,17 @@ objective:
 ## What it exercises
 
 This is the model behind `python examples/walkthrough.py`, which runs it
-through every stage — YAML → schema → core AST → logical plan → model frames →
-LP text → solution — printing what each stage produces, then two models the
+through every stage, YAML → schema → core AST → logical plan → model frames →
+LP text → solution, printing what each stage produces, then two models the
 language refuses and why. The committed output is
-[examples/walkthrough.out](https://github.com/fluxopt/lpspec/blob/main/examples/walkthrough.out)
-if you would rather read than run.
+[examples/walkthrough.out](https://github.com/fluxopt/lpspec/blob/main/examples/walkthrough.out).
 
 It is the only model here that uses **tier 2**: a macro and a named
-expression. The macro does not survive the language's expansion — nothing
-downstream of `math_spec` knows it existed, which is what makes it free. The named
-expression is substituted the same way wherever a constraint uses it, but its
-name survives on the model: stage 6 reads `total_supply` back at the solution
-with `expression()`, lowered on that read rather than at build, so declaring
-it still costs the build nothing.
+expression. The macro does not survive the language's expansion, so nothing
+downstream of `math_spec` knows it existed. The named expression is
+substituted the same way wherever a constraint uses it, and its name survives
+on the model: stage 6 reads `total_supply` back at the solution with
+`evaluate()`, lowered on that read rather than at build.
 
 ---
 
