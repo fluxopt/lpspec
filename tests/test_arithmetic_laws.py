@@ -296,8 +296,8 @@ def _wide_objective_of(expression: str, *, dims: list[str]) -> float:
         'dimensions': dimensions,
         **({'relations': {'grp': {'columns': ['f', 'g'], 'key': 'f'}}} if grouped else {}),
         'parameters': {
-            'gate': {'dims': ['f'], 'dtype': 'bool'},
-            'gate2': {'dims': ['f'], 'dtype': 'bool'},
+            'gate': {'coverage': 'masked', 'dims': ['f'], 'dtype': 'bool'},
+            'gate2': {'dims': ['f'], 'dtype': 'bool', 'coverage': 'masked'},
             'w': {'dims': ['f']},
         },
         'variables': {
@@ -370,7 +370,7 @@ def test_a_mask_on_a_dim_the_reduction_does_not_touch_still_propagates():
     """
     spec = {
         'dimensions': {'f': {}, 't': {'dtype': 'int'}},
-        'parameters': {'tgate': {'dims': ['t'], 'dtype': 'bool'}},
+        'parameters': {'tgate': {'coverage': 'masked', 'dims': ['t'], 'dtype': 'bool'}},
         'variables': {
             'x': {'dims': ['f', 't'], 'bounds': {'lower': 0, 'upper': 100}},
             'y': {'dims': ['f', 't'], 'where': 'tgate', 'bounds': {'lower': 0, 'upper': 50}},
@@ -429,7 +429,7 @@ def test_shift_created_absence_reaches_a_reduction_like_any_other():
 #: :func:`override` states the one thing.
 DIVISOR_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
-    'parameters': {'d': {'dims': ['f']}},
+    'parameters': {'d': {'coverage': 'masked', 'dims': ['f']}},
     'variables': {'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {'c': {'dims': ['f'], 'expression': 'x / d <= 10'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
@@ -548,7 +548,7 @@ def test_a_divisor_may_be_sparse_where_the_row_is_masked_out():
     spec = override(
         DIVISOR_SPEC,
         **{
-            'parameters.active': {'dims': ['f'], 'dtype': 'bool'},
+            'parameters.active': {'dims': ['f'], 'dtype': 'bool', 'coverage': 'masked'},
             'constraints.c.where': 'active',
         },
     )

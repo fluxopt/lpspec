@@ -188,8 +188,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     relations:
       gen_bus: {columns: [generator, bus], key: generator, description: "the bus a generator sits on"}
-      line_from: {columns: [line, bus], key: line, description: "the bus a line leaves, null where the end is open"}
-      line_to: {columns: [line, bus], key: line, description: "the bus a line arrives at, null where the end is open"}
+      line_from: {coverage: masked, columns: [line, bus], key: line, description: "the bus a line leaves, null where the end is open"}
+      line_to: {coverage: masked, columns: [line, bus], key: line, description: "the bus a line arrives at, null where the end is open"}
       gen_of: {columns: [offer, generator], key: offer, description: "the generator behind an offer"}
       market_of: {columns: [offer, market], key: offer, description: "the market an offer is made into"}
       tranche_of: {columns: [offer, tranche], key: offer, description: "the tranche an offer is made at"}
@@ -223,6 +223,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: share of capacity a generator may offer at a tranche
         dims: [tranche]
       zone_share:
+        coverage: masked
         description: >-
           how much of a generator's reserve counts towards a zone — a generator may
           back several zones at a per-zone weight, so this cannot be a relation over

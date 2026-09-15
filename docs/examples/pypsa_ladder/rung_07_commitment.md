@@ -378,10 +378,12 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
         description: most a generator may raise its output between snapshots, per unit of nominal power; no
           value means no limit
         dims: [generator]
+        coverage: masked
       Generator_ramp_limit_down:
         description: most a generator may lower its output between snapshots, per unit of nominal power; no
           value means no limit
         dims: [generator]
+        coverage: masked
       Generator_ramp_limit_start_up:
         description: most output in the snapshot a unit starts, per unit of nominal power
         dims: [generator]
@@ -406,6 +408,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
           `position()` compares against a literal rather than a parameter
         dims: [snapshot, generator]
         dtype: bool
+        coverage: masked
       Generator_start_up_cost:
         description: cost of one start
         dims: [generator]
@@ -418,6 +421,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
       Generator_p_nom_mod:
         description: the module size a build comes in whole numbers of; no value means the build is continuous
         dims: [generator]
+        coverage: masked
       Generator_modules_installed:
         description: 'how many whole modules a committable build has in place: `Generator_p_nom / Generator_p_nom_mod`
           where a fixed build is modular, one where it is not, data prep. PyPSA refuses a fixed modular build

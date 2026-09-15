@@ -262,9 +262,11 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
       Generator_p_set:
         description: a given output schedule; a generator without one has no row here
         dims: [snapshot, generator]
+        coverage: masked
       Link_p_set:
         description: a given flow schedule; a link without one has no row here
         dims: [snapshot, link]
+        coverage: masked
     variables:
       Generator_p:
         description: '`Generator-p` — output of a generator in a snapshot'

@@ -178,6 +178,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     parameters:
       still_live:
+        coverage: masked
         description: 1 where a vintage is still inside its technology's operational life in that year
         dims: [technology, year, vintage]
       residual_capacity:
@@ -185,9 +186,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dims: [technology, year]
 
       build_cost:
+        coverage: masked
         description: discounted cost of building a unit of capacity in a vintage
         dims: [technology, vintage]
       holding_cost:
+        coverage: masked
         description: discounted fixed cost of holding a unit of capacity through a year
         dims: [technology, year]
       running_cost:
@@ -201,9 +204,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: share of its capacity a technology can offer in a timeslice
         dims: [technology, timeslice, year]
       input_ratio:
+        coverage: masked
         description: fuel a technology consumes per unit of activity
         dims: [technology, fuel, mode, year]
       output_ratio:
+        coverage: masked
         description: fuel a technology produces per unit of activity
         dims: [technology, fuel, mode, year]
 
@@ -228,6 +233,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: 1 where a technology's capacity counts towards the reserve
         dims: [technology, year]
       reserve_demand:
+        coverage: masked
         description: the activity the reserve margin is measured against
         dims: [technology, fuel, mode, year]
 

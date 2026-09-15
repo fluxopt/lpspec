@@ -237,7 +237,7 @@ dimensions:
   period: {dtype: int}
 
 relations:
-  period_of: {columns: [snapshot, period], key: snapshot}
+  period_of: {coverage: masked, columns: [snapshot, period], key: snapshot}
 
 parameters:
   price: {dims: [snapshot]}
@@ -379,8 +379,9 @@ def test_a_relation_over_another_dimension_carries_no_position():
         MASK.replace('WHERE', 'position(snapshot, by=plant_period) == 0')
         .replace('  period: {dtype: int}', '  period: {dtype: int}\n  plant: {dtype: str}')
         .replace(
-            '  period_of: {columns: [snapshot, period], key: snapshot}',
-            '  period_of: {columns: [snapshot, period], key: snapshot}\n  plant_period: {columns: [plant, period], key: plant}',
+            '  period_of: {coverage: masked, columns: [snapshot, period], key: snapshot}',
+            '  period_of: {coverage: masked, columns: [snapshot, period], key: snapshot}'
+            '\n  plant_period: {coverage: masked, columns: [plant, period], key: plant}',
         )
     )
     with pytest.raises(LanguageError, match=r"'plant_period' has no key column over 'snapshot'"):
@@ -441,7 +442,7 @@ dimensions:
   season: {dtype: str}
 
 relations:
-  season_of: {columns: [snapshot, season], key: snapshot}
+  season_of: {coverage: masked, columns: [snapshot, season], key: snapshot}
 
 parameters:
   inflow: {dims: [snapshot]}

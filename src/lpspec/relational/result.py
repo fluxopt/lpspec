@@ -263,18 +263,6 @@ class Diagnostics:
     #: of an unbuilt row does not exist.
     omissions: pl.DataFrame
 
-    #: ``(parameter, coordinates, rows, missing)`` — one row per parameter whose
-    #: source is short of the coordinates its dims reach, in declaration order,
-    #: and **empty where every one is complete**. Sparsity is the ordinary case
-    #: here — absence is how a model masks — so this reports it rather than
-    #: judging it: what a missing row means is the absence rules', and whether
-    #: it was meant is the caller's to say.
-    #:
-    #: A parameter over no dims has one coordinate and attaching already refuses
-    #: a source that does not carry exactly one row for it, so it is never
-    #: here.
-    sparse_parameters: pl.DataFrame
-
     #: ``(constraint, smallest, largest)`` — the coefficient **magnitudes** each
     #: constraint block put in the matrix, one row per block that kept a term,
     #: in build order. A solver's own ``Matrix range`` line answers this for the

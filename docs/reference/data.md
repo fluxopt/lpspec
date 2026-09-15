@@ -99,6 +99,8 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | a relation value that is not a label of its own dimension | one wording, checked once for both lanes |
 | a dimension carrying relations with no index | |
 | a dimension nothing can supply labels for | names both ways to fix it |
+| a `coverage: total` parameter short of a coordinate | names the parameter, the counts and the coordinates, and the `coverage: masked` that says the gap was meant |
+| a `coverage: total` relation leaving a label of its key unmapped | names the labels with no row — the unwired port that would otherwise land its terms in no group |
 | a dimension the spec declares and the caller also supplies | names the declaration and the colliding key |
 | a relation whose map the spec declares and the caller also supplies | names the map and the colliding column |
 | a declared map whose labels nothing supplies | names the map, and asks only for the labels |
@@ -113,7 +115,7 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | What arrives | What happens |
 |---|---|
 | an undeclared column in a table | ignored |
-| a coordinate with no row | sparse variables; what a missing row means where it is read is [absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/). `diagnostics().sparse_parameters` names the parameters that arrived short of their dims ([api](api.md#diagnostics)) |
+| a coordinate with no row, under `coverage: masked` | sparse variables; what a missing row means where it is read is [absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/). Under the default `coverage: total` the same gap is refused above — the declaration is what separates a mask from a lost row |
 | a value that is readable and wrong | bound as given |
 
 ### Stray labels

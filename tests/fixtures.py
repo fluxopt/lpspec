@@ -31,7 +31,7 @@ DISPATCH_SPEC: dict[str, Any] = {
     'parameters': {
         'p_max': {'dims': ['generator']},
         'cost': {'dims': ['generator']},
-        'load': {'dims': ['snapshot']},
+        'load': {'coverage': 'masked', 'dims': ['snapshot']},
     },
     'variables': {'p': {'dims': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
     'constraints': {'balance': {'dims': ['snapshot'], 'expression': 'sum(p, over=generator) == load'}},

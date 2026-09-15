@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 #: that has somewhere for each kind of bad data to go wrong.
 SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
-    'parameters': {'cost': {'dims': ['f']}, 'cap': {'dims': ['f']}},
+    'parameters': {'cost': {'coverage': 'masked', 'dims': ['f']}, 'cap': {'coverage': 'masked', 'dims': ['f']}},
     'variables': {'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
     'constraints': {'k': {'dims': ['f'], 'expression': 'x <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost)'},
@@ -320,7 +320,7 @@ def test_whole_numbers_serve_a_float_declaration(tmp_path: Path):
 #: spelling arrived.
 FLAG_SPEC = {
     'dimensions': {'g': {'dtype': 'str'}},
-    'parameters': {'active': {'dims': ['g'], 'dtype': 'bool'}},
+    'parameters': {'active': {'coverage': 'masked', 'dims': ['g'], 'dtype': 'bool'}},
     'variables': {'x': {'dims': ['g'], 'where': 'active', 'bounds': {'lower': 0, 'upper': 1}}},
     'constraints': {'k': {'dims': [], 'expression': 'sum(x, over=g) <= 9'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
@@ -362,7 +362,7 @@ def test_a_bare_where_on_a_string_parameter_asks_whether_it_has_a_row(tmp_path: 
     """
     spec = {
         'dimensions': {'g': {'dtype': 'str'}},
-        'parameters': {'fuel': {'dims': ['g'], 'dtype': 'str'}},
+        'parameters': {'fuel': {'coverage': 'masked', 'dims': ['g'], 'dtype': 'str'}},
         'variables': {'x': {'dims': ['g'], 'where': 'fuel', 'bounds': {'lower': 0, 'upper': 1}}},
         'constraints': {'k': {'dims': [], 'expression': 'sum(x, over=g) <= 9'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
@@ -689,7 +689,7 @@ def test_an_entity_table_is_a_dimension_index_columns_and_all(tmp_path):
     spec = {
         'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
         'relations': {'gen_bus': {'columns': ['g', 'b'], 'key': 'g'}},
-        'parameters': {'cap': {'dims': ['g']}},
+        'parameters': {'cap': {'coverage': 'masked', 'dims': ['g']}},
         'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {'k': {'dims': ['b'], 'expression': 'sum(x, by=gen_bus) <= 100'}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x)'},

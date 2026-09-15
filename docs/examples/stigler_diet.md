@@ -92,6 +92,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     parameters:
       nutrient_per_dollar:
+        coverage: masked
         description: how much of each nutrient a dollar of each food buys
         dims: [food, nutrient]
       daily_minimum:

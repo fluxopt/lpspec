@@ -136,11 +136,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: cost of one unit of output
         dims: [generator]
       p_nom_set:
+        coverage: masked
         description: >-
           the capacity a generator is to hold, for the generators whose capacity is
           already decided
         dims: [generator]
       p_set:
+        coverage: masked
         description: >-
           the output a generator is to deliver, for the snapshots in which it is
           scheduled rather than chosen

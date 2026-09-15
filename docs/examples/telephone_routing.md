@@ -116,6 +116,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: circuits a city pair asked for
         dims: [call]
       uses:
+        coverage: masked
         description: >-
           which arcs a path traverses — a path uses an arc or it does not, so the
           value is 1 and absence is 0

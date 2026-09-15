@@ -488,9 +488,11 @@ q_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
       StorageUnit_p_set:
         description: a given net dispatch schedule; a unit without one has no row here
         dims: [snapshot, storage_unit]
+        coverage: masked
       StorageUnit_state_of_charge_set:
         description: a given charge schedule; a unit without one has no row here
         dims: [snapshot, storage_unit]
+        coverage: masked
       Store_e_nom:
         description: nominal energy capacity
         dims: [store]
@@ -524,6 +526,7 @@ q_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
       Store_e_set:
         description: a given energy schedule; a store without one has no row here
         dims: [snapshot, store]
+        coverage: masked
     variables:
       Generator_p:
         description: '`Generator-p` — output of a generator in a snapshot'

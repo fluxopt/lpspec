@@ -29,7 +29,7 @@ def _spec(objective: str = 'sum(x, over=snapshot)') -> dict:
             'period': {'dtype': 'int'},
         },
         'relations': {'period_of': {'columns': ['snapshot', 'period'], 'key': 'snapshot'}},
-        'parameters': {'load': {'dims': ['snapshot']}},
+        'parameters': {'load': {'coverage': 'masked', 'dims': ['snapshot']}},
         'variables': {'x': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
         'constraints': {'c': {'dims': ['snapshot'], 'expression': 'x >= load'}},
         'objective': {'sense': 'minimize', 'expression': objective},
@@ -57,7 +57,7 @@ def test_a_relation_names_its_columns_and_the_one_it_is_keyed_by():
     schema = to_spec(
         {
             'dimensions': {'bus': {}, 'generator': {}},
-            'relations': {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
+            'relations': {'gen_bus': {'coverage': 'masked', 'columns': ['generator', 'bus'], 'key': 'generator'}},
         }
     )
     (declared,) = schema.relations_of('generator').values()
@@ -111,7 +111,7 @@ def test_a_dimension_grouped_into_draws_no_advice():
     sums, and no warning fires."""
     spec = {
         'dimensions': {'bus': {}, 'generator': {}},
-        'relations': {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
+        'relations': {'gen_bus': {'coverage': 'masked', 'columns': ['generator', 'bus'], 'key': 'generator'}},
         'parameters': {'cost': {'dims': ['generator']}},
         'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 1}}},
         'constraints': {'c': {'dims': ['generator'], 'expression': 'p <= 1'}},
@@ -154,7 +154,7 @@ def _unused_target_spec(month: dict) -> dict:
             'month': month,
         },
         'relations': {
-            'period_of': {'columns': ['snapshot', 'period'], 'key': 'snapshot'},
+            'period_of': {'coverage': 'masked', 'columns': ['snapshot', 'period'], 'key': 'snapshot'},
             'month_of': {'columns': ['snapshot', 'month'], 'key': 'snapshot'},
         },
         'parameters': {'cap': {'dims': ['period']}},
@@ -248,7 +248,7 @@ NETWORK = {
     'dimensions': {'bus': {'dtype': 'str'}, 'line': {'dtype': 'str'}, 'kv': {'dtype': 'int'}},
     'relations': {
         'send': {'columns': ['line', 'bus'], 'key': 'line'},
-        'recv': {'columns': ['line', 'bus'], 'key': 'line'},
+        'recv': {'coverage': 'masked', 'columns': ['line', 'bus'], 'key': 'line'},
         'voltage': {'columns': ['line', 'kv'], 'key': 'line'},
     },
     'parameters': {'cap': {'dims': ['line']}, 'price': {'dims': ['line']}},
@@ -461,7 +461,7 @@ LOAD = [5.0, 4.0]
 
 BASE = {
     'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-    'relations': {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
+    'relations': {'gen_bus': {'coverage': 'masked', 'columns': ['generator', 'bus'], 'key': 'generator'}},
     'parameters': {'cost': {'dims': ['generator']}, 'load': {'dims': ['bus']}},
     'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 10}}},
     'constraints': {'balance': {'dims': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
@@ -566,6 +566,7 @@ def test_a_where_reads_a_map_that_leaves_a_label_out():
     the constraint is placed only where the map says something.
     """
     spec = _spec()
+    spec['relations']['period_of']['coverage'] = 'masked'
     spec['constraints']['c']['where'] = 'period_of == 1'
     sources = {
         'snapshot': [0, 1, 2],

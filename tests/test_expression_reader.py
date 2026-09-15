@@ -31,7 +31,7 @@ SPEC = {
     'parameters': {
         'p_max': {'dims': ['generator']},
         'cost': {'dims': ['generator']},
-        'load': {'dims': ['snapshot']},
+        'load': {'coverage': 'masked', 'dims': ['snapshot']},
     },
     'variables': {
         'p': {'dims': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
@@ -199,8 +199,8 @@ def test_a_divisor_that_adds_keeps_its_hole():
     spec = override(
         SPEC,
         **{
-            'parameters.scale': {'dims': ['snapshot']},
-            'parameters.other': {'dims': ['snapshot']},
+            'parameters.scale': {'coverage': 'masked', 'dims': ['snapshot']},
+            'parameters.other': {'coverage': 'masked', 'dims': ['snapshot']},
             'expressions.holed': '1 / (scale + other)',
         },
     )

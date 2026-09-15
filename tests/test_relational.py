@@ -151,7 +151,7 @@ NODE_CAP_SPEC = {
 
 LABEL_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
-    'parameters': {'cost': {'dims': ['f']}, 'cap': {'dims': ['f']}},
+    'parameters': {'cost': {'coverage': 'masked', 'dims': ['f']}, 'cap': {'coverage': 'masked', 'dims': ['f']}},
     'variables': {'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
     'constraints': {'k': {'dims': ['f'], 'expression': 'x <= cap'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x * cost)'},
@@ -230,7 +230,7 @@ def transport_program() -> Program:
             'cost': ParameterDeclaration(('generator',)),
             'cap': ParameterDeclaration(('line',)),
             'cap_low': ParameterDeclaration(('line',)),
-            'load': ParameterDeclaration(('snapshot', 'bus')),
+            'load': ParameterDeclaration(('snapshot', 'bus'), coverage='masked'),
         },
         variables={
             'p': VariableDeclaration(
@@ -382,7 +382,7 @@ class TestWhatBindRefusesAndWhatItTakes:
         """
         spec = {
             'dimensions': {'i': {'dtype': 'int'}},
-            'parameters': {'cap': {'dims': ['i']}},
+            'parameters': {'cap': {'coverage': 'masked', 'dims': ['i']}},
             'variables': {'x': {'dims': ['i'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
             'constraints': {'c': {'dims': ['i'], 'expression': 'x >= 0'}},
             'objective': {'sense': 'minimize', 'expression': 'sum(x, over=i)'},
@@ -450,7 +450,7 @@ class TestWhatBindRefusesAndWhatItTakes:
 
         spec = {
             'dimensions': {'snapshot': {'dtype': 'int'}},
-            'parameters': {'load': {'dims': ['snapshot']}},
+            'parameters': {'load': {'coverage': 'masked', 'dims': ['snapshot']}},
             'variables': {'p': {'dims': ['snapshot'], 'bounds': {'lower': 0}}},
             'constraints': {'meet': {'dims': ['snapshot'], 'expression': 'p >= load'}},
             'objective': {'sense': 'minimize', 'expression': 'sum(p, over=snapshot)'},
@@ -541,7 +541,7 @@ class TestTheLabelSpace:
                 'node': {'dtype': 'str'},
                 'tech': {'dtype': 'str'},
             },
-            'parameters': {'cap': {'dims': ['node', 'tech']}, 'load': {'dims': ['snapshot']}},
+            'parameters': {'cap': {'dims': ['node', 'tech']}, 'load': {'coverage': 'masked', 'dims': ['snapshot']}},
             'variables': {
                 'p': {
                     'dims': ['snapshot', 'node', 'tech'],
@@ -670,7 +670,7 @@ class TestTheLabelSpace:
         """
         spec = {
             'dimensions': {'i': {'dtype': 'int'}},
-            'parameters': {'a': {'dims': ['i']}, 'b': {'dims': ['i']}},
+            'parameters': {'a': {'coverage': 'masked', 'dims': ['i']}, 'b': {'coverage': 'masked', 'dims': ['i']}},
             'variables': {
                 'absent': {'dims': ['i'], 'where': 'not a', 'bounds': {'lower': 0, 'upper': 1}},
                 'either': {'dims': ['i'], 'where': 'a > 0 or b > 0', 'bounds': {'lower': 0, 'upper': 1}},
@@ -708,7 +708,7 @@ class TestTheLabelSpace:
         """
         spec = {
             'dimensions': {'i': {'dtype': 'int'}, 'j': {'dtype': 'str'}},
-            'parameters': {'cap': {'dims': ['i']}},
+            'parameters': {'cap': {'coverage': 'masked', 'dims': ['i']}},
             'variables': {
                 'x': {'dims': ['i'], 'bounds': {'lower': 0, 'upper': 'cap'}},
                 'y': {'dims': ['i', 'j'], 'bounds': {'lower': 0}},
@@ -749,7 +749,7 @@ class TestTheLabelSpace:
         """
         spec = {
             'dimensions': {'i': {'dtype': 'int'}},
-            'parameters': {'cap': {'dims': ['i']}},
+            'parameters': {'cap': {'coverage': 'masked', 'dims': ['i']}},
             'variables': {
                 'pad': {'dims': ['i'], 'bounds': {'lower': 0, 'upper': 0}},
                 'x': {'dims': ['i'], 'bounds': {'lower': 0}},
@@ -880,7 +880,7 @@ def _network(ends: tuple[str, str]) -> tuple[dict, dict]:
             'from': {'columns': ['line', 'bus'], 'key': 'line'},
             'to': {'columns': ['line', 'bus'], 'key': 'line'},
         },
-        'parameters': {'cap': {'dims': ['line']}, 'load': {'dims': ['snapshot', 'bus']}},
+        'parameters': {'cap': {'dims': ['line']}, 'load': {'coverage': 'masked', 'dims': ['snapshot', 'bus']}},
         'variables': {'f': {'dims': ['snapshot', 'line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {
             'balance': {
@@ -906,7 +906,11 @@ def _network(ends: tuple[str, str]) -> tuple[dict, dict]:
 
 PINNED_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
-    'parameters': {'relmax': {'dims': ['f']}, 'size_lb': {'dims': ['f']}, 'size_ub': {'dims': ['f']}},
+    'parameters': {
+        'relmax': {'coverage': 'masked', 'dims': ['f']},
+        'size_lb': {'dims': ['f']},
+        'size_ub': {'dims': ['f']},
+    },
     'variables': {
         'rate': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 1000}},
         'size': {'dims': ['f'], 'bounds': {'lower': 'size_lb', 'upper': 'size_ub'}},
@@ -1078,7 +1082,10 @@ class TestWhatReachesTheSolverAsAnEntry:
         """
         spec = {
             'dimensions': {'snapshot': {'dtype': 'int'}, 'generator': {'dtype': 'str'}},
-            'parameters': {'price': {'dims': ['snapshot', 'generator']}, 'load': {'dims': ['snapshot']}},
+            'parameters': {
+                'price': {'dims': ['snapshot', 'generator']},
+                'load': {'coverage': 'masked', 'dims': ['snapshot']},
+            },
             'variables': {'q': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
             'constraints': {'floor': {'dims': ['snapshot'], 'expression': 'q >= load'}},
             'objective': {'sense': 'minimize', 'expression': 'sum(q * price)'},
@@ -1181,7 +1188,7 @@ POSITIONAL_COLS_SPEC = {
 #: is positional rather than a join (compiler `_aligned_bound`).
 DENSE_BOUND_SPEC = {
     'dimensions': {'t': {'dtype': 'int'}, 'n': {'dtype': 'str'}},
-    'parameters': {'avail': {'dims': ['t', 'n']}, 'cost': {'dims': ['n']}},
+    'parameters': {'avail': {'coverage': 'masked', 'dims': ['t', 'n']}, 'cost': {'dims': ['n']}},
     'variables': {'p': {'dims': ['t', 'n'], 'bounds': {'lower': 0, 'upper': 'avail'}}},
     'constraints': {'cap': {'dims': ['t'], 'expression': 'sum(p, over=n) <= 100'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(p * cost)'},
@@ -1261,7 +1268,7 @@ class TestThePositionalHandoff:
         """
         spec = {
             'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
-            'parameters': {'cap': {'dims': ['g']}, 'load': {'dims': ['t']}},
+            'parameters': {'cap': {'coverage': 'masked', 'dims': ['g']}, 'load': {'dims': ['t']}},
             'variables': {'p': {'dims': ['t', 'g'], 'where': 'cap > 0', 'bounds': {'lower': 0, 'upper': 'cap'}}},
             'constraints': {'meet': {'dims': ['t'], 'where': 'load > 0', 'expression': 'sum(p, over=g) >= load'}},
             'objective': {'sense': 'minimize', 'expression': 'sum(sum(p, over=g), over=t)'},

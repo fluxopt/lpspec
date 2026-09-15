@@ -376,10 +376,12 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
         description: most a generator may raise its output between snapshots, per unit of nominal power; no
           value means no limit
         dims: [generator]
+        coverage: masked
       Generator_ramp_limit_down:
         description: most a generator may lower its output between snapshots, per unit of nominal power; no
           value means no limit
         dims: [generator]
+        coverage: masked
       Generator_ramp_limit_start_up:
         description: most output in the snapshot a unit starts, per unit of nominal power
         dims: [generator]
@@ -404,6 +406,7 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
           `position()` compares against a literal rather than a parameter
         dims: [snapshot, generator]
         dtype: bool
+        coverage: masked
       Generator_start_up_cost:
         description: cost of one start
         dims: [generator]

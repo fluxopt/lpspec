@@ -313,10 +313,12 @@ F_{l} \in \mathbb{R} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{
         description: most a generator may raise its output between snapshots, per unit of nominal power; no
           value means no limit
         dims: [generator]
+        coverage: masked
       Generator_ramp_limit_down:
         description: most a generator may lower its output between snapshots, per unit of nominal power; no
           value means no limit
         dims: [generator]
+        coverage: masked
       Generator_ramp_limit_start_up:
         description: most output in the snapshot a unit starts, per unit of nominal power
         dims: [generator]
@@ -332,10 +334,12 @@ F_{l} \in \mathbb{R} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{
         description: most a link may raise its flow between snapshots, per unit of nominal power; no value
           means no limit
         dims: [link]
+        coverage: masked
       Link_ramp_limit_down:
         description: most a link may lower its flow between snapshots, per unit of nominal power; no value
           means no limit
         dims: [link]
+        coverage: masked
       Link_p_nom:
         description: nominal power
         dims: [link]

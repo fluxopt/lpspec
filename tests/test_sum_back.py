@@ -194,7 +194,7 @@ def test_a_window_whose_every_width_is_zero_builds_no_row():
 #: snapshot carries no width at all.
 UNMAPPED_WIDTH = {
     'dimensions': {'t': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-    'relations': {'season_of': {'columns': ['t', 'season'], 'key': 't'}},
+    'relations': {'season_of': {'coverage': 'masked', 'columns': ['t', 'season'], 'key': 't'}},
     'parameters': {'w': {'dims': ['season'], 'dtype': 'int'}, 'price': {'dims': ['t']}},
     'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
     'constraints': {'rolling': {'dims': ['t'], 'expression': 'sum_back(x, along=t, window=w, by=season_of) <= 4'}},
@@ -286,7 +286,7 @@ def test_a_per_entity_window_reaching_nothing_is_that_entitys_row_alone():
 DAY_WINDOW = {
     'description': 'A minimum up time that stops at each representative day.',
     'dimensions': {'t': {'dtype': 'int'}, 'day': {'dtype': 'str'}},
-    'relations': {'day_of': {'columns': ['t', 'day'], 'key': 't'}},
+    'relations': {'day_of': {'coverage': 'masked', 'columns': ['t', 'day'], 'key': 't'}},
     'parameters': {'must_start': {'dims': ['t']}},
     'variables': {
         'started': {'dims': ['t'], 'domain': 'binary'},

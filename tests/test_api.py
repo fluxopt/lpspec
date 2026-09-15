@@ -216,7 +216,7 @@ def test_a_positional_source_needs_the_labels_it_is_written_against():
     lane reads labels off the parameters."""
     spec = {
         'dimensions': {'g': {}},
-        'parameters': {'cap': {'dims': ['g']}},
+        'parameters': {'cap': {'coverage': 'masked', 'dims': ['g']}},
         'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x, over=g)'},
     }
@@ -555,7 +555,7 @@ def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
     the same way, and `expression()` still says why."""
     spec = {
         'dimensions': {'t': {'dtype': 'int'}},
-        'parameters': {'load': {'dims': ['t']}, 'scale': {'dims': ['t']}},
+        'parameters': {'load': {'dims': ['t']}, 'scale': {'coverage': 'masked', 'dims': ['t']}},
         'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
         'constraints': {'meet': {'dims': ['t'], 'expression': 'p >= load'}},
         'expressions': {'twice': '2 * p', 'ratio': 'p / scale'},
@@ -606,7 +606,7 @@ def test_a_saved_solution_says_why_a_kind_is_absent(tmp_path):
     """
     spec = {
         'dimensions': {'t': {'dtype': 'int'}},
-        'parameters': {'load': {'dims': ['t']}, 'scale': {'dims': ['t']}},
+        'parameters': {'load': {'dims': ['t']}, 'scale': {'coverage': 'masked', 'dims': ['t']}},
         'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
         'constraints': {'meet': {'dims': ['t'], 'expression': 'p >= load'}},
         'expressions': {'twice': '2 * p', 'ratio': 'p / scale'},
@@ -655,7 +655,7 @@ def test_a_loaded_result_gives_the_reason_the_solve_gave(tmp_path):
     """An absence loads back as the sentence, not as an unknown name."""
     spec = {
         'dimensions': {'t': {'dtype': 'int'}},
-        'parameters': {'load': {'dims': ['t']}, 'scale': {'dims': ['t']}},
+        'parameters': {'load': {'dims': ['t']}, 'scale': {'coverage': 'masked', 'dims': ['t']}},
         'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0}, 'domain': 'integer'}},
         'constraints': {'meet': {'dims': ['t'], 'expression': 'p >= load'}},
         'expressions': {'twice': '2 * p', 'ratio': 'p / scale'},
@@ -932,7 +932,7 @@ def test_a_dataset_of_expressions_holds_every_one_this_data_evaluates():
 
 TWO_VARIABLE_SPEC = {
     'dimensions': {'snapshot': {'dtype': 'int'}, 'generator': {'dtype': 'str'}},
-    'parameters': {'p_max': {'dims': ['generator']}, 'load': {'dims': ['snapshot']}},
+    'parameters': {'p_max': {'dims': ['generator']}, 'load': {'coverage': 'masked', 'dims': ['snapshot']}},
     'variables': {
         'p': {'dims': ['snapshot', 'generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}},
         'shed': {'dims': ['snapshot'], 'bounds': {'lower': 0}},

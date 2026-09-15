@@ -708,24 +708,6 @@ class Assembly:
         return _without_zeros(stacked.sort('col_l', 'col_r'))
 
 
-def short_parameters(program: program.Program, attached: AttachedSources) -> dict[str, tuple[int, int]]:
-    """Which parameters arrived short, and by how much: ``name -> (reach, rows)``.
-
-    Arithmetic over two dicts attaching already filled — a dimension's height
-    and a parameter's. The door has refused duplicates and strangers, so the
-    height *is* the number of coordinates covered.
-    """
-    short: dict[str, tuple[int, int]] = {}
-    for name, p in program.parameters.items():
-        if not p.dims:
-            continue
-        reach = math.prod(attached.cardinality[d] for d in p.dims)
-        rows = attached.parameter_rows[name]
-        if rows < reach:
-            short[name] = (reach, rows)
-    return short
-
-
 def _constant_parameters(
     node: program.ExpressionNode, region: program.Mask | None = None, coefficient: bool = False
 ) -> Iterator[tuple[str, program.Mask | None]]:
@@ -769,6 +751,24 @@ def _constant_parameters(
         return
     for child in program.children(node):
         yield from _constant_parameters(child, region, coefficient)
+
+
+def short_parameters(program: program.Program, attached: AttachedSources) -> dict[str, tuple[int, int]]:
+    """Which parameters arrived short, and by how much: ``name -> (reach, rows)``.
+
+    Arithmetic over two dicts attaching already filled — a dimension's height
+    and a parameter's. The door has refused duplicates and strangers, so the
+    height *is* the number of coordinates covered.
+    """
+    short: dict[str, tuple[int, int]] = {}
+    for name, p in program.parameters.items():
+        if not p.dims:
+            continue
+        reach = math.prod(attached.cardinality[d] for d in p.dims)
+        rows = attached.parameter_rows[name]
+        if rows < reach:
+            short[name] = (reach, rows)
+    return short
 
 
 def declares_quadratic(c: program.ConstraintDeclaration) -> bool:

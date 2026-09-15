@@ -36,7 +36,7 @@ BROADCAST_MASK_SPEC = {
         'produces': {'dims': ['tech', 'carrier']},
         'demand': {'dims': ['node', 'carrier']},
         'cost': {'dims': ['tech']},
-        'installed': {'dims': ['node', 'tech']},
+        'installed': {'coverage': 'masked', 'dims': ['node', 'tech']},
     },
     'variables': {
         'p': {'dims': ['node', 'tech'], 'where': 'installed > 0', 'bounds': {'lower': 0, 'upper': 'installed'}},
@@ -56,7 +56,7 @@ def _grid(dims, labels, values):
 
 SPARSE_COEFFICIENT_SPEC = {
     'dimensions': {'t': {'dtype': 'int'}},
-    'parameters': {'c': {'dims': ['t']}, 'w': {'dims': ['t']}},
+    'parameters': {'c': {'coverage': 'masked', 'dims': ['t']}, 'w': {'coverage': 'masked', 'dims': ['t']}},
     'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}},
     'constraints': {'cap': {'dims': ['t'], 'expression': 'w * x <= c'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(x, over=t)'},
@@ -188,8 +188,8 @@ def test_a_sparse_coefficient_beside_a_constant_piece_is_still_a_zero():
 #: behind `south`'s constant side has no members at all.
 GROUPED_CONSTANT_SPEC = {
     'dimensions': {'generator': {}, 'bus': {'dtype': 'str'}},
-    'relations': {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
-    'parameters': {'capacity': {'dims': ['generator']}},
+    'relations': {'gen_bus': {'coverage': 'masked', 'columns': ['generator', 'bus'], 'key': 'generator'}},
+    'parameters': {'capacity': {'coverage': 'masked', 'dims': ['generator']}},
     'variables': {'imports': {'dims': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {'import_limit': {'dims': ['bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}},
     'objective': {'sense': 'maximize', 'expression': 'sum(imports, over=bus)'},
@@ -271,7 +271,7 @@ PLURAL_GROUPED_CONSTANT_SPEC = {
     **GROUPED_CONSTANT_SPEC,
     'dimensions': {**GROUPED_CONSTANT_SPEC['dimensions'], 'technology': {'dtype': 'str'}},
     'relations': {
-        'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'},
+        'gen_bus': {'coverage': 'masked', 'columns': ['generator', 'bus'], 'key': 'generator'},
         'gen_tech': {'columns': ['generator', 'technology'], 'key': 'generator'},
     },
     'variables': {'imports': {'dims': ['bus', 'technology'], 'bounds': {'lower': 0, 'upper': 100}}},
@@ -328,7 +328,11 @@ def test_a_member_with_no_value_is_still_refused_through_a_group():
 
 ABSENT_VARIABLE_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
-    'parameters': {'gate': {'dims': ['f'], 'dtype': 'bool'}, 'relmax': {'dims': ['f']}, 'cost': {'dims': ['f']}},
+    'parameters': {
+        'gate': {'coverage': 'masked', 'dims': ['f'], 'dtype': 'bool'},
+        'relmax': {'coverage': 'masked', 'dims': ['f']},
+        'cost': {'coverage': 'masked', 'dims': ['f']},
+    },
     'variables': {
         'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
         'size': {'dims': ['f'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
@@ -367,7 +371,11 @@ def test_a_term_whose_variable_is_absent_drops_the_row_on_both_lanes():
 #: One rule per block, so the two regimes are two named constraints.
 DEFINED_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
-    'parameters': {'gate': {'dims': ['f'], 'dtype': 'bool'}, 'relmax': {'dims': ['f']}, 'cost': {'dims': ['f']}},
+    'parameters': {
+        'gate': {'coverage': 'masked', 'dims': ['f'], 'dtype': 'bool'},
+        'relmax': {'coverage': 'masked', 'dims': ['f']},
+        'cost': {'coverage': 'masked', 'dims': ['f']},
+    },
     'variables': {
         'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
         'size': {'dims': ['f'], 'where': 'gate', 'bounds': {'lower': 0, 'upper': 50}},
@@ -406,7 +414,7 @@ def test_a_bare_variable_name_in_a_where_asks_whether_it_exists():
 
 ABSENT_COEFFICIENT_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
-    'parameters': {'relmax': {'dims': ['f']}, 'cost': {'dims': ['f']}},
+    'parameters': {'relmax': {'coverage': 'masked', 'dims': ['f']}, 'cost': {'coverage': 'masked', 'dims': ['f']}},
     'variables': {
         'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
         'size': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 50}},
@@ -446,7 +454,7 @@ def test_a_sparse_coefficient_on_the_bound_side_still_pins_the_variable():
 
 SCALAR_MASKED_SPEC = {
     'dimensions': {'f': {'dtype': 'str'}},
-    'parameters': {'cost': {'dims': ['f']}, 'budget': {'dims': []}},
+    'parameters': {'cost': {'coverage': 'masked', 'dims': ['f']}, 'budget': {'dims': []}},
     'variables': {
         'x': {'dims': ['f'], 'bounds': {'lower': 0, 'upper': 100}},
         'slack': {'dims': [], 'where': 'budget > 1000', 'bounds': {'lower': 0, 'upper': 10}},

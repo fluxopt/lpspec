@@ -143,6 +143,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: most capacity a generator may build
         dims: [generator]
       big_m:
+        coverage: masked
         description: >-
           a bound on the output of a committed unit, large enough never to bind on
           its own — the capacity ceiling times the availability, and present only for
