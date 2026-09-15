@@ -52,13 +52,13 @@ Write the math in YAML, attach data at runtime, solve.
     parsed and name-checked before a single source is attached. Errors name the
     problem and its rewrite.
 
--   :material-fence: __A finite language, with a priced way out__
+-   :material-fence: __A finite language, with no escape hatch__
 
     ---
 
-    The ceiling is a closure (relational ∩ local), not a feature race.
-    Genuinely unsayable math goes in an `escape:` island — visible in the file,
-    billed before it runs.
+    The ceiling is relational, and locality prices a new operator rather than
+    barring it. Math the language cannot express is a gap in the language, and
+    a gap closes as a macro, a primitive or a formulation.
 
 -   :material-speedometer: __Straight to the solver__
 

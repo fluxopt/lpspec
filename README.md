@@ -129,9 +129,10 @@ what it costs.
 - **Fail early, fail loud** — every expression, `where` string and even *uncalled*
   macro template is parsed and name-checked before a single source is attached.
   Errors name the problem and its rewrite; nothing falls back silently.
-- **A finite language with a priced way out** — the ceiling is a closure
-  (relational ∩ local), not a feature race; genuinely unsayable math
-  goes in an `escape:` island, visible in the file and billed before it runs.
+- **A finite language, with no escape hatch** — the ceiling is relational, and
+  locality prices a new operator rather than barring it. Math the language
+  cannot express is a gap in the language. A gap closes as a macro, a primitive
+  or a formulation.
 
 The second use case is taking the same file to [linopy](https://github.com/PyPSA/linopy)
 instead of solving it here. One import decides which lane builds it; the
