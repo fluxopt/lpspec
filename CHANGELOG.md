@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.333](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.332...v0.0.1-alpha.333) (2026-09-15)
+
+
+### Bug Fixes
+
+* a polars without the streaming engine still solves and reads back ([#1644](https://github.com/fluxopt/lpspec/issues/1644)) ([c47ae6c](https://github.com/fluxopt/lpspec/commit/c47ae6c5741a2bfa863bf3642662ee474f301f23))
+
 ## [0.0.1-alpha.332](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.331...v0.0.1-alpha.332) (2026-09-15)
 
 
