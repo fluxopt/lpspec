@@ -9,8 +9,8 @@ only where the table has a row: the must-run unit, the pre-committed schedule,
 the capacity somebody already signed for.
 
 `chp` is the dearest generator in the fleet and still runs in the two snapshots
-it is scheduled in. That is the direction that matters — a fixing which only
-ever agreed with the merit order would never show up in the objective.
+it is scheduled in. A fixing that only agreed with the merit order would never
+show up in the objective.
 
 ## The model
 
@@ -25,7 +25,7 @@ PyPSA dispatch and capacity fixed by data: a row that is present pins its variab
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 
 #### Parameters
@@ -119,11 +119,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: generating units, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
 
     parameters:
       p_nom_max:
@@ -250,30 +250,29 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **Two partial tables, at different ranks.** `p_set` is sparse over *(snapshot,
-generator)* — two rows, both `chp` — and `p_nom_set` over *(generator)* alone.
-The mask is the entire feature, so a model that pinned everything would prove
-nothing. Both constraints carry `where:` naming the parameter, which is the
-language's spelling for *the rows this table has*; PyPSA spells the same thing
+generator)*, two rows and both `chp`, and `p_nom_set` over *(generator)*
+alone. The mask is the entire feature, so a model that pinned everything would
+prove nothing. Both constraints carry `where:` naming the parameter, the
+language's spelling for *the rows this table has*. PyPSA spells the same thing
 as `NaN` in a widened frame and tests `~isnull()`.
 
 **The capacity fixing needs a capacity variable.** Every generator here is
 extendable, including the two whose capacity is pinned. A non-extendable
 component has no variable for the equality to bind, so `p_nom_set` would be
-silently ignored — which is why the port declares `p_nom` over every generator
-and lets the data decide which of them are still a decision.
+silently ignored. The port declares `p_nom` over every generator and lets the
+data decide which are still a decision.
 
 ## What it exercises
 
 `where:` on an equality, at two ranks, against a partial table on the *constant*
-side — the case the language refuses to guess at, since a missing row read as
-zero would pin the variable to zero rather than leave it free.
+side. The language refuses to guess there: a missing row read as zero would
+pin the variable to zero rather than leave it free.
 
 ## A note on the instance
 
-`gas` carries a `p_nom_max` of 200 it never approaches. An earlier draft capped
-it at 60, exactly the capacity it builds, and that coincidence made the problem
-dual-degenerate: with the build limit active at the same snapshot as the
-capacity limit, `80` and `90` are both optimal nodal prices, and the two
-implementations picked differently. The objective agreed throughout. Lifting the
-limit off the optimum makes the dual unique, which is what a recorded dual
-vector needs to be worth asserting.
+`gas` carries a `p_nom_max` of 200 it never approaches. A cap of 60, exactly
+the capacity it builds, makes the problem dual-degenerate. With the build
+limit and the capacity limit both active at one snapshot, `80` and `90` are
+both optimal nodal prices. The two implementations pick differently while the
+objective agrees. A limit off the optimum keeps the dual unique, which a
+recorded dual vector needs.

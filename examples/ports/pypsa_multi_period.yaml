@@ -17,11 +17,11 @@ dimensions:
     description: generating units, each existing in some periods and not others
     dtype: str
 
-lookups:
+relations:
   period_of:
     description: the investment period a snapshot falls in
-    over: snapshot
-    into: period
+    columns: [snapshot, period]
+    key: snapshot
 
 parameters:
   load:
@@ -68,7 +68,7 @@ constraints:
     description: >-
       a generator produces no more than the capacity built for it, and nothing at
       all in a period it does not exist in — the activity is read down onto the
-      snapshot through the period lookup
+      snapshot through the period relation
     dims: [snapshot, generator]
     expression: p <= p_nom * at(activity, by=period_of)
 

@@ -6,29 +6,30 @@ declares no auxiliary variable at all.
 
 ## The problem
 
-The weight forms all say the same thing: put the operating point somewhere on
+The weight methods all say one thing: put the operating point somewhere on
 the curve, and read the cost off beside it. Saying it costs one weight per
 breakpoint per row, plus a convexity row to make the weights a combination.
 
-A convex curve does not need any of that, because it **is** the upper envelope
-of its own segment lines:
+A convex curve needs none of that, because it **is** the upper envelope of its
+own segment lines:
 
 $$f(x) = \max_k \left( f(x_k) + \frac{f(x_{k+1}) - f(x_k)}{x_{k+1} - x_k} \cdot (x - x_k) \right)$$
 
 So `cost` $\ge$ every one of those lines says `cost` $\ge f(p)$, and a
-minimising objective pushes it down onto the curve. One row per segment, no
-weights, no convexity row, and nothing to declare — which is why the variable
-list below is the model's own two and stops there.
+minimising objective pushes it down onto the curve. That takes one row per
+segment, no weights and no convexity row, so the model declares no variable
+beyond its own two.
 
-The saving is a **trade**, not a free win. Against `method: convex` on 20
-generators × 48 snapshots × 6 breakpoints:
+The saving is a **trade**. Against `method: convex` on 20 generators × 48
+snapshots × 6 breakpoints:
 
 | | columns | rows | nonzeros |
 |---|---:|---:|---:|
 | `method: convex` | 7680 | 2928 | 18240 |
 | `method: lp` | **1920** | 6768 | **12480** |
 
-Three quarters of the columns and a third of the nonzeros, paid for in rows.
+`method: lp` drops three quarters of the columns and a third of the nonzeros,
+and carries more than twice the rows.
 
 ## The model
 
@@ -212,21 +213,21 @@ objective:
 ## What it exercises
 
 The `>=` on the second link is the whole declaration. It says which side of the
-lines the cost sits on, and **the curvature has to match it**: lines that
+lines the cost sits on, and **the curvature has to match it**. Lines that
 envelope a convex curve *cut* a concave one, and the solve comes back
-`optimal` either way with an answer below the curve it was told to price. So
+`optimal` either way, with an answer below the curve it was told to price. So
 `>=` requires a convex curve and `<=` a concave one, checked against the
-breakpoint values once they are bound — strictly stronger than the mixed-curvature
-guard `method: convex` needs, which a wholly concave curve passes.
+breakpoint values once they are bound. That check is stricter than the
+mixed-curvature guard of `method: convex`, which a wholly concave curve passes.
 
 A segment *line* does not stop where its segment does, so two more rows pin the
-operating point inside the curve's own range — `p >= min(bp_x)` and
+operating point inside the curve's own range: `p >= min(bp_x)` and
 `p <= max(bp_x)`, at the first and last breakpoint. Without them the
-formulation extrapolates along the end segments, where the weight forms cannot
-go at all.
+formulation extrapolates along the end segments, where the weight methods
+cannot go.
 
-Everything above is emitted as ordinary constraints before the plan exists:
-there is no plan node for a curve and no engine case, so both lanes receive
+Everything above is emitted as ordinary constraints before the plan exists.
+There is no plan node for a curve and no engine case, so both lanes receive
 identical affine rows and the LP file agrees with them.
 
 | | what it declares | what it emits |
@@ -236,10 +237,9 @@ identical affine rows and the LP file agrees with them.
 | `method: convex` | λ per breakpoint | convexity and links — a pure LP |
 | `method: lp` | **nothing** | a row per segment line, and two holding the domain |
 
-This model and [piecewise](piecewise.md) are the same instance to the number:
-both reach 3850.0, and both reach the same shadow prices on `balance`, which is
-the check worth having — two formulations of one curve agreeing on the dual as
-well as the primal.
+This model and [piecewise](piecewise.md) are the same instance. Both reach
+3850.0 and the same shadow prices on `balance`, so two formulations of one
+curve agree on the dual as well as the primal.
 
 Compare [sos](sos.md), the other one-line variant, which moves the restriction
 *outward* to the solver where this one removes the need for it.

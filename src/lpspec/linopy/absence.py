@@ -20,7 +20,7 @@ def present(model: Any, name: str) -> Any:
 
 
 def unmapped(key: object) -> bool:
-    """Whether a lookup left this member in no group: ``None``, or the NaN that never equals itself."""
+    """Whether a relation left this member in no group: ``None``, or the NaN that never equals itself."""
     return key is None or key != key
 
 

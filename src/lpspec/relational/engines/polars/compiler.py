@@ -7,7 +7,7 @@ Column conventions, relied on by the engine:
 ===================  ==========================================
 frame                columns
 ===================  ==========================================
-dimension table      ``val``, ``ord``, plus declared lookups
+dimension table      ``val``, ``ord``, plus declared relations
 parameter table      ``dims…``, ``value``
 variable frame       ``dims…``, ``var_label``
 term fragment        ``dims…``, ``var_label``, ``coeff``
@@ -27,6 +27,7 @@ import polars as pl
 from math_spec import program
 
 from lpspec.errors import LpspecError
+from lpspec.relational.collect import polars_engine
 from lpspec.relational.engines.polars.fragments import (
     GROUP_RANK,
     GROUP_SIZE,
@@ -261,7 +262,7 @@ class PolarsCompiler:
             return None
 
         position = self.row_major(v.dims, self.ordinal_of)
-        pairs = table.select(position.alias('__at__'), pl.col('value')).collect(engine='streaming')
+        pairs = table.select(position.alias('__at__'), pl.col('value')).collect(engine=polars_engine())
         return frame.with_columns(pl.Series(alias, _scattered(pairs['__at__'], pairs['value'], expected)))
 
     def row_major(self, dims: tuple[str, ...], ordinals: Callable[[str], pl.Expr]) -> pl.Expr:
@@ -662,9 +663,10 @@ class PolarsCompiler:
 
         Several coordinates ride the same dim table and the same single join.
         """
-        if g.over not in p.dims:
-            refuse_a_fragment_without_the_dims(p, [g.over], context, f'sum(by=) over {g.over!r}')
-        grouped = self._remap_fragment(p, g, consumed=(g.over,), produced=g.into)
+        over = g.over[0]
+        if over not in p.dims:
+            refuse_a_fragment_without_the_dims(p, [over], context, f'sum(by=) over {over!r}')
+        grouped = self._remap_fragment(p, g, consumed=g.over, produced=g.into)
         if p.kind != 'const':
             return grouped
         return replace(grouped, frame=pl.concat([grouped.frame, self._empty_groups(grouped, g)]))
@@ -678,20 +680,20 @@ class PolarsCompiler:
         The tuple exists exactly where every coordinate does.
         """
         pairs = list(zip(coordinate, into, strict=True))
-        mapping, *rest = (self.data.lookups[c].select(pl.col(over), pl.col(c).alias(i)) for c, i in pairs)
+        mapping, *rest = (self.data.relations[c].select(pl.col(over), pl.col(c).alias(i)) for c, i in pairs)
         for other in rest:
             mapping = mapping.join(other, on=over, how='inner')
         return mapping
 
-    def partitioned(self, dim: str, lookup: str) -> pl.LazyFrame:
-        """*dim*'s ``(val, ord, lookup, GROUP_RANK, GROUP_SIZE)``, only for labels the map places in a group.
+    def partitioned(self, dim: str, relation: str) -> pl.LazyFrame:
+        """*dim*'s ``(val, ord, relation, GROUP_RANK, GROUP_SIZE)``, only for labels the map places in a group.
 
         The inner join is where "this coordinate is in no group" comes from:
         it has no row in the relation, so it has none here, and every rank,
         span and neighbour a walk reads sees only labels that are in one.
         """
-        rows = self.data.lookups[lookup].select(pl.col(dim).alias('val'), pl.col(lookup))
-        group = pl.col(lookup)
+        rows = self.data.relations[relation].select(pl.col(dim).alias('val'), pl.col(relation))
+        group = pl.col(relation)
         return (
             self.data.dimensions[dim]
             .join(rows, on='val', how='inner')
@@ -721,7 +723,7 @@ class PolarsCompiler:
         for target in g.into[1:]:
             labels = self.data.dimensions[target].select(pl.col('val').alias(target))
             universe = universe.join(labels, how='cross')
-        reached = self._mapping(g.over, g.coordinate, g.into).select(*g.into)
+        reached = self._mapping(g.over[0], g.coordinate, g.into).select(*g.into)
         empty = universe.join(reached, on=list(g.into), how='anti')
         spanned = [d for d in p.dims if d not in g.into]
         if spanned:
@@ -746,39 +748,40 @@ class PolarsCompiler:
         """
         absent = [d for d in a.into if d not in p.dims]
         assert not absent, f'in {context}: At through {absent}, which the expression does not span'
-        remapped = self._remap_fragment(p, a, consumed=a.into, produced=(a.over,))
+        remapped = self._remap_fragment(p, a, consumed=a.into, produced=a.over)
         return replace(remapped, presences=self._pulled_back_presences(p, a))
 
     def _pulled_back_presences(self, p: TermFragment, a: program.At) -> tuple[Presence, ...]:
         """Where a pullback's variables exist, keyed by the fine dim they now span.
 
         Two absences reach the fine coordinate and :meth:`_remap_fragment`'s
-        inner join swallows both — the operand's own, and the **lookup's**,
+        inner join swallows both — the operand's own, and the **relation's**,
         where the map has no row for the label. Unreported, the term merely
         vanishes and its row survives to assert `x <= 0` where the model said
         nothing.
 
-        A total lookup over an operand with nothing to report yields nothing
+        A total map over an operand with nothing to report yields nothing
         rather than a restriction admitting everything. The key is stated
         rather than left implied because a later product widens the fragment's
         dims while this frame keeps the one column that matters — the hazard
         :class:`Presence` names.
         """
-        reachable = self._mapping(a.over, a.coordinate, a.into)
+        over = a.over[0]
+        reachable = self._mapping(over, a.coordinate, a.into)
         if not p.presences:
-            total = self.data.cardinality[a.over] == reachable.select(pl.len()).collect().item()
-            return () if total else (Presence(reachable.select(a.over), (a.over,)),)
+            total = self.data.cardinality[over] == reachable.select(pl.len()).collect().item()
+            return () if total else (Presence(reachable.select(over), (over,)),)
 
         def pulled(presence: Presence) -> Presence:
             keys = presence.keys(p.dims)
             if not keys:
-                return Presence(presence.restrict(reachable.select(a.over), keys), (a.over,))
+                return Presence(presence.restrict(reachable.select(over), keys), (over,))
             carries_targets = all(i in keys for i in a.into)
             source, keys = (
                 (presence.frame, keys) if carries_targets else (self.widen(presence.frame, keys, p.dims), p.dims)
             )
             kept = tuple(k for k in keys if k not in a.into)
-            return Presence(source.join(reachable, on=list(a.into), how='inner').select(*kept, a.over), (*kept, a.over))
+            return Presence(source.join(reachable, on=list(a.into), how='inner').select(*kept, over), (*kept, over))
 
         return tuple(pulled(x) for x in p.presences)
 
@@ -793,7 +796,7 @@ class PolarsCompiler:
         """Trade dims *consumed* for *produced* through *node*'s coordinates.
 
         The mapping table is :meth:`_mapping` — the declared coordinates' own
-        relations, keyed by ``over`` and named for the dims they target — and
+        tables, keyed by ``over`` and named for the dims they target — and
         the rewrite is a single inner equi-join on *consumed*. A group consumes
         ``over`` (:meth:`_group_fragment`); an ``At`` reads the same table
         backwards (:meth:`_at_fragment`).
@@ -804,7 +807,7 @@ class PolarsCompiler:
         """
         dropped = set(consumed)
         keep = tuple(x for x in p.dims if x not in dropped)
-        mapping = self._mapping(node.over, node.coordinate, node.into)
+        mapping = self._mapping(node.over[0], node.coordinate, node.into)
         frame = p.frame.join(mapping, on=list(consumed), how='inner').select(*keep, *produced, *p.carried)
         return TermFragment((*keep, *produced), frame, p.kind)
 

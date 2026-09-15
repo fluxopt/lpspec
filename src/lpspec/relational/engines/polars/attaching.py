@@ -34,9 +34,9 @@ class AttachedSources:
     """The data a program is built against, after attaching.
 
     ``parameters`` are tidy ``(dims…, value)``; ``dimensions`` are
-    ``(val, ord)``; ``lookups`` are ``(over, lookup)``, one row per label the
-    map is defined at and none for the rest, so "this label maps nowhere" is a
-    row that is not there and every operator reading one inherits that from
+    ``(val, ord)``; ``relations`` are ``(key dim, relation)``, one row per label
+    the map is defined at and none for the rest, so "this label maps nowhere" is
+    a row that is not there and every operator reading one inherits that from
     its join.
 
     ``cardinality`` and ``parameter_rows`` are cached frame heights.
@@ -44,7 +44,7 @@ class AttachedSources:
 
     parameters: Mapping[str, pl.LazyFrame]
     dimensions: Mapping[str, pl.LazyFrame]
-    lookups: Mapping[str, pl.LazyFrame]
+    relations: Mapping[str, pl.LazyFrame]
     cardinality: Mapping[str, int]
     parameter_rows: Mapping[str, int]
 
@@ -56,23 +56,23 @@ class AttachedSources:
 def attach(program: program.Program, sources: Mapping[str, pl.LazyFrame]) -> AttachedSources:
     """Shape the door's frames into what *program* is written against.
 
-    Dimensions first, then lookups, then parameters, then the encoding: a
+    Dimensions first, then relations, then parameters, then the encoding: a
     dimension's ``Enum`` is built from its labels, and every frame that
     carries the dimension is re-encoded against it.
     """
     dimensions = {d: _ordinal_frame(d, sources[d]).collect() for d in program.dimensions}
-    lookups = {name: sources[name].collect() for d in program.dimensions for name in program.dimension(d).targets}
+    relations = {name: sources[name].collect() for name in program.relations}
     parameters = {name: sources[name].collect() for name in program.parameters}
 
     enums = {d: pl.Enum(f['val']) for d, f in dimensions.items() if f.schema['val'] == pl.String}
     for d, enum in enums.items():
         dimensions[d] = dimensions[d].with_columns(pl.col('val').cast(enum))
-    for d in program.dimensions:
-        for name, target in program.dimension(d).targets.items():
-            casts = [pl.col(d).cast(enums[d])] if d in enums else []
-            casts += [pl.col(name).cast(enums[target])] if target in enums else []
-            if casts:
-                lookups[name] = lookups[name].with_columns(casts)
+    for name, relation in program.relations.items():
+        over, target = _map_dims(relation)
+        casts = [pl.col(over).cast(enums[over])] if over in enums else []
+        casts += [pl.col(name).cast(enums[target])] if target in enums else []
+        if casts:
+            relations[name] = relations[name].with_columns(casts)
     for name, p in program.parameters.items():
         frame = _plain_strings(parameters[name], p.dims)
         casts = [pl.col(d).cast(enums[d]) for d in p.dims if d in enums]
@@ -81,10 +81,20 @@ def attach(program: program.Program, sources: Mapping[str, pl.LazyFrame]) -> Att
     return AttachedSources(
         parameters={name: f.lazy() for name, f in parameters.items()},
         dimensions={d: f.lazy() for d, f in dimensions.items()},
-        lookups={name: f.lazy() for name, f in lookups.items()},
+        relations={name: f.lazy() for name, f in relations.items()},
         cardinality={d: f.height for d, f in dimensions.items()},
         parameter_rows={name: f.height for name, f in parameters.items()},
     )
+
+
+def _map_dims(relation: program.RelationDeclaration) -> tuple[str, str]:
+    """The two dimensions a relation frame's two columns are over, key first.
+
+    Well-defined because ``lpspec.relations.refusal`` has already turned away
+    every relation wider than the single-valued map, which is what makes the
+    frame two columns rather than a table of them.
+    """
+    return relation.dim(relation.key[0]), relation.dim(relation.values[0])
 
 
 def _ordinal_frame(d: str, index: pl.LazyFrame) -> pl.LazyFrame:

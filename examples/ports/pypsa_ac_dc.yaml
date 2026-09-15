@@ -31,31 +31,31 @@ dimensions:
     description: one independent loop per meshed sub-network
     dtype: str
 
-lookups:
+relations:
   gen_bus:
     description: the bus a generator sits on
-    over: generator
-    into: bus
+    columns: [generator, bus]
+    key: generator
   gen_carrier:
     description: the carrier a generator burns
-    over: generator
-    into: carrier
+    columns: [generator, carrier]
+    key: generator
   line_from:
     description: the bus a line leaves
-    over: line
-    into: bus
+    columns: [line, bus]
+    key: line
   line_to:
     description: the bus a line arrives at
-    over: line
-    into: bus
+    columns: [line, bus]
+    key: line
   link_from:
     description: the bus a link leaves
-    over: link
-    into: bus
+    columns: [link, bus]
+    key: link
   link_to:
     description: the bus a link arrives at
-    over: link
-    into: bus
+    columns: [link, bus]
+    key: link
 
 parameters:
   load:

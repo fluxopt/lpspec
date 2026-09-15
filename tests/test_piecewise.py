@@ -256,7 +256,7 @@ def test_the_sos2_method_gates_off_like_the_binaries_do(nonconvex_inputs):
 def test_the_adjacency_row_survives_at_the_first_breakpoint(nonconvex_inputs):
     """The reason ``shift`` kept an escape hatch when it started meaning absence.
 
-    Adjacency is ``lam <= seg + shift(seg, over=bp, offset=1, edge=0)``. At the first
+    Adjacency is ``lam <= seg + shift(seg, along=bp, offset=1, edge=0)``. At the first
     breakpoint the shifted term has no predecessor: filled it contributes zero
     and the row reads ``lam <= seg``, which is correct. Absent it would
     propagate and drop the row (#289), leaving the first lambda bounded only by

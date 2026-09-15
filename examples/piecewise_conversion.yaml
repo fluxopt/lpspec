@@ -17,11 +17,11 @@ dimensions:
     description: breakpoints, as many as the longest curve needs
     dtype: int
 
-lookups:
+relations:
   converter_of:
     description: which converter a flow belongs to
-    over: flow
-    into: converter
+    columns: [flow, converter]
+    key: flow
 
 parameters:
   bp_rate:

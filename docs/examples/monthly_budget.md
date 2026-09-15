@@ -12,13 +12,11 @@ $$\sum_{t \thinspace:\thinspace \mathrm{month}(t) = m} p_{t,g} \quad\le\quad \ba
 
 $\mathrm{month}$ is a **coordinate the snapshot dimension declares**, not a
 calendar the language understands. Its values arrive as a column in the
-snapshot index, so the same model expresses weeks, seasons, fiscal quarters,
-peak/off-peak blocks or representative days by changing that one column and
-nothing else.
+snapshot index.
 
-Compare [transport](transport.md): there, $\mathrm{gen\_bus}$ is a lookup over
+Compare [transport](transport.md): there, $\mathrm{gen\_bus}$ is a relation over
 `generator` and the sum is over generators at a bus. Here $\mathrm{month\_of}$ is a
-lookup over `snapshot` and the sum is over snapshots in a month. **It is the
+relation over `snapshot` and the sum is over snapshots in a month. **It is the
 same construct** — `sum(by=)` — and time is not a special axis.
 
 ## The model
@@ -34,7 +32,7 @@ A cap on what each technology may generate per calendar month — an aggregate o
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{month\_of}: \mathcal{T} \to \mathcal{M}`$ — dispatch periods, each falling in one month |
-| $`\mathcal{M}`$ | index $`m`$ — `month` — the grouping the budget is stated over |
+| $`\mathcal{M}`$ | index $`m`$ — `month` with $`\mathrm{month\_of}: \mathcal{T} \to \mathcal{M}`$ — the grouping the budget is stated over |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` — generating units |
 
 #### Parameters
@@ -103,11 +101,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: generating units
         dtype: str
 
-    lookups:
+    relations:
       month_of:
         description: the month a snapshot falls in
-        over: snapshot
-        into: month
+        columns: [snapshot, month]
+        key: snapshot
 
     parameters:
       p_max:
@@ -179,14 +177,14 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 ## The grouping is data
 
-The `month_of` map is produced before the model, by whatever rule you want:
+You produce the `month_of` relation before the model, by whatever rule you want:
 
 ```python
 month_of = pl.DataFrame({'snapshot': hours}).with_columns(pl.col('snapshot').dt.strftime('%Y-%m').alias('month'))
 ```
 
-What that produces is the relation the model binds under `month_of` — every
-snapshot beside the month it falls in, and nothing else:
+That produces the table the model binds under `month_of`: every snapshot
+beside the month it falls in, and nothing else:
 
 ```text
 shape: (6, 2)
@@ -207,11 +205,10 @@ shape: (6, 2)
 Three snapshots in January, one in February, two in March: `sum(by=)` needs a
 partition, not equal groups.
 
-That one expression is the only place a calendar appears anywhere. Swap it for
-`dt.quarter()`, a fiscal-year lookup, or a hand-built table of representative
-periods and the model is unchanged — which is why there is no `resample:` or
-`reduce_to_monthly()` in the language and never will be. A domain helper would
-cover one of those cases; a mapping column covers all of them.
+That one expression is the only place a calendar appears. Swap it for
+`dt.quarter()`, a fiscal-year relation, a hand-built table of representative
+periods or peak/off-peak blocks, and the model is unchanged. The language has
+no `resample:` or `reduce_to_monthly()`: a relation covers all of those cases.
 
 ## Reading it back
 
@@ -225,8 +222,8 @@ month     generator   dual
 2030-03   wind        -0.0
 ```
 
-Per-month *results* need no language support at all — a primal is a tidy frame,
-so it is a join and a `group_by`:
+Per-month *results* need no language support: a primal is a tidy frame, so a
+join and a `group_by` do it:
 
 ```python
 sol.primal('p').join(index, on='snapshot').group_by('month').agg(pl.col('value').sum())
@@ -234,15 +231,14 @@ sol.primal('p').join(index, on='snapshot').group_by('month').agg(pl.col('value')
 
 ## Why `month` is a dimension
 
-A lookup is a **function between two dimensions**, so it needs a
-codomain. `month` being one is not ceremony — three things rest on it:
+A keyed relation is a **function between two dimensions**, so it needs a
+codomain. Three things rest on `month` being one:
 
-1. **`sum(by=)` lands terms on the dimension the lookup targets.**
+1. **`sum(by=)` lands terms on the dimension the relation's value column is over.**
    The expression's dims are therefore `[month, generator]`, and a `dims:`
    can only name declared dimensions.
 2. **`monthly_cap` is indexed *by* month.** A parameter carries values *at*
-   coordinates; it cannot be the thing a `dims:` ranges over. So month could
-   not be a parameter even if the grouping did not need it.
+   coordinates; it cannot be the thing a `dims:` ranges over.
 3. **It is what makes a typo an error.** A value in the snapshot index that is
    not a coordinate of `month` is rejected at attach time:
 
@@ -251,30 +247,27 @@ DataError: dimension 'snapshot' coordinate 'month' has value(s) that are
            not 'month' coordinates: '2030-3'
 ```
 
-That third one is the load-bearing reason. With no declared target there is
-nothing to check against, and `2030-3` sitting beside `2030-03` would quietly
-become a fourth group with a budget of its own — a smaller problem, solved
-without a word. It is the same check that catches a generator assigned to a bus
-that does not exist.
+Without a declared target there is nothing to check against, and `2030-3`
+beside `2030-03` would become a fourth group with a budget of its own, solved
+without a word. The same check catches a generator assigned to a bus that does
+not exist.
 
 **Null is still legal.** A snapshot belonging to no month contributes its terms
-nowhere, exactly as a generator on no bus does (the declaration rules). Absent is a claim;
-misspelled is a mistake.
+nowhere, as a generator on no bus does. Absent is a claim; misspelled is a
+mistake.
 
 ## What this cannot do
 
 `sum(by=)` takes a **partition**: `month_of` is a function from snapshot to
-month, so a snapshot with a month belongs to exactly one group. Unequal groups
-are fine, and a group with no members contributes nothing — as does a snapshot
-whose coordinate is null, which belongs to no group and lands nowhere.
+month, so a snapshot belongs to at most one group, and a group with no members
+contributes nothing.
 
-What it cannot express is an **overlapping** aggregate — *"trailing twelve
-months, at every month"* — because each snapshot would belong to twelve groups
-and no single column can say so. That is a sliding window over a variable, and
-it is the fixed-width window, [#468](https://github.com/fluxopt/lpspec/issues/468).
+It cannot express an **overlapping** aggregate such as *trailing twelve months,
+at every month*: each snapshot would belong to twelve groups, and no single
+column can say so. That is a sliding window over a variable,
+[#468](https://github.com/fluxopt/lpspec/issues/468).
 
-The same split shows up one level up, where a *process* loops over plans
-rather than an expression looping over rows
+The same split appears one level up, where a *process* loops over plans rather
+than an expression over rows
 ([#457](https://github.com/fluxopt/lpspec/issues/457)): slicing a model per
-group is a partition, slicing it per window overlaps. Here `sum(by=)`
-partitions, and the overlapping counterpart is the piece that has not landed.
+group is a partition, slicing it per window overlaps.

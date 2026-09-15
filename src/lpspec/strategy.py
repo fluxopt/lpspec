@@ -69,7 +69,7 @@ from lpspec.relational.parquet import (
     write_whole,
 )
 from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to_pandas
-from lpspec.sources import least_value
+from lpspec.sources import least_value, supplied, tidy_sources
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
@@ -589,7 +589,7 @@ class EachWindow:
 
         Raises:
             LpspecError: ``into`` names no dimension the spec declares, the
-                program ties the axis together, a reach turns on a lookup, which
+                program ties the axis together, a reach turns on a relation, which
                 this driver does not resolve, or the window looks ahead by
                 less than its rows read.
             DataError: A parameter deciding a reach has no data.
@@ -611,10 +611,10 @@ class EachWindow:
         if verdict.undecided:
             raise LpspecError(
                 f"EachWindow('{self.dim}', …, into='{self.into}') slices '{self.into}', which the model reaches "
-                f'along through a lookup whose groups a window may split, and this driver does not resolve a '
-                f'reach the lookup decides:\n'
-                f'{_listed({r.label: f"through the lookup {r.name!r}" for r in verdict.undecided})}\n'
-                f'Cut a dimension the lookup does not group.'
+                f'along through a relation whose groups a window may split, and this driver does not resolve a '
+                f'reach the relation decides:\n'
+                f'{_listed({r.label: f"through the relation {r.name!r}" for r in verdict.undecided})}\n'
+                f'Cut a dimension the relation does not group.'
             )
         if self.lookahead < verdict.ahead:
             raise LpspecError(
@@ -1249,15 +1249,13 @@ def axis_from(manifest: Mapping[str, Any]) -> EachCoordinate | EachWindow:
     return EachWindow(manifest['dim'], steps=manifest['steps'], lookahead=manifest['lookahead'], into=manifest['into'])
 
 
-def _what_an_archive_needs(
-    archive: str | Path | None,
-    document: Spec,
-    axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]],
-) -> tuple[Path, Spec, EachCoordinate | EachWindow] | None:
-    """Where the archive goes, the spec it holds and the axis that re-runs it — ``None`` for no archive.
+def _archiving(
+    archive: str | Path | None, axis: Axis | Sequence[tuple[Label, Mapping[str, Source]]]
+) -> tuple[Path, EachCoordinate | EachWindow] | None:
+    """Where the archive goes and the axis that re-runs it, or ``None`` for no archive.
 
-    Checked before a slice is solved: both refusals are answerable from the
-    arguments.
+    Both refusals are answerable from the arguments, so they fire before a
+    slice is solved.
     """
     if archive is None:
         return None
@@ -1269,7 +1267,7 @@ def _what_an_archive_needs(
         )
     out = Path(archive)
     check_the_target(out)
-    return out, document, axis
+    return out, axis
 
 
 def solve_over(
@@ -1358,7 +1356,7 @@ def solve_over(
             "slice i's answer, so the slices cannot run concurrently. Drop the executor, or drop the carry."
         )
     document = declared(spec)
-    archiving = _what_an_archive_needs(archive, document, axis)
+    archiving = _archiving(archive, axis)
     program = check(document)
     plan = {p: _CarryRule.resolved(program, p, v) for p, v in (carry or {}).items()}
     key_name = _key_column(axis, key_name, program)
@@ -1387,39 +1385,37 @@ def solve_over(
     if spill is not None:
         write_reasons(spill.directory, folded._no_duals, folded._no_expressions)
     if archiving is not None:
-        _archive_the_sweep(*archiving, dict(carry or {}), sources, folded, slices[0].sources)
+        out, cut = archiving
+        _archive_the_sweep(out, document, program, cut, dict(carry or {}), sources, folded, slices[0].sources)
     return folded
 
 
 def _archive_the_sweep(
     out: Path,
     spec: Spec,
+    program: Program,
     axis: EachCoordinate | EachWindow,
     carry: Mapping[str, str],
     sources: Mapping[str, Source],
     folded: Runs,
     one_slice: Mapping[str, Source],
-    /,
 ) -> None:
-    """Pack the sweep's question and its answers into one zip at *out*.
+    """Write the sweep's question and its answers to *out*.
 
-    A spilled sweep is packed from its spill, which already holds exactly the
-    layout an archive's ``answer/`` is; nothing is re-materialised. A held
-    sweep is laid out in a scratch directory first.
-
-    The sources are checked against *one_slice* — the door the sweep itself
-    built from — while what is written is all of them, the column the axis cuts
-    on included.
+    The sources are written whole, the column the axis cuts on included, so
+    the tidy shape of each is taken from *one_slice* and the ones the axis
+    cuts are written as they were given. A spilled sweep is packed from its
+    spill, which already holds the archive's ``answer/`` layout.
     """
     manifest = axis_manifest(axis)
     if carry:
         manifest['carry'] = dict(carry)
-    whole = carries(sources, axis.dim)
+    tables = {**supplied(program, tidy_sources(program, one_slice)), **carries(sources, axis.dim)}
     if folded._spill is not None:
-        write_archive(out, spec, sources, checked=one_slice, whole=whole, axis=manifest, answer=folded._spill.directory)
+        write_archive(out, spec, sources, tables=tables, axis=manifest, answer=folded._spill.directory)
         return
     with beside(out) as scratch:
-        write_archive(out, spec, sources, checked=one_slice, whole=whole, axis=manifest, answer=folded.save(scratch))
+        write_archive(out, spec, sources, tables=tables, axis=manifest, answer=folded.save(scratch))
 
 
 def attach_sweep_readers(

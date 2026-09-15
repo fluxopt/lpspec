@@ -23,15 +23,17 @@ from lpspec.assumptions import validate_assumptions
 from lpspec.curves import derive_curve_sources, validate_curve_extent, validate_piecewise_data
 from lpspec.errors import DataError, did_you_mean
 from lpspec.frames import as_frame, is_dense_array, is_multi_indexed
+from lpspec.relational.collect import polars_engine
+from lpspec.relations import key_dim, key_role, maps_out_of, value_dim, value_role
 
 if TYPE_CHECKING:
-    from math_spec.program import DimensionDeclaration, LookupDeclaration, ParameterDeclaration, Program
+    from math_spec.program import DimensionDeclaration, ParameterDeclaration, Program, RelationDeclaration
 
     from lpspec.lanes import Label, Source
 
 
-def attachable(program: Program) -> dict[str, ParameterDeclaration | DimensionDeclaration | LookupDeclaration]:
-    """Every name data may be attached to — declared parameters, dimensions and lookups, one flat namespace.
+def attachable(program: Program) -> dict[str, ParameterDeclaration | DimensionDeclaration | RelationDeclaration]:
+    """Every name data may be attached to — declared parameters, dimensions and relations, one flat namespace.
 
     A parameter a ``piecewise:`` expansion emitted is not one: it carries a
     derivation saying how it is filled, and
@@ -41,7 +43,7 @@ def attachable(program: Program) -> dict[str, ParameterDeclaration | DimensionDe
     return {
         **{name: p for name, p in program.parameters.items() if p.derivation is None},
         **program.dimensions,
-        **{lk.name: lk for _, lk in program.lookups},
+        **program.relations,
     }
 
 
@@ -50,8 +52,8 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
 
     Every source comes back as an in-memory :class:`polars.LazyFrame`: a
     parameter as tidy ``(dims…, value)``, a dimension's index as the table it
-    arrived as with the labels under the dimension's own name, a lookup as the
-    ``(over, lookup)`` relation holding one row per label it maps. Dimensions
+    arrived as with the labels under the dimension's own name, a relation as the
+    ``(key dim, relation)`` table holding one row per label it maps. Dimensions
     are read first, because the plain-Python parameter shapes :func:`_spread`
     accepts are spread over their labels; a ``piecewise:`` block's derived
     parameters are filled next (:func:`derive_curve_sources`), before the loop
@@ -59,11 +61,11 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
 
     Args:
         program: The lowered spec.
-        data: Parameter, dimension and lookup names to the caller's tables.
+        data: Parameter, dimension and relation names to the caller's tables.
 
     Raises:
         DataError: A key naming nothing the spec declares; a declared
-            dimension, lookup or parameter with no data; a source no reader
+            dimension, relation or parameter with no data; a source no reader
             accepts or short of the columns its declaration needs; a parameter
             with two rows for one coordinate, a label its dimension lacks, a
             null or NaN value, or a column of another type than it declares;
@@ -73,14 +75,14 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
     if unknown := set(data) - set(known):
         raise DataError(unknown_source_keys_message(unknown, known))
 
-    _check_lookup_sources(program, data)
+    _check_relation_sources(program, data)
     sources: dict[str, pl.LazyFrame] = {}
     for dname, declared in program.dimensions.items():
         if dname in data:
             sources[dname] = _index(data[dname], dname, declared.dtype)
-        elif authors := [f'sources[{n!r}]' for n in sorted(declared.targets) if n in data]:
+        elif authors := [f'sources[{n!r}]' for n in sorted(maps_out_of(program, dname)) if n in data]:
             raise DataError(_declared_map_needs_labels_message(dname, authors))
-    sources |= _lookup_relations(program, data, sources)
+    sources |= _relation_tables(program, data, sources)
 
     sources = derive_curve_sources(program, sources, data)
     for pname, pdef in program.parameters.items():
@@ -108,18 +110,21 @@ def supplied(program: Program, frames: Mapping[str, pl.LazyFrame]) -> dict[str, 
 
     Two things separate what it returns from what it accepts, and both are
     undone here: a parameter a ``piecewise:`` block derived is filled rather
-    than supplied, so it is dropped; a lookup's relation comes back with its
-    values under the lookup's own name, and is supplied with them under the
-    dimension they are labels of.
+    than supplied, so it is dropped; a relation's table comes back with its
+    values under the relation's own name, and is supplied with them under the
+    column they sit in.
     """
-    names = {lk.name: lk for _, lk in program.lookups}
+    relations = program.relations
     takes = attachable(program)
     out: dict[str, pl.LazyFrame] = {}
     for name, frame in frames.items():
         if name not in takes:
             continue
-        lk = names.get(name)
-        out[name] = frame.rename({name: lk.target}) if lk is not None else frame
+        relation = relations.get(name)
+        if relation is None:
+            out[name] = frame
+            continue
+        out[name] = frame.rename({key_dim(relation): key_role(relation), name: value_role(relation)})
     return out
 
 
@@ -128,7 +133,7 @@ def unknown_source_keys_message(keys: Iterable[str], known: Iterable[str]) -> st
     unknown = sorted(keys)
     lead = f'source key {unknown[0]!r} names' if len(unknown) == 1 else f'source keys {unknown} name'
     return (
-        f'{lead} neither a parameter, a dimension nor a lookup this spec declares. '
+        f'{lead} neither a parameter, a dimension nor a relation this spec declares. '
         f'{did_you_mean(unknown[0], known, label="Declared")} Pass only what the '
         f'spec takes — a table carrying more than that is filtered here, not attached.'
     )
@@ -157,7 +162,7 @@ def _declared_map_needs_labels_message(dim: str, authors: Iterable[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# dimensions and lookups
+# dimensions and relations
 # ---------------------------------------------------------------------------
 
 
@@ -218,35 +223,35 @@ def _not_labels(dim: str, values: object) -> str:
     )
 
 
-def _check_lookup_sources(program: Program, data: Mapping[str, Source]) -> None:
-    """Refuse a lookup nothing supplies, and a lookup column carried on an index.
+def _check_relation_sources(program: Program, data: Mapping[str, Source]) -> None:
+    """Refuse a relation nothing supplies, and a relation column carried on an index.
 
     The second is refused rather than filtered, unlike every other stray
     column: it is a map somebody meant to supply under its own key.
     """
-    for over, lk in program.lookups:
-        if lk.name not in data:
-            raise DataError(_unsupplied_lookup_message(lk.name, over, lk.target))
+    for name, relation in program.relations.items():
+        if name not in data:
+            raise DataError(_unsupplied_relation_message(name, relation))
 
     for dim in program.dimensions:
         if dim not in data:
             continue
         carried = _column_names(data[dim], dim)
-        for name in program.dimensions[dim].targets:
+        for name in maps_out_of(program, dim):
             if name in carried:
                 raise DataError(
-                    f"index for dimension '{dim}' carries a '{name}' column, and '{name}' is a lookup "
-                    f"over '{dim}'. A map is supplied under its own key, not as a column of the index "
-                    f'it runs over: pass it as sources[{name!r}], a table of the rows it maps.'
+                    f"index for dimension '{dim}' carries a '{name}' column, and '{name}' is a relation "
+                    f"keyed over '{dim}'. A map is supplied under its own key, not as a column of the "
+                    f'index it runs over: pass it as sources[{name!r}], a table of the rows it holds.'
                 )
 
 
-def _unsupplied_lookup_message(lookup: str, over: str, space: str) -> str:
-    """A lookup nothing gives a map for — the counterpart of a parameter with no data."""
+def _unsupplied_relation_message(name: str, relation: RelationDeclaration) -> str:
+    """A relation nothing gives a table for — the counterpart of a parameter with no data."""
     return (
-        f"no data provided for lookup '{lookup}'. Pass it under key '{lookup}' as a table with "
-        f"columns ['{over}', '{space}'] — one row per '{over}' label it maps, and no row for a "
-        f'label it does not.'
+        f"no data provided for relation '{name}'. Pass it under key '{name}' as a table with "
+        f"columns {list(relation.roles)} — one row per '{key_role(relation)}' it maps, and no row "
+        f'for a label it does not.'
     )
 
 
@@ -256,52 +261,57 @@ def _column_names(source: Source, dim: str) -> frozenset[str]:
     return frozenset(table.collect_schema().names()) if table is not None else frozenset()
 
 
-def _lookup_relations(
+def _relation_tables(
     program: Program, data: Mapping[str, Source], indices: Mapping[str, pl.LazyFrame]
 ) -> dict[str, pl.LazyFrame]:
-    """Every lookup's map as the ``(over, lookup)`` relation both lanes read.
+    """Every relation's table as the ``(key dim, relation)`` frame both lanes read.
+
+    The columns arrive under their declared *roles* and are read out under
+    their *dimensions* — the key's under the dimension it runs out of, the
+    value's under the relation's own name, which is what a self-map needs and
+    what every reader downstream expects.
 
     Rows only where the map is defined — a label it leaves out simply has none.
-    The keys are checked against ``over``'s labels and the values against the
-    target's: a stray on either side would place terms nowhere, silently.
+    The keys are checked against the key dimension's labels and the values
+    against the value dimension's: a stray on either side would place terms
+    nowhere, silently.
 
     Raises:
-        DataError: A relation short of either column, carrying a null in one,
+        DataError: A table short of either column, carrying a null in one,
             mapping a label twice, keyed by a label its dimension lacks, or
-            holding a value that is not a label of the dimension it targets.
+            holding a value that is not a label of the dimension it sits over.
     """
-    relations: dict[str, pl.LazyFrame] = {}
-    for over, lk in program.lookups:
-        rows = _read_relation(data[lk.name], lk.name, over, lk.target)
-        _check_keys_are_labels(rows, lk.name, over, _labels_of(over, indices[over]))
-        if lk.target not in indices:
+    tables: dict[str, pl.LazyFrame] = {}
+    for name, relation in program.relations.items():
+        over, target = key_dim(relation), value_dim(relation)
+        rows = _read_relation(data[name], name, relation)
+        _check_keys_are_labels(rows, name, over, _labels_of(over, indices[over]))
+        if target not in indices:
             raise DataError(
-                f"dimension '{over}' lookup '{lk.name}' targets '{lk.target}', which nothing in this "
-                f"spec spans and which has no index of its own, so the lookup's values have no label "
-                f"set to be checked against. Pass an index for '{lk.target}' under that key in "
-                f'sources, or remove the lookup.'
+                f"relation '{name}' has a '{value_role(relation)}' column over '{target}', which "
+                f"nothing in this spec spans and which has no index of its own, so the relation's "
+                f"values have no label set to be checked against. Pass an index for '{target}' under "
+                f'that key in sources, or remove the relation.'
             )
-        _check_values_are_labels(rows, over, lk.name, lk.target, _labels_of(lk.target, indices[lk.target]))
-        relations[lk.name] = rows
-    return relations
+        _check_values_are_labels(rows, over, name, target, _labels_of(target, indices[target]))
+        tables[name] = rows
+    return tables
 
 
-def _check_values_are_labels(rows: pl.LazyFrame, over: str, lookup: str, target: str, labels: pl.Series) -> None:
+def _check_values_are_labels(rows: pl.LazyFrame, over: str, name: str, target: str, labels: pl.Series) -> None:
     """Refuse a map holding a value *target* does not have as a label.
 
     Offenders keep their own type — a python native off polars, never a numpy
     scalar — because the message reprs them.
     """
     known = set(labels.to_list())
-    seen: dict[Any, None] = {v: None for v in rows.select(lookup).collect()[lookup].to_list() if v not in known}
+    seen: dict[Any, None] = {v: None for v in rows.select(name).collect()[name].to_list() if v not in known}
     if seen:
         shown = ', '.join(repr(v) for v in list(seen)[:5])
         raise DataError(
-            f"dimension '{over}' lookup '{lookup}' has value(s) that are not "
-            f"'{target}' labels: {shown}. Every value must be a declared "
-            f"'{target}' label — otherwise sum(by={lookup}) drops "
-            f'those terms in the join that places them, and the model builds and '
-            f'solves without them.'
+            f"relation '{name}' has value(s) that are not '{target}' labels: {shown}. Every value "
+            f"must be a declared '{target}' label — otherwise sum(by={name}) drops those terms in "
+            f'the join that places them, and the model builds and solves without them.'
         )
 
 
@@ -310,7 +320,7 @@ def _labels_of(dim: str, index: pl.LazyFrame) -> pl.Series:
     return index.select(dim).collect()[dim]
 
 
-def _check_keys_are_labels(rows: pl.LazyFrame, lookup: str, over: str, labels: pl.Series) -> None:
+def _check_keys_are_labels(rows: pl.LazyFrame, name: str, over: str, labels: pl.Series) -> None:
     """Refuse a map keyed by anything *over* does not have as a label.
 
     A label no map mentions is the partial case and simply has no row; a key
@@ -322,7 +332,7 @@ def _check_keys_are_labels(rows: pl.LazyFrame, lookup: str, over: str, labels: p
         shown = ', '.join(strays[:5]) + (' …' if len(strays) > 5 else '')
         spelled = [str(x) for x in labels.to_list()]
         raise DataError(
-            f"lookup '{lookup}' maps {shown}, which are not labels of '{over}'. "
+            f"relation '{name}' maps {shown}, which are not labels of '{over}'. "
             f"'{over}' takes its labels from the data here, and they are "
             f'{spelled[:8]}{" …" if len(spelled) > 8 else ""}. A map maps the labels that '
             f'exist — a key matching none of them would place its terms nowhere, so it is a typo '
@@ -330,32 +340,36 @@ def _check_keys_are_labels(rows: pl.LazyFrame, lookup: str, over: str, labels: p
         )
 
 
-def _read_relation(source: Source, lookup: str, over: str, space: str) -> pl.LazyFrame:
-    """One supplied relation, read and held to the rules a map has."""
-    table = as_frame(source, (over, space))
+def _read_relation(source: Source, name: str, relation: RelationDeclaration) -> pl.LazyFrame:
+    """One supplied relation, read under its roles and held to the rules a map has."""
+    roles = list(relation.roles)
+    key, value = key_role(relation), value_role(relation)
+    over = key_dim(relation)
+    table = as_frame(source, (key, value))
     if table is None:
         raise DataError(
-            f"lookup '{lookup}': cannot adapt {type(source).__name__} to a table — pass any "
-            f"table polars can read with columns ['{over}', '{space}'] (polars, pyarrow, "
-            f'pandas), or a parquet path.'
+            f"relation '{name}': cannot adapt {type(source).__name__} to a table — pass any "
+            f'table polars can read with columns {roles} (polars, pyarrow, pandas), or a parquet '
+            f'path.'
         )
     available = table.collect_schema().names()
-    if any(c not in available for c in (over, space)):
+    if any(c not in available for c in roles):
         raise DataError(
-            f"lookup '{lookup}' is supplied as a relation and must carry columns "
-            f"['{over}', '{space}'] (has {list(available)}). '{over}' is the dimension it runs over "
-            f"and '{space}' is what its values are labels of."
+            f"relation '{name}' must carry a column per column it declares, {roles} (has "
+            f"{list(available)}). '{key}' is the key it is single-valued per and '{value}' is what "
+            f'it maps each key to.'
         )
-    rows = table.select(over, pl.col(space).alias(lookup)).collect()
+    rows = table.select(pl.col(key).alias(over), pl.col(value).alias(name)).collect()
 
-    holes = rows.filter(pl.col(over).is_null() | pl.col(lookup).is_null())
+    holes = rows.filter(pl.col(over).is_null() | pl.col(name).is_null())
     if holes.height:
         shown = coordinates_shown([over], holes.select(over).head(5).rows())
         at = f': {shown}' if shown else ''
         raise DataError(
-            f"lookup '{lookup}' carries {holes.height} row(s) with a null in '{space}'{at}. A map is "
+            f"relation '{name}' carries {holes.height} row(s) with a null in '{value}'{at}. A map is "
             f'partial by leaving a label out, not by mapping it to nothing — drop the row and the '
-            f'label is unmapped, which is what every operator reading the lookup already means by it.'
+            f'label is unmapped, which is what every operator reading the relation already means by '
+            f'it.'
         )
 
     twice = rows.group_by(over).len().filter(pl.col('len') > 1).sort(over)
@@ -363,8 +377,8 @@ def _read_relation(source: Source, lookup: str, over: str, space: str) -> pl.Laz
         offenders = [str(x) for x in twice[over]]
         shown = ', '.join(offenders[:5]) + (' …' if len(offenders) > 5 else '')
         raise DataError(
-            f"lookup '{lookup}' maps {len(offenders)} '{over}' label(s) more than once: {shown}. "
-            f'A lookup is single-valued, so each label it maps takes exactly one row.'
+            f"relation '{name}' maps {len(offenders)} '{key}' label(s) more than once: {shown}. "
+            f"'{key}' is the declared key, so each label it maps takes exactly one row."
         )
 
     return rows.lazy()
@@ -526,7 +540,7 @@ def _checked_parameter(
             f"(need dims {list(p.dims)} plus 'value'; has {available}). Rename them to "
             f'the declared dims, or drop the index names to attach positionally.'
         )
-    frame = table.select(wanted).collect(engine='streaming')
+    frame = table.select(wanted).collect(engine=polars_engine())
     _check_one_row_per_coordinate(name, p, frame, sources)
     _check_values_are_present(name, p, frame)
     _check_value_dtype(name, p, frame)

@@ -16,9 +16,9 @@ n.add('StorageUnit', ..., cyclic_state_of_charge=[True, False])
 ```
 
 The two regimes are **one rule and a different predecessor**. A cyclic unit's
-first snapshot carries from its last; a seeded unit's carries from a level in the
-data. Here that is three blocks under complementary masks, and the masks are the
-flag itself:
+first snapshot carries from its last. A seeded unit's first snapshot carries
+from a level in the data. Here that is three blocks under complementary masks,
+and the masks are the flag itself:
 
 | Block | Where | What carries into the first snapshot |
 |---|---|---|
@@ -27,10 +27,10 @@ flag itself:
 | `energy_balance_seed` | `NOT cyclic AND position(snapshot) == 0` | `soc_initial` |
 
 `NOT` is a real complement over a boolean column, so every unit falls in exactly
-one regime — including one whose flag row is missing, which reads as not cyclic.
-The row `energy_balance_carry` does not build at each seeded unit's first
-snapshot is reported: `diagnostics().omissions` gives 1, and
-`energy_balance_seed` writes it instead.
+one regime. A unit whose flag row is missing reads as not cyclic.
+`energy_balance_carry` builds no row at a seeded unit's first snapshot,
+and that is reported: `diagnostics().omissions` gives 1. `energy_balance_seed`
+writes the row instead.
 
 ## The model
 
@@ -45,7 +45,7 @@ PyPSA's `cyclic_state_of_charge` is a column of the StorageUnit frame, so one ne
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{S}`$ | index $`s`$ — `storage` with $`\mathrm{storage\_bus}: \mathcal{S} \to \mathcal{B}`$ — storage units, each sitting on one bus |
 
@@ -163,15 +163,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: storage units, each sitting on one bus
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       storage_bus:
         description: the bus a storage unit sits on
-        over: storage
-        into: bus
+        columns: [storage, bus]
+        key: storage
 
     parameters:
       cyclic:
@@ -243,7 +243,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           from its last and it ends every horizon where it began
         dims: [snapshot, storage]
         where: "cyclic"
-        expression: soc == shift(soc, over=snapshot, offset=1, edge='wrap') + p_store - p_dispatch
+        expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap') + p_store - p_dispatch
 
       energy_balance_carry:
         description: >-
@@ -251,7 +251,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           the first — the vacated position is absent, so that row is not built here
         dims: [snapshot, storage]
         where: "NOT cyclic"
-        expression: soc == shift(soc, over=snapshot, offset=1) + p_store - p_dispatch
+        expression: soc == shift(soc, along=snapshot, offset=1) + p_store - p_dispatch
 
       energy_balance_seed:
         description: >-
@@ -320,7 +320,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 ## Both flags bind
 
-Neither regime is decoration on this instance — flipping either changes the
+Neither regime is decoration on this instance. Flipping either flag changes the
 answer, in opposite directions:
 
 | Instance | Objective |
@@ -329,10 +329,10 @@ answer, in opposite directions:
 | `ring` flipped to seeded | 4400.0 |
 | `seasonal` flipped to cyclic | 7200.0 |
 
-`ring` carries a `soc_initial` of 20 that it never reads, which is the point of
-the first row: a cyclic unit ignores the level in the data, and flipping its flag
-hands it 400 of free energy. `seasonal`'s 30 is worth 2400, because a cyclic unit
-must give back everything it spends.
+`ring` carries a `soc_initial` of 20 that it never reads. A cyclic unit ignores
+the level in the data, and flipping its flag hands it 400 of free energy.
+`seasonal`'s 30 is worth 2400, because a cyclic unit must give back everything
+it spends.
 
 ## What the answer looks like
 
@@ -345,13 +345,12 @@ snapshot  price   ring   seasonal
 ```
 
 The price is the dual of `nodal_balance`: 20 where the base plant is marginal
-and 80 at the snapshot where the peaker runs, which is what makes moving energy
-worth anything at all.
+and 80 at the snapshot where the peaker runs. That spread is what makes moving
+energy worth anything.
 
 ## What this model is for
 
-It is the shape neither storage model has. The two differ by one deleted
-`where`, and each is uniform — so nothing in the corpus exercised *a data column
-choosing between two boundary regimes* until this one. The finding is that it
-needs no language feature: three blocks, complementary masks, and the dropped row
-visible in `omissions`.
+*A data column choosing between two boundary regimes.* Neither storage model
+has that shape: the two differ by one deleted `where`, and each is uniform. It
+needs no language feature: three blocks, complementary masks, and the dropped
+row visible in `omissions`.

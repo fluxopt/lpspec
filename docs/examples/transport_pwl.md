@@ -4,21 +4,18 @@ GAMS model library `trnspwl`: the same shipping problem, but a big consignment i
 
 > **✔ Verified against linopy 0.9.0's own `add_piecewise_formulation`** — objective **8.786852757777865**, matched to `rtol=1e-09`.
 
-**The corpus's `piecewise` entry**, and the last hole in the construct matrix.
-
-It is also the port with the sharpest kind of independence. Every other
-reference is independent of lpspec because it is a different program; this one
-is independent of *the construct under test*. `piecewise:` and linopy's
-`add_piecewise_formulation` are two separate implementations of the same
-λ convex-combination idea, and this compares them on a model neither was
+Every other reference is independent of lpspec because it is a different
+program; this one is also independent of *the construct under test*.
+`piecewise:` and linopy's `add_piecewise_formulation` are two implementations
+of the same λ convex-combination idea, compared here on a model neither was
 written for.
 
 ## The curve
 
 GAMS discretises `sqrt(x)` into eight breakpoints: a straight line up to 50, six
-sample points to 400, and a line out to 600 (the largest supply). It is chosen
-to pass through the origin — so an unused route picks up no fixed cost — and to
-underestimate `sqrt` everywhere in between.
+sample points to 400, and a line out to 600, the largest supply. The curve
+passes through the origin, so an unused route picks up no fixed cost, and
+underestimates `sqrt` everywhere between.
 
 | x | 0 | 50 | 120 | 190 | 260 | 330 | 400 | 600 |
 |---|---|---|---|---|---|---|---|---|
@@ -273,26 +270,25 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         return m
     ```
 
-**`method: convex` would be wrong here, and quietly so.** `sqrt` is concave and
-this is a minimisation, so the convex-hull relaxation lets the solver ride the
-chord *underneath* the true curve and buy transport cheaper than the model
-allows. Leaving it off emits segment binaries and an adjacency row, which is
-what makes the answer right — and what makes this port a MILP rather than an LP.
+**`method: convex` would be wrong here.** `sqrt` is concave and this is a
+minimisation, so the convex-hull relaxation lets the solver ride the chord
+*underneath* the true curve and buy transport cheaper than the model allows.
+Leaving `method:` off emits segment binaries and an adjacency row, which makes
+the answer right and makes this port a MILP rather than an LP.
 
-That is the one judgement a reader has to make when writing a `piecewise:`
-block, and it is not one the language can make for you: the curvature guard
-catches *mixed* curvature, but a consistently concave curve under minimisation
-is a modelling error, not a data error.
+That judgement is yours when you write a `piecewise:` block: the curvature
+guard catches *mixed* curvature, but a consistently concave curve under
+minimisation is a modelling error, not a data error.
 
 ## What it exercises
 
-`piecewise:` on its non-convex path — segment binaries, the adjacency row, and
-the integrality that follows — plus `sum` and parameter arithmetic in the
+`piecewise:` on its non-convex path, with segment binaries, the adjacency row
+and the integrality that follows, plus `sum` and parameter arithmetic in the
 objective.
 
-**It is also the first port whose numbers are not bit-identical.** lpspec
-returns `8.786852757777858` against linopy's `8.786852757777865`: a relative
-difference of about 8 × 10⁻¹⁶, which is branch-and-bound arriving at the same
-vertex by a different order of floating-point operations. The shipment plan is
-identical. This is what per-port `rtol` is for, and why the corpus compares
-objectives rather than bit patterns.
+**The two numbers are not bit-identical.** lpspec returns `8.786852757777858`
+against linopy's `8.786852757777865`, a relative difference of about
+8 × 10⁻¹⁶: branch-and-bound reaches the same vertex by a different order of
+floating-point operations. The shipment plan is identical. The per-port `rtol`
+absorbs the difference, and the corpus compares objectives rather than bit
+patterns.

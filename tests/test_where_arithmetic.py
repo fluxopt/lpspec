@@ -58,17 +58,17 @@ def inputs():
             'sum(p_max, over=generator) - 250 > load', [], id='a-reduction-beside-a-parameter-over-another-dim'
         ),
         pytest.param(
-            'shift(load, over=snapshot, offset=1, edge=0) < 85',
+            'shift(load, along=snapshot, offset=1, edge=0) < 85',
             [(t, g) for t in (0, 1, 3) for g in (WIND, GAS)],
             id='a-bare-shift-has-a-value-at-the-edge-it-names',
         ),
         pytest.param(
-            'load - shift(load, over=snapshot, offset=1, edge=0) > 0',
+            'load - shift(load, along=snapshot, offset=1, edge=0) > 0',
             [(t, g) for t in (0, 1, 3) for g in (WIND, GAS)],
             id='a-shift-with-an-edge-has-a-value-at-the-first-row',
         ),
         pytest.param(
-            'load - shift(load, over=snapshot, offset=1, edge=0) > 0 AND position(snapshot) > 0',
+            'load - shift(load, along=snapshot, offset=1, edge=0) > 0 AND position(snapshot) > 0',
             [(t, g) for t in (1, 3) for g in (WIND, GAS)],
             id='beside-a-position-predicate',
         ),
@@ -157,7 +157,7 @@ def test_the_polars_side_is_null_where_no_piece_has_a_value():
         pytest.param('cap <= at(bus_cap, by=send)', ['loop', 'ring_a'], id='a-pullback-with-no-value-at-south'),
         pytest.param('at(bus_cap, by=recv) > 0', ['loop', 'ring_b'], id='a-pullback-through-a-partial-lookup'),
         pytest.param('at(sum(cap, by=send), by=send) > 50', ['loop', 'ring_a', 'spur'], id='a-grouped-sum-read-back'),
-        pytest.param('sum_back(cap, over=line, within=2) > 25', ['loop', 'ring_b', 'spur'], id='a-window'),
+        pytest.param('sum_back(cap, along=line, window=2) > 25', ['loop', 'ring_b', 'spur'], id='a-window'),
     ],
 )
 def test_both_lanes_read_a_lookup_operator_inside_a_side(tmp_path, where, kept):

@@ -4,7 +4,7 @@ How many of 425 requested circuits a five-city network can carry at once — and
 
 > **✔ Verified against the published optimum** — **380 circuits**, from Guéret, Prins, Sevaux & Heipcke, *Applications of Optimization with Xpress-MP* §12.3.3.
 
-**Both kinds of relation, in one model, each said the way it is.** A path serves
+**Both kinds of relation in one model.** A path serves
 exactly one city pair, so `call_of` is a coordinate and the demand limit groups
 through it. A path traverses several arcs, so `uses` is a `(path, arc)` table
 and the capacity limit contracts against it. Neither could stand in for the
@@ -28,7 +28,7 @@ Routing telephone calls over a five-city network: how many of the 425 requested 
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{A}`$ | index $`a`$ — `arc` — an undirected link between two cities, with capacity in circuits |
-| $`\mathcal{C}`$ | index $`c`$ — `call` — a city pair with circuits to place |
+| $`\mathcal{C}`$ | index $`c`$ — `call` with $`\mathrm{call\_of}: \mathcal{P} \to \mathcal{C}`$ — a city pair with circuits to place |
 | $`\mathcal{P}`$ | index $`p`$ — `path` with $`\mathrm{call\_of}: \mathcal{P} \to \mathcal{C}`$ — a route end to end, serving one city pair |
 
 #### Parameters
@@ -102,11 +102,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: a route end to end, serving one city pair
         dtype: str
 
-    lookups:
+    relations:
       call_of:
         description: the city pair a path serves, end to end
-        over: path
-        into: call
+        columns: [path, call]
+        key: path
 
     parameters:
       capacity:
@@ -152,26 +152,22 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       expression: sum(flow, over=path)
     ```
 
-**Why the answer is 380 and not 425.** Troyes is reachable only over
-`troyes_nice` (80) and `troyes_valenciennes` (70), so at most 150 circuits can
-terminate there — and Troyes must absorb the 80 Nantes–Troyes and the 70
+**The answer is 380 and not 425 because of one cut.** Troyes is reachable only
+over `troyes_nice` (80) and `troyes_valenciennes` (70), so at most 150 circuits
+can terminate there. Troyes must absorb the 80 Nantes–Troyes and the 70
 Paris–Troyes, which is 150 exactly. Valenciennes is reached only over
 `paris_valenciennes` (200) and `troyes_valenciennes` (70), capping everything
 ending there at 270 against a demand of 175 plus whatever transits. The binding
 cut leaves 45 of the Nantes–Troyes circuits unplaced, and the published routing
-says the same: 35 of 80 carried.
-
-That is worth stating because the number can be derived before any solver runs,
-which is the strongest form a corpus entry can take — the optimum is not merely
-somebody else's output, it is arithmetic anybody can check.
+says the same: 35 of 80 carried. The optimum is arithmetic anybody can check
+before a solver runs.
 
 ## What it exercises
 
 A coordinate and an incidence parameter side by side, each carrying the relation
-it fits, in a model neither we nor an energy system wrote. `reserves` already
-proves both idioms, but as our own model built to prove them; this is the
-outside witness.
+it fits, in a model from outside the project. `reserves` proves both idioms on a
+model built to prove them. This is the outside witness.
 
-Integrality is the source's, not ours: a multi-commodity flow is not integral by
-nature, and the book says so before observing that this instance's relaxation
-happens to be. A MILP has no dual solution, so the entry records none.
+Integrality is the source's. A multi-commodity flow is not integral by nature,
+and the book says so before observing that this instance's relaxation happens to
+be. A MILP has no dual solution, so the entry records none.

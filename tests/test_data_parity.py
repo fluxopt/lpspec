@@ -267,7 +267,7 @@ POSITION_SPEC = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}},
     'parameters': {'lead': {'dims': ['g'], 'dtype': 'int'}, 'demand': {'dims': ['g', 't']}},
     'variables': {'x': {'dims': ['g', 't'], 'bounds': {'lower': 0}}},
-    'constraints': {'c': {'dims': ['g', 't'], 'expression': 'shift(x, over=t, offset=lead, edge=0) >= demand'}},
+    'constraints': {'c': {'dims': ['g', 't'], 'expression': 'shift(x, along=t, offset=lead, edge=0) >= demand'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(x)'},
 }
 
@@ -374,11 +374,11 @@ def test_a_bare_where_on_a_string_parameter_asks_whether_it_has_a_row(tmp_path: 
         assert run.objective == pytest.approx(1.0), 'defined is having a row, and only `a` has one'
 
 
-#: A lookup-carrying dimension: the one index a parameter table cannot stand in
+#: A relation-carrying dimension: the one index a parameter table cannot stand in
 #: for, since it carries the label and never what the label maps to.
-LOOKUP_SPEC = {
+RELATION_SPEC = {
     'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
-    'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}},
+    'relations': {'gen_bus': {'columns': ['g', 'b'], 'key': 'g'}},
     'parameters': {'p_max': {'dims': ['g']}},
     'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
     'constraints': {'k': {'dims': ['b'], 'expression': 'sum(x, by=gen_bus) <= 10'}},
@@ -394,10 +394,10 @@ _MAP = {'gen_bus': _tidy(g=['w', 's'], b=['n', 'e'])}
     ('sources', 'match'),
     [
         pytest.param({**_P_MAX, **_MAP}, 'has its maps', id='a-map-and-no-labels'),
-        pytest.param({**_P_MAX, **_INDEX}, 'no data provided for lookup', id='an-index-and-no-map'),
+        pytest.param({**_P_MAX, **_INDEX}, 'no data provided for relation', id='an-index-and-no-map'),
         pytest.param(
             {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], gen_bus=['n', 'e'])},
-            r"must carry columns \['g', 'b'\]",
+            r"must carry a column per column it declares, \['g', 'b'\]",
             id='a-map-named-after-itself-and-not-its-target',
         ),
         pytest.param(
@@ -408,26 +408,26 @@ _MAP = {'gen_bus': _tidy(g=['w', 's'], b=['n', 'e'])}
         pytest.param(
             {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], b=['n', 'zz'])},
             'not .b. labels',
-            id='a-lookup-value-that-is-no-label-of-its-target',
+            id='a-relation-value-that-is-no-label-of-its-target',
         ),
         pytest.param(
             {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 'w', 's'], b=['n', 'e', 'e'])},
             'more than once',
-            id='a-lookup-with-two-values-for-one-label',
+            id='a-relation-with-two-values-for-one-label',
         ),
         pytest.param(
             {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], b=[None, 'e'])},
             "null in 'b'",
-            id='a-lookup-mapping-a-label-to-nothing',
+            id='a-relation-mapping-a-label-to-nothing',
         ),
         pytest.param(
             {**_P_MAX, **_MAP, 'g': _tidy(g=['w', 's'], gen_bus=['n', 'e'])},
-            "is a lookup over 'g'",
+            "is a relation keyed over 'g'",
             id='a-map-carried-on-the-index-it-runs-over',
         ),
     ],
 )
-def test_a_lookup_defect_reads_the_same_on_both_lanes(tmp_path, sources, match):
+def test_a_relation_defect_reads_the_same_on_both_lanes(tmp_path, sources, match):
     """One wording, not two — the same rule `no_index_source_message` follows.
 
     The first two were written twice and drifted: the relational lane named the
@@ -438,7 +438,7 @@ def test_a_lookup_defect_reads_the_same_on_both_lanes(tmp_path, sources, match):
     both lanes enter, which is what makes the parity structural here rather
     than tested into place.
     """
-    path = _written(tmp_path, LOOKUP_SPEC)
+    path = _written(tmp_path, RELATION_SPEC)
 
     both_lanes_refuse(path, sources, match=match)
 
@@ -453,14 +453,14 @@ def test_an_index_a_declared_map_is_read_against_is_checked_before_the_read(tmp_
     error rules exist to prevent, on a lane whose attacher has the right sentence
     for it two calls later.
     """
-    spec = {**LOOKUP_SPEC, 'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}}}
+    spec = {**RELATION_SPEC, 'relations': {'gen_bus': {'columns': ['g', 'b'], 'key': 'g'}}}
     path = _written(tmp_path, spec)
     sources = {**_P_MAX, **_MAP, 'b': _tidy(b=['n', 'e']), 'g': _tidy(gg=['w', 's'])}
 
     both_lanes_refuse(path, sources, match="without a 'g' column")
 
 
-def test_a_lookup_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_path):
+def test_a_relation_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_path):
     """Counting nulls is what makes the refusal reach the case that costs an answer.
 
     pandas `nunique()` skips nulls where polars `n_unique()` counts them, so a
@@ -471,7 +471,7 @@ def test_a_lookup_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_pa
     give the same index deduplicated.
     """
     spec = {
-        **LOOKUP_SPEC,
+        **RELATION_SPEC,
         'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
         'constraints': {'k': {'dims': ['b'], 'expression': 'sum(x, by=gen_bus) <= 3'}},
     }
@@ -495,7 +495,7 @@ def test_a_dimension_index_is_a_table_on_both_lanes(tmp_path):
     a caller passed the way the runner documents — a polars table under the
     dimension's own key — was invisible to one of two lanes.
     """
-    path = _written(tmp_path, LOOKUP_SPEC)
+    path = _written(tmp_path, RELATION_SPEC)
     sources = {**_P_MAX, **_INDEX, **_MAP}
 
     with lps.solve(path, sources) as relational:
@@ -516,7 +516,7 @@ def test_a_dimension_index_may_be_a_parquet_path_without_pyarrow(tmp_path, monke
     """
     import sys
 
-    path = _written(tmp_path, LOOKUP_SPEC)
+    path = _written(tmp_path, RELATION_SPEC)
     index = tmp_path / 'g.parquet'
     _tidy(g=['w', 's']).write_parquet(index)
     sources = {**_P_MAX, **_MAP, 'b': _tidy(b=['n', 'e']), 'g': str(index)}
@@ -528,11 +528,11 @@ def test_a_dimension_index_may_be_a_parquet_path_without_pyarrow(tmp_path, monke
     assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'the eager lane read the same path'
 
 
-#: The same shape one column over: a lookup whose *target* is the temporal
+#: The same shape one column over: a relation whose *target* is the temporal
 #: dimension, rather than the dimension the index is of.
-TEMPORAL_LOOKUP_SPEC = {
+TEMPORAL_RELATION_SPEC = {
     'dimensions': {'g': {}, 'd': {'dtype': 'datetime'}},
-    'lookups': {'day_of': {'over': 'g', 'into': 'd'}},
+    'relations': {'day_of': {'columns': ['g', 'd'], 'key': 'g'}},
     'parameters': {'p_max': {'dims': ['g']}, 'cap': {'dims': ['d']}},
     'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
     'constraints': {'k': {'dims': ['d'], 'expression': 'sum(x, by=day_of) <= cap'}},
@@ -541,12 +541,12 @@ TEMPORAL_LOOKUP_SPEC = {
 
 
 @pytest.mark.parametrize('library', ['pandas', 'polars', 'a parquet path'])
-def test_a_lookup_into_a_temporal_dimension_is_one_instant_on_both_lanes(tmp_path, library):
-    """A lookup's values are labels of the dimension it targets, in that spelling.
+def test_a_relation_into_a_temporal_dimension_is_one_instant_on_both_lanes(tmp_path, library):
+    """A relation's values are labels of the dimension it targets, in that spelling.
 
     The label column is canonicalised against the declared `dtype: datetime`
     because a `datetime.date` and a `datetime64` are one instant that compares
-    unequal — and a targeted lookup's *values* are labels of a dimension too,
+    unequal — and a targeted relation's *values* are labels of a dimension too,
     so the same instant reaches the same containment check by the other route.
     Read without it, whichever library the caller brought the index in decided
     whether every value looked like a stranger: refused eagerly through pandas
@@ -565,7 +565,7 @@ def test_a_lookup_into_a_temporal_dimension_is_one_instant_on_both_lanes(tmp_pat
     import datetime
 
     days = [datetime.date(2030, 1, 1), datetime.date(2030, 1, 2)]
-    path = _written(tmp_path, TEMPORAL_LOOKUP_SPEC)
+    path = _written(tmp_path, TEMPORAL_RELATION_SPEC)
     day_of = _tidy(g=['w', 's'], d=[days[0], days[0]])
     if library == 'a parquet path':
         day_of.write_parquet(tmp_path / 'day_of.parquet')
@@ -588,7 +588,7 @@ def test_a_lookup_into_a_temporal_dimension_is_one_instant_on_both_lanes(tmp_pat
     assert float(built.objective.value) == pytest.approx(3.0), 'and the eager lane groups them the same way'
 
 
-def test_a_stray_lookup_value_reads_the_same_over_an_int_labelled_target(tmp_path):
+def test_a_stray_relation_value_reads_the_same_over_an_int_labelled_target(tmp_path):
     """One sentence, and the labels in it spelled as the caller wrote them.
 
     The eager lane took its offending values off a pandas frame and printed
@@ -597,7 +597,7 @@ def test_a_stray_lookup_value_reads_the_same_over_an_int_labelled_target(tmp_pat
     to a table whose every label is a string.
     """
     spec = {
-        **LOOKUP_SPEC,
+        **RELATION_SPEC,
         'dimensions': {'g': {}, 'b': {'dtype': 'int'}},
     }
     path = _written(tmp_path, spec)
@@ -619,7 +619,7 @@ def test_a_multi_indexed_series_is_refused_on_both_lanes(tmp_path):
     Refused at `tidy_sources`, which is the one door both lanes enter by, so
     neither can drift a second wording for it.
     """
-    path = _written(tmp_path, LOOKUP_SPEC)
+    path = _written(tmp_path, RELATION_SPEC)
     deep = pd.MultiIndex.from_tuples([('w', 0), ('s', 0)], names=['g', 'k'])
     sources = {'p_max': pd.Series([5.0, 5.0], index=deep), **_INDEX, **_MAP}
 
@@ -681,14 +681,14 @@ def test_an_entity_table_is_a_dimension_index_columns_and_all(tmp_path):
     hide in the extras, and the extras are the point: a framework hands over
     `generators` with its index and its attributes in one table.
 
-    One column is not an extra. A column named after a lookup over the
+    One column is not an extra. A column named after a relation over the
     dimension is a map somebody meant to supply, and dropping it silently would
     build the model they did not write — so it is the one stray that is
     refused, naming the key it belongs under.
     """
     spec = {
         'dimensions': {'g': {}, 'b': {'dtype': 'str'}},
-        'lookups': {'gen_bus': {'over': 'g', 'into': 'b'}},
+        'relations': {'gen_bus': {'columns': ['g', 'b'], 'key': 'g'}},
         'parameters': {'cap': {'dims': ['g']}},
         'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {'k': {'dims': ['b'], 'expression': 'sum(x, by=gen_bus) <= 100'}},

@@ -114,8 +114,8 @@ RAMP_BLOCK = {
     'parameters': {'lim': {'dims': ['t']}},
     'variables': {'p': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {
-        'ramp_up': {'dims': ['t'], 'expression': "p - shift(p, over=t, offset=1, edge='wrap') <= lim"},
-        'ramp_down': {'dims': ['t'], 'expression': "shift(p, over=t, offset=1, edge='wrap') - p <= lim"},
+        'ramp_up': {'dims': ['t'], 'expression': "p - shift(p, along=t, offset=1, edge='wrap') <= lim"},
+        'ramp_down': {'dims': ['t'], 'expression': "shift(p, along=t, offset=1, edge='wrap') - p <= lim"},
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(p, over=t)'},
 }

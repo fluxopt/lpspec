@@ -64,7 +64,7 @@ def prep_slice(declared: list[str]) -> str:
     for h in used:
         closure |= {g for g in helpers if f'{g}(' in helpers[h]}
     public = sorted(
-        name for name in ('lookup', 'static', 'varying', 'weighting') if any(f'{name}(' in line for line in lines)
+        name for name in ('relation', 'static', 'varying', 'weighting') if any(f'{name}(' in line for line in lines)
     )
     imported = f'from differential.pypsa.prep import {", ".join(public)}\n\n\n' if public else ''
     return (
@@ -78,7 +78,7 @@ def prep_slice(declared: list[str]) -> str:
 
 
 def lpspec_tab(stem: str, projection: dict, record: dict) -> str:
-    declared = [*projection['dimensions'], *projection.get('lookups', {}), *projection['parameters']]
+    declared = [*projection['dimensions'], *projection.get('relations', {}), *projection['parameters']]
     spec = (RUNGS / f'{stem}.yaml').read_text().rstrip()
     prep = prep_slice(declared)
     call = (
@@ -153,7 +153,7 @@ def _symbols(stem: str, projection: dict) -> SymbolTable | None:
     raw = yaml.safe_load(path.read_text())
     declared = {
         *projection['dimensions'],
-        *projection.get('lookups', {}),
+        *projection.get('relations', {}),
         *projection['parameters'],
         *projection['variables'],
     }

@@ -2,7 +2,7 @@
 
 The reviewed idiomatic form (#681), against the ladder's parquet. Its one
 modelling decision is argued there and repeated because it is what this case
-measures: the YAML groups by the lookups it declared — `sum(p, by=gen_bus)` —
+measures: the YAML groups by the relations it declared — `sum(p, by=gen_bus)` —
 where this builds the bus x generator and bus x line incidence matrices and
 multiplies through them. linopy's `groupby` could carry the generator half but
 not the flows, since a bus no line enters vanishes from a grouped sum, so the

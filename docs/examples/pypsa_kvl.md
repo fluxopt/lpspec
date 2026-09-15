@@ -5,20 +5,17 @@ Passive AC lines: flow is decided by physics, not chosen.
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **17000**, matched to `rtol=1e-09`, nodal prices and line flows included.
 
 Every model above moves power over `Link` objects, whose flow is a decision
-variable — a transport model. A `Line` is passive: around every independent
-cycle of the network, the reactance-weighted flows must sum to zero.
+variable. A `Line` is passive: around every independent cycle of the network,
+the reactance-weighted flows sum to zero.
 
 It builds on [the transport model](pypsa_transport.md) rather than on
-[cyclic storage](pypsa_cyclic_storage.md), and that is deliberate. Ramps,
-storage and a closed horizon are
-**time**-coupling — ramps, state of charge, a closed horizon. This one is
-**space**-coupling. The two axes are independent, so stacking them would only
-make a mismatch ambiguous about which caused it.
+[cyclic storage](pypsa_cyclic_storage.md). Ramps, storage and a closed horizon
+couple snapshots in time; a voltage law couples buses in space. Stacking the
+two would leave a mismatch ambiguous about which caused it.
 
 Three buses in a triangle, so the cycle space has exactly one dimension. The
-flows come out fractional — 46.67 / 26.67 / −33.33 at the first snapshot —
-because the split is forced by reactance rather than chosen by cost, which is
-the whole difference between a line and a link.
+flows come out fractional, 46.67 / 26.67 / −33.33 at the first snapshot,
+because reactance forces the split rather than cost choosing it.
 
 ## The model
 
@@ -33,7 +30,7 @@ PyPSA linear optimal power flow over passive AC lines under Kirchhoff's voltage 
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{L}`$ | index $`l`$ — `line` with $`\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — passive AC lines, each joining two buses |
 | $`\mathcal{C}`$ | index $`c`$ — `cycle` — one independent loop of the network |
@@ -122,19 +119,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: one independent loop of the network
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       line_from:
         description: the bus a line leaves
-        over: line
-        into: bus
+        columns: [line, bus]
+        key: line
       line_to:
         description: the bus a line arrives at
-        over: line
-        into: bus
+        columns: [line, bus]
+        key: line
 
     parameters:
       p_nom:
@@ -252,33 +249,26 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         return n
     ```
 
-**The cycle basis is a parameter, not a coordinate.** This is the one shape
-decision worth reading twice. A line may belong to *several* cycles, and a
-declared coordinate is single-valued per label — so `cycle_incidence` is a
-parameter over `(cycle, line)` carrying reactance × direction, with rows simply
-absent where a line is not in a cycle. Row absence is how this language spells
-sparsity everywhere else, and a cycle-line incidence matrix is exactly the
-sparse thing it is good at.
-
-That makes the constraint one equation, `sum(f * cycle_incidence, over=line) ==
-0`, rather than a case analysis over the topology — and it keeps
-[topology as data](pypsa_transport.md): a fourth bus is more rows, not a
+**The cycle basis is a parameter, not a coordinate.** A line may belong to
+several cycles, and a declared coordinate holds one value per label. So
+`cycle_incidence` is a parameter over `(cycle, line)` carrying reactance ×
+direction, with rows absent where a line is not in a cycle. The constraint is
+then one equation, `sum(f * cycle_incidence, over=line) == 0`, and
+[topology stays data](pypsa_transport.md): a fourth bus is more rows, not a
 different file.
 
-**Computing the basis is data preparation, and stays outside the language.**
-Finding a cycle basis is a graph algorithm — iteration over a structure
-discovered from data, which the
-[limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation) refuses by design. The
-reference prints the rows PyPSA derived so the two can be checked against each
-other. They need only agree on the *cycle space*: PyPSA scales its coefficients
-for conditioning, and since the row is `= 0`, any nonzero multiple of a cycle
-says the same thing.
+**Computing the basis is data preparation, outside the language.** Finding a
+cycle basis is a graph algorithm, iteration over a structure discovered from
+data, which the
+[limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
+refuse. The reference prints the rows PyPSA derived so the two can be
+compared. They need only agree on the cycle space: PyPSA scales its
+coefficients for conditioning, and a row that is `= 0` says the same thing
+under any nonzero multiple.
 
 ## What it exercises
 
 A parameter over two dimensions multiplying a variable over one, reduced along
-the shared dimension — the shape that makes an incidence matrix sayable at all.
-Plus `sum(by=)` on both line endpoints for the nodal balance, as in the transport model.
-
-Kirchhoff's voltage law needed no new construct, which is the result worth
-reporting.
+the shared dimension: the shape of an incidence matrix. Plus `sum(by=)` on
+both line endpoints for the nodal balance, as in the transport model.
+Kirchhoff's voltage law needed no new construct.

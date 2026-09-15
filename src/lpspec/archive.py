@@ -1,24 +1,10 @@
-"""What comes back out of an archive: a spec, the data it was solved with, and what came back.
+"""Reading an archive back: the spec, the data it was solved with, and what came back.
 
-An answer alone cannot say which model produced it, and a model alone has to
-be solved again to be read. An archive holds both, and :func:`load_archive`
-gives them back as one of two values — :class:`SolveArchive` for one solve,
-:class:`SweepArchive` where the sources were cut.
-
-**Two readers, one pair of values.** :func:`load_archive` reads it whole, so
-what comes back is in memory and owes the archive nothing. :func:`scan_archive`
-leaves the frames where they lie and reads each at the call that asks for it,
-so the members have to outlive it; that is the reader for an archive larger
-than memory, or one most of whose names go unread. Which one ran shows in two
-places and nowhere else: a source is a table or the path to one, and the answer
-collects or scans.
-
-**Reading only.** Nothing here writes an archive: the verb that solves does,
-through :mod:`lpspec.layout`.
-
-Above ``api`` and ``strategy``: an archive carries either kind of answer, so
-it knows about both a ``Result`` and a ``Runs``. Neither of them knows about
-it.
+:func:`load_archive` reads it whole; :func:`scan_archive` leaves the frames on
+disk and reads each at the call that asks for it. Either gives back a
+:class:`SolveArchive` for one solve, or a :class:`SweepArchive` where the
+sources were cut. Nothing here writes one: ``archive=`` on the verbs that
+solve does, through :mod:`lpspec.layout`.
 """
 
 from __future__ import annotations
@@ -33,16 +19,8 @@ import polars as pl
 from math_spec import to_spec
 
 from lpspec.api import attach_readers, load_result, scan_result
-from lpspec.errors import LayoutError, LpspecError
-from lpspec.layout import (
-    ANSWER_DIR,
-    AXIS_MEMBER,
-    DIGESTS_MEMBER,
-    MODEL_MEMBER,
-    is_source_member,
-    members_of,
-    opened,
-)
+from lpspec.errors import LpspecError
+from lpspec.layout import ANSWER_DIR, AXIS_MEMBER, DIGESTS_MEMBER, MODEL_MEMBER, SOURCES_DIR, opened
 from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of, row_of
 from lpspec.strategy import (
     EachCoordinate,
@@ -69,31 +47,18 @@ __all__ = ['SolveArchive', 'SweepArchive', 'load_archive', 'scan_archive']
 class SolveArchive:
     """A spec, the data it was solved with, and what one solve of it returned.
 
-    What :func:`load_archive` and :func:`scan_archive` give back for an archive
-    whose sources were not cut. ``lps.solve(archive.spec, archive.sources)``
-    asks the question again, and :attr:`answer` is what it answered the first
-    time.
+    ``lps.solve(archive.spec, archive.sources)`` asks the question again.
 
     Attributes:
         spec: The spec as written.
-        sources: What was attached to it, keyed as the file declares it — the
-            table each parquet member holds from :func:`load_archive`, and the
-            path to it from :func:`scan_archive`, a ``Path`` being a source
-            like any other, so attaching streams it from disk instead.
-        answer: What came back — read whole or read as its readers are called,
-            as the two verbs differ.
-        source_digests: ``(run, source, digest)``, one row per member of
-            ``sources/``, in source order. What
-            :attr:`~lpspec.relational.result.Result.spec_digest` cannot say:
-            two archives of one spec over different numbers carry the same
-            spec digest and differ here, and *which* rows differ names the
-            input that moved. ``run`` is the archive's own name, as it is on
-            the record and the metrics beside it, so a table read across a
-            directory of archives attributes its rows without parsing paths.
-        metrics: The :class:`~lpspec.relational.parquet.Metrics` taken
-            when the solve returned — the sizes, the counters and the clocks of
-            what reaching that answer took, as one value rather than a frame of
-            one row.
+        sources: What was attached, keyed as the file declares it: a table
+            from :func:`load_archive`, the path to one from :func:`scan_archive`.
+        answer: What came back.
+        source_digests: ``(run, source, digest)``, one row per source, so two
+            archives of one spec over different numbers name the input that
+            moved.
+        metrics: What reaching the answer took, as one
+            :class:`~lpspec.relational.parquet.Metrics`.
     """
 
     spec: Spec
@@ -102,41 +67,25 @@ class SolveArchive:
     source_digests: pl.DataFrame
     metrics: Metrics
 
-    def __post_init__(self) -> None:
-        """Refuse an archive whose answer names a different model than its own."""
-        _check_the_pairing(self.spec, (self.answer.spec_digest,))
-
 
 @dataclass(frozen=True)
 class SweepArchive:
     """A spec, the data a sweep was solved over, the axis that cut it, and what came back.
 
-    :class:`SolveArchive`'s sibling, and the axis is what separates them: a
-    sweep's sources carry the column it slices on, which the model does not
-    declare, so they are legible only beside it.
-
     ``lps.solve_over(sweep.spec, sweep.sources, sweep.axis, carry=sweep.carry)``
-    runs it again — the carry included, without which a re-run of a chained
-    sweep would drop the coupling and answer a different question.
+    runs it again.
 
     Attributes:
-        spec: The spec as written, as :class:`SolveArchive` holds it.
-        sources: What the sweep was given — **uncut**, carrying every slice's
-            rows. A table or a path, as :class:`SolveArchive` holds them.
-        axis: :class:`~lpspec.strategy.EachCoordinate` or
-            :class:`~lpspec.strategy.EachWindow`, the axis that cut them.
-        carry: ``{parameter: variable}`` the sweep chained its slices with, empty
-            where it chained none. Stored because neither the spec nor the
-            frames record it, and a re-run needs it to be the same sweep.
-        answer: Every slice's answers, keyed by slice — **held** from
-            :func:`load_archive`, so :meth:`~lpspec.strategy.Runs.primal` and
-            its siblings answer, and **spilled** from :func:`scan_archive`,
-            the frames staying in the extracted directory for
-            :meth:`~lpspec.strategy.Runs.scan` to read.
-        source_digests: ``(run, source, digest)``, as :class:`SolveArchive`
-            holds it. Of the sources **uncut**, which is how the archive holds
-            them, so it names the data the sweep was cut from rather than any
-            slice's share of it.
+        spec: The spec as written.
+        sources: What the sweep was given, uncut. A table or a path, as
+            :class:`SolveArchive` holds them.
+        axis: What cut them.
+        carry: ``{parameter: variable}`` the slices were chained with, empty
+            where they were not.
+        answer: Every slice's answer, keyed by slice. Held from
+            :func:`load_archive`, spilled from :func:`scan_archive`.
+        source_digests: As :class:`SolveArchive` holds it, of the uncut
+            sources.
     """
 
     spec: Spec
@@ -146,158 +95,78 @@ class SweepArchive:
     answer: Runs
     source_digests: pl.DataFrame
 
-    def __post_init__(self) -> None:
-        """Refuse an archive whose slices name a different model than its own."""
-        _check_the_pairing(self.spec, self.answer.objective['spec_digest'].to_list())
-
-
-def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
-    """Refuse an archive whose answer came back from a different model than the one beside it.
-
-    A solve writes both members together, so this cannot fire on an archive
-    this package wrote. An answer solved off a lowered program digests to
-    ``None`` and is taken on trust; there is no document to compare it against.
-    """
-    mine = digest_of(spec.to_yaml())
-    if others := sorted({other for other in answered if other is not None and other != mine}):
-        raise LpspecError(
-            f'this archive holds an answer that came back from a different model: the answer carries '
-            f'{others} and the model.yaml beside it digests to {mine}. Re-solving it would give an answer '
-            f'other than the one it holds, so it is not read.'
-        )
-
-
-def _digests_in(under: Path) -> pl.DataFrame:
-    """The ``(run, source, digest)`` table *under* holds.
-
-    Read, never re-computed: the digests are not verified against the sources
-    on load.
-
-    Raises:
-        LayoutError: An archive with no digest table, which is every one
-            written before there was one.
-    """
-    file = under / DIGESTS_MEMBER
-    if not file.is_file():
-        raise LayoutError(
-            f'{str(under)!r} holds no {DIGESTS_MEMBER!r}, so this archive was written before one digested '
-            f'the data beside the model. Solving the model it holds again writes an archive that carries '
-            f'both, and the sources to do that with are in this one.'
-        )
-    return pl.read_parquet(file)
-
-
-def _metrics_in(answer: Path) -> Metrics:
-    """The metrics *answer* holds, as the value its columns declare — it is one row.
-
-    Raises:
-        LayoutError: An answer with no metrics, which is every archive written
-            before one was recorded, or one whose columns are not the ones
-            :class:`~lpspec.relational.parquet.Metrics` declares. The stamp
-            beside it cannot say either: the layout number is held at zero
-            while the layout moves.
-    """
-    file = answer / METRICS_FILE
-    if not file.is_file():
-        raise LayoutError(
-            f'{str(answer)!r} holds no {METRICS_FILE!r}, so this archive was written before one recorded '
-            f'what its solve took. What a build and its solves spent is of the machine that ran them and '
-            f'cannot be recovered by re-solving here; everything else in the archive can, and solving the '
-            f'model it holds again writes an archive that carries both.'
-        )
-    return row_of(Metrics, pl.read_parquet(file).row(0, named=True), file)
-
 
 def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchive | SweepArchive:
-    """Read back an archive an ``archive=`` wrote, whole.
-
-    Which comes back is read off the archive, not asked for: it carries an
-    axis or it does not.
-
-    **Everything is in memory when this returns** — the sources as the tables
-    they hold, the answer as the frames it holds — so what comes back owes the
-    archive nothing afterwards. A zip needs somewhere to unpack all the same,
-    but only for the duration: with no *into* it goes to a scratch directory
-    that is gone by the time the value is handed back. An archive larger than
-    memory is :func:`scan_archive`.
+    """Read an archive back whole: the sources as tables, the answer's frames in memory.
 
     Args:
-        path: The archive — a ``.zip``, or the directory one was written to.
-        into: Where to unpack a zip, created if it does not exist, for a
-            caller who wants the extracted tree as well as the value — to
-            query with an engine that reads parquet, say. A directory archive
-            needs none, being read where it lies; passing one is refused.
+        path: The archive, a ``.zip`` or the directory one was written to.
+        into: Where to unpack a zip, kept afterwards, for a caller who wants
+            the extracted tree as well. Without it a zip unpacks to a scratch
+            directory that is gone when this returns. Refused for a directory
+            archive, which is read where it lies.
 
     Returns:
-        A :class:`SweepArchive` where the archive carries an axis and a
-        :class:`SolveArchive` where it does not, holding the spec as written,
-        its sources keyed as the file declares them, a digest of each, the
-        answer, and what reaching it cost.
+        A :class:`SweepArchive` where the archive carries an axis, a
+        :class:`SolveArchive` where it does not.
 
     Raises:
         LanguageError: A ``model.yaml`` the language does not accept.
-        LayoutError: A member outside the layout or an *into* given for a
-            directory, neither of which unpacks anything, and — once it is —
-            an archive holding no digest table, or an answer whose layout has
-            moved since it was written or that holds no metrics row.
+        LayoutError: A member outside the layout, an *into* given for a
+            directory, or an answer whose layout has moved since it was
+            written.
         LpspecError: An answer that names a different model than the one
             beside it.
         zipfile.BadZipFile: A file that is not a zip archive.
     """
     held = Path(path)
     if into is not None or held.is_dir():
-        return _archive_under(opened(held, None if into is None else Path(into)), whole=True)
+        return _read(opened(held, into), whole=True)
     with tempfile.TemporaryDirectory() as scratch:
-        return _archive_under(opened(held, Path(scratch)), whole=True)
+        return _read(opened(held, scratch), whole=True)
 
 
 def scan_archive(path: str | Path, into: str | Path | None = None) -> SolveArchive | SweepArchive:
-    """The same archive, read as its readers are called rather than now.
+    """Read an archive back off disk: the sources as paths, each frame read at the call that asks for it.
 
-    :func:`load_archive`'s other half, and the same two types. What differs is
-    that nothing but the spec, the axis, the digest table and the metrics is
-    read: the sources come back as the parquet paths they now are — a ``Path``
-    being a source like any other, so attaching streams them from disk — and
-    the answer reads each frame at the call that asks for it
-    (:func:`~lpspec.api.scan_result`, :func:`~lpspec.strategy.scan_runs`).
-
-    So **the members have to outlive what was read off them**: *into* is
-    required for a zip here, and kept.
-
-    Args:
-        path: As :func:`load_archive` takes it.
-        into: Where to unpack a zip, created if it does not exist and **kept**.
-            Required for a zip, there being nothing to read off once a scratch
-            directory is gone; refused for a directory archive, as above.
-
-    Raises:
-        LayoutError: As :func:`load_archive` raises it, and a zip with no
-            *into*.
-        LpspecError: As :func:`load_archive` raises it.
-        zipfile.BadZipFile: A file that is not a zip archive.
+    The members have to outlive the value, so *into* is required for a zip
+    and kept. The same values and the same errors as :func:`load_archive`,
+    and ``LayoutError`` for a zip with no *into*.
     """
-    return _archive_under(opened(path, None if into is None else Path(into)), whole=False)
+    return _read(opened(path, into), whole=False)
 
 
-def _archive_under(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
-    """The archive whose members are in *under*, read whole or left on disk.
-
-    Shared body of :func:`load_archive` and :func:`scan_archive`; the one flag
-    controls both halves of the reading, a source and the answer.
-    """
+def _read(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
     spec = to_spec(under / MODEL_MEMBER)
     sources: dict[str, Source] = {
-        m.stem: pl.read_parquet(under / m) if whole else under / m for m in members_of(under) if is_source_member(m)
+        member.stem: pl.read_parquet(member) if whole else member
+        for member in sorted((under / SOURCES_DIR).glob('*.parquet'))
     }
-    digests = _digests_in(under)
+    digests = pl.read_parquet(under / DIGESTS_MEMBER)
+    saved = under / ANSWER_DIR
     axis_member = under / AXIS_MEMBER
     if not axis_member.is_file():
-        saved = under / ANSWER_DIR
         answer = attach_readers((load_result if whole else scan_result)(saved), spec, sources)
-        return SolveArchive(spec, sources, answer, digests, _metrics_in(saved))
+        _check_the_pairing(spec, [answer.spec_digest])
+        metrics = row_of(Metrics, pl.read_parquet(saved / METRICS_FILE).row(0, named=True), saved / METRICS_FILE)
+        return SolveArchive(spec, sources, answer, digests, metrics)
     manifest = json.loads(axis_member.read_text())
-    axis = axis_from(manifest)
-    carry = manifest.get('carry', {})
-    slices = (load_runs if whole else scan_runs)(under / ANSWER_DIR)
-    answer = attach_sweep_readers(slices, spec, sources, axis, carry)
+    axis, carry = axis_from(manifest), manifest.get('carry', {})
+    answer = attach_sweep_readers((load_runs if whole else scan_runs)(saved), spec, sources, axis, carry)
+    _check_the_pairing(spec, answer.objective['spec_digest'].to_list())
     return SweepArchive(spec, sources, axis, carry, answer, digests)
+
+
+def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
+    """Refuse an archive whose answer came back from a different model than the one beside it.
+
+    A solve writes both together, so this catches a hand-edited archive. A
+    ``None`` digest is an answer solved off a lowered program and is not
+    compared.
+    """
+    mine = digest_of(spec.to_yaml())
+    if others := sorted({other for other in answered if other is not None and other != mine}):
+        raise LpspecError(
+            f'this archive holds an answer that came back from a different model: the answer carries '
+            f'{others} and the model.yaml beside it digests to {mine}, so re-solving it would give another answer.'
+        )

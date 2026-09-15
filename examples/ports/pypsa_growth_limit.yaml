@@ -19,19 +19,19 @@ dimensions:
     description: generating units, each built in one period and standing from then on
     dtype: str
 
-lookups:
+relations:
   gen_carrier:
     description: the carrier a generator burns
-    over: generator
-    into: carrier
+    columns: [generator, carrier]
+    key: generator
   build_period:
     description: the period a generator is first built in, and so counted as new in
-    over: generator
-    into: period
+    columns: [generator, period]
+    key: generator
   period_of:
     description: the investment period a snapshot falls in
-    over: snapshot
-    into: period
+    columns: [snapshot, period]
+    key: snapshot
 
 parameters:
   load:
@@ -106,7 +106,7 @@ constraints:
       allowance — which is the row PyPSA emits there.
     dims: [period]
     expression: >-
-      new_capacity - shift(new_capacity, over=period, offset=1, edge=0) * max_relative_growth
+      new_capacity - shift(new_capacity, along=period, offset=1, edge=0) * max_relative_growth
       <= max_growth
 
 objective:

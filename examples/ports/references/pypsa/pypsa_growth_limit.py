@@ -63,7 +63,7 @@ def build(tables: dict[str, pd.DataFrame], growth_limit: bool = True) -> pypsa.N
     ``tables`` is the same mapping the lpspec call attaches as ``sources``.
 
     ``growth_limit=False`` drops the two carrier attributes, which is how
-    ``main`` measures what the limit is worth. The port's ``build_period`` lookup
+    ``main`` measures what the limit is worth. The port's ``build_period`` relation
     is PyPSA's ``build_year``; its ``activity`` table is what ``build_year`` and
     ``lifetime`` derive.
     """
@@ -107,7 +107,7 @@ def balance_duals(n: pypsa.Network) -> dict[str, list]:
     """The dual of the nodal balance per snapshot, keyed the way the port keys it.
 
     PyPSA's row index is ``(period, timestep)``; the port's is the flat snapshot a
-    lookup maps into a period, so the pairs are collapsed back to the port's
+    relation maps into a period, so the pairs are collapsed back to the port's
     labels in the order the instance lists them.
     """
     dual = n.model.constraints['Bus-nodal_balance'].dual.to_series()

@@ -5,7 +5,7 @@ A cap on new capacity per investment period, which grows with the period before 
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **47110.0**, matched to `rtol=1e-09`.
 
 `Carrier.max_growth` caps how much of a technology may be *newly built* in one
-period; `max_relative_growth` adds a share of the previous period's new build to
+period. `max_relative_growth` adds a share of the previous period's new build to
 that allowance, which turns a flat cap into a growth rate
 (`global_constraints.py:184`):
 
@@ -13,14 +13,13 @@ that allowance, which turns a flat cap into a growth rate
 new[period] - max_relative_growth * new[period - 1] <= max_growth
 ```
 
-Two things the source settles and the prose around it does not. The quantity on
-both sides is **newly built** capacity, not standing capacity —
-`vars.where(first_active)` counts an asset in the period it first exists and
-never again. And the first period has no predecessor, so its row is the bare
-allowance.
+Two things the source settles. The quantity on both sides is **newly built**
+capacity, not standing capacity: `vars.where(first_active)` counts an asset in
+the period it first exists and never again. And the first period has no
+predecessor, so its row is the bare allowance.
 
 The three wind units are one per period, which is how a build year becomes a
-column: each is extendable and each first stands in its own period, so
+column. Each is extendable and each first stands in its own period, so
 `new[period]` is that unit's capacity.
 
 ## The model
@@ -36,8 +35,8 @@ PyPSA's carrier growth limit: how much of a technology may be built in one inves
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` with $`\mathrm{period\_of}: \mathcal{T} \to \mathcal{E}`$ — dispatch periods, each falling in one investment period |
-| $`\mathcal{E}`$ | index $`e`$ — `period` — investment periods, the axis capacity is built along |
-| $`\mathcal{C}`$ | index $`c`$ — `carrier` — what a generator burns, and what a growth limit is a property of |
+| $`\mathcal{E}`$ | index $`e`$ — `period` with $`\mathrm{build\_period}: \mathcal{G} \to \mathcal{E},\ \mathrm{period\_of}: \mathcal{T} \to \mathcal{E}`$ — investment periods, the axis capacity is built along |
+| $`\mathcal{C}`$ | index $`c`$ — `carrier` with $`\mathrm{gen\_carrier}: \mathcal{G} \to \mathcal{C}`$ — what a generator burns, and what a growth limit is a property of |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_carrier}: \mathcal{G} \to \mathcal{C},\ \mathrm{build\_period}: \mathcal{G} \to \mathcal{E}`$ — generating units, each built in one period and standing from then on |
 
 #### Parameters
@@ -148,19 +147,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: generating units, each built in one period and standing from then on
         dtype: str
 
-    lookups:
+    relations:
       gen_carrier:
         description: the carrier a generator burns
-        over: generator
-        into: carrier
+        columns: [generator, carrier]
+        key: generator
       build_period:
         description: the period a generator is first built in, and so counted as new in
-        over: generator
-        into: period
+        columns: [generator, period]
+        key: generator
       period_of:
         description: the investment period a snapshot falls in
-        over: snapshot
-        into: period
+        columns: [snapshot, period]
+        key: snapshot
 
     parameters:
       load:
@@ -235,7 +234,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           allowance — which is the row PyPSA emits there.
         dims: [period]
         expression: >-
-          new_capacity - shift(new_capacity, over=period, offset=1, edge=0) * max_relative_growth
+          new_capacity - shift(new_capacity, along=period, offset=1, edge=0) * max_relative_growth
           <= max_growth
 
     objective:
@@ -266,7 +265,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         ``tables`` is the same mapping the lpspec call attaches as ``sources``.
 
         ``growth_limit=False`` drops the two carrier attributes, which is how
-        ``main`` measures what the limit is worth. The port's ``build_period`` lookup
+        ``main`` measures what the limit is worth. The port's ``build_period`` relation
         is PyPSA's ``build_year``; its ``activity`` table is what ``build_year`` and
         ``lifetime`` derive.
         """
@@ -307,15 +306,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **The limit binds in every period, and it is worth 4630.** Wind is capped to 15,
-then 22.5, then 26.25 — each period's allowance being `15 + 0.5 ×` the last
-build — and `gas` grows to 86.25 to cover what wind may not. Drop the two
-carrier attributes and the same instance builds 30, 40 and 50 of wind, 30 of gas,
-and costs **42480.0** against **47110.0**. The duals on the coupled rows are
-−148 and −120.
+then 22.5, then 26.25: each period's allowance is `15 + 0.5 ×` the last build.
+`gas` grows to 86.25 to cover what wind may not. Drop the two carrier attributes
+and the same instance builds 30, 40 and 50 of wind, 30 of gas, and costs
+**42480.0** against **47110.0**. The duals on the coupled rows are −148 and
+−120.
 
 **`edge=0` keeps the first period's row.** Without it the shifted term is absent
-in the first period and the *row* goes with it (a masked variable term deletes
-the row rather than zeroing it), where PyPSA emits the bare allowance there:
+in the first period and the *row* goes with it. A masked variable term deletes
+the row rather than zeroing it. PyPSA emits the bare allowance there:
 
 ```
 [wind, 2030]: +1 Generator-p_nom[wind_2030]                                  ≤ 15.0
@@ -323,15 +322,12 @@ the row rather than zeroing it), where PyPSA emits the bare allowance there:
 [wind, 2050]: +1 Generator-p_nom[wind_2050] - 0.5 Generator-p_nom[wind_2040] ≤ 15.0
 ```
 
-**A named expression earns its place here.** `new_capacity` appears twice in one
-row — once as itself and once shifted — and writing the grouped sum twice would
-be two chances to write it differently. It is the same block `walkthrough`
-teaches, used for the reason it exists.
+**A named expression is used twice in one row.** `new_capacity` appears once as
+itself and once shifted. Writing the grouped sum twice would be two chances to
+write it differently.
 
 ## What it exercises
 
-`shift` over an investment-period axis rather than a snapshot one — the same
-operator against a different dimension, which is the claim worth checking
-precisely because it looks like it should already work — plus a named expression
-used twice in one row, and a capacity grouped onto the period it is built in
-through a `build_period` lookup.
+`shift` over an investment-period axis rather than a snapshot one, a named
+expression used twice in one row, and a capacity grouped onto the period it is
+built in through a `build_period` relation.

@@ -17,7 +17,7 @@ PyPSA linear optimal power flow at its smallest: a transport model — linear ma
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `snapshot` — dispatch periods |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
 | $`\mathcal{L}`$ | index $`l`$ — `link` with $`\mathrm{link\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{link\_to}: \mathcal{L} \to \mathcal{B}`$ — controllable connections, each joining two buses |
 
@@ -94,19 +94,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: controllable connections, each joining two buses
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       link_from:
         description: the bus a link leaves
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
       link_to:
         description: the bus a link arrives at
-        over: link
-        into: bus
+        columns: [link, bus]
+        key: link
 
     parameters:
       p_nom:
@@ -208,31 +208,26 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         return n
     ```
 
-**Read this comparison carefully — it flatters neither side fairly.** PyPSA is
-a *domain package*: `n.add('Generator', ...)` and `n.add('Link', ...)` carry a
-power-systems model inside them, so the reference is short because someone
-already wrote the power flow. Against that, the YAML looks more explicit rather
-than shorter, and it should — it is stating the constraint PyPSA implies.
-
-The comparison against a general-purpose alternative is on
-[the Dantzig page](transport_dantzig.md), where both sides write the maths out.
+**PyPSA is a domain package, so its tab is short.** `n.add('Generator', ...)`
+and `n.add('Link', ...)` carry a power-systems model inside them. The YAML
+states the nodal balance PyPSA implies, so it is more explicit rather than
+shorter. [The Dantzig page](transport_dantzig.md) compares against a
+general-purpose alternative, where both sides write the maths out.
 
 ## What it exercises
 
-The smallest whole PyPSA model. Reproducing a full PyPSA objective means
-reproducing marginal *and* capital cost, ramp limits, storage cycling and KVL
-at once, and a mismatch then implicates five features instead of one. So each
-feature is switched off in PyPSA and reproduced here separately: **a transport
-model** (this one) · [ramp limits](pypsa_ramp.md) ·
-[storage](pypsa_storage.md) · [a cyclic horizon](pypsa_cyclic_storage.md) ·
-[KVL](pypsa_kvl.md).
+The smallest whole PyPSA model. A full PyPSA objective mixes marginal and
+capital cost, ramp limits, storage cycling and KVL, so a mismatch would
+implicate five features at once. Each feature is therefore switched off in
+PyPSA and reproduced in its own model: **a transport model** (this one) ·
+[ramp limits](pypsa_ramp.md) · [storage](pypsa_storage.md) ·
+[a cyclic horizon](pypsa_cyclic_storage.md) · [KVL](pypsa_kvl.md).
 
-**This model hit the ceiling once**, and that is recorded rather than worked
-around quietly: PyPSA's `p_min_pu = -1` is a bound of `-rating`, an expression
-this language cannot yet put in `bounds:`. It ships as a `neg_rating` column
-instead, and the gap is [issue #31](https://github.com/fluxopt/lpspec/issues/31)
-with the verdict *primitive*. See
-[the ledger](index.md#ledger--what-a-port-could-not-say).
+**This model hit the ceiling once.** PyPSA's `p_min_pu = -1` is a bound of
+`-rating`, an expression `bounds:` cannot take. It ships as a `neg_rating`
+column instead. The gap is
+[issue #31](https://github.com/fluxopt/lpspec/issues/31), verdict *primitive*,
+and [the ledger](index.md#ledger--what-a-port-could-not-say) records it.
 
 ---
 

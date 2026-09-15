@@ -23,6 +23,7 @@ from lpspec.errors import (
     no_model_behind_this_answer_message,
     unknown_name_message,
 )
+from lpspec.relational.collect import polars_engine
 from lpspec.relational.parquet import (
     RECORD_FILE,
     RECORD_SCHEMA,
@@ -541,7 +542,7 @@ class Result:
             KeyError: No variable is called *name*.
         """
         frames = self._readable(self._primals, f"the primal of '{name}'")
-        return _named(frames, name, 'variable').collect(engine='streaming')
+        return _named(frames, name, 'variable').collect(engine=polars_engine())
 
     def dual(self, name: str) -> pl.DataFrame:
         """Shadow prices of constraint *name* — ``(dims…, value)``.
@@ -557,7 +558,7 @@ class Result:
         frames = self._readable(self._duals, f"the dual of '{name}'")
         if self._no_duals is not None:
             raise LpspecError(self._no_duals)
-        return _named(frames, name, 'constraint').collect(engine='streaming')
+        return _named(frames, name, 'constraint').collect(engine=polars_engine())
 
     def activity(self, name: str) -> pl.DataFrame:
         """The left-hand side of constraint *name* at the solution — ``(dims…, value)``.
@@ -575,7 +576,7 @@ class Result:
             KeyError: No constraint is called *name*.
         """
         frames = self._readable(self._activities, f"the activity of '{name}'")
-        return _named(frames, name, 'constraint').collect(engine='streaming')
+        return _named(frames, name, 'constraint').collect(engine=polars_engine())
 
     def evaluate(self, expression: str | Mapping[str, Any]) -> pl.DataFrame:
         """The value of *expression* at this solution — ``(dims…, value)``.

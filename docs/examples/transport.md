@@ -8,10 +8,10 @@ A network: generators sit on buses, lines connect buses, and power balances at e
 
 $$\sum_{g \thinspace:\thinspace \mathrm{bus}(g) = b} p_{s,g} \quad+\quad \sum_{\ell \thinspace:\thinspace \mathrm{to}(\ell) = b} f_{s,\ell} \quad-\quad \sum_{\ell \thinspace:\thinspace \mathrm{from}(\ell) = b} f_{s,\ell} \quad=\quad d_{s,b}$$
 
-Each sum is over the lines or generators a *coordinate map* sends to bus $b$ —
-$\mathrm{bus}$, $\mathrm{to}$ and $\mathrm{from}$ are the coordinates the
-dimensions declare, not sets in their own right. Load is $d$ here, because
-$\ell$ is already the line index.
+Each sum runs over the generators or lines a relation sends to bus $b$.
+$\mathrm{bus}$, $\mathrm{to}$ and $\mathrm{from}$ are relations the dimensions
+declare, not sets in their own right. Load is $d$ here, because $\ell$ is
+already the line index.
 
 ## The model
 
@@ -27,7 +27,7 @@ Least-cost dispatch over a network, where a generator sits on a bus, a line join
 |---|---|
 | $`\mathcal{S}`$ | index $`s`$ — `snapshot` — dispatch periods |
 | $`\mathcal{G}`$ | index $`g`$ — `generator` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B}`$ — generating units, each sitting on one bus |
-| $`\mathcal{B}`$ | index $`b`$ — `bus` — network nodes |
+| $`\mathcal{B}`$ | index $`b`$ — `bus` with $`\mathrm{gen\_bus}: \mathcal{G} \to \mathcal{B},\ \mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — network nodes |
 | $`\mathcal{L}`$ | index $`\ell`$ — `line` with $`\mathrm{line\_from}: \mathcal{L} \to \mathcal{B},\ \mathrm{line\_to}: \mathcal{L} \to \mathcal{B}`$ — transmission lines, each joining two buses |
 
 #### Parameters
@@ -123,19 +123,19 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: transmission lines, each joining two buses
         dtype: str
 
-    lookups:
+    relations:
       gen_bus:
         description: the bus a generator sits on
-        over: generator
-        into: bus
+        columns: [generator, bus]
+        key: generator
       line_from:
         description: the bus a line leaves
-        over: line
-        into: bus
+        columns: [line, bus]
+        key: line
       line_to:
         description: the bus a line arrives at
-        over: line
-        into: bus
+        columns: [line, bus]
+        key: line
 
     parameters:
       p_max:
@@ -235,22 +235,22 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 ## What it exercises
 
-Three `sum(by=)` calls, and they are what a network *is* in this language.
-A model can declare **lookups** — `gen_bus` maps `generator` onto `bus`, `line_from`
-and `line_to` map `line` — and `sum(f, by=line_to)` sums along a
-line's `line_to` lookup, landing the result on `bus`. The same `f` is summed
-twice through two different lookups, once as an inflow and once as an
+Three `sum(by=)` calls are what a network *is* in this language. The model
+declares three **relations**: `gen_bus` maps `generator` onto `bus`, and
+`line_from` and `line_to` map `line` onto `bus`. `sum(f, by=line_to)` sums
+each line's flow onto its `line_to` bus, so the result lands on `bus`. The
+same `f` is summed twice through two relations, once as an inflow and once as an
 outflow.
 
-No adjacency matrix, and no join written by the modeller: the topology is
-data on the dimension.
+There is no adjacency matrix and no hand-written join: the topology is data on
+the dimension.
 
-The two halves of the balance are **named expressions** — substituted into the
-constraint before either backend sees the model, so naming them costs nothing
-at build or solve; what it buys is a constraint that reads as the sentence it
-is, and a quantity the solution can hand back: `expression('net_inflow')` is
-the bus-by-bus net flow the balance constrained, one definition for the
-constraint and the report.
+The two halves of the balance are **named expressions**. Each is substituted
+into the constraint before either backend sees the model, so naming them costs
+nothing at build or solve. What it buys is a constraint that reads as a
+sentence, and a quantity the solution hands back: `expression('net_inflow')`
+is the net flow at each bus that the balance constrained. One definition serves
+the constraint and the report.
 
 ---
 

@@ -5,15 +5,14 @@ A unit that has started must stay on; one that has stopped must stay off.
 > **✔ Verified against pypsa 1.2.4 (its own linopy 0.9.0)** — objective **32750.0**, matched to `rtol=1e-09`.
 
 [Unit commitment](pypsa_unit_commitment.md) takes the status and the two
-transition variables and stops there. On its own that lets a unit start and stop
-in consecutive snapshots, paying the charges and doing as it likes. The windows
-are what make commitment a scheduling problem: over any `min_up_time`
-consecutive snapshots a unit may have started at most as often as it is now
-running, and the mirror holds for stopping.
+transition variables and stops there. A unit may start and stop in consecutive
+snapshots, paying the charges. The windows make commitment a scheduling
+problem. Over any `min_up_time` consecutive snapshots a unit may have started
+at most as often as it is now running, and the mirror holds for stopping.
 
-Each window's length is a property of the **generator**, not of the model — 3, 2
-and 1 here — because a single shared length would be satisfied by an operator
-that ignored the parameter and used a constant.
+Each window's length is a property of the generator, not of the model: 3, 2
+and 1 here. A single shared length would be satisfied by an operator that
+ignored the parameter and used a constant.
 
 ## The model
 
@@ -222,7 +221,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           unit begins the horizon off, which is the 0 the first snapshot reads where
           it has no predecessor
         dims: [snapshot, generator]
-        expression: start_up - status + shift(status, over=snapshot, offset=1, edge=0) >= 0
+        expression: start_up - status + shift(status, along=snapshot, offset=1, edge=0) >= 0
 
       shut_down:
         description: >-
@@ -230,7 +229,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           no first-snapshot counterpart: a unit that begins off has nothing to stop,
           and the row PyPSA emits there holds for every value of both variables.
         dims: [snapshot, generator]
-        expression: shut_down + status - shift(status, over=snapshot, offset=1) >= 0
+        expression: shut_down + status - shift(status, along=snapshot, offset=1) >= 0
 
       min_up_time:
         description: >-
@@ -239,7 +238,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           again inside its own window
         dims: [snapshot, generator]
         where: "snapshot > 0"
-        expression: sum_back(start_up, over=snapshot, within=min_up_time) <= status
+        expression: sum_back(start_up, along=snapshot, window=min_up_time) <= status
 
       min_down_time:
         description: >-
@@ -247,7 +246,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           be true
         dims: [snapshot, generator]
         where: "snapshot > 0"
-        expression: status + sum_back(shut_down, over=snapshot, within=min_down_time) <= 1
+        expression: status + sum_back(shut_down, along=snapshot, window=min_down_time) <= 1
 
     objective:
       sense: minimize
@@ -302,30 +301,29 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 **The windows bind, and the schedule shows where.** `mid` runs, drops out over
-snapshots 4 and 5, and comes back at 6 — and then has to stay on through 7 even
-though the load there is met more cheaply without it. Set every window to 1 and
-the same instance solves at **31800.0**, with `mid` free to cycle in and out of
-every trough. The 950 between the two numbers is the whole point.
+snapshots 4 and 5, and comes back at 6. It then has to stay on through 7,
+where the load is met more cheaply without it. Set every window to 1 and the
+same instance solves at **31800.0**, with `mid` free to cycle in and out of
+every trough. The windows are worth 950.
 
-**`sum_back` truncates at the start of the axis, and so does PyPSA.** At snapshot
-1 with a window of 3, the sum has two terms rather than three — there is no
-snapshot −1 to reach for. Both implementations shorten the window rather than
-wrapping or dropping the row, which is why no `edge=` argument appears here.
+**`sum_back` truncates at the start of the dimension, and so does PyPSA.** At
+snapshot 1 with a window of 3, the sum has two terms rather than three: there
+is no snapshot −1 to reach. Both shorten the window rather than wrapping or
+dropping the row, so no `edge=` argument appears.
 
 **The initial conditions are switched off rather than defaulted.**
-`up_time_before` defaults to 1 in PyPSA — the unit was already running — which
-emits a further block pinning the status on for the remainder of its minimum up
-time. That is real behaviour and a *second* feature; this model is about the
-windows, so both `*_time_before` values are set to 0. Every unit therefore
-begins the horizon **off**, and the first snapshot's transition rows are the
-mirror of the ones [unit commitment](pypsa_unit_commitment.md) ports: a unit
-committed in the first snapshot pays for a start, and nothing is charged for a
-stop, where a unit that began the horizon running pays for no start and is
-charged if it goes down.
+`up_time_before` defaults to 1 in PyPSA, meaning the unit was already running.
+That default emits a further block pinning the status on for the rest of its
+minimum up time. That is a second feature, and this model is about the
+windows, so both `*_time_before` values are 0. Every unit therefore begins the
+horizon off, and the first snapshot's transition rows mirror the ones
+[unit commitment](pypsa_unit_commitment.md) ports. A unit committed in the
+first snapshot pays for a start and nothing for a stop. A unit that began the
+horizon running pays for no start and is charged if it goes down.
 
 ## What it exercises
 
-`sum_back(x, over=dim, within=p)` with `p` an integer parameter — the
+`sum_back(x, along=dim, window=p)` with `p` an integer parameter: the
 per-entity window length, against a variable, inside a MILP. The `dtype: int`
 declaration is required and load-time validation says so by name: *a width
 counts positions rather than measuring a distance.*

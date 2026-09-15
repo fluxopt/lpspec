@@ -2,7 +2,7 @@
 
 `sum` walks a mapping table from the fine dim into the coarse one; this
 walks it back out. They take the same one argument on purpose: ``by=`` names
-one lookup, and the helper says which direction.
+one relation, and the helper says which direction.
 
 Two things are checked here that a single-lane test could not reach.
 
@@ -101,7 +101,7 @@ COMPONENT_GATE = {
         'component': {'dtype': 'str'},
         't': {'dtype': 'int'},
     },
-    'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
+    'relations': {'component_of': {'columns': ['flow', 'component'], 'key': 'flow'}},
     'parameters': {'cost': {'dims': ['flow']}, 'oncost': {'dims': ['component']}},
     'variables': {
         'rate': {'dims': ['flow', 't'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -169,7 +169,7 @@ def test_at_agrees_with_the_oracle_through_a_reduction():
             'flow': {'dtype': 'str'},
             'component': {'dtype': 'str'},
         },
-        'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
+        'relations': {'component_of': {'columns': ['flow', 'component'], 'key': 'flow'}},
         'parameters': {'cost': {'dims': ['flow']}, 'share': {'dims': ['flow']}},
         'variables': {
             'level': {'dims': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -212,7 +212,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
     from data, which is as true of `dims: [snapshot]`.
 
     The mirror needs no second commitment variable and no identity table: `tf`
-    maps back to `t` single-valuedly, which is a lookup, and `at()` reads the
+    maps back to `t` single-valuedly, which is a relation, and `at()` reads the
     commitment onto the mirror axis where the start recurrence needs it.
 
     Two units, one with T=3 and one with T=1, and a no-load cost so idling is
@@ -229,8 +229,8 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
     hours = list(range(6))
     spec = {
         'dimensions': {'unit': {'dtype': 'str'}, 't': {'dtype': 'int'}, 'tf': {'dtype': 'int'}},
-        # every `tf` is the same moment as one `t` — single-valued, so a lookup
-        'lookups': {'same_moment': {'over': 'tf', 'into': 't'}},
+        # every `tf` is the same moment as one `t` — single-valued, so a relation
+        'relations': {'same_moment': {'columns': ['tf', 't'], 'key': 'tf'}},
         'parameters': {
             'window': {'dims': ['unit', 't', 'tf']},
             'load': {'dims': ['t']},
@@ -248,7 +248,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
             'a_start_turns_it_on': {
                 'dims': ['unit', 'tf'],
                 'expression': (
-                    'started >= at(on, by=same_moment) - shift(at(on, by=same_moment), over=tf, offset=1, edge=0)'
+                    'started >= at(on, by=same_moment) - shift(at(on, by=same_moment), along=tf, offset=1, edge=0)'
                 ),
             },
             'stays_up_its_own_time': {
@@ -290,14 +290,14 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
         assert set(on['unit']) == {'slow'}, 'and it is the slow unit that is held, not the fast one'
 
 
-#: `f3` maps nowhere, which is what a *partial* lookup is for. The objective
+#: `f3` maps nowhere, which is what a *partial* relation is for. The objective
 #: pays for `take` and charges ruinously for `level`, so the two readings of
 #: `f3`'s row are separated by the answer and not merely by a row count: with
 #: the row gone, `take[f3]` is held by its own bound alone and goes to 10; with
 #: the row built, its right-hand side is zero and it cannot move at all.
 DANGLING = {
     'dimensions': {'flow': {'dtype': 'str'}, 'component': {'dtype': 'str'}},
-    'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
+    'relations': {'component_of': {'columns': ['flow', 'component'], 'key': 'flow'}},
     'variables': {
         'level': {'dims': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'dims': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -321,10 +321,10 @@ def _dangling_sources(map_: list | None = None, **extra):
     }
 
 
-def test_at_through_a_null_lookup_takes_the_row_with_it():
+def test_at_through_a_null_relation_takes_the_row_with_it():
     """A label mapping nowhere has no value to read, so the row is not asserted.
 
-    The absence rules list a null lookup value among the four constructs that
+    The absence rules list a null relation value among the four constructs that
     create absence, and absence spreads through arithmetic taking its row —
     so `link` is built for the two flows that map somewhere and not for `f3`.
 
@@ -350,7 +350,7 @@ def test_at_through_a_null_lookup_takes_the_row_with_it():
     )
 
 
-def test_at_through_a_null_lookup_agrees_between_lanes():
+def test_at_through_a_null_relation_agrees_between_lanes():
     """The same model on both lanes, which is what #897 is finally about.
 
     Until #968 the relational lane answered 0.0: the null entry was dropped by
@@ -370,9 +370,9 @@ def test_at_through_a_null_lookup_agrees_between_lanes():
 #: in the second of the pair, where checking the first alone would miss it.
 DANGLING_PAIR = {
     'dimensions': {'flow': {'dtype': 'str'}, 'component': {'dtype': 'str'}, 'kind': {'dtype': 'str'}},
-    'lookups': {
-        'component_of': {'over': 'flow', 'into': 'component'},
-        'kind_of': {'over': 'flow', 'into': 'kind'},
+    'relations': {
+        'component_of': {'columns': ['flow', 'component'], 'key': 'flow'},
+        'kind_of': {'columns': ['flow', 'kind'], 'key': 'flow'},
     },
     'variables': {
         'level': {'dims': ['component', 'kind'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -389,7 +389,7 @@ DANGLING_PAIR = {
 def test_at_through_one_null_of_a_pair_takes_the_row_with_it():
     """A pullback reads a *tuple* of labels, so one null anywhere leaves nothing.
 
-    The single-lookup case above says a label mapping nowhere has no value to
+    The single-relation case above says a label mapping nowhere has no value to
     read. Reading through two at once, `f3` still maps to a component — so a
     lane that checked the first coordinate and stopped would find a slot, build
     `take[f3] <= 0`, and pin a flow the model never spoke about.
@@ -413,7 +413,7 @@ def test_at_through_one_null_of_a_pair_takes_the_row_with_it():
         assert run.engine.diagnostics().rows == 2, 'the two flows whose whole tuple maps have a row, and f3 has none'
 
 
-#: The same shape with a *total* lookup, so the absence is the operand's own:
+#: The same shape with a *total* relation, so the absence is the operand's own:
 #: `c2` exists as a label and every flow maps somewhere, but `level` is masked
 #: away there, and a fine coordinate reading a masked slot reads nothing.
 MASKED = DANGLING | {
@@ -423,10 +423,10 @@ MASKED = DANGLING | {
 
 
 def test_at_over_a_masked_variable_takes_the_row_with_it():
-    """A pullback carries the mask under it, not only the lookup's own gaps.
+    """A pullback carries the mask under it, not only the relation's own gaps.
 
     Two absences reach a fine coordinate through the same join and the engine
-    used to report neither, so this answered 0.0 beside the null-lookup case
+    used to report neither, so this answered 0.0 beside the null-relation case
     above and for the same reason (#968) — `f3` reads `level[c2]`, which is not
     there, and its row was built anyway with the right-hand side empty.
     """
@@ -451,7 +451,7 @@ DANGLING_SHIFTED = {
         't': {'dtype': 'int'},
         'u': {'dtype': 'str'},
     },
-    'lookups': {'component_of': {'over': 'flow', 'into': 'component'}},
+    'relations': {'component_of': {'columns': ['flow', 'component'], 'key': 'flow'}},
     'variables': {
         'level': {'dims': ['component', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'dims': ['flow', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -459,7 +459,7 @@ DANGLING_SHIFTED = {
     'constraints': {
         'link': {
             'dims': ['flow', 't', 'u'],
-            'expression': 'take <= shift(at(level, by=component_of), over=t, offset=1, edge=0)',
+            'expression': 'take <= shift(at(level, by=component_of), along=t, offset=1, edge=0)',
         }
     },
     'objective': {

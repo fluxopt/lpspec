@@ -5,16 +5,14 @@ The cheapest way to eat for a year and stay alive. 77 foods, 9 nutrients, 1939 p
 > **✔ Verified against linopy 0.9.0** — objective **0.10866227820675685** dollars/day, matched to `rtol=1e-09`.
 > **Corroborated by Laderman (1947)**, who published **$39.69/year** for this data.
 
-This is where linear programming started earning its keep. Stigler posed it in
-1945 and got $39.93 by trial and error, admitting there was "no direct method"
-to do better. In 1947 Jack Laderman at the National Bureau of Standards took it
-as the first serious test of Dantzig's new simplex method: nine clerks on desk
-calculators, roughly **120 man-days**, for $39.69.
+Stigler posed it in 1945 and got $39.93 by trial and error, admitting there
+was "no direct method" to do better. In 1947 Jack Laderman at the National
+Bureau of Standards took it as the first large test of Dantzig's simplex
+method: nine clerks on desk calculators, about **120 man-days**, for $39.69.
 
-It is in the corpus because every other verified model is a flow of something
-through a network. This one has no network at all — it is a **covering LP**,
-`min 1ᵀx` subject to `Ax ≥ b`, which is a different shape of problem reaching
-the same engine.
+Every other verified model is a flow of something through a network. This one
+has no network: it is a **covering LP**, `min 1ᵀx` subject to `Ax ≥ b`, a
+different shape of problem reaching the same engine.
 
 ## The model
 
@@ -155,14 +153,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ```
 
 Stigler's table is normalised **per dollar spent**, so a variable is *money on
-a food per day* rather than a quantity, and the objective is just the total.
-That is his framing, not a convenience: it is what makes the matrix
-price-independent.
+a food per day* rather than a quantity, and the objective is the total. That
+framing is his, and it makes the matrix price-independent.
 
 **The nutrient table is sparse and stays that way.** 570 of the 693
-(food, nutrient) cells are non-zero; a food supplying none of a nutrient simply
-has no row. Row absence is how this language spells "not present" everywhere
-else, and here it means exactly what a reader would assume.
+(food, nutrient) cells are non-zero; a food supplying none of a nutrient has no
+row. Row absence is how this language spells "not present" everywhere, and
+here it means what a reader would assume.
 
 ## What it finds
 
@@ -176,14 +173,13 @@ else, and here it means exactly what a reader would assume.
 | **total** | **39.66** |
 
 **Those are the five foods in the historical solution.** The 0.08% gap against
-Laderman's $39.69 is his rounding — nine people with desk calculators — not a
-different model. Matching the *composition* is the stronger corroboration; two
-routes to the same five foods out of seventy-seven is not a coincidence.
+Laderman's $39.69 is his rounding, not a different model. Matching the
+*composition* is the stronger corroboration: two routes to the same five foods
+out of seventy-seven.
 
 ## What a nutrient costs
 
-The duals are the most legible in the corpus — each is what one more unit of
-that nutrient per day would cost:
+Each dual is what one more unit of that nutrient per day would cost:
 
 | nutrient | shadow price |
 |---|---|
@@ -195,13 +191,12 @@ that nutrient per day would cost:
 | protein · iron · vitamin B1 · niacin | **0** |
 
 Four of the nine requirements cost nothing at the margin: they arrive free
-alongside the ones that bind. That is the diet problem's actual lesson, and it
-is a dual, not a primal — which is why the corpus checks duals as well as
-objectives.
+alongside the ones that bind. That lesson is a dual, not a primal, which is
+why the corpus checks duals as well as objectives.
 
 ## What it exercises
 
 A two-dimensional parameter multiplying a one-dimensional variable, reduced
-along the shared dimension — the same shape [KVL](pypsa_kvl.md) needs for its
-cycle incidence, doing a completely different job. Plus a bare variable as the
-whole objective, which is as small as an objective gets.
+along the shared dimension: the shape [KVL](pypsa_kvl.md) needs for its cycle
+incidence, doing a different job. Also a bare variable as the whole objective,
+which is as small as an objective gets.

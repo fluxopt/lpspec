@@ -225,11 +225,10 @@ could write this**, which is the observation that matters most for
 [#596](https://github.com/fluxopt/lpspec/issues/596).
 
 The models are read once above the loop, because a cut is a row in a
-parameter table rather than an edit to a file. `lps.solve` accepts a `Spec`
-([glossary](../reference/glossary.md#the-chain)) anywhere it accepts a path,
-and reading one it already has costs nothing. So parsing and validation are
-paid once for the run instead of three times an iteration. Any driver over a
-fixed model does the same, and `solve_over` already does.
+parameter table rather than an edit to a file. `lps.solve` takes a `Spec`
+([glossary](../reference/glossary.md#the-chain)) anywhere it takes a path, so
+parsing and validation are paid once per run rather than three times an
+iteration.
 
 ## Running it
 

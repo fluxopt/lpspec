@@ -7,7 +7,7 @@ built first and the frame read after.
 
 A closed vocabulary of its own — comparisons against a parameter, of two
 parameters, against a dimension label, a position along a dimension, a
-lookup, of two variable-free expressions, and the three connectives. It takes the
+relation, of two variable-free expressions, and the three connectives. It takes the
 :class:`~lpspec.relational.engines.polars.compiler.PolarsCompiler` as an
 argument and holds nothing.
 
@@ -132,12 +132,14 @@ def compile_predicate(
     def join_group_offset(p: program.DimensionPositionNode) -> str:
         """One column: the row's ordinal minus its own group's target ordinal."""
         refuse_outside_frame(f"dimension '{p.name}'", p.name)
-        table = compiler.partitioned(p.name, str(p.by))
-        _refuse_short_groups(p, table)
+        assert p.partition is not None, 'an ungrouped position counts along the axis and asks for no table'
+        by = p.partition.name
+        table = compiler.partitioned(p.name, by)
+        _refuse_short_groups(p, by, table)
         target = pl.lit(p.position) if p.position >= 0 else pl.col(GROUP_SIZE) + p.position
         offset = pl.col(GROUP_RANK) - target
         return carrier.once(
-            f'__where ord {p.name} by {p.by}__',
+            f'__where ord {p.name} by {by}__',
             lambda f, alias: f.join(
                 table.select(pl.col('val').alias(p.name), offset.alias(alias)),
                 on=p.name,
@@ -145,12 +147,12 @@ def compile_predicate(
             ),
         )
 
-    def join_lookup(lookup: str, over: str) -> str:
-        refuse_outside_frame(f"lookup '{lookup}' reading dimension '{over}'", over)
+    def join_relation(relation: str, over: str) -> str:
+        refuse_outside_frame(f"relation '{relation}' reading dimension '{over}'", over)
         return carrier.once(
-            f'__where lookup {lookup}__',
+            f'__where relation {relation}__',
             lambda f, alias: f.join(
-                compiler.data.lookups[lookup].select(pl.col(over), pl.col(lookup).alias(alias)),
+                compiler.data.relations[relation].select(pl.col(over), pl.col(relation).alias(alias)),
                 on=over,
                 how='left',
             ),
@@ -188,21 +190,21 @@ def compile_predicate(
             refuse_outside_frame(f"dimension '{p.name}'", p.name)
             return _compare(_dimension_column(p.name, p.value), p.op, p.value)
         if isinstance(p, program.DimensionPositionNode):
-            if p.by is not None:
+            if p.partition is not None:
                 return falsy_if_null(_COLUMN_COMPARISONS[p.op](pl.col(join_group_offset(p)), pl.lit(0)))
             at = _position_ordinal(p, compiler.data.cardinality[p.name])
             return _COLUMN_COMPARISONS[p.op](pl.col(join_ordinal(p.name)), pl.lit(at))
-        if isinstance(p, program.LookupComparisonNode):
-            column = pl.col(join_lookup(p.name, p.over))
+        if isinstance(p, program.RelationComparisonNode):
+            column = pl.col(join_relation(p.name, p.dims[0]))
             if isinstance(p.value, str):
                 column = column.cast(pl.String)
             return _compare(column, p.op, p.value)
-        if isinstance(p, program.LookupPairComparisonNode):
-            left = pl.col(join_lookup(p.name, p.over))
-            right = pl.col(join_lookup(p.other, p.over))
+        if isinstance(p, program.RelationPairComparisonNode):
+            left = pl.col(join_relation(p.name, p.dims[0]))
+            right = pl.col(join_relation(p.other, p.dims[0]))
             return _COLUMN_COMPARISONS[p.op](left, right)
-        if isinstance(p, program.LookupDefinedNode):
-            return pl.col(join_lookup(p.name, p.over)).is_not_null()
+        if isinstance(p, program.RelationDefinedNode):
+            return pl.col(join_relation(p.name, p.dims[0])).is_not_null()
         if isinstance(p, program.ParameterDefinedNode):
             return _defined(pl.col(join_param(p.name)), compiler.program.parameter(p.name).dtype)
         if isinstance(p, program.VariableDefinedNode):
@@ -252,7 +254,7 @@ def _certain_names(mask: program.Mask) -> frozenset[str]:
     return frozenset(names)
 
 
-def _refuse_short_groups(p: program.DimensionPositionNode, table: pl.LazyFrame) -> None:
+def _refuse_short_groups(p: program.DimensionPositionNode, by: str, table: pl.LazyFrame) -> None:
     """Refuse a position no coordinate of some group occupies.
 
     The ungrouped counterpart is :func:`_position_ordinal`, and the reason is
@@ -264,10 +266,10 @@ def _refuse_short_groups(p: program.DimensionPositionNode, table: pl.LazyFrame) 
     group is not in it and no group of ``None`` can be counted short.
     """
     needed = p.position + 1 if p.position >= 0 else -p.position
-    sizes = table.select(str(p.by), GROUP_SIZE).unique().collect()
+    sizes = table.select(by, GROUP_SIZE).unique().collect()
     short = sorted(str(g) for g, n in sizes.iter_rows() if n < needed)
     if short:
-        raise DataError(short_groups_message(p.name, str(p.by), p.op, p.position, short))
+        raise DataError(short_groups_message(p.name, by, p.op, p.position, short))
 
 
 def falsy_if_null(condition: pl.Expr) -> pl.Expr:

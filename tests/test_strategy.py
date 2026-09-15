@@ -68,7 +68,7 @@ WINDOW = {
         'soc_step': {
             'dims': ['t'],
             'where': 't > 0',
-            'expression': 'soc == shift(soc, over=t, offset=1) + charge * 0.9 - discharge',
+            'expression': 'soc == shift(soc, along=t, offset=1) + charge * 0.9 - discharge',
         },
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost)'},
@@ -109,7 +109,7 @@ MULTI_STORE = {
         'soc_step': {
             'dims': ['t', 'storage'],
             'where': 't > 0',
-            'expression': 'soc == shift(soc, over=t, offset=1) + charge * efficiency - discharge',
+            'expression': 'soc == shift(soc, along=t, offset=1) + charge * efficiency - discharge',
         },
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost)'},
@@ -874,11 +874,11 @@ def test_a_block_list_that_stops_short_of_the_axis_is_refused():
 def test_the_lookahead_the_model_needs_is_one_number_whatever_the_blocks():
     """`Separability.ahead` is one integer for the dimension, so the gate is one check.
 
-    `shift(soc, over=t, offset=-1)` reads one coordinate ahead, so a lookahead
+    `shift(soc, along=t, offset=-1)` reads one coordinate ahead, so a lookahead
     of zero is refused and one is enough — for uniform blocks and unequal ones
     alike, since no block size enters the arithmetic.
     """
-    ahead = 'soc == shift(soc, over=t, offset=-1) + charge * 0.9 - discharge'
+    ahead = 'soc == shift(soc, along=t, offset=-1) + charge * 0.9 - discharge'
     reaching = override(WINDOW, **{'constraints.soc_step.expression': ahead})
 
     for steps in (3, [1, 2, 3, 6]):
@@ -1682,13 +1682,13 @@ def test_a_window_over_a_horizon_budget_is_refused_with_the_change_that_would_li
     spec = _horizon({'dims': [], 'expression': 'sum(discharge, over=t) <= 100'})
     with pytest.raises(lps.LpspecError, match=r"constraint 'extra': sums over t") as refused:
         lps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
-    assert 'sum_back(within=n)' in str(refused.value), 'the refusal names the rolling form that windows'
+    assert 'sum_back(window=n)' in str(refused.value), 'the refusal names the rolling form that windows'
 
 
 def test_a_window_must_look_ahead_as_far_as_the_rows_read():
-    """`shift(load, over=t, offset=-2)` reads two rows ahead; a contiguous
+    """`shift(load, along=t, offset=-2)` reads two rows ahead; a contiguous
     window would read past its end, an overlap of two covers it."""
-    spec = _horizon({'dims': ['t'], 'expression': 'sum(p, over=generator) >= shift(load, over=t, offset=-2, edge=0)'})
+    spec = _horizon({'dims': ['t'], 'expression': 'sum(p, over=generator) >= shift(load, along=t, offset=-2, edge=0)'})
     with pytest.raises(lps.LpspecError, match=r'looks ahead by 0 coordinate\(s\), and the model reads 2 ahead'):
         lps.solve_over(spec, horizon_sources(8), lps.EachWindow('snapshot', steps=4, lookahead=0, into='t'))
     runs = lps.solve_over(spec, horizon_sources(8), lps.EachWindow('snapshot', steps=4, lookahead=2, into='t'))
@@ -1722,7 +1722,7 @@ def test_an_offset_the_data_decides_is_read_off_the_data(delays, axis, refused):
     """`shift(..., offset=delay)` names a parameter, so the language cannot say
     how far a row reads; the driver reads the values, whose sign says which way."""
     spec = _horizon(
-        {'dims': ['t', 'generator'], 'expression': 'p >= shift(p, over=t, offset=delay, edge=0) - 100'},
+        {'dims': ['t', 'generator'], 'expression': 'p >= shift(p, along=t, offset=delay, edge=0) - 100'},
         delay={'dims': ['generator'], 'dtype': 'int'},
     )
     sources = {**horizon_sources(8), 'delay': pl.DataFrame({'generator': GENERATORS, 'value': delays})}
@@ -1733,19 +1733,19 @@ def test_an_offset_the_data_decides_is_read_off_the_data(delays, axis, refused):
         assert len(lps.solve_over(spec, sources, axis)) == 2, 'every window solved'
 
 
-def test_a_reach_a_lookup_decides_is_refused_with_the_lookup_named():
-    """`shift(..., by=day_of)` reaches within the groups the lookup makes, and
+def test_a_reach_a_relation_decides_is_refused_with_the_relation_named():
+    """`shift(..., by=day_of)` reaches within the groups the relation makes, and
     whether a window cuts a group is nothing the driver computes."""
     spec = _horizon(
         {
             'dims': ['t', 'generator'],
-            'expression': 'p >= shift(p, over=t, offset=1, by=day_of, edge=0) - at(day_cap, by=day_of)',
+            'expression': 'p >= shift(p, along=t, offset=1, by=day_of, edge=0) - at(day_cap, by=day_of)',
         },
         day_cap={'dims': ['day']},
     )
     spec['dimensions'] = {**spec['dimensions'], 'day': {'dtype': 'int'}}
-    spec['lookups'] = {'day_of': {'over': 't', 'into': 'day'}}
-    with pytest.raises(lps.LpspecError, match=r"constraint 'extra': through the lookup 'day_of'"):
+    spec['relations'] = {'day_of': {'columns': ['t', 'day'], 'key': 't'}}
+    with pytest.raises(lps.LpspecError, match=r"constraint 'extra': through the relation 'day_of'"):
         lps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
 
 
@@ -1769,7 +1769,7 @@ def test_an_offset_is_read_off_every_shape_a_source_may_arrive_in(delay):
     """The reach is the same whatever the caller wrote, because the least value
     of a source does not depend on the labels it is spread over."""
     spec = _horizon(
-        {'dims': ['t', 'generator'], 'expression': 'p >= shift(p, over=t, offset=delay, edge=0) - 100'},
+        {'dims': ['t', 'generator'], 'expression': 'p >= shift(p, along=t, offset=delay, edge=0) - 100'},
         delay={'dims': ['generator'], 'dtype': 'int'},
     )
     with pytest.raises(lps.LpspecError, match='the model reads 3 ahead'):

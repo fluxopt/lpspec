@@ -6,17 +6,17 @@ Converters whose flows share one curve, where **how many flows** is data.
 
 ## The problem
 
-A converter ties its flows together through one operating point: a boiler burns
-fuel to make heat, a CHP unit burns fuel to make heat *and* power. The curve is
-one convex combination per converter, and the number of expressions it ties is a
-property of the system, not of the file — two flows here, three there, and a
-unit with a fourth is a row in a table.
+A converter ties its flows together through one operating point: a boiler
+burns fuel to make heat, a CHP (combined heat and power) unit burns fuel to
+make heat *and* power. The curve is one convex combination per converter. How
+many flows it ties is a property of the system, not of the file: two here,
+three there, and a unit with a fourth is a row in a table.
 
 $$\mathit{rate}_{f,t} = \sum_{k \in \mathcal{K}_{c(f)}} \lambda_{c(f),t,k}\, v_{f,k} \qquad \forall\thinspace f, t$$
 
 [`piecewise:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/) cannot say that: its `links:`
 are a list, so the arity would have to be written out. **The formulation it
-would have emitted is four declarations**, and each is ordinary:
+would have emitted is four ordinary declarations:**
 
 | what | how |
 |---|---|
@@ -36,7 +36,7 @@ Least-cost heat and power from two converters whose flows are tied to one piecew
 | Symbol | Meaning |
 |---|---|
 | $`\mathcal{T}`$ | index $`t`$ — `time` — dispatch periods |
-| $`\mathcal{C}`$ | index $`c`$ — `converter` — units converting one carrier into others |
+| $`\mathcal{C}`$ | index $`c`$ — `converter` with $`\mathrm{converter\_of}: \mathcal{F} \to \mathcal{C}`$ — units converting one carrier into others |
 | $`\mathcal{F}`$ | index $`f`$ — `flow` with $`\mathrm{converter\_of}: \mathcal{F} \to \mathcal{C}`$ — a converter's inputs and outputs, one row each |
 | $`\mathcal{B}`$ | index $`b`$ — `bp` — breakpoints, as many as the longest curve needs |
 
@@ -141,11 +141,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: breakpoints, as many as the longest curve needs
         dtype: int
 
-    lookups:
+    relations:
       converter_of:
         description: which converter a flow belongs to
-        over: flow
-        into: converter
+        columns: [flow, converter]
+        key: flow
 
     parameters:
       bp_rate:
@@ -272,18 +272,18 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 **The arity is a row count.** `on_the_curve` builds one row per flow, so a
 converter tying three expressions and one tying two are the same declaration.
 Nothing in the file says how many flows a converter has; the `converter_of`
-lookup does, and it is data.
+relation does, and it is data.
 
 **The mask is the variable's own.** `where: bp_present` decides which weights
 exist, and an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set is over the
-members present — so the boiler's three-breakpoint curve and the CHP's four sit
+members present, so the boiler's three-breakpoint curve and the CHP's four sit
 on one axis with nothing padded. A solver without SOS gets binaries and big-M
-rows for the same set, which is why `big_m: 1` is there: a weight is at most 1.
+rows for the same set; `big_m: 1` is the bound those rows use, because a weight
+is at most 1.
 
-The comparison is worth reading in the other tab. linopy ties N expressions to
-one basis too — that is what `add_piecewise_formulation` does — but the pairs
-are an argument list, so the arity is written out per converter in a Python
-loop. That loop is what moves into the data here.
+linopy's `add_piecewise_formulation` ties N expressions to one basis too, but
+its pairs are an argument list, so the linopy tab writes the arity out per
+converter in a Python loop. That loop is what moves into the data here.
 
 ---
 

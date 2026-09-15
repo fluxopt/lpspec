@@ -55,6 +55,9 @@ from lpspec.relational.engines.polars.labels import Labelled
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+#: A generator's bus: the single-valued map, keyed by the generator.
+GEN_BUS = program.RelationDeclaration('gen_bus', (('generator', 'generator'), ('bus', 'bus')), ('generator',))
+
 PROGRAM = program.Program(
     parameters={
         'cost': program.ParameterDeclaration(('generator',)),
@@ -66,10 +69,13 @@ PROGRAM = program.Program(
     objective=program.ObjectiveDeclaration('minimize', program.Variable('p')),
     dimensions={
         'snapshot': program.DimensionDeclaration(),
-        'generator': program.DimensionDeclaration(lookups=(program.LookupDeclaration('bus', 'bus'),)),
-        'bus': program.DimensionDeclaration(),
+        'generator': program.DimensionDeclaration(relations=(GEN_BUS,)),
+        'bus': program.DimensionDeclaration(relations=(GEN_BUS,)),
     },
 )
+
+#: The walk every grouping case here takes: out of `generator`, into `bus`.
+GEN_BUS_WALK = program.Walk(GEN_BUS, ('generator',), ('bus',), ())
 
 CARDINALITY = {'snapshot': 24, 'generator': 3, 'bus': 2}
 
@@ -78,7 +84,7 @@ DIMENSIONS = {
     'generator': pl.LazyFrame(schema={'val': pl.String, 'ord': pl.Int64}),
     'bus': pl.LazyFrame(schema={'val': pl.String, 'ord': pl.Int64}),
 }
-LOOKUPS = {'bus': pl.LazyFrame(schema={'generator': pl.String, 'bus': pl.String})}
+RELATIONS = {'gen_bus': pl.LazyFrame(schema={'generator': pl.String, 'gen_bus': pl.String})}
 PARAMETERS = {
     'cost': pl.LazyFrame(schema={'generator': pl.String, 'value': pl.Float64}),
     'load': pl.LazyFrame(schema={'snapshot': pl.Int64, 'value': pl.Float64}),
@@ -98,7 +104,7 @@ def attached() -> AttachedSources:
     return AttachedSources(
         parameters=PARAMETERS,
         dimensions=DIMENSIONS,
-        lookups=LOOKUPS,
+        relations=RELATIONS,
         cardinality=CARDINALITY,
         # heights, which only `diagnostics` reads — empty here for the reason
         # the frames are: compiling reads no rows and cannot count them either.
@@ -276,7 +282,7 @@ def test_sum_over_an_absent_dim_scales_by_that_dims_cardinality():
 
 
 def test_sum_swaps_the_source_dim_for_the_target_and_emits_no_aggregate():
-    node = program.GroupSum(program.Variable('p'), over='generator', coordinate=('bus',), into=('bus',))
+    node = program.GroupSum(program.Variable('p'), (GEN_BUS_WALK,))
     fragment = compiler().expression(node, 'test').terms[0]
     assert fragment.dims == ('snapshot', 'bus')
     assert columns(fragment.frame) == ['snapshot', 'bus', 'var_label', 'coeff']
@@ -457,7 +463,7 @@ def test_a_zero_edge_writes_its_rows_like_any_other_fill():
     sources = AttachedSources(
         parameters={'load': pl.LazyFrame({'snapshot': [0, 1, 2], 'value': [10.0, 20.0, 30.0]})},
         dimensions={'snapshot': snapshots},
-        lookups={},
+        relations={},
         cardinality={'snapshot': 3},
         parameter_rows={'load': 3},
     )

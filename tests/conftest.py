@@ -64,7 +64,7 @@ PORT_REFERENCES: dict[str, dict[str, Any]] = constructs.REFERENCES
 
 
 def relation(over: str, into: str, labels: Sequence[Any], values: Sequence[Any]) -> pl.DataFrame:
-    """A lookup's map as the table it is supplied under its own key.
+    """A relation's map as the table it is supplied under its own key.
 
     Takes the column form these fixtures used to carry — one value per label,
     `None` where the label maps nowhere — and returns the relation: the rows it
@@ -402,7 +402,7 @@ def masked_operand_spec(constraint: str, expression: str, *, grouped: bool = Fal
     frame of its own), and ``take`` is capped only by *expression*'s row. The
     1000x penalty on ``level`` is the knowledge: it makes "row dropped" and
     "row built and binding" separable from the objective alone, rather than
-    only from a row count. ``grouped`` adds the ``season_of`` lookup the
+    only from a row count. ``grouped`` adds the ``season_of`` relation the
     partitioned walks read.
     """
     spec: dict[str, Any] = {
@@ -417,7 +417,7 @@ def masked_operand_spec(constraint: str, expression: str, *, grouped: bool = Fal
     }
     if grouped:
         spec['dimensions']['season'] = {'dtype': 'str'}
-        spec['lookups'] = {'season_of': {'over': 't', 'into': 'season'}}
+        spec['relations'] = {'season_of': {'columns': ['t', 'season'], 'key': 't'}}
     if not masked:
         del spec['parameters']
         del spec['variables']['level']['where']
