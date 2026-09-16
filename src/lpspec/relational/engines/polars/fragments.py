@@ -63,22 +63,6 @@ _RHS = '__rhs value__'
 #: restriction becomes a cross join against this marker.
 PRESENT = '__present__'
 
-#: What :meth:`~lpspec.relational.engines.polars.compiler.PolarsCompiler.partitioned`
-#: adds to a dimension table: a label's rank inside its group, and the group's
-#: size — the position and span a partitioned walk reads.
-GROUP_RANK = '__pos in group__'
-GROUP_SIZE = '__group size__'
-
-
-def group_column(role: str) -> str:
-    """The column a partitioned dimension table carries one group-making value column of the relation under.
-
-    Named for the role rather than its dimension, since a group may hold two
-    columns over one dimension, and kept apart from the dimension's own name,
-    which the operand may carry as an axis of its own.
-    """
-    return f'__group {role}__'
-
 
 @dataclass(frozen=True)
 class Presence:

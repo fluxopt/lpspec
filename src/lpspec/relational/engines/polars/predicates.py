@@ -24,7 +24,7 @@ import polars as pl
 from math_spec import program
 
 from lpspec.errors import DataError, position_out_of_range_message, short_groups_message
-from lpspec.relational.engines.polars.fragments import GROUP_RANK, GROUP_SIZE, group_column
+from lpspec.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE, Grouping
 
 if TYPE_CHECKING:
     import datetime
@@ -133,20 +133,18 @@ def compile_predicate(
         Joined on the dimension and the partition's joined dimensions, which
         the frame carries: a group is read at the rest of its key.
         """
-        assert p.partition is not None, 'an ungrouped position counts along the axis and asks for no table'
-        walk = p.partition
-        on = [p.name, *walk.joined_dims]
-        for dim in on:
+        assert p.partition is not None, 'an ungrouped position counts along the whole dimension and asks for no table'
+        grouping = Grouping.of(compiler.data, p.partition)
+        for dim in grouping.keys:
             refuse_outside_frame(f"dimension '{dim}'", dim)
-        table = compiler.partitioned(p.name, walk)
-        _refuse_short_groups(p, table)
+        _refuse_short_groups(p, grouping)
         target = pl.lit(p.position) if p.position >= 0 else pl.col(GROUP_SIZE) + p.position
         offset = pl.col(GROUP_RANK) - target
         return carrier.once(
-            f'__where ord {p.name} by {walk.name}__',
+            f'__where ord {p.name} by {p.partition.name}__',
             lambda f, alias: f.join(
-                table.select(pl.col('val').alias(p.name), *walk.joined_dims, offset.alias(alias)),
-                on=on,
+                grouping.table.select(pl.col('val').alias(p.name), *grouping.joined, offset.alias(alias)),
+                on=list(grouping.keys),
                 how='left',
             ),
         )
@@ -238,7 +236,7 @@ def _certain_names(mask: program.Mask) -> frozenset[str]:
     return frozenset(a.name for a in mask.conjuncts if isinstance(a, atoms))
 
 
-def _refuse_short_groups(p: program.DimensionPositionNode, table: pl.LazyFrame) -> None:
+def _refuse_short_groups(p: program.DimensionPositionNode, grouping: Grouping) -> None:
     """Refuse a position no coordinate of some group occupies.
 
     The ungrouped counterpart is :func:`_position_ordinal`, and the reason is
@@ -246,19 +244,17 @@ def _refuse_short_groups(p: program.DimensionPositionNode, table: pl.LazyFrame) 
     leaves that group's recurrence unanchored. Grouping only multiplies the
     chance — one short period is enough — so it is checked per group.
 
-    *table* is :meth:`PolarsCompiler.partitioned`'s, so a coordinate in no
-    group is not in it and no group of ``None`` can be counted short. A group
-    is named by its value, or by the tuple of its joined coordinates and
-    values where the partition's key is wider than the dimension it walks.
+    A coordinate in no group is not in the grouping's table, so no group of
+    ``None`` can be counted short. A group is named by its value, or by the
+    tuple of its joined coordinates and values where the partition's key is
+    wider than the dimension it walks.
     """
     assert p.partition is not None
-    walk = p.partition
-    group = [*walk.joined_dims, *(group_column(role) for role in walk.produced)]
     needed = p.position + 1 if p.position >= 0 else -p.position
-    sizes = table.select(*group, GROUP_SIZE).unique().collect()
-    short = sorted(str(row[0] if len(group) == 1 else row[:-1]) for row in sizes.iter_rows() if row[-1] < needed)
-    if short:
-        raise DataError(short_groups_message(p.name, walk.name, p.op, p.position, short))
+    sizes = grouping.table.select(*grouping.key, GROUP_SIZE).unique().collect()
+    named = (row[0] if len(grouping.key) == 1 else row[:-1] for row in sizes.iter_rows() if row[-1] < needed)
+    if short := sorted(str(group) for group in named):
+        raise DataError(short_groups_message(p.name, p.partition.name, p.op, p.position, short))
 
 
 def falsy_if_null(condition: pl.Expr) -> pl.Expr:
