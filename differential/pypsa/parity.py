@@ -98,6 +98,7 @@ import yaml  # noqa: E402
 from sweep import untested_conjuncts  # noqa: E402  the pure half, so a test needs no pypsa
 
 import lpspec as lps  # noqa: E402
+from lpspec.relational.engines.polars.compiler import PolarsCompiler  # noqa: E402
 from lpspec.sources import tidy_sources  # noqa: E402
 
 
@@ -255,7 +256,8 @@ def conjunct_verdicts(built_model, program) -> dict[str, str]:
     every coordinate of every rung — and a term guarded by `b` alone would
     then be missing with nothing to say so (math-spec#312).
     """
-    compiler = built_model._engine._model.compiler
+    model = built_model._engine._model
+    compiler = PolarsCompiler(model.program, model.attached, model.variables)
     verdicts: dict[str, str] = {}
     for name, block in {**program.constraints, **program.variables}.items():
         where = getattr(block, 'where', None)
