@@ -196,8 +196,8 @@ def test_a_where_reads_a_conditioned_map_at_both_key_dimensions():
 def _shaped(relations: dict, expression: str, dims: list[str]) -> dict:
     """A model whose one constraint walks *relations*, both ends named where the declaration leaves a choice."""
     declared = {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}, 'period': {'dtype': 'int'}}
-    columns = [r['columns'] for r in relations.values()]
-    over = [d for c in columns for d in (c.values() if isinstance(c, dict) else c)]
+    sides = [r[side] for r in relations.values() for side in ('key', 'value') if side in r]
+    over = [d for c in sides for d in (c.values() if isinstance(c, dict) else [c] if isinstance(c, str) else c)]
     used = {'generator', 'period', *dims, *over}
     return {
         'dimensions': {name: dtype for name, dtype in declared.items() if name in used},
@@ -216,7 +216,7 @@ def _shaped(relations: dict, expression: str, dims: list[str]) -> dict:
             {'connection': {'key': ['generator', 'bus']}},
             'sum(p, by=connection, over=generator, into=bus) >= load',
             ['bus', 'period'],
-            r"relation 'connection' declares no key",
+            r"relation 'connection' is bare — every one of its columns is in its key",
             id='a-bare-relation',
         ),
         pytest.param(

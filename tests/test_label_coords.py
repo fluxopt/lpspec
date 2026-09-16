@@ -61,7 +61,7 @@ def test_a_relation_names_its_columns_and_the_one_it_is_keyed_by():
         }
     )
     (declared,) = schema.relations_of('generator').values()
-    assert (declared.columns, declared.key) == (['generator', 'bus'], 'generator'), (
+    assert (declared.roles, declared.keys) == (('generator', 'bus'), ('generator',)), (
         'the declaration fixes the columns and which of them a row is identified by, and no direction'
     )
 
