@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.336](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.335...v0.0.1-alpha.336) (2026-09-16)
+
+
+### Features
+
+* **engine:** the relational lane builds every shape of relation the language admits ([#1659](https://github.com/fluxopt/lpspec/issues/1659)) ([88914c4](https://github.com/fluxopt/lpspec/commit/88914c41b7795acbc40c6739218481e0a80e0012))
+
 ## [0.0.1-alpha.335](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.334...v0.0.1-alpha.335) (2026-09-16)
 
 
