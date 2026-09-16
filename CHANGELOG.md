@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.337](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.336...v0.0.1-alpha.337) (2026-09-16)
+
+
+### Bug Fixes
+
+* **engine:** a cased quantity summed onto a constant side builds, and the coverage guards have one home ([#1665](https://github.com/fluxopt/lpspec/issues/1665)) ([96a437d](https://github.com/fluxopt/lpspec/commit/96a437d8e38aa856881aa4652a1e5ac2d5cd08ad))
+
 ## [0.0.1-alpha.336](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.335...v0.0.1-alpha.336) (2026-09-16)
 
 
