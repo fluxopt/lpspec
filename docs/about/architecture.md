@@ -366,7 +366,7 @@ absence has to be pushed into the operand before the rewrite consumes it
 | `Divide` | `x / p` | one-to-one | a **left** join, so a divisor with no value leaves a null to report |
 | `Power` | `p ** q` | one-to-one | an inner join and `pow` |
 | `Sum` | `sum(x)`, `sum(x, over=d)` | many-to-one | the summed dims projected away — no aggregate |
-| `GroupSum` | `sum(x, by=r)` | many-to-one | one inner join with the relation's table, the grouped dim traded for its targets |
+| `GroupSum` | `sum(x, by=r)` | many-to-one | one inner join with the relation's table on the columns the walk consumes and joins on, the consumed dims traded for the produced ones; a bare relation fans a member out to every target |
 | `At` | `at(x, by=lk)` | one-to-one | the same table joined the other way, fanning out |
 | `Translate` | `shift(x, along=d, offset=n)` | one-to-one | a remap through the dimension's `ord`, modulo its size under `wrap` |
 | `Window` | `sum_back(x, along=d, window=w)` | one-to-many | a row lands at every position whose window reaches it — no aggregate |
@@ -430,8 +430,12 @@ declarations build, and lands as CSR at assembly. CSR is `(col, coeff)` in
 row-major order plus a `row_starts` offset array: the same three arrays a solver
 takes, at 12 bytes per entry. Masks are **row absence**: no NaN sentinels, no
 `-1` labels. Broadcasting is a join. `sum` drops coordinate columns, and
-`sum(by=)` joins the dim table and projects a declared relation in place of the
-grouped dim ([above](#the-plan-node-for-node)).
+`sum(by=)` joins a declared relation's table and projects the columns the walk
+produces in place of the ones it consumes ([above](#the-plan-node-for-node)).
+A relation's table is attached as declared, one column per column under its
+own name, so a walk reads any shape the language admits: a key of several
+columns, several value columns, a bare relation, two columns over one
+dimension, or a self-map.
 
 **The label contract is the one place order is load-bearing.** Everything else
 in the lane is order-free, which is what lets the query planner rearrange it.
@@ -541,7 +545,6 @@ is structure.
 | `relational/collect.py` | which polars engine materialises a frame: the streaming one where this polars has it, asked once; a build without it, the browser's, gets the in-memory one |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
 | `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |
-| `relations.py` | the one reader of a declared relation: which shape of it either lane builds — two columns, one of them the key — and the four accessors that are well-defined once a wider one has been refused |
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `lps.`; a wording lives here only where two modules raise it |
 | `strategy.py` | the driver above the runner: one plan per slice, folded — scenarios, rolling horizon, myopic pathways |
@@ -564,7 +567,7 @@ is structure.
 | `relational/sinks/sos.py` | the one stream a sink may not ingest, written as two it can: sets → binaries and linking rows |
 | `relational/sinks/` | how a built model leaves, in two families: `solvers/` (one module per solver, chosen by name) and `writers/` (one per format, chosen by suffix) — [README](https://github.com/fluxopt/lpspec/blob/main/src/lpspec/relational/sinks/README.md) |
 | `linopy/__init__.py` | the lane's two verbs: `build` constructing a `linopy.Model`, and `evaluate` valuing an expression at a solved one |
-| `linopy/loader.py` | the crossing into pandas and xarray: `tidy_sources`' tables as master coords and an `xr.Dataset` |
+| `linopy/loader.py` | the crossing into pandas and xarray: `tidy_sources`' tables as master coords, an `xr.Dataset`, and one array per relation; refuses the relation shapes the lane does not build, naming the relational lane |
 | `linopy/coverage.py` | the two positions an absent row has no reading for: a divisor and a constant side |
 | `linopy/absence.py` | the four positions an absent value is spelled differently in; absence is positional in this lane |
 | `linopy/builder.py` | eager backend: core AST → `linopy.Model` |

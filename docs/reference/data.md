@@ -61,11 +61,13 @@ reads positionally.
 parameters. Which labels an axis has is data's to say, and that rule is
 [the language's](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/).
 
-**A map goes under
-[the relation's own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#how-the-map-is-supplied)**,
-as a table of the rows it has. Attach reads it against the labels the index
-supplied: a label no row mentions is unmapped, and a key matching no label is
-refused as a typo.
+**A relation goes under
+[its own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#how-the-map-is-supplied)**,
+as a table of the rows it has, one column per column it declares. Attach reads
+every column against the labels its dimension's index supplied: a key no row
+mentions is unmapped, and a value matching no label is refused as a typo. A
+keyed relation holds one row per key tuple, however many columns the key
+names; a bare relation holds each row at most once.
 
 ## What attaching refuses and accepts
 
@@ -87,16 +89,16 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | a sequence for a dimension nothing else supplies labels for | names the three ways to supply them |
 | a key naming neither a parameter, a dimension nor a relation | names the near miss |
 | a relation table short of a column it declares | names them, and what each is |
-| a relation table with a null in its value column | a map is partial by omitting a row |
-| a relation table mapping one key label twice | a keyed relation holds one row per key |
+| a relation table with a null in any column | a relation is partial by omitting a row |
+| a relation table mapping one key twice, or relating one tuple twice | a keyed relation holds one row per key, a bare one each row once |
 | a map with both authors, or neither | names them, and says which way out |
-| an index carrying a column named after a relation keyed over it | names the key it belongs under |
+| an index carrying a column named after a relation with a column over it | names the key it belongs under |
 | a table missing a declared dimension column, or `value` | names the columns needed |
 | a `value` column carrying a null or a NaN | names the parameter and the coordinates |
 | a label outside the dimension's index | names the parameter and the strays |
 | two rows for one coordinate | |
-| a relation with two values for one key label | |
-| a relation value that is not a label of its own dimension | one wording, checked once for both lanes |
+| a relation with two values for one key | |
+| a relation value that is not a label of its column's dimension | one wording, checked once for both lanes |
 | a dimension carrying relations with no index | |
 | a dimension nothing can supply labels for | names both ways to fix it |
 | a dimension the spec declares and the caller also supplies | names the declaration and the colliding key |

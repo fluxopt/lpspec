@@ -24,7 +24,7 @@ import polars as pl
 from math_spec import program
 
 from lpspec.errors import DataError, position_out_of_range_message, short_groups_message
-from lpspec.relational.engines.polars.fragments import GROUP_RANK, GROUP_SIZE
+from lpspec.relational.engines.polars.fragments import GROUP_RANK, GROUP_SIZE, group_column
 
 if TYPE_CHECKING:
     import datetime
@@ -128,30 +128,49 @@ def compile_predicate(
         )
 
     def join_group_offset(p: program.DimensionPositionNode) -> str:
-        """One column: the row's ordinal minus its own group's target ordinal."""
-        refuse_outside_frame(f"dimension '{p.name}'", p.name)
+        """One column: the row's ordinal minus its own group's target ordinal.
+
+        Joined on the dimension and the partition's joined dimensions, which
+        the frame carries: a group is read at the rest of its key.
+        """
         assert p.partition is not None, 'an ungrouped position counts along the axis and asks for no table'
-        by = p.partition.name
-        table = compiler.partitioned(p.name, by)
-        _refuse_short_groups(p, by, table)
+        walk = p.partition
+        on = [p.name, *walk.joined_dims]
+        for dim in on:
+            refuse_outside_frame(f"dimension '{dim}'", dim)
+        table = compiler.partitioned(p.name, walk)
+        _refuse_short_groups(p, table)
         target = pl.lit(p.position) if p.position >= 0 else pl.col(GROUP_SIZE) + p.position
         offset = pl.col(GROUP_RANK) - target
         return carrier.once(
-            f'__where ord {p.name} by {by}__',
+            f'__where ord {p.name} by {walk.name}__',
             lambda f, alias: f.join(
-                table.select(pl.col('val').alias(p.name), offset.alias(alias)),
-                on=p.name,
+                table.select(pl.col('val').alias(p.name), *walk.joined_dims, offset.alias(alias)),
+                on=on,
                 how='left',
             ),
         )
 
-    def join_relation(relation: str, over: str) -> str:
-        refuse_outside_frame(f"relation '{relation}' reading dimension '{over}'", over)
+    def join_relation(relation: str, dims: tuple[str, ...], column: str | None) -> str:
+        """*relation* read at *dims* — one value column, or with ``None`` whether a row is there at all.
+
+        The frame supplies the key's dimensions for a keyed relation and every
+        column's for a bare one, which is what the plan stamped on the leaf;
+        the columns read at are the relation's own, matched to *dims* in order.
+        """
+        for dim in dims:
+            refuse_outside_frame(f"relation '{relation}' reading dimension '{dim}'", dim)
+        shape = compiler.program.relations[relation]
+        roles = shape.key or shape.roles
+        assert tuple(shape.dim(role) for role in roles) == dims, f"relation '{relation}' is read at its key"
+        read = pl.col(column) if column is not None else pl.lit(value=True)
         return carrier.once(
-            f'__where relation {relation}__',
+            f'__where relation {relation}.{column or ""}__',
             lambda f, alias: f.join(
-                compiler.data.relations[relation].select(pl.col(over), pl.col(relation).alias(alias)),
-                on=over,
+                compiler.data.relations[relation].select(
+                    *(pl.col(role).alias(dim) for role, dim in zip(roles, dims, strict=True)), read.alias(alias)
+                ),
+                on=list(dims),
                 how='left',
             ),
         )
@@ -168,16 +187,16 @@ def compile_predicate(
             at = _position_ordinal(p, compiler.data.cardinality[p.name])
             return _COLUMN_COMPARISONS[p.op](pl.col(join_ordinal(p.name)), pl.lit(at))
         if isinstance(p, program.RelationComparisonNode):
-            column = pl.col(join_relation(p.name, p.dims[0]))
+            column = pl.col(join_relation(p.name, p.dims, p.column))
             if isinstance(p.value, str):
                 column = column.cast(pl.String)
             return _compare(column, p.op, p.value)
         if isinstance(p, program.RelationPairComparisonNode):
-            left = pl.col(join_relation(p.name, p.dims[0]))
-            right = pl.col(join_relation(p.other, p.dims[0]))
+            left = pl.col(join_relation(p.name, p.dims, p.column))
+            right = pl.col(join_relation(p.other, p.dims, p.other_column))
             return _COLUMN_COMPARISONS[p.op](left, right)
         if isinstance(p, program.RelationDefinedNode):
-            return pl.col(join_relation(p.name, p.dims[0])).is_not_null()
+            return pl.col(join_relation(p.name, p.dims, None)).is_not_null()
         if isinstance(p, program.ParameterDefinedNode):
             return _defined(pl.col(join_param(p.name)), compiler.program.parameter(p.name).dtype)
         if isinstance(p, program.VariableDefinedNode):
@@ -219,7 +238,7 @@ def _certain_names(mask: program.Mask) -> frozenset[str]:
     return frozenset(a.name for a in mask.conjuncts if isinstance(a, atoms))
 
 
-def _refuse_short_groups(p: program.DimensionPositionNode, by: str, table: pl.LazyFrame) -> None:
+def _refuse_short_groups(p: program.DimensionPositionNode, table: pl.LazyFrame) -> None:
     """Refuse a position no coordinate of some group occupies.
 
     The ungrouped counterpart is :func:`_position_ordinal`, and the reason is
@@ -228,13 +247,18 @@ def _refuse_short_groups(p: program.DimensionPositionNode, by: str, table: pl.La
     chance — one short period is enough — so it is checked per group.
 
     *table* is :meth:`PolarsCompiler.partitioned`'s, so a coordinate in no
-    group is not in it and no group of ``None`` can be counted short.
+    group is not in it and no group of ``None`` can be counted short. A group
+    is named by its value, or by the tuple of its joined coordinates and
+    values where the partition's key is wider than the dimension it walks.
     """
+    assert p.partition is not None
+    walk = p.partition
+    group = [*walk.joined_dims, *(group_column(role) for role in walk.produced)]
     needed = p.position + 1 if p.position >= 0 else -p.position
-    sizes = table.select(by, GROUP_SIZE).unique().collect()
-    short = sorted(str(g) for g, n in sizes.iter_rows() if n < needed)
+    sizes = table.select(*group, GROUP_SIZE).unique().collect()
+    short = sorted(str(row[0] if len(group) == 1 else row[:-1]) for row in sizes.iter_rows() if row[-1] < needed)
     if short:
-        raise DataError(short_groups_message(p.name, by, p.op, p.position, short))
+        raise DataError(short_groups_message(p.name, walk.name, p.op, p.position, short))
 
 
 def falsy_if_null(condition: pl.Expr) -> pl.Expr:

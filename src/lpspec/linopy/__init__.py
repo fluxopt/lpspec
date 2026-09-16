@@ -50,7 +50,7 @@ from lpspec import expressions
 from lpspec.lanes import declared, lowered
 from lpspec.linopy._notes import note
 from lpspec.linopy.builder import _eval, build_model
-from lpspec.linopy.loader import dimension_coords, load_parameters
+from lpspec.linopy.loader import dimension_coords, load_parameters, refuse_relations_the_lane_does_not_build
 from lpspec.linopy.where import EvaluationContext
 from lpspec.sources import tidy_sources
 
@@ -82,16 +82,21 @@ def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
             verdict :func:`lpspec.check` gives, reached through the same
             lowering pass, so neither lane accepts a file the other refuses.
         DataError: A source that is missing, unreadable, or the wrong shape.
+        LaneError: A relation shape this lane does not build — a bare
+            relation, one whose key determines several columns, one with two
+            columns over one dimension, or a partition grouped by a map keyed
+            on more than the dimension it walks.
     """
     with note(f'while loading {_named(spec)}'):
         program = lowered(spec)
+        refuse_relations_the_lane_does_not_build(program)
 
         tidy = tidy_sources(program, sources)
-        master_coords, dim_coords = dimension_coords(program, tidy)
+        master_coords, relations = dimension_coords(program, tidy)
         dataset = load_parameters(program, tidy, master_coords)
 
         built = linopy.Model()
-        build_model(built, program, dataset, master_coords, dim_coords)
+        build_model(built, program, dataset, master_coords, relations)
 
     return built
 
@@ -131,10 +136,11 @@ def evaluate(
         written = declared(spec)
         node = expressions.lower(written, expression)
         program = lowered(written)
+        refuse_relations_the_lane_does_not_build(program)
         tidy = tidy_sources(program, sources)
-        master_coords, dim_coords = dimension_coords(program, tidy)
+        master_coords, relations = dimension_coords(program, tidy)
         dataset = load_parameters(program, tidy, master_coords)
-        context = EvaluationContext(dataset, master_coords, built, dim_coords, program, solved=True)
+        context = EvaluationContext(dataset, master_coords, built, relations, program, solved=True)
         value = _eval(node, context)
         if isinstance(value, xarray.DataArray):
             return value

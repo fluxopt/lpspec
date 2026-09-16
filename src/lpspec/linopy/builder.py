@@ -29,7 +29,6 @@ from lpspec.linopy.coverage import check_constant_side_covers, check_divisors_co
 from lpspec.linopy.operators import operator_at, operator_grouped_sum, operator_shift, operator_sum, operator_sum_back
 from lpspec.linopy.where import EvaluationContext, as_linopy_mask, bound_relation, evaluate_where
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
-from lpspec.relations import maps_out_of, partition_of
 
 if TYPE_CHECKING:
     import linopy
@@ -44,7 +43,7 @@ def build_model(
     program: program.Program,
     dataset: xr.Dataset,
     master_coords: dict[str, pd.Index],
-    dim_coords: dict[str, dict[str, xr.DataArray]],
+    relations: dict[str, xr.DataArray],
 ) -> None:
     """Populate a linopy Model from a lowered program and loaded parameters.
 
@@ -53,7 +52,7 @@ def build_model(
     is trusted by construction, ``to_program`` having decided every rule the
     language can decide without data.
     """
-    ctx = EvaluationContext(dataset, master_coords, model, dim_coords, program)
+    ctx = EvaluationContext(dataset, master_coords, model, relations, program)
     _build_variables(ctx)
     _build_sos(ctx)
     _build_constraints(ctx)
@@ -289,15 +288,14 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
     if isinstance(node, program.GroupSum):
         return operator_grouped_sum(
             _eval(node.operand, ctx),
-            _relation_arrays(node.over[0], node.coordinate, ctx),
+            _relation_arrays(node.coordinate, ctx),
             into=node.into,
+            joined=_joined_dims(node),
             labels=ctx.master_coords,
         )
 
     if isinstance(node, program.At):
-        return operator_at(
-            _eval(node.operand, ctx), _relation_arrays(node.over[0], node.coordinate, ctx), into=node.into
-        )
+        return operator_at(_eval(node.operand, ctx), _relation_arrays(node.coordinate, ctx), into=node.into)
 
     if isinstance(node, program.Translate):
         return operator_shift(
@@ -392,13 +390,22 @@ def _partition(node: program.Translate | program.Window, ctx: EvaluationContext)
     :func:`~lpspec.linopy.operators._per_group`, which pairs the two by that
     name.
     """
-    by = partition_of(node)
-    if by is None:
+    if node.partition is None:
         return None
-    array = bound_relation(by, node.dimension, ctx.dim_coords)
-    return array.rename(maps_out_of(ctx.program, node.dimension)[by])
+    array = bound_relation(node.partition.name, ctx.relations)
+    return array.rename(node.partition.produced_dims[0])
 
 
-def _relation_arrays(over: str, names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The declared maps *names* as arrays over *over*, in the order the plan wrote them."""
-    return tuple(bound_relation(name, over, ctx.dim_coords) for name in names)
+def _joined_dims(node: program.GroupSum | program.At) -> tuple[str, ...]:
+    """The dimensions a node's walks join on — the key columns they neither consume nor produce.
+
+    Empty for a map keyed by the one column it is walked out of. A conditioned
+    map names the rest of its key here, and the operand carries those dims
+    already, so they are the condition a group is read under.
+    """
+    return tuple(dict.fromkeys(d for walk in node.walks for d in walk.joined_dims))
+
+
+def _relation_arrays(names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
+    """The declared maps *names* as arrays over the dimensions their keys name, in the order the plan wrote them."""
+    return tuple(bound_relation(name, ctx.relations) for name in names)

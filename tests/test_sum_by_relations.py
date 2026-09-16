@@ -30,13 +30,12 @@ from __future__ import annotations
 
 import pytest
 from math_spec import to_program
-from math_spec.program import GroupSum, RelationDeclaration, Variable, Walk
+from math_spec.program import GroupSum, Variable
 
 from lpspec.errors import DimensionError
 from tests.conftest import by_coord, override, raw_of, relation, schema_of
 from tests.differential import RTOL, differential
 from tests.oracle import operators, pd, xr
-from tests.test_compiler import compiler
 
 SPEC = """
 description: capacity limited per bus and technology at once
@@ -246,25 +245,6 @@ def test_two_relations_lower_to_one_node_and_not_to_a_composition():
         ('gen_bus', 'gen_tech'),
         ('bus', 'technology'),
     ), 'one node carrying both maps, each paired with the dimension it lands on'
-
-
-def test_a_hand_built_walk_onto_two_columns_is_refused():
-    """`math_spec.program` is a public IR, so a node can arrive without the front door.
-
-    The compiler pairs one relation with one dimension it lands on, so a walk
-    onto two columns at once would leave the second unpaired and group by one
-    map too few. No file reaches this: `lpspec.relations.refusal` turns away
-    a relation of three columns before either lane sees it, so a hand-built
-    node is the shortest path to the guard.
-    """
-    gen_bt = RelationDeclaration(
-        'gen_bt',
-        (('generator', 'generator'), ('bus', 'bus'), ('technology', 'technology')),
-        ('generator',),
-    )
-    node = GroupSum(Variable('p'), (Walk(gen_bt, ('generator',), ('bus', 'technology'), ()),))
-    with pytest.raises(ValueError, match='zip'):
-        compiler().expression(node, 'a hand-built plan')
 
 
 # ---------------------------------------------------------------------------

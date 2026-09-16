@@ -4,8 +4,8 @@ The declaration rules' split, pinned: everything under ``dimensions:`` is an
 axis, and a label a dimension's members carry is a relation into another
 dimension. What these tests hold still: a relation name joins the flat namespace,
 ``check`` advises on a dimension nothing reaches at all and stays silent on one
-a relation targets, and the attach-time contract — the map arrives under the
-relation's own key, as the ``(over, target)`` pair, single-valued per label.
+a relation targets, and the attach-time contract — the relation arrives under
+its own key, as the table it declares, one row per key.
 """
 
 from __future__ import annotations
@@ -594,12 +594,12 @@ def test_a_where_reads_a_map_that_leaves_a_label_out():
         ),
         pytest.param(
             pl.DataFrame({'generator': ['g1', 'g1'], 'bus': ['north', 'south']}),
-            r"maps 1 'generator' label\(s\) more than once: g1",
+            r"maps 1 key\(s\) more than once: generator='g1'",
             id='mapped-twice',
         ),
         pytest.param(
             pl.DataFrame({'generator': ['g9'], 'bus': ['north']}),
-            r"relation 'gen_bus' maps g9, which are not labels of 'generator'",
+            r"relation 'gen_bus' has value\(s\) in 'generator' that are not 'generator' labels: 'g9'",
             id='key-is-not-a-label',
         ),
     ],
@@ -643,7 +643,7 @@ def test_a_supplied_relation_is_refused_the_same_way_on_both_lanes(lane):
     from tests.oracle import lpspec_linopy
 
     build = lps.solve if lane == 'relational' else lpspec_linopy.build
-    with pytest.raises(DataError, match=r"maps 1 'generator' label\(s\) more than once"):
+    with pytest.raises(DataError, match=r'maps 1 key\(s\) more than once'):
         build(
             SUPPLIED,
             {**_SUPPLIED_SOURCES, 'gen_bus': pl.DataFrame({'generator': ['g1', 'g1'], 'bus': ['north', 'south']})},
@@ -729,16 +729,12 @@ def test_a_supplied_map_does_not_reorder_the_index_it_joins_onto():
 
 
 # ---------------------------------------------------------------------------
-# the relation shape either lane builds
+# the relation shapes the relational lane builds
 # ---------------------------------------------------------------------------
 
 
 def _walked(relations: dict, expression: str) -> dict:
-    """A model whose one constraint walks *relations*, with both ends named.
-
-    Both ends every time, so what refuses a case is this package's own guard
-    rather than the language asking which column the call meant.
-    """
+    """A model whose one constraint walks *relations*, with both ends named."""
     return {
         'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}, 'period': {'dtype': 'int'}},
         'relations': relations,
@@ -750,38 +746,31 @@ def _walked(relations: dict, expression: str) -> dict:
 
 
 @pytest.mark.parametrize(
-    ('relations', 'expression', 'match'),
+    ('relations', 'expression'),
     [
+        pytest.param(
+            {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
+            'sum(p, by=gen_bus) >= load',
+            id='a-map-keyed-by-one-column',
+        ),
         pytest.param(
             {'gen_bus': {'columns': ['generator', 'bus']}},
             'sum(p, by=gen_bus, over=generator, into=bus) >= load',
-            r"'gen_bus' declares no key.*Declare key: on it",
-            id='a-bare-relation-is-a-set-per-label-and-not-a-map',
+            id='a-bare-relation',
         ),
         pytest.param(
             {'zone_of': {'columns': ['generator', 'period', 'bus'], 'key': ['generator', 'period']}},
             'sum(p, by=zone_of, over=generator, into=bus) >= load',
-            r"'zone_of' has 3 columns keyed by 2.*Split it into one relation per pair",
-            id='a-key-of-two-columns-joins-on-one-the-walk-does-not-trade',
+            id='a-map-keyed-by-two-columns',
         ),
     ],
 )
-def test_a_relation_wider_than_a_map_is_refused_with_the_rewrite_named(
-    relations: dict, expression: str, match: str
-) -> None:
-    """The language's relation is any table walked any way; either lane here builds the map.
+def test_every_relation_shape_the_language_admits_passes_check(relations: dict, expression: str) -> None:
+    """The language's relation is any table walked any way, and `check` refuses none of them.
 
-    Refused at `lowered`, so `check`, `build` and an archive all refuse the
-    same file — and the message names the rewrite that fits the shape, since a
-    table one `key:` away from a map is not one to split.
+    What each shape builds to is `test_relation_shapes.py`'s subject; this
+    holds the door open, so a shape cannot be turned away before either lane
+    sees it.
     """
-    with pytest.raises(LpspecError, match=match):
-        lps.check(_walked(relations, expression))
-
-
-def test_the_map_the_wider_shapes_are_rewritten_to_is_the_one_that_loads() -> None:
-    """The complement of the refusals above, so neither can pass by refusing everything."""
-    program = lps.check(
-        _walked({'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}}, 'sum(p, by=gen_bus) >= load')
-    )
-    assert set(program.relations) == {'gen_bus'}, 'the one map the model declares, under its own name'
+    program = lps.check(_walked(relations, expression))
+    assert set(program.relations) == set(relations), 'every relation the model declares, under its own name'
