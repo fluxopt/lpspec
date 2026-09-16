@@ -290,7 +290,7 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
             _eval(node.operand, ctx),
             _relation_arrays(node.coordinate, ctx),
             into=node.into,
-            joined=_joined_dims(node),
+            joined=node.joined,
             labels=ctx.master_coords,
         )
 
@@ -394,16 +394,6 @@ def _partition(node: program.Translate | program.Window, ctx: EvaluationContext)
         return None
     array = bound_relation(node.partition.name, ctx.relations)
     return array.rename(node.partition.produced_dims[0])
-
-
-def _joined_dims(node: program.GroupSum | program.At) -> tuple[str, ...]:
-    """The dimensions a node's walks join on — the key columns they neither consume nor produce.
-
-    Empty for a map keyed by the one column it is walked out of. A conditioned
-    map names the rest of its key here, and the operand carries those dims
-    already, so they are the condition a group is read under.
-    """
-    return tuple(dict.fromkeys(d for walk in node.walks for d in walk.joined_dims))
 
 
 def _relation_arrays(names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
