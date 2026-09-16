@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.335](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.334...v0.0.1-alpha.335) (2026-09-16)
+
+
+### Bug Fixes
+
+* **data:** a relation whose two columns are over one dimension builds ([#1657](https://github.com/fluxopt/lpspec/issues/1657)) ([2f96905](https://github.com/fluxopt/lpspec/commit/2f969057c0e5528539abf439e69eed5dc55521b0))
+
 ## [0.0.1-alpha.334](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.333...v0.0.1-alpha.334) (2026-09-15)
 
 
