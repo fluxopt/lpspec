@@ -98,7 +98,8 @@ import yaml  # noqa: E402
 from sweep import untested_conjuncts  # noqa: E402  the pure half, so a test needs no pypsa
 
 import lpspec as lps  # noqa: E402
-from lpspec.relational.engines.polars.compiler import PolarsCompiler  # noqa: E402
+from lpspec.relational.engines.polars.predicates import masked  # noqa: E402
+from lpspec.relational.engines.polars.scope import Scope  # noqa: E402
 from lpspec.sources import tidy_sources  # noqa: E402
 
 
@@ -257,16 +258,16 @@ def conjunct_verdicts(built_model, program) -> dict[str, str]:
     then be missing with nothing to say so (math-spec#312).
     """
     model = built_model._engine._model
-    compiler = PolarsCompiler(model.program, model.attached, model.variables)
+    scope = Scope(model.program, model.attached, model.variables)
     verdicts: dict[str, str] = {}
     for name, block in {**program.constraints, **program.variables}.items():
         where = getattr(block, 'where', None)
         if where is None:
             continue
         dims = tuple(getattr(block, 'dims', ()) or ())
-        whole = compiler.frame(dims, None).select(pl.len()).collect().item()
+        whole = masked(scope, dims, None).select(pl.len()).collect().item()
         held = [
-            compiler.frame(dims, math_spec.program.Mask(conjunct)).select(pl.len()).collect().item()
+            masked(scope, dims, math_spec.program.Mask(conjunct)).select(pl.len()).collect().item()
             for conjunct in where.conjuncts
         ]
         verdicts[name] = ''.join(
