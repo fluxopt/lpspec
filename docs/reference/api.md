@@ -532,6 +532,14 @@ hand back numbers rather than raise.
 An answer solved off a lowered `Program` carries no digest, and is taken as
 given.
 
+**The spec is checked and the data is not.** A saved answer records which
+document it answered and nothing about its sources, so `sources=` that are not
+the ones the solve ran on reach the rebuilt evaluator unchallenged, and an
+undeclared expression then values at numbers nobody solved for. Every reader a
+save wrote is unaffected, being a frame read off disk. Where that matters, read
+the answer from an archive: it holds the sources the solve ran on, so none are
+supplied.
+
 **`load_archive` and `scan_archive` need no pair.** An archive holds the answer
 beside the spec and the data it was solved with, so what those hand back reads
 an undeclared expression already.

@@ -740,6 +740,13 @@ def read_against(answer: Result, spec: Buildable, sources: Mapping[str, Source])
     sends the question out and brings only the answer home — so the pairing is
     checked here before anything is read against it.
 
+    **The spec is checked and the data is vouched for.** A saved answer records
+    the digest of the document it answered and nothing about its sources
+    (#1673), so *sources* that are not the ones the solve ran on cannot be
+    caught here: what they reach is the rebuilt evaluator, and an expression the
+    file never named then values at numbers nobody solved for. Every reader a
+    save wrote is unaffected, being a frame read off disk.
+
     Args:
         answer: A saved solve, as :func:`load_result` or :func:`scan_result`
             read it back.
