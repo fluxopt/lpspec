@@ -1,8 +1,8 @@
 """Logical plan → polars. Lazy: nothing is read, nothing is executed.
 
 The language compiles a spec to a plan; this compiles the plan to a query,
-over the :class:`~lpspec.relational.engines.polars.space.Space` the model is
-built in.
+in the :class:`~lpspec.relational.engines.polars.scope.Scope` the model's names
+resolve in.
 
 Column conventions, relied on by the engine:
 
@@ -52,7 +52,7 @@ from lpspec.relational.engines.polars.fragments import (
 from lpspec.relational.engines.polars.predicates import Carrier, compile_predicate, falsy_if_null, masked
 from lpspec.relational.engines.polars.reindex import translate_fragment, window_fragment
 from lpspec.relational.engines.polars.relations import landed, mapping, walk_join
-from lpspec.relational.engines.polars.space import UNIT, Space
+from lpspec.relational.engines.polars.scope import UNIT, Scope
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -96,13 +96,13 @@ class Solution:
 class PolarsCompiler:
     """Turn plan nodes into polars queries over the model's tidy frames.
 
-    ``space`` is what every query is written against
-    (:class:`~lpspec.relational.engines.polars.space.Space`). ``solution`` is
+    ``scope`` is what every query is written against
+    (:class:`~lpspec.relational.engines.polars.scope.Scope`). ``solution`` is
     set on the compiler a read builds and on no other: with it every variable
     and every ``dual(c)`` compiles to a value (:class:`Solution`).
     """
 
-    space: Space
+    scope: Scope
     solution: Solution | None = None
 
     # ------------------------------------------------------------------
@@ -118,7 +118,7 @@ class PolarsCompiler:
             if aligned is not None:
                 return aligned
             subject = f"bound parameter '{name}' of variable '{variable}'"
-            return self.space.parameter_join(f, name, v.dims, alias, subject, maintain_order='left')
+            return self.scope.parameter_join(f, name, v.dims, alias, subject, maintain_order='left')
 
         def bound(e: program.ExpressionNode) -> pl.Expr:
             """A bound is a number or a parameter name; lowering admits nothing else."""
@@ -155,16 +155,16 @@ class PolarsCompiler:
         Duplicate coordinates would break density without changing the height,
         and the door refuses them before this.
         """
-        declaration = self.space.program.parameter(param)
+        declaration = self.scope.program.parameter(param)
         if v.where is not None or tuple(declaration.dims) != tuple(v.dims) or not v.dims:
             return None
 
-        expected = math.prod(self.space.data.cardinality[d] for d in v.dims)
-        table = self.space.data.parameters[param]
+        expected = math.prod(self.scope.data.cardinality[d] for d in v.dims)
+        table = self.scope.data.parameters[param]
         if table.select(pl.len()).collect().item() != expected:
             return None
 
-        position = self.space.row_major(v.dims, self.space.ordinal_of)
+        position = self.scope.row_major(v.dims, self.scope.ordinal_of)
         pairs = table.select(position.alias('__at__'), pl.col('value')).collect(engine=polars_engine())
         return frame.with_columns(pl.Series(alias, _scattered(pairs['__at__'], pairs['value'], expected)))
 
@@ -281,8 +281,8 @@ class PolarsCompiler:
 
         def region(r: program.Region) -> CompiledExpression:
             """One region's value, kept only where that region applies."""
-            on = tuple(d for d in self.space.program.dimensions if d in r.when.dims)
-            truth = masked(self.space, on, r.when).select(*on) if on else None
+            on = tuple(d for d in self.scope.program.dimensions if d in r.when.dims)
+            truth = masked(self.scope, on, r.when).select(*on) if on else None
 
             def relaxed(x: Presence, dims: tuple[str, ...]) -> Presence:
                 """A region's presence, silent about the coordinates the region does not claim.
@@ -304,9 +304,9 @@ class PolarsCompiler:
                 """
                 have = x.keys(dims)
                 keys = tuple(dict.fromkeys((*have, *on)))
-                complement = masked(self.space, on, ~r.when)
+                complement = masked(self.scope, on, ~r.when)
                 elsewhere = complement.select(*on) if on else complement.select(UNIT)
-                widened = [self.space.widen(x.frame, have, keys), self.space.widen(elsewhere, on, keys)]
+                widened = [self.scope.widen(x.frame, have, keys), self.scope.widen(elsewhere, on, keys)]
                 return Presence(pl.concat(widened, how='vertical_relaxed').unique(), keys)
 
             def kept(p: TermFragment) -> TermFragment:
@@ -324,7 +324,7 @@ class PolarsCompiler:
                 nothing, and a region claiming nothing may not unmake a row.
                 """
                 if truth is None:
-                    carrier, condition = compile_predicate(self.space, p.frame, r.when, p.dims)
+                    carrier, condition = compile_predicate(self.scope, p.frame, r.when, p.dims)
                     frame = carrier.filter(falsy_if_null(condition)).select(*p.dims, *p.carried)
                     presences = tuple(relaxed(x, p.dims) for x in p.presences)
                     return replace(p, frame=frame, presences=presences, region=both_regions(p.region, r.when))
@@ -387,9 +387,9 @@ class PolarsCompiler:
             if isinstance(e, program.At):
                 return shaped(e, lambda p: self._at_fragment(p, e, context))
             if isinstance(e, program.Translate):
-                return shaped(e, lambda p: translate_fragment(self.space, p, e, context))
+                return shaped(e, lambda p: translate_fragment(self.scope, p, e, context))
             if isinstance(e, program.Window):
-                return shaped(e, lambda p: window_fragment(self.space, p, e, context))
+                return shaped(e, lambda p: window_fragment(self.scope, p, e, context))
             if isinstance(e, program.Cases):
                 return cases(e)
             assert_never(e)
@@ -402,8 +402,8 @@ class PolarsCompiler:
         One row per coordinate, which the engine enforces by refusing a
         duplicated one.
         """
-        dims = self.space.program.parameter(name).dims
-        frame = self.space.data.parameters[name].select(*dims, pl.col('value').cast(pl.Float64).alias('cval'))
+        dims = self.scope.program.parameter(name).dims
+        frame = self.scope.data.parameters[name].select(*dims, pl.col('value').cast(pl.Float64).alias('cval'))
         return TermFragment(dims, frame, 'const', parameters=frozenset({name}))
 
     def _variable_fragment(self, name: str) -> TermFragment:
@@ -422,16 +422,16 @@ class PolarsCompiler:
         because dims are rewritten downstream while the presence frame is not
         — the hazard :class:`Presence` names.
         """
-        dims = self.space.program.variable(name).dims
-        frame = self.space.variables[name].frame.select(
+        dims = self.scope.program.variable(name).dims
+        frame = self.scope.variables[name].frame.select(
             *dims, 'var_label', pl.lit(1.0, dtype=pl.Float64).alias('coeff')
         )
         return TermFragment(dims, frame, 'term', presences=self._variable_presences(name, dims))
 
     def _variable_presences(self, name: str, dims: tuple[str, ...]) -> tuple[Presence, ...]:
-        declaration = self.space.program.variable(name)
+        declaration = self.scope.program.variable(name)
         propagates = declaration.where is not None and declaration.absence == 'undefined'
-        return (Presence(_presence(self.space.variables[name], dims, 'var_label'), dims),) if propagates else ()
+        return (Presence(_presence(self.scope.variables[name], dims, 'var_label'), dims),) if propagates else ()
 
     def _solved_fragment(self, name: str) -> TermFragment:
         """A variable at its primal — the const fragment a read compiles it to, carrying the presence its term would.
@@ -444,12 +444,12 @@ class PolarsCompiler:
         an absent term contributes nothing to a row either way.
         """
         assert self.solution is not None
-        held, declaration = self.space.variables[name], self.space.program.variable(name)
+        held, declaration = self.scope.variables[name], self.scope.program.variable(name)
         dims = declaration.dims
         keys = dims or (UNIT,)
         rows = held.frame.select(*keys).with_columns(held.share(self.solution.primal).alias('cval'))
         if declaration.where is not None and declaration.absence == 'zero':
-            everywhere = masked(self.space, dims, None).select(*keys)
+            everywhere = masked(self.scope, dims, None).select(*keys)
             rows = join_on(everywhere, rows, keys, 'left').with_columns(pl.col('cval').fill_null(0.0))
         return TermFragment(dims, rows.select(*dims, 'cval'), 'const', presences=self._variable_presences(name, dims))
 
@@ -469,7 +469,7 @@ class PolarsCompiler:
         if solution.dual is None:
             assert solution.no_duals is not None, 'a solve without duals says why'
             raise LpspecError(solution.no_duals)
-        held, dims = solution.constraints[name], self.space.program.constraints[name].dims
+        held, dims = solution.constraints[name], self.scope.program.constraints[name].dims
         frame = held.frame.select(*dims).with_columns(held.share(solution.dual).alias('cval'))
         return TermFragment(dims, frame, 'const', presences=(Presence(_presence(held, dims, 'row'), dims),))
 
@@ -486,8 +486,8 @@ class PolarsCompiler:
             return compiled
         assert not (compiled.terms or compiled.quads), 'a read compiles every variable to its value'
         fragments = compiled.consts
-        dims, restrictions = self.space.spanned(fragments), absence_restrictions(fragments)
-        carrier = masked(self.space, dims, None)
+        dims, restrictions = self.scope.spanned(fragments), absence_restrictions(fragments)
+        carrier = masked(self.scope, dims, None)
         for restriction in restrictions:
             carrier = restriction.restrict(carrier, restriction.keyed_by or ())
         added = self.added(fragments, carrier, fill=False)
@@ -533,7 +533,7 @@ class PolarsCompiler:
         if missing and p.kind == 'const':
             refuse_a_fragment_without_the_dims(p, missing, context, f'sum(over={list(over)})')
         keep = tuple(d for d in p.dims if d not in over)
-        scale = math.prod(self.space.data.cardinality[d] for d in missing)
+        scale = math.prod(self.scope.data.cardinality[d] for d in missing)
         frame = p.frame.select(*keep, *p.carried)
         if scale != 1:
             frame = frame.with_columns(pl.col(p.value_column) * scale)
@@ -579,14 +579,14 @@ class PolarsCompiler:
         Only for a constant part: an empty group contributes no *term*, and a
         row left with no terms is not built at all.
         """
-        universe = self.space.data.dimensions[g.into[0]].select(pl.col('val').alias(g.into[0]))
+        universe = self.scope.data.dimensions[g.into[0]].select(pl.col('val').alias(g.into[0]))
         for target in g.into[1:]:
-            labels = self.space.data.dimensions[target].select(pl.col('val').alias(target))
+            labels = self.scope.data.dimensions[target].select(pl.col('val').alias(target))
             universe = universe.join(labels, how='cross')
         spanned = [d for d in p.dims if d not in g.into]
         if spanned:
             universe = p.frame.select(spanned).unique().join(universe, how='cross')
-        reached = landed(mapping(self.space.data.relations, g.walks), g)
+        reached = landed(mapping(self.scope.data.relations, g.walks), g)
         empty = universe.join(reached, on=[*g.joined, *g.into], how='anti')
         return empty.with_columns(pl.lit(0.0, dtype=pl.Float64).alias('cval')).select(*p.dims, *p.carried)
 
@@ -628,10 +628,10 @@ class PolarsCompiler:
         """
         joined = a.joined
         fine = (*joined, *a.over)
-        table = mapping(self.space.data.relations, a.walks)
+        table = mapping(self.scope.data.relations, a.walks)
         reachable = landed(table, a).unique()
         if not p.presences:
-            total = math.prod(self.space.data.cardinality[d] for d in fine)
+            total = math.prod(self.scope.data.cardinality[d] for d in fine)
             reached = reachable.select(pl.len()).collect().item()
             return () if reached == total else (Presence(reachable, fine),)
 
@@ -641,7 +641,7 @@ class PolarsCompiler:
                 return Presence(presence.restrict(reachable, keys), fine)
             carries_targets = all(i in keys for i in (*a.into, *joined))
             source, keys = (
-                (presence.frame, keys) if carries_targets else (self.space.widen(presence.frame, keys, p.dims), p.dims)
+                (presence.frame, keys) if carries_targets else (self.scope.widen(presence.frame, keys, p.dims), p.dims)
             )
             return Presence(*walk_join(source, table, a, keys))
 
@@ -655,7 +655,7 @@ class PolarsCompiler:
         (:meth:`_group_fragment`); an ``At`` reads the same tables backwards
         (:meth:`_at_fragment`).
         """
-        frame, dims = walk_join(p.frame, mapping(self.space.data.relations, node.walks), node, p.dims, p.carried)
+        frame, dims = walk_join(p.frame, mapping(self.scope.data.relations, node.walks), node, p.dims, p.carried)
         return TermFragment(dims, frame, p.kind, region=region_over(p.region, dims), parameters=p.parameters)
 
 

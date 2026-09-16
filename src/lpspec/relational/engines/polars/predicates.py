@@ -7,7 +7,7 @@ built first and the frame read after.
 
 A closed vocabulary of its own — comparisons against a parameter, a dimension
 label, a position along a dimension, a relation, and the three connectives. It
-takes the :class:`~lpspec.relational.engines.polars.space.Space` as an
+takes the :class:`~lpspec.relational.engines.polars.scope.Scope` as an
 argument and holds nothing. :func:`masked` is the product a declaration is
 instantiated over, cut by its mask: the one place the two meet.
 
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     from polars._typing import JoinStrategy
 
-    from lpspec.relational.engines.polars.space import Space
+    from lpspec.relational.engines.polars.scope import Scope
 
 
 class Carrier:
@@ -75,7 +75,7 @@ def _defined(col: pl.Expr, dtype: program.ParameterDtype) -> pl.Expr:
     return col.is_not_null() & col.is_finite()
 
 
-def masked(space: Space, dims: tuple[str, ...], where: program.Mask | None) -> pl.LazyFrame:
+def masked(scope: Scope, dims: tuple[str, ...], where: program.Mask | None) -> pl.LazyFrame:
     """The masked coordinate product over *dims*.
 
     Labels, plus the ordinals a caller sorts by so labels follow declaration
@@ -91,23 +91,23 @@ def masked(space: Space, dims: tuple[str, ...], where: program.Mask | None) -> p
     reading dims outside the frame (so errors name the full frame), and one
     reading **every** frame dim.
     """
-    out = space.product(dims)
+    out = scope.product(dims)
     if where is None:
         return out
     on = tuple(d for d in dims if d in where.dims)
     if on and len(on) < len(dims) and where.dims <= set(dims):
-        keyed = space.product(on)
-        carrier, condition = compile_predicate(space, keyed, where, on)
+        keyed = scope.product(on)
+        carrier, condition = compile_predicate(scope, keyed, where, on)
         if carrier is keyed:
             return out.filter(falsy_if_null(condition))
         surviving = carrier.filter(falsy_if_null(condition)).select(*on)
         return out.join(surviving, on=list(on), how='semi')
-    carrier, condition = compile_predicate(space, out, where, dims)
+    carrier, condition = compile_predicate(scope, out, where, dims)
     return carrier.filter(falsy_if_null(condition))
 
 
 def compile_predicate(
-    space: Space, frame: pl.LazyFrame, mask: program.Mask, dims: tuple[str, ...]
+    scope: Scope, frame: pl.LazyFrame, mask: program.Mask, dims: tuple[str, ...]
 ) -> tuple[pl.LazyFrame, pl.Expr]:
     """``(frame with the mask's parameters joined, boolean expression)``.
 
@@ -134,7 +134,7 @@ def compile_predicate(
         how: JoinStrategy = 'inner' if param in certain else 'left'
         return carrier.once(
             f'__where {param}__',
-            lambda f, alias: space.parameter_join(f, param, dims, alias, f"where-parameter '{param}'", how),
+            lambda f, alias: scope.parameter_join(f, param, dims, alias, f"where-parameter '{param}'", how),
         )
 
     def refuse_outside_frame(reading: str, dimension: str) -> None:
@@ -152,7 +152,7 @@ def compile_predicate(
         return carrier.once(
             f'__where ord {dimension}__',
             lambda f, alias: f.join(
-                space.data.dimensions[dimension].select(pl.col('val').alias(dimension), pl.col('ord').alias(alias)),
+                scope.data.dimensions[dimension].select(pl.col('val').alias(dimension), pl.col('ord').alias(alias)),
                 on=dimension,
                 how='left',
             ),
@@ -165,7 +165,7 @@ def compile_predicate(
         the frame carries: a group is read at the rest of its key.
         """
         assert p.partition is not None, 'an ungrouped position counts along the whole dimension and asks for no table'
-        grouping = Grouping.of(space.data, p.partition)
+        grouping = Grouping.of(scope.data, p.partition)
         for dim in grouping.keys:
             refuse_outside_frame(f"dimension '{dim}'", dim)
         _refuse_short_groups(p, grouping)
@@ -189,14 +189,14 @@ def compile_predicate(
         """
         for dim in dims:
             refuse_outside_frame(f"relation '{relation}' reading dimension '{dim}'", dim)
-        shape = space.program.relations[relation]
+        shape = scope.program.relations[relation]
         roles = shape.key or shape.roles
         assert tuple(shape.dim(role) for role in roles) == dims, f"relation '{relation}' is read at its key"
         read = pl.col(column) if column is not None else pl.lit(value=True)
         return carrier.once(
             f'__where relation {relation}.{column or ""}__',
             lambda f, alias: f.join(
-                space.data.relations[relation].select(
+                scope.data.relations[relation].select(
                     *(pl.col(role).alias(dim) for role, dim in zip(roles, dims, strict=True)), read.alias(alias)
                 ),
                 on=list(dims),
@@ -213,7 +213,7 @@ def compile_predicate(
         if isinstance(p, program.DimensionPositionNode):
             if p.partition is not None:
                 return falsy_if_null(_COLUMN_COMPARISONS[p.op](pl.col(join_group_offset(p)), pl.lit(0)))
-            at = _position_ordinal(p, space.data.cardinality[p.name])
+            at = _position_ordinal(p, scope.data.cardinality[p.name])
             return _COLUMN_COMPARISONS[p.op](pl.col(join_ordinal(p.name)), pl.lit(at))
         if isinstance(p, program.RelationComparisonNode):
             column = pl.col(join_relation(p.name, p.dims, p.column))
@@ -227,10 +227,10 @@ def compile_predicate(
         if isinstance(p, program.RelationDefinedNode):
             return pl.col(join_relation(p.name, p.dims, None)).is_not_null()
         if isinstance(p, program.ParameterDefinedNode):
-            return _defined(pl.col(join_param(p.name)), space.program.parameter(p.name).dtype)
+            return _defined(pl.col(join_param(p.name)), scope.program.parameter(p.name).dtype)
         if isinstance(p, program.VariableDefinedNode):
-            on = list(space.program.variable(p.name).dims)
-            coordinates = space.variables[p.name].frame.select(*on)
+            on = list(scope.program.variable(p.name).dims)
+            coordinates = scope.variables[p.name].frame.select(*on)
             if p.name in certain:
                 carrier.once(f'__where defined {p.name}__', lambda f, _: f.join(coordinates, on=on, how='semi'))
                 return pl.lit(value=True)
@@ -313,7 +313,7 @@ def _position_ordinal(p: program.DimensionPositionNode, cardinality: int) -> int
 def _dimension_column(dimension: str, value: float | str | datetime.date) -> pl.Expr:
     """The column a where-comparison on *dimension* reads.
 
-    A string label is compared in ``String`` space, undoing attaching's ``Enum``:
+    A string label is compared in ``String`` scope, undoing attaching's ``Enum``:
     The where-string rules order labels bytewise and read an unknown label as
     matching nothing,
     where an ``Enum`` orders by declaration and refuses strangers.

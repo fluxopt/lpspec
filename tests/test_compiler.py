@@ -52,7 +52,7 @@ from lpspec.relational.engines.polars.attaching import AttachedSources
 from lpspec.relational.engines.polars.compiler import PolarsCompiler
 from lpspec.relational.engines.polars.labels import Labelled
 from lpspec.relational.engines.polars.predicates import masked
-from lpspec.relational.engines.polars.space import Space
+from lpspec.relational.engines.polars.scope import Scope
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -128,7 +128,7 @@ def declared(dtypes: Mapping[str, str] = MappingProxyType({})) -> program.Progra
 
 
 def compiler(dtypes: Mapping[str, str] = MappingProxyType({})) -> PolarsCompiler:
-    return PolarsCompiler(Space(declared(dtypes), attached(), VARIABLES))
+    return PolarsCompiler(Scope(declared(dtypes), attached(), VARIABLES))
 
 
 def columns(frame: pl.LazyFrame) -> list[str]:
@@ -238,7 +238,7 @@ def masked_compiler() -> PolarsCompiler:
         dimensions=PROGRAM.dimensions,
     )
     frames = dict(VARIABLES, q=VARIABLES['p'])
-    return PolarsCompiler(Space(masked, attached(), frames))
+    return PolarsCompiler(Scope(masked, attached(), frames))
 
 
 def test_a_reduction_carries_absence_between_fragments_and_not_into_the_one_it_came_from():
@@ -328,7 +328,7 @@ def test_a_shape_operator_along_a_dim_the_expression_lacks_is_refused():
 
 def test_a_dimension_comparison_filters_a_column_already_in_the_frame():
     """Pointwise, and free: no table is read to decide it."""
-    frame = masked(compiler().space, ('snapshot',), program.Mask(program.DimensionComparisonNode('snapshot', '>', 0)))
+    frame = masked(compiler().scope, ('snapshot',), program.Mask(program.DimensionComparisonNode('snapshot', '>', 0)))
     text = query(frame)
     assert 'FILTER' in text
     assert 'JOIN' not in text
@@ -336,7 +336,7 @@ def test_a_dimension_comparison_filters_a_column_already_in_the_frame():
 
 def test_a_parameter_predicate_needs_a_join():
     frame = masked(
-        compiler().space, ('generator',), program.Mask(program.ParameterDefinedNode('available', ('generator',)))
+        compiler().scope, ('generator',), program.Mask(program.ParameterDefinedNode('available', ('generator',)))
     )
     text = query(frame)
     assert 'JOIN' in text
@@ -348,7 +348,7 @@ def test_a_name_the_mask_is_certain_of_is_inner_joined():
     all it adds is the width of the product they are dropped from."""
     text = query(
         masked(
-            compiler().space, ('generator',), program.Mask(program.ParameterDefinedNode('available', ('generator',)))
+            compiler().scope, ('generator',), program.Mask(program.ParameterDefinedNode('available', ('generator',)))
         )
     )
     assert 'INNER JOIN' in text
@@ -365,7 +365,7 @@ def test_the_same_predicate_under_an_or_is_left_joined_again():
             program.DimensionComparisonNode('generator', '==', 'g'),
         )
     )
-    text = query(masked(compiler().space, ('generator',), where))
+    text = query(masked(compiler().scope, ('generator',), where))
     assert 'LEFT JOIN' in text
     assert 'INNER JOIN' not in text
 
@@ -379,19 +379,19 @@ def test_what_a_bare_name_asks_is_decided_by_its_declaration():
     """
     numeric = query(
         masked(
-            compiler().space, ('generator',), program.Mask(program.ParameterDefinedNode('available', ('generator',)))
+            compiler().scope, ('generator',), program.Mask(program.ParameterDefinedNode('available', ('generator',)))
         )
     )
     boolean = query(
         masked(
-            compiler({'available': 'bool'}).space,
+            compiler({'available': 'bool'}).scope,
             ('generator',),
             program.Mask(program.ParameterDefinedNode('available', ('generator',))),
         )
     )
     text = query(
         masked(
-            compiler({'available': 'str'}).space,
+            compiler({'available': 'str'}).scope,
             ('generator',),
             program.Mask(program.ParameterDefinedNode('available', ('generator',))),
         )
@@ -409,13 +409,13 @@ def test_what_a_bare_name_asks_is_decided_by_its_declaration():
 
 
 def test_a_frame_cross_joins_its_dim_tables_and_carries_their_ordinals():
-    frame = masked(compiler().space, ('snapshot', 'generator'), None)
+    frame = masked(compiler().scope, ('snapshot', 'generator'), None)
     assert columns(frame) == ['snapshot', '__ord snapshot__', 'generator', '__ord generator__']
     assert 'CROSS' in query(frame)
 
 
 def test_an_unmasked_frame_has_nothing_to_filter():
-    assert 'FILTER' not in query(masked(compiler().space, ('snapshot', 'generator'), None))
+    assert 'FILTER' not in query(masked(compiler().scope, ('snapshot', 'generator'), None))
 
 
 def test_a_mask_reading_part_of_the_frame_restricts_by_semi_join():
@@ -425,7 +425,7 @@ def test_a_mask_reading_part_of_the_frame_restricts_by_semi_join():
     left side's order survives, which is what keeps labelling's verify a verify.
     """
     frame = masked(
-        compiler().space,
+        compiler().scope,
         ('snapshot', 'generator'),
         program.Mask(program.ParameterDefinedNode('available', ('generator',))),
     )
@@ -443,7 +443,7 @@ def test_a_mask_reading_every_dim_filters_instead():
             program.ParameterDefinedNode('available', ('generator',)),
         )
     )
-    assert 'SEMI JOIN' not in query(masked(compiler().space, ('snapshot', 'generator'), where))
+    assert 'SEMI JOIN' not in query(masked(compiler().scope, ('snapshot', 'generator'), where))
 
 
 def test_a_parameter_bound_joins_on_the_variable_frame():
@@ -481,7 +481,7 @@ def test_a_zero_edge_writes_its_rows_like_any_other_fill():
         cardinality={'snapshot': 3},
         parameter_rows={'load': 3},
     )
-    q = PolarsCompiler(Space(PROGRAM, sources, VARIABLES))
+    q = PolarsCompiler(Scope(PROGRAM, sources, VARIABLES))
     shifted = program.Translate(program.Parameter('load'), 'snapshot', 1, wrap=False, fill=0.0)
 
     rows = q.expression(shifted, 'test').consts[0].frame.collect().sort('snapshot')

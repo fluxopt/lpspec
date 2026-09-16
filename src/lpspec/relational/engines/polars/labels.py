@@ -26,7 +26,7 @@ import polars as pl
 
 from lpspec.relational.collect import polars_engine
 from lpspec.relational.engines.polars.predicates import masked
-from lpspec.relational.engines.polars.space import UNIT, ordinal
+from lpspec.relational.engines.polars.scope import UNIT, ordinal
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from math_spec import program
 
     from lpspec.relational.engines.polars.fragments import Presence
-    from lpspec.relational.engines.polars.space import Space
+    from lpspec.relational.engines.polars.scope import Scope
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,7 @@ class Labelled:
 
 
 def frame(
-    space: Space,
+    scope: Scope,
     dims: tuple[str, ...],
     where: program.Mask | None,
     label: str,
@@ -97,16 +97,16 @@ def frame(
     if where is not None and not restrictions:
         free = _free_prefix(dims, where.dims)
         if free:
-            factored = _factored(space, dims, free, where, label, start)
+            factored = _factored(scope, dims, free, where, label, start)
             if factored is not None:
                 return factored
 
-    surviving = masked(space, dims, where)
+    surviving = masked(scope, dims, where)
     for restriction in restrictions:
         surviving = restriction.restrict(surviving, restriction.keyed_by or ())
 
     dropped = where is not None or bool(restrictions)
-    numbering = _row_major(space, dims)
+    numbering = _row_major(scope, dims)
     if not dropped:
         numbering = pl.lit(start, dtype=pl.Int64) + numbering
     position = '#position' if dropped else label
@@ -122,7 +122,7 @@ def frame(
     return materialised.select(*dims, pl.col(label).set_sorted())
 
 
-def declared_height(space: Space, dims: tuple[str, ...], where: program.Mask | None) -> int:
+def declared_height(scope: Scope, dims: tuple[str, ...], where: program.Mask | None) -> int:
     """How many rows a declaration *asks* for: its coord product under its own mask.
 
     The count :func:`frame` would return if no variable's absence restricted it,
@@ -134,12 +134,12 @@ def declared_height(space: Space, dims: tuple[str, ...], where: program.Mask | N
     only where there is a restriction to attribute rows to.
     """
     if where is None:
-        return math.prod(space.data.cardinality[d] for d in dims)
-    return int(masked(space, dims, where).select(pl.len()).collect(engine=polars_engine()).item())
+        return math.prod(scope.data.cardinality[d] for d in dims)
+    return int(masked(scope, dims, where).select(pl.len()).collect(engine=polars_engine()).item())
 
 
 def _factored(
-    space: Space,
+    scope: Scope,
     dims: tuple[str, ...],
     free: int,
     where: program.Mask,
@@ -168,7 +168,7 @@ def _factored(
     head, kept = dims[:free], dims[free:]
     rank = '#rank'
     survivors = (
-        masked(space, kept, where)
+        masked(scope, kept, where)
         .sort([ordinal(d) for d in kept])
         .select(*kept)
         .with_row_index(rank)
@@ -181,7 +181,7 @@ def _factored(
     position = '#position'
     labelled = (
         survivors.lazy()
-        .join(masked(space, head, None).select(*head, _row_major(space, head).alias(position)), how='cross')
+        .join(masked(scope, head, None).select(*head, _row_major(scope, head).alias(position)), how='cross')
         .select(
             *dims,
             (pl.lit(start, dtype=pl.Int64) + pl.col(position) * width + pl.col(rank)).alias(label),
@@ -205,9 +205,9 @@ def _free_prefix(dims: tuple[str, ...], touched: frozenset[str]) -> int:
     return free if free < len(dims) else 0
 
 
-def _row_major(space: Space, dims: tuple[str, ...]) -> pl.Expr:
-    """:meth:`Space.row_major` over a product frame, which carries its ordinals."""
-    return space.row_major(dims, lambda d: pl.col(ordinal(d)))
+def _row_major(scope: Scope, dims: tuple[str, ...]) -> pl.Expr:
+    """:meth:`Scope.row_major` over a product frame, which carries its ordinals."""
+    return scope.row_major(dims, lambda d: pl.col(ordinal(d)))
 
 
 def in_position_order(materialised: pl.DataFrame, position: str) -> pl.DataFrame:

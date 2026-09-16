@@ -1,4 +1,4 @@
-"""The coordinate space a model is built over: its program, its data, and the variable frames built so far.
+"""The scope a query is compiled in: what each name stands for, and what a dimension means as a coordinate.
 
 What every query in the lane is written against, and what each helper takes
 — the labeller, the mask walk, the reindexing operators, the coverage
@@ -44,8 +44,8 @@ def ordinal(dim: str) -> str:
 
 
 @dataclass(frozen=True)
-class Space:
-    """The program, its attached data, and the variable frames built so far."""
+class Scope:
+    """What a name resolves to here: the program for its declaration, the data and the variable frames for its frame."""
 
     program: program.Program
     data: AttachedSources

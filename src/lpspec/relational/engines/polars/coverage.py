@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from collections.abc import Collection, Sequence
 
     from lpspec.relational.engines.polars.fragments import TermFragment
-    from lpspec.relational.engines.polars.space import Space
+    from lpspec.relational.engines.polars.scope import Scope
 
 
 def refuse_null_coefficients(stacked: pl.DataFrame, subject: str, *expressions: program.ExpressionNode) -> None:
@@ -102,7 +102,7 @@ def narrowed_to_rows(rows: pl.LazyFrame, consts: Sequence[TermFragment]) -> list
 
 
 def constant_side(
-    space: Space,
+    scope: Scope,
     rows: pl.LazyFrame,
     consts: Sequence[tuple[TermFragment, float]],
     c: program.ConstraintDeclaration,
@@ -137,7 +137,7 @@ def constant_side(
         gap = pl.col(column).is_null()
         if p.region is not None:
             inside = f'__inside {i}__'
-            claimed = masked(space, c.dims, p.region).select(*c.dims).with_columns(pl.lit(True).alias(inside))
+            claimed = masked(scope, c.dims, p.region).select(*c.dims).with_columns(pl.lit(True).alias(inside))
             carrier = join_on(carrier, claimed, c.dims, 'left')
             gap = gap & pl.col(inside).fill_null(False)
         uncovered = gap if uncovered is None else uncovered | gap
@@ -159,7 +159,7 @@ def constant_side(
 
 
 def refuse_short_constants(
-    space: Space,
+    scope: Scope,
     rows: pl.LazyFrame,
     consts: Sequence[TermFragment],
     c: program.ConstraintDeclaration,
@@ -182,13 +182,13 @@ def refuse_short_constants(
     """
     owed = sorted({(name, i) for i, p in enumerate(consts) for name in p.parameters if name in sparse})
     for name, i in owed:
-        missing = _uncovered_coordinates(space, rows, name, c, consts[i].region)
+        missing = _uncovered_coordinates(scope, rows, name, c, consts[i].region)
         if missing:
             raise DataError(uncovered_constant_message(name, missing, subject))
 
 
 def _uncovered_coordinates(
-    space: Space,
+    scope: Scope,
     rows: pl.LazyFrame,
     param: str,
     c: program.ConstraintDeclaration,
@@ -203,13 +203,13 @@ def _uncovered_coordinates(
     claiming no built row at all leaves the parameter owing nothing, which is
     why the narrowing runs even where no dim is shared.
     """
-    dims = space.program.parameter(param).dims
+    dims = scope.program.parameter(param).dims
     shared = tuple(d for d in dims if d in c.dims)
     summed = tuple(d for d in dims if d not in c.dims)
     built = rows
     if region is not None:
-        built = join_on(built, masked(space, c.dims, region).select(*c.dims), c.dims, 'semi')
+        built = join_on(built, masked(scope, c.dims, region).select(*c.dims), c.dims, 'semi')
     keys = built.select(*shared).unique() if shared else built.select('row').head(1)
-    needed = join_on(keys, masked(space, summed, None).select(*summed), (), 'cross') if summed else keys
-    holes = needed.join(space.data.parameters[param].select(*dims), on=list(dims), how='anti')
+    needed = join_on(keys, masked(scope, summed, None).select(*summed), (), 'cross') if summed else keys
+    holes = needed.join(scope.data.parameters[param].select(*dims), on=list(dims), how='anti')
     return int(holes.select(pl.len()).collect().item())

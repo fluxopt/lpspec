@@ -29,7 +29,7 @@ from lpspec.relational.engines.polars.assembly import (
 )
 from lpspec.relational.engines.polars.attaching import attach
 from lpspec.relational.engines.polars.compiler import PolarsCompiler, Solution
-from lpspec.relational.engines.polars.space import Space
+from lpspec.relational.engines.polars.scope import Scope
 from lpspec.relational.result import KEEPS, ConstraintRow, Diagnostics, Keep, Result, unknown_keep_message
 
 if TYPE_CHECKING:
@@ -324,7 +324,7 @@ class PolarsEngine:
             return {}, None
         model = self._model
         solution = Solution(primal, dual, dict(model.constraints), no_duals)
-        compiler = PolarsCompiler(Space(model.program, model.attached, dict(model.variables)), solution)
+        compiler = PolarsCompiler(Scope(model.program, model.attached, dict(model.variables)), solution)
         return readback.readers(compiler, model.program.named_expressions, lower)
 
     def reconstruct(
@@ -434,7 +434,7 @@ def expression_readers(
         evaluator (or ``None``); calling either compiles and evaluates against
         the attached data.
     """
-    compiler = PolarsCompiler(Space(program, attach(program, sources), {}))
+    compiler = PolarsCompiler(Scope(program, attach(program, sources), {}))
     return readback.readers(compiler, program.named_expressions, lower)
 
 
