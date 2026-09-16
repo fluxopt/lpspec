@@ -349,7 +349,7 @@ def sweep(n_gen: int, n_snap: int = SNAPSHOTS, steps: int = 200) -> Run:
                 }
             )
             engine = master._engine
-            built = sinks.ingestible('highs', engine._model.tables())
+            built = sinks.ingestible('highs', engine._model.tables)
             now, order = _blocks(engine)
 
             cold, cold_iterations, cold_seconds, _ = _solved(built, None)

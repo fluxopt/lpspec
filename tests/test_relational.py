@@ -47,6 +47,7 @@ from math_spec.program import (
 
 import lpspec as lps
 from lpspec.errors import DataError, LaneError, LanguageError, LpspecError
+from lpspec.relational.engines.polars.compiler import PolarsCompiler
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.relational.sinks import SOLVERS
 from lpspec.relational.sinks.solvers.highs import Highs
@@ -630,9 +631,7 @@ class TestTheLabelSpace:
         cap = pl.DataFrame({'node': ['a', 'b'], 'value': [1.0, 2.0]})
 
         with lps.build(spec, {'node': ['a', 'b'], 'cap': cap}) as model:
-            assert model._engine._model.tables().rows.height == 0, (
-                'the mask holds nowhere, so no constraint row is built'
-            )
+            assert model._engine._model.tables.rows.height == 0, 'the mask holds nowhere, so no constraint row is built'
             assert model.solve().objective == pytest.approx(0.0)
 
     def test_a_mask_that_removes_nothing_labels_exactly_like_no_mask(self, dispatch_data):
@@ -723,7 +722,7 @@ class TestTheLabelSpace:
         index = {'i': [0, 1, 2], 'j': ['a', 'b']}
         with lps.build(spec, index | {'cap': pl.DataFrame({'i': [0, 1, 2], 'value': [1.0, 2.0, 3.0]})}) as model:
             engine = model._engine
-            tables = engine._model.tables()
+            tables = engine._model.tables
             for names, total, held, label in (
                 (['x', 'y', 'z'], tables.column_count, engine._model.variables, 'var_label'),
                 (['c1', 'c2'], tables.row_count, engine._model.constraints, 'row'),
@@ -839,10 +838,10 @@ class TestTheLabelSpace:
         }
         empty = pl.DataFrame(schema={'cut': dtype, 'value': pl.Float64})
         with lps.build(spec, {'c': empty} | {'cut': []}) as model:
-            assert model._engine._model.tables().column_count == 0
+            assert model._engine._model.tables.column_count == 0
 
         with lps.build(spec, {'c': pl.DataFrame({'cut': grown, 'value': [1.0, 2.0]})} | {'cut': grown}) as model:
-            assert model._engine._model.tables().column_count == 2
+            assert model._engine._model.tables.column_count == 2
 
     def test_two_solutions_over_different_members_concatenate(self):
         """An `Enum` column will not concatenate against different categories.
@@ -864,7 +863,7 @@ def _objective_table(program, sources):
     """`obj` as `{col: coeff}`, plus whether the aggregate was skipped."""
     with PolarsEngine() as engine:
         engine.build(program, tidy_sources(program, sources))
-        obj = engine._model.tables().obj
+        obj = engine._model.tables.obj
         return dict(zip(obj['col'].to_list(), obj['coeff'].to_list(), strict=True)), obj.height
 
 
@@ -961,7 +960,7 @@ class TestWhatReachesTheSolverAsAnEntry:
         spec = override(RHS_SPEC, **{'constraints.c.expression': 'x + 2 * x >= rhs'})
         sources = {'i': [0, 1], 'rhs': pl.DataFrame({'i': [0, 1], 'value': [6.0, 9.0]})}
         with lps.build(spec, sources) as model:
-            matrix = model._engine._model.tables().matrix
+            matrix = model._engine._model.tables.matrix
             assert matrix.height == 2, 'one entry per row, not one per fragment'
             assert sorted(matrix['coeff'].to_list()) == [3.0, 3.0]
             result = model.solve()
@@ -977,8 +976,8 @@ class TestWhatReachesTheSolverAsAnEntry:
             'objective': {'sense': 'minimize', 'expression': 'sum(x) + sum(4 * x)'},
         }
         with lps.build(spec, {'i': [0], 'lb': pl.DataFrame({'i': [0], 'value': [2.0]})}) as model:
-            assert model._engine._model.tables().obj.height == 1
-            assert model._engine._model.tables().obj['coeff'].to_list() == [5.0]
+            assert model._engine._model.tables.obj.height == 1
+            assert model._engine._model.tables.obj['coeff'].to_list() == [5.0]
             assert model.solve().objective == pytest.approx(10.0)
 
     @pytest.mark.parametrize(
@@ -1007,7 +1006,7 @@ class TestWhatReachesTheSolverAsAnEntry:
         sources = {'i': [0, 1], 'rhs': pl.DataFrame({'i': [0, 1], 'value': [4.0, 6.0]})}
 
         with lps.build(spec, sources) as model:
-            matrix = model._engine._model.tables().matrix
+            matrix = model._engine._model.tables.matrix
             assert matrix.height == height, 'one entry per (row, col) cell the expression reaches'
             assert set(matrix['coeff'].to_list()) == {coeff}
 
@@ -1035,10 +1034,12 @@ class TestWhatReachesTheSolverAsAnEntry:
         spec, sources = _network(ends)
         with lps.build(spec, sources) as model:
             program = to_program(Spec(**spec))
-            terms = model._engine._model.compiler.expression(next(iter(program.constraints.values())).lhs, 'test').terms
+            built = model._engine._model
+            compiler = PolarsCompiler(built.program, built.attached, built.variables)
+            terms = compiler.expression(next(iter(program.constraints.values())).lhs, 'test').terms
             assert len(terms) == 2
 
-            tables = model._engine._model.tables()
+            tables = model._engine._model.tables
             cells = tables.matrix_block(0, tables.row_count).select('row', 'col')
             assert cells.height == cells.unique().height, 'a cell reached the sinks twice'
 
@@ -1103,7 +1104,7 @@ class TestWhatReachesTheSolverAsAnEntry:
         """
         a = _spelled_zeros([[1.0, 0.0, 0.0, 2.0], [0.0, 3.0, 0.0, 0.0]])
         with lps.build(SPELLED_ZEROS_SPEC, SPELLED_ZEROS_INDEX | {'a': a}) as model:
-            tables = model._engine._model.tables()
+            tables = model._engine._model.tables
             assert tables.matrix.height == 3, 'the five zero coefficients reached the matrix'
             assert list(tables.matrix['coeff']) == [1.0, 2.0, 3.0], 'the surviving coefficients are the nonzero ones'
 
@@ -1117,7 +1118,7 @@ class TestWhatReachesTheSolverAsAnEntry:
         """
         a = _spelled_zeros([[1.0, 1.0], [0.0, 0.0]])
         with lps.build(SPELLED_ZEROS_SPEC, {'i': [0, 1], 'j': [0, 1], 'a': a}) as model:
-            tables = model._engine._model.tables()
+            tables = model._engine._model.tables
             assert tables.row_count == 2, 'the all-zero row was dropped instead of kept'
             assert list(np.diff(tables.row_starts)) == [2, 0], 'the all-zero row should own no entries'
             assert model.solve().termination_condition == 'infeasible', 'a row asserting 0 >= 10 came back feasible'
@@ -1129,7 +1130,7 @@ class TestWhatReachesTheSolverAsAnEntry:
         spec['parameters'] = {**spec['parameters'], 'cost': {'dims': ['j']}}
         cost = pl.DataFrame({'j': [0, 1], 'value': [0.0, 5.0]})
         with lps.build(spec, {'i': [0], 'j': [0, 1], 'a': a, 'cost': cost}) as model:
-            tables = model._engine._model.tables()
+            tables = model._engine._model.tables
             assert tables.obj.height == 1, 'the zero-cost column reached the objective frame'
             assert list(tables.obj['coeff']) == [5.0]
 
@@ -1140,7 +1141,7 @@ class TestWhatReachesTheSolverAsAnEntry:
         unbounded = replace(base, variables={'p': replace(base.variables['p'], upper=Constant(float('inf')))})
         with PolarsEngine() as engine:
             engine.build(unbounded, tidy_sources(unbounded, dispatch_sources(gens, load)))
-            assert engine._model.tables().cols['ub'].is_infinite().all()
+            assert engine._model.tables.cols['ub'].is_infinite().all()
             assert engine.solve().is_ok
 
     def test_equal_bounds_pin_a_variable_so_one_equation_covers_both_regimes(self):
@@ -1273,8 +1274,8 @@ class TestThePositionalHandoff:
             'load': pl.DataFrame({'t': [0, 1, 2, 3], 'value': [1.0, 0.0, 2.0, 3.0]}),
         }
         with lps.build(spec, sources) as model:
-            primal = pl.Series('value', np.arange(model._engine._model.column_count, dtype=np.float64))
-            dual = pl.Series('value', np.arange(model._engine._model.row_count, dtype=np.float64))
+            primal = pl.Series('value', np.arange(model._engine._model.tables.column_count, dtype=np.float64))
+            dual = pl.Series('value', np.arange(model._engine._model.tables.row_count, dtype=np.float64))
             primals, duals, activities = model._engine._read_back(primal, dual, dual)
             assert 'SORT' not in primals['p'].explain(optimized=False), 'the labeller already ordered this'
             assert primals['p'].collect()['value'].to_list() == list(range(len(primal))), 'primal not in label order'
@@ -1331,7 +1332,7 @@ class TestThePositionalHandoff:
             assert model.solve(solver_name=solver_name).is_ok
             engine = model._engine
             assert engine._solver is not None, 'a solve leaves the solver holding the model'
-            tables = engine._model.tables()
+            tables = engine._model.tables
             answer = engine._solver.run(tables)
             for values, count in ((answer.primal, tables.column_count), (answer.dual, tables.row_count)):
                 assert isinstance(values, pl.Series), 'a frame here is an index column nothing reads'
@@ -1365,7 +1366,7 @@ class TestThePositionalHandoff:
 
         with PolarsEngine() as engine:
             engine.build(dispatch_program(), tidy_sources(dispatch_program(), dispatch_sources(gens, load)))
-            tables = engine._model.tables()
+            tables = engine._model.tables
             assert tables.matrix.height == n_g * n_s
 
             def widest(ranges):
@@ -1412,7 +1413,7 @@ class TestThePositionalHandoff:
 
         """
         with lps.build(RHS_SPEC, {'i': [0, 1], 'rhs': pl.DataFrame({'i': [0, 1], 'value': [1.0, 2.0]})}) as model:
-            tables = model._engine._model.tables()
+            tables = model._engine._model.tables
             first = tables.dense_columns(1e30).lb
             ub_after_first = tables.cols['ub'].to_list()
 
@@ -1447,7 +1448,7 @@ class TestThePositionalHandoff:
         spec = override(POSITIONAL_COLS_SPEC, **{'variables.x.where': where}) if where else POSITIONAL_COLS_SPEC
 
         with lps.build(spec, {'i': list(range(4)), 'j': ['a', 'b', 'c'], 'cap': pl.DataFrame(caps)}) as model:
-            tables = model._engine._model.tables()
+            tables = model._engine._model.tables
             assert 'col' not in tables.cols.columns, 'cols carries an index it does not need'
             assert tables.cols.height == tables.column_count
 

@@ -79,7 +79,7 @@ def test_block_boundaries_do_not_move_the_answer(batch_rows: int | None) -> None
     """
     spec, data = CASES['LP']
     with lps.build(spec, data) as model:
-        tables = model._engine._model.tables()
+        tables = model._engine._model.tables
         reference = model.solve().objective
     problem = build_xpress(tables, batch_rows=batch_rows).handle
     problem.optimize()
@@ -122,7 +122,7 @@ def test_forgetting_makes_the_next_solve_start_cold() -> None:
     from tests.test_warm_start import DISPATCH, SNAPSHOTS, dispatch_sources
 
     with lps.build(DISPATCH, dispatch_sources() | {'snapshot': SNAPSHOTS}) as model:
-        tables = model._engine._model.tables()
+        tables = model._engine._model.tables
     session = Xpress(tables)
     try:
         session.run(tables)
@@ -143,7 +143,7 @@ def test_solver_options_reach_xpress() -> None:
     """Forwarded verbatim, in the solver's own vocabulary — a control name here."""
     spec, data = CASES['LP']
     with lps.build(spec, data) as model:
-        tables = model._engine._model.tables()
+        tables = model._engine._model.tables
     problem = build_xpress(tables, solver_options={'timelimit': 42}).handle
     assert int(problem.controls.timelimit) == 42, 'the option did not reach the problem'
 
@@ -152,7 +152,7 @@ def test_build_xpress_loads_the_model_and_stops() -> None:
     """The seam `bench/` measures: a loaded problem, unsolved."""
     spec, data = CASES['LP']
     with lps.build(spec, data) as model:
-        tables = model._engine._model.tables()
+        tables = model._engine._model.tables
     problem = build_xpress(tables).handle
     assert (problem.attributes.rows, problem.attributes.cols) == (tables.row_count, tables.column_count)
     assert int(problem.attributes.solvestatus) == 0, 'build_xpress loads the model and does not solve it'
@@ -165,7 +165,7 @@ def test_a_set_reaches_the_solver_natively() -> None:
     from tests.test_sos import DATA, best, spec
 
     with lps.build(spec(2), DATA) as model:
-        tables = model._engine._model.tables()
+        tables = model._engine._model.tables
     problem = build_xpress(tables).handle
     assert int(problem.attributes.sets) == 2, 'both declared sets reached the solver as sets'
     problem.optimize()

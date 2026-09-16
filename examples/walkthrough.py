@@ -157,7 +157,7 @@ def model_frames(engine: PolarsEngine, schema: Spec, program: Any) -> None:
     """
     banner(4, 'plan + data -> the model frames', 'relational/engines/polars/engine.py')
     engine.build(program, tidy_sources(program, SOURCES))
-    tables = engine._model.tables()
+    tables = engine._model.tables
     for name, frame in (
         ('cols', tables.cols),
         ('obj', tables.obj),
