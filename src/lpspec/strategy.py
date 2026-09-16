@@ -1439,10 +1439,10 @@ def _per_slice(
 ) -> Iterator[tuple[Label, Callable[[str | Mapping[str, Any]], pl.DataFrame]]]:
     """``(key, evaluate)`` for each slice that produced a solution, its model rebuilt once.
 
-    The one place a slice is put back together: its stored frames become a
-    :class:`~...compiler.Solution` against the model rebuilt from that slice's
-    cut of the sources, and the engine hands back the evaluator a live solve
-    would. A slice that reached no solution is skipped.
+    The one place a slice is put back together: the model is rebuilt from that
+    slice's cut of the sources and its stored frames are put back against it
+    (:meth:`~lpspec.api.Model.evaluator`). A slice that reached no solution is
+    skipped.
     """
     primal, dual = _slice_index(runs, 'primal'), _slice_index(runs, 'dual')
     for key, slice_sources in axis.slices(sources):
@@ -1450,10 +1450,7 @@ def _per_slice(
         if not slice_primals:
             continue
         slice_duals = {name: by_key[key] for name, by_key in dual.items() if key in by_key} or None
-        model = build(spec, slice_sources)
-        evaluate = model._engine.reconstruct(slice_primals, slice_duals, runs._no_duals, model._lower)
-        assert evaluate is not None, 'a rebuilt slice with a spec as written lowers an ad-hoc expression'
-        yield key, evaluate
+        yield key, build(spec, slice_sources).evaluator(slice_primals, slice_duals, runs._no_duals)
 
 
 def _refuse_carried(carried: set[str], nodes: Iterable[ExpressionNode]) -> None:
