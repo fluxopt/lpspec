@@ -149,10 +149,9 @@ the strict xfail ([#894](https://github.com/fluxopt/lpspec/issues/894)).
 map.** The lane holds a relation as one dense array over the dimensions its key
 names, carrying its one value column, so a walk is an `assign_coords` and a
 `groupby`, or a vectorised `sel`. A bare relation, a key that determines
-several columns, two columns over one dimension, and a partition grouped by a
-map keyed on more than the dimension it walks have no such array, and
-`linopy/loader.py` refuses each at the lane's door. The relational lane builds
-every shape the language admits.
+several columns, and a partition grouped by a map keyed on more than the
+dimension it walks have no such array, and `linopy/loader.py` refuses each at
+the lane's door. The relational lane builds every shape the language admits.
 
 **The third is the relational lane's wall, and it is the mirror: an operator
 acting along a dimension that a constant part does not carry**, beside a term

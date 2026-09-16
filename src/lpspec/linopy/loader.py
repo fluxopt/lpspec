@@ -2,9 +2,9 @@
 
 The language's relation is a table over any number of dimensions, keyed by
 any number of its columns. What this lane builds of it is the **single-valued
-map**: a keyed relation with one value column, every column over a dimension
-of its own, so the map is one dense array over its key's dimensions and a walk
-is an ``assign_coords`` and a ``groupby``, or a vectorised ``sel``.
+map**: a keyed relation with one value column, so the map is one dense array
+over its key's dimensions and a walk is an ``assign_coords`` and a ``groupby``,
+or a vectorised ``sel``.
 :func:`refuse_relations_the_lane_does_not_build` turns the rest away at the
 lane's door, naming the relational lane, which builds every shape the language
 admits.
@@ -33,8 +33,8 @@ def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:
 
     Raises:
         LaneError: A bare relation, one whose key determines several columns,
-            one with two columns over one dimension, or a partition grouped
-            by a map keyed on more than the dimension it walks.
+            or a partition grouped by a map keyed on more than the dimension
+            it walks.
     """
     for name, relation in program.relations.items():
         if not relation.key:
@@ -46,8 +46,6 @@ def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:
                     f'({list(relation.values)})'
                 )
             )
-        if shared := sorted({d for d in relation.dims if relation.dims.count(d) > 1}):
-            raise LaneError(_relation_shape_message(f"relation '{name}' has two columns over {shared}"))
     for node in _partitioning(program):
         assert node.partition is not None, '_partitioning yields only the nodes that carry one'
         if node.partition.joined:
@@ -62,8 +60,8 @@ def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:
 
 def _relation_shape_message(what: str) -> str:
     return (
-        f'the linopy lane builds the single-valued map — a keyed relation with one value column, every '
-        f'column over a dimension of its own — and {what}. The language accepts it and the relational '
+        f'the linopy lane builds the single-valued map — a keyed relation with one value column — '
+        f'and {what}. The language accepts it and the relational '
         f'lane builds it, so this is a limit of the lane rather than of the spec. Build it with '
         f'lps.build()/lps.solve() instead.'
     )
@@ -128,9 +126,11 @@ def _relation_arrays(
     for name, relation in program.relations.items():
         dims = [relation.dim(role) for role in relation.key]
         (value,) = relation.values
-        frame = to_pandas(tidy[name].collect()).rename(columns=dict(relation.columns)).set_index(dims)[value]
+        frame = to_pandas(tidy[name].collect())
+        keys = [frame[role].to_numpy() for role in relation.key]
+        keyed = pd.Index(keys[0], name=dims[0]) if len(dims) == 1 else pd.MultiIndex.from_arrays(keys, names=dims)
         index = pd.MultiIndex.from_product([master[d] for d in dims], names=dims) if len(dims) > 1 else master[dims[0]]
-        padded = frame.reindex(index)
+        padded = pd.Series(frame[value].to_numpy(), index=keyed).reindex(index)
         shape = tuple(len(master[d]) for d in dims)
         coords = {d: master[d] for d in dims}
         out[name] = xr.DataArray(padded.to_numpy().reshape(shape), dims=dims, coords=coords, name=name)

@@ -357,7 +357,7 @@ def test_a_pair_the_conditioned_partition_leaves_out_reaches_nothing(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# a self-map — a dimension related to itself
+# a self-map — a dimension related to itself; the walks are test_self_map.py's, this is the partition
 # ---------------------------------------------------------------------------
 
 SNAPSHOTS = [0, 1, 2]
@@ -366,19 +366,12 @@ SNAPSHOTS = [0, 1, 2]
 REP_OF = pl.DataFrame({'snapshot': SNAPSHOTS, 'rep': [0, 0, 2]})
 
 
-def _self_map_spec(constraints: dict[str, Any], where: str | None = None) -> dict[str, Any]:
-    variable: dict[str, Any] = {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 5}}
-    if where is not None:
-        variable['where'] = where
+def _self_map_spec(constraints: dict[str, Any]) -> dict[str, Any]:
     return {
         'dimensions': {'snapshot': {'dtype': 'int'}},
         'relations': {'rep_of': {'columns': {'snapshot': 'snapshot', 'rep': 'snapshot'}, 'key': 'snapshot'}},
-        'parameters': {
-            'price': {'dims': ['snapshot']},
-            'cap': {'dims': ['snapshot']},
-            'budget': {'dims': ['snapshot']},
-        },
-        'variables': {'p': variable},
+        'parameters': {'price': {'dims': ['snapshot']}},
+        'variables': {'p': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 5}}},
         'constraints': constraints,
         'objective': {'sense': 'maximize', 'expression': 'sum(p * price)'},
     }
@@ -389,42 +382,7 @@ def _self_map_sources() -> dict[str, Any]:
         'snapshot': SNAPSHOTS,
         'rep_of': REP_OF,
         'price': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [1.0, 2.0, 3.0]}),
-        'cap': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [1.0, 10.0, 2.0]}),
-        'budget': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [4.0, 100.0, 1.0]}),
     }
-
-
-def test_a_pullback_through_a_self_map_reads_the_representative(tmp_path):
-    """`at(cap, by=rep_of)` at snapshot 1 is the cap of snapshot 0, its representative.
-
-    Read directly, snapshot 1 would take its own 10; read through the map it
-    takes 1: 1 + 2 + 6 rather than 1 + 20 + 6.
-    """
-    spec = _self_map_spec({'capped': {'dims': ['snapshot'], 'expression': 'p <= at(cap, by=rep_of)'}})
-    objective, primals = _solved(spec, _self_map_sources(), tmp_path)
-    assert objective == pytest.approx(9.0, rel=RTOL), '1 + 2 + 6: snapshot 1 takes its representative cap of 1'
-    assert primals['p'][1] == pytest.approx(1.0), "its representative's cap, not its own"
-
-
-def test_a_sum_through_a_self_map_collects_onto_the_representative(tmp_path):
-    """`sum(p, by=rep_of)` at snapshot 0 is `p0 + p1`, and snapshot 1 collects nothing.
-
-    Snapshot 1 represents no snapshot, so its row has no term and is not
-    built. Under the budgets, 4 goes to the dearer of the two it collects and
-    1 to snapshot 2: 8 + 3.
-    """
-    spec = _self_map_spec({'budgeted': {'dims': ['snapshot'], 'expression': 'sum(p, by=rep_of) <= budget'}})
-    objective, primals = _solved(spec, _self_map_sources(), tmp_path)
-    assert objective == pytest.approx(11.0, rel=RTOL), '4 at price 2 under the pair budget, 1 at price 3'
-    assert primals['p'] == pytest.approx({0: 0.0, 1: 4.0, 2: 1.0}), 'the budget of the representative caps its members'
-
-
-def test_a_where_compares_a_self_maps_value_column_at_its_key(tmp_path):
-    """`rep_of == 0` keeps the snapshots represented by 0."""
-    spec = _self_map_spec({}, where='rep_of == 0')
-    objective, primals = _solved(spec, _self_map_sources(), tmp_path)
-    assert sorted(primals['p']) == [0, 1], 'snapshot 2 represents itself and is masked out'
-    assert objective == pytest.approx(15.0, rel=RTOL), 'both surviving snapshots at their bound'
 
 
 def test_a_shift_partitioned_by_a_self_map_walks_inside_each_representatives_group(tmp_path):

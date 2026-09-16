@@ -2,9 +2,9 @@
 
 The relational lane builds every shape the language admits
 (`test_relation_shapes.py`). The eager lane builds the **single-valued map** —
-a keyed relation with one value column, every column over a dimension of its
-own — keyed by one column or several, and refuses the rest at its door with
-the relational lane named. So this module holds the differential cases, where
+a keyed relation with one value column, a self-map included
+(`test_self_map.py`) — keyed by one column or several, and refuses the rest at
+its door with the relational lane named. So this module holds the differential cases, where
 both lanes answer, and the refusals, where one does.
 
 A map keyed by several columns — a generator's zone that changes by period —
@@ -227,13 +227,6 @@ def _shaped(relations: dict, expression: str, dims: list[str]) -> dict:
             id='a-key-determining-two-columns',
         ),
         pytest.param(
-            {'rep_of': {'columns': {'generator': 'generator', 'rep': 'generator'}, 'key': 'generator'}},
-            'sum(p, by=rep_of) >= load',
-            ['generator', 'period'],
-            r"relation 'rep_of' has two columns over \['generator'\]",
-            id='a-self-map',
-        ),
-        pytest.param(
             {'season_of': {'columns': ['generator', 'period', 'bus'], 'key': ['generator', 'period']}},
             'shift(p, along=period, offset=1, edge=0, by=season_of) >= load',
             ['generator', 'period'],
@@ -249,7 +242,8 @@ def test_the_eager_lane_refuses_a_shape_it_does_not_build_and_names_the_lane_tha
 
     The message names the relational lane, which builds every one of these
     (`test_relation_shapes.py`), so the refusal is a limit of the lane rather
-    than of the spec.
+    than of the spec. Three shapes, not four: a self-map is two columns over
+    one dimension and the lane builds it (`test_self_map.py`).
     """
     spec = _shaped(relations, expression, dims)
     lps.check(spec)
