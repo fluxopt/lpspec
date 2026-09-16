@@ -22,6 +22,7 @@ from lpspec.relational.collect import polars_engine
 from lpspec.relational.engines.polars import coverage, labels
 from lpspec.relational.engines.polars.compiler import PolarsCompiler
 from lpspec.relational.engines.polars.fragments import TermFragment, absence_restrictions, join_on
+from lpspec.relational.engines.polars.space import Space
 from lpspec.relational.sinks.tables import SENSE
 
 if TYPE_CHECKING:
@@ -121,7 +122,8 @@ class Assembly:
         self.measured = measured
         self.variables: dict[str, labels.Labelled] = {}
         self.constraints: dict[str, labels.Labelled] = {}
-        self.compiler = PolarsCompiler(program, attached, self.variables)
+        self.space = Space(program, attached, self.variables)
+        self.compiler = PolarsCompiler(self.space)
         self.n_cols = 0
         self.n_rows = 0
         #: How many special-ordered sets have been numbered. Sets are dense
@@ -209,7 +211,7 @@ class Assembly:
         one.
         """
         start = self.n_cols
-        labelled = labels.frame(self.compiler, v.dims, v.where, 'var_label', start)
+        labelled = labels.frame(self.space, v.dims, v.where, 'var_label', start)
         self.n_cols = start + labelled.height
         self.variables[name] = labels.Labelled(labelled.lazy(), start, labelled.height)
 
@@ -253,7 +255,7 @@ class Assembly:
         none — the one thing here no sink taking a set natively reads.
         """
         held = self.variables[s.variable]
-        cardinality = self.compiler.data.cardinality
+        cardinality = self.space.data.cardinality
         stride = math.prod(cardinality[d] for d in v.dims[v.dims.index(s.over) + 1 :])
         span = cardinality[s.over] * stride
 
@@ -262,7 +264,7 @@ class Assembly:
             place, col = pl.col('#position'), (pl.col('#position') + held.start)
         else:
             frame = held.frame
-            place, col = self.compiler.row_major(v.dims, self.compiler.ordinal_of), pl.col('var_label')
+            place, col = self.space.row_major(v.dims, self.space.ordinal_of), pl.col('var_label')
         placed = frame.select(
             ((place // span) * stride + place % stride).alias('#set position'),
             ((place // stride) % cardinality[s.over] + 1).cast(_DTYPES['weight']).alias('weight'),
@@ -313,8 +315,8 @@ class Assembly:
         consts = [(p, 1.0) for p in rhs.consts] + [(p, -1.0) for p in lhs.consts]
         restrictions = absence_restrictions([p for p, _ in (*terms, *quads)])
         start = self.n_rows
-        declared = labels.declared_height(self.compiler, c.dims, c.where) if restrictions else None
-        labelled = labels.frame(self.compiler, c.dims, c.where, 'row', start, restrictions)
+        declared = labels.declared_height(self.space, c.dims, c.where) if restrictions else None
+        labelled = labels.frame(self.space, c.dims, c.where, 'row', start, restrictions)
         if declared is not None and declared > labelled.height:
             self.measured.omitted[name] = self.measured.omitted.get(name, 0) + declared - labelled.height
         self.n_rows = start + labelled.height
@@ -326,8 +328,8 @@ class Assembly:
         coverage.refuse_null_constants(
             coverage.narrowed_to_rows(frame, pieces), program.divisor_parameters(c.lhs, c.rhs), subject
         )
-        coverage.refuse_short_constants(self.compiler, frame, pieces, c, subject, self.measured.sparse)
-        rows = coverage.constant_side(self.compiler, frame, consts, c, subject)
+        coverage.refuse_short_constants(self.space, frame, pieces, c, subject, self.measured.sparse)
+        rows = coverage.constant_side(self.space, frame, consts, c, subject)
 
         if not terms and not quads:
             none = pl.Series('row', [], dtype=_DTYPES['row'])

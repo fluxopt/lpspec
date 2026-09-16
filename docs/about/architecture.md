@@ -400,12 +400,14 @@ conventions are in `compiler.py` and `fragments.py`.
 `assembly.py`, `sinks/`, and `engine.py`, which runs that lifecycle and holds
 the solver between solves. `labels.py`, `readback.py` and `result.py` sit beside
 the engine, because each answers a question the engine only *uses*.
-`fragments.py`, `predicates.py`, `reindex.py`, `coverage.py` and `status.py` are
-off the spine and undrawn. `frames.py`, the other boundary, is top level because
+`space.py` sits under all of them: the program, its attached data and the
+variable frames built so far, which is what every helper takes and the
+compiler holds beside the walk it adds. `fragments.py`, `predicates.py`,
+`reindex.py`, `coverage.py` and `status.py` are off the spine and undrawn. `frames.py`, the other boundary, is top level because
 all three consumers read it. The [module map](#module-map) says what each does.
 
 That split makes the ceiling's admissibility test something you can *perform*:
-build a `PolarsCompiler`, hand it a node, read `.explain()`.
+build a `PolarsCompiler` over a `Space`, hand it a node, read `.explain()`.
 `tests/test_compiler.py` does that over empty tables, since a schema is all it
 takes to compile a query.
 
@@ -549,6 +551,7 @@ is structure.
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `lps.`; a wording lives here only where two modules raise it |
 | `strategy.py` | the driver above the runner: one plan per slice, folded — scenarios, rolling horizon, myopic pathways |
+| `relational/engines/polars/space.py` | the coordinate space a model is built over: the program, its attached data and the variable frames built so far; the product of its dimensions and the one row-major rule every index reads — what every helper takes, and the compiler holds |
 | `relational/engines/polars/compiler.py` | plan → lazy queries; pure, reads nothing |
 | `relational/engines/polars/relations.py` | a relation's table as a walk reads it, the one place a role becomes a column: the join a group or a pullback trades its dimensions through, and the grouping a partition ranks inside, the whole dimension being one group |
 | `relational/engines/polars/reindex.py` | `shift` and `sum_back`: a fragment's rows moved along one dimension's own order, and the edge |

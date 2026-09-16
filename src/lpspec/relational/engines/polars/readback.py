@@ -307,9 +307,9 @@ def expression_frame(name: str, expr: program.ExpressionNode, compiler: PolarsCo
     )
 
     fragments = compiled.consts
-    dims = compiler.spanned(fragments)
-    carrier = labels.frame(compiler, dims, None, _EXPRESSION_ROW, 0, absence_restrictions(fragments)).lazy()
+    dims = compiler.space.spanned(fragments)
+    carrier = labels.frame(compiler.space, dims, None, _EXPRESSION_ROW, 0, absence_restrictions(fragments)).lazy()
     added = compiler.added(fragments, carrier, fill=True)
     out = added.select(_EXPRESSION_ROW, *dims, pl.col('cval').alias('value')).collect(engine=polars_engine())
     ordered = labels.in_position_order(out, _EXPRESSION_ROW).drop(_EXPRESSION_ROW)
-    return ordered.with_columns(pl.col(d).cast(pl.String) for d in string_dims(compiler.data, dims))
+    return ordered.with_columns(pl.col(d).cast(pl.String) for d in string_dims(compiler.space.data, dims))
