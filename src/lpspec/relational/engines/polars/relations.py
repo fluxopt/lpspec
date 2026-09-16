@@ -60,11 +60,6 @@ def group_column(role: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def joined_dims(walks: Sequence[program.Walk]) -> tuple[str, ...]:
-    """The dimensions *walks* join on, each once — the key columns neither consumed nor produced, which the operand carries."""
-    return _each_once(d for walk in walks for d in walk.joined_dims)
-
-
 def _each_once(dims: Iterable[str]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(dims))
 
@@ -93,16 +88,16 @@ def _walked(table: pl.LazyFrame, walk: program.Walk) -> pl.LazyFrame:
     )
 
 
-def landed(mapping: pl.LazyFrame, walks: Sequence[program.Walk]) -> pl.LazyFrame:
+def landed(mapping: pl.LazyFrame, node: program.GroupSum | program.At) -> pl.LazyFrame:
     """*mapping* at the coordinates it lands on: the joined dimensions and the produced ones, under their names."""
-    produced = _each_once(d for walk in walks for d in walk.produced_dims)
-    return mapping.select(*joined_dims(walks), *(pl.col(landing(d)).alias(d) for d in produced))
+    produced = _each_once(d for walk in node.walks for d in walk.produced_dims)
+    return mapping.select(*node.joined, *(pl.col(landing(d)).alias(d) for d in produced))
 
 
 def walk_join(
     frame: pl.LazyFrame,
     mapping: pl.LazyFrame,
-    walks: Sequence[program.Walk],
+    node: program.GroupSum | program.At,
     have: Sequence[str],
     columns: Sequence[str] = (),
 ) -> tuple[pl.LazyFrame, tuple[str, ...]]:
@@ -118,17 +113,18 @@ def walk_join(
 
     Args:
         frame: The operand, carrying *have* and *columns*.
-        mapping: :func:`mapping` for the same walks.
-        walks: The node's walks.
+        mapping: :func:`mapping` for the node's walks.
+        node: The group or the pullback, whose walks say what is consumed
+            and produced and whose ``joined`` says what is joined on.
         have: The dimensions *frame* carries.
         columns: The other columns to keep — a fragment's carried ones.
 
     Returns:
         The traded frame, and the dimensions it is over, in order.
     """
-    consumed = _each_once(d for walk in walks for d in walk.consumed_dims)
-    produced = _each_once(d for walk in walks for d in walk.produced_dims)
-    joined = joined_dims(walks)
+    consumed = _each_once(d for walk in node.walks for d in walk.consumed_dims)
+    produced = _each_once(d for walk in node.walks for d in walk.produced_dims)
+    joined = node.joined
     keep = [d for d in have if d not in consumed]
     carried = [d for d in produced if d in keep]
     gained = [d for d in produced if d not in keep]

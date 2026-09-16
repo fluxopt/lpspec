@@ -52,7 +52,7 @@ from lpspec.relational.engines.polars.predicates import (
     falsy_if_null,
 )
 from lpspec.relational.engines.polars.reindex import translate_fragment, window_fragment
-from lpspec.relational.engines.polars.relations import joined_dims, landed, mapping, walk_join
+from lpspec.relational.engines.polars.relations import landed, mapping, walk_join
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -669,7 +669,7 @@ class PolarsCompiler:
         missing = [d for d in g.over if d not in p.dims]
         if missing:
             refuse_a_fragment_without_the_dims(p, missing, context, f'sum(by=) over {list(g.over)}')
-        grouped = self._remap_fragment(p, g.walks)
+        grouped = self._remap_fragment(p, g)
         if p.kind != 'const':
             return grouped
         return replace(grouped, frame=pl.concat([grouped.frame, self._empty_groups(grouped, g)]))
@@ -699,8 +699,8 @@ class PolarsCompiler:
         spanned = [d for d in p.dims if d not in g.into]
         if spanned:
             universe = p.frame.select(spanned).unique().join(universe, how='cross')
-        reached = landed(mapping(self.data.relations, g.walks), g.walks)
-        empty = universe.join(reached, on=[*joined_dims(g.walks), *g.into], how='anti')
+        reached = landed(mapping(self.data.relations, g.walks), g)
+        empty = universe.join(reached, on=[*g.joined, *g.into], how='anti')
         return empty.with_columns(pl.lit(0.0, dtype=pl.Float64).alias('cval')).select(*p.dims, *p.carried)
 
     def _at_fragment(self, p: TermFragment, a: program.At, context: str) -> TermFragment:
@@ -721,7 +721,7 @@ class PolarsCompiler:
         """
         absent = [d for d in a.into if d not in p.dims]
         assert not absent, f'in {context}: At through {absent}, which the expression does not span'
-        remapped = self._remap_fragment(p, a.walks)
+        remapped = self._remap_fragment(p, a)
         return replace(remapped, presences=self._pulled_back_presences(p, a))
 
     def _pulled_back_presences(self, p: TermFragment, a: program.At) -> tuple[Presence, ...]:
@@ -739,10 +739,10 @@ class PolarsCompiler:
         dims while this frame keeps the columns that matter — the hazard
         :class:`Presence` names.
         """
-        joined = joined_dims(a.walks)
+        joined = a.joined
         fine = (*joined, *a.over)
         table = mapping(self.data.relations, a.walks)
-        reachable = landed(table, a.walks).unique()
+        reachable = landed(table, a).unique()
         if not p.presences:
             total = math.prod(self.data.cardinality[d] for d in fine)
             reached = reachable.select(pl.len()).collect().item()
@@ -756,19 +756,19 @@ class PolarsCompiler:
             source, keys = (
                 (presence.frame, keys) if carries_targets else (self.widen(presence.frame, keys, p.dims), p.dims)
             )
-            return Presence(*walk_join(source, table, a.walks, keys))
+            return Presence(*walk_join(source, table, a, keys))
 
         return tuple(pulled(x) for x in p.presences)
 
-    def _remap_fragment(self, p: TermFragment, walks: Sequence[program.Walk]) -> TermFragment:
-        """Trade the dims *walks* consume for the ones they produce, through their relations.
+    def _remap_fragment(self, p: TermFragment, node: program.GroupSum | program.At) -> TermFragment:
+        """Trade the dims *node*'s walks consume for the ones they produce, through their relations.
 
         One inner equi-join against :func:`mapping`, keyed as :func:`walk_join`
         says. A group consumes the dims its walks are over
         (:meth:`_group_fragment`); an ``At`` reads the same tables backwards
         (:meth:`_at_fragment`).
         """
-        frame, dims = walk_join(p.frame, mapping(self.data.relations, walks), walks, p.dims, p.carried)
+        frame, dims = walk_join(p.frame, mapping(self.data.relations, node.walks), node, p.dims, p.carried)
         return TermFragment(dims, frame, p.kind)
 
     def widen(self, presence: pl.LazyFrame, have: tuple[str, ...], want: tuple[str, ...]) -> pl.LazyFrame:
