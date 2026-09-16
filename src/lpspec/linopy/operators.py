@@ -105,16 +105,23 @@ def operator_at(array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...])
     positions holding the operand's own **absence** rather than a zero: absence
     propagates and takes the row with it, where a zero would leave a row
     asserting ``x <= 0`` at a coordinate the model said nothing about.
+
+    **The coordinate comes back as the fine labels**, which a selection through
+    a map onto the fine dimension's own dimension would otherwise leave as the
+    labels it read: a self-map reads ``snapshot`` at ``snapshot``, and the row
+    the value lands at is the one that read it, not the one it read.
     """
     mappings = _renamed(mappings, into)
     present = _present(mappings)
-    if bool(present.all()):
-        return array.sel(dict(zip(into, mappings, strict=True)))
-
     dim = str(mappings[0].dims[0])
+    labels = mappings[0][dim]
+    if bool(present.all()):
+        picked = array.sel(dict(zip(into, mappings, strict=True)))
+        return picked.assign_coords({dim: labels})
+
     kept = present.to_numpy()
     picked = array.sel(dict(zip(into, (m.isel({dim: kept}) for m in mappings), strict=True)))
-    return picked.reindex({dim: mappings[0][dim]})
+    return picked.assign_coords({dim: labels[kept]}).reindex({dim: labels})
 
 
 @dataclass(frozen=True)

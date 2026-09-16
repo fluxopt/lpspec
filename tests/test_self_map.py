@@ -66,16 +66,16 @@ def _inputs() -> dict[str, object]:
     }
 
 
-@pytest.mark.xfail(reason='#1652 — the walk names its output after the dimension it lands on', strict=True)
 def test_a_pullback_through_a_self_map_reads_the_representative():
     """`at(price, by=rep_of, over=rep)` is the price at the snapshot that stands for this one.
 
-    Was: the walk renamed its value column to the dimension it lands on, which
-    for a self-map is the name the key column already holds — so the relational
-    lane met polars' `DuplicateError` and the eager lane put the selected labels
-    back as the coordinate and met xarray's coordinate mismatch (#1652). Both
-    happened after `check` passed, which is the part that made it a bug rather
-    than a gap.
+    Was: the walk named its value column after the dimension it lands on, which
+    for a self-map is the name the key column already holds, so the relational
+    lane met polars' `DuplicateError`; and the eager lane left the labels it
+    read as the coordinate, so a row landed at the snapshot it read rather than
+    at the one that read it, and linopy refused the mismatch (#1652). Both
+    happened after `check` passed, which is what made it a bug rather than a
+    gap.
     """
     with differential(SPEC, _inputs()) as run:
         assert run.oracle == pytest.approx(1 * 1.0 + 1 * 2.0 + 3 * 3.0, rel=RTOL), (
@@ -88,13 +88,12 @@ def test_a_pullback_through_a_self_map_reads_the_representative():
     assert built[2] == pytest.approx(3.0), 'represents itself, at price 3'
 
 
-@pytest.mark.xfail(reason='#1652 — the walk names its output after the dimension it lands on', strict=True)
 def test_a_group_through_a_self_map_sums_the_snapshots_it_represents():
     """`sum(p, by=rep_of)` adds each snapshot's output into its representative's row.
 
-    The adjoint of the pullback above, and the direction where the two lanes
-    disagreed before the fix: the relational one raised where the eager one
-    built.
+    The adjoint of the pullback above, and the direction the two lanes
+    disagreed on before the fix (#1652): the relational one raised where the
+    eager one built, so nothing here was checking that what it built was right.
     """
     spec = override(
         raw_of(SPEC),

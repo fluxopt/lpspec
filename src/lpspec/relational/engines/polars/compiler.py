@@ -671,19 +671,41 @@ class PolarsCompiler:
             return grouped
         return replace(grouped, frame=pl.concat([grouped.frame, self._empty_groups(grouped, g)]))
 
-    def _mapping(self, over: str, coordinate: tuple[str, ...], into: tuple[str, ...]) -> pl.LazyFrame:
-        """The ``(over, into…)`` table a group or a pullback joins against.
+    def _mapping(self, over: str, coordinate: tuple[str, ...]) -> pl.LazyFrame:
+        """The table a group or a pullback joins against — a key column, and one value column per relation.
 
-        One relation per coordinate, met on ``over`` by **inner** joins: a
+        One relation per coordinate, met on the key by **inner** joins: a
         label some coordinate does not map has no row in that relation and so
         none here, which is what "reaches no slot" means for the whole tuple.
         The tuple exists exactly where every coordinate does.
+
+        **Every column is named for its side of the walk rather than for its
+        dimension**, because a self-map has one dimension on both sides and a
+        frame has one column per name. Callers join through
+        :meth:`_walk_columns` and rename what they keep.
         """
-        pairs = list(zip(coordinate, into, strict=True))
-        mapping, *rest = (self.data.relations[c].select(pl.col(over), pl.col(c).alias(i)) for c, i in pairs)
+        frames = (
+            self.data.relations[c].select(pl.col(over).alias(WALK_KEY), pl.col(c).alias(walk_value(c)))
+            for c in coordinate
+        )
+        mapping, *rest = frames
         for other in rest:
-            mapping = mapping.join(other, on=over, how='inner')
+            mapping = mapping.join(other, on=WALK_KEY, how='inner')
         return mapping
+
+    @staticmethod
+    def _walk_columns(node: program.GroupSum | program.At) -> tuple[list[str], list[str]]:
+        """*node*'s mapping columns: the ones it consumes, then the ones it produces.
+
+        A group consumes the key and produces the values; a pullback reads the
+        same table backwards.
+        """
+        assert len(node.coordinate) == len(node.into), (
+            f'a walk through {list(node.coordinate)} landing on {list(node.into)}: this engine reads one '
+            f'value column per relation, which is what lanes.lowered refuses a wider table for'
+        )
+        key, values = [WALK_KEY], [walk_value(c) for c in node.coordinate]
+        return (key, values) if isinstance(node, program.GroupSum) else (values, key)
 
     def partitioned(self, dim: str, relation: str) -> pl.LazyFrame:
         """*dim*'s ``(val, ord, relation, GROUP_RANK, GROUP_SIZE)``, only for labels the map places in a group.
@@ -723,7 +745,10 @@ class PolarsCompiler:
         for target in g.into[1:]:
             labels = self.data.dimensions[target].select(pl.col('val').alias(target))
             universe = universe.join(labels, how='cross')
-        reached = self._mapping(g.over[0], g.coordinate, g.into).select(*g.into)
+        _, made = self._walk_columns(g)
+        reached = self._mapping(g.over[0], g.coordinate).select(
+            *(pl.col(column).alias(dim) for column, dim in zip(made, g.into, strict=True))
+        )
         empty = universe.join(reached, on=list(g.into), how='anti')
         spanned = [d for d in p.dims if d not in g.into]
         if spanned:
@@ -767,21 +792,24 @@ class PolarsCompiler:
         :class:`Presence` names.
         """
         over = a.over[0]
-        reachable = self._mapping(over, a.coordinate, a.into)
+        taken, made = self._walk_columns(a)
+        reachable = self._mapping(over, a.coordinate)
+        fine = reachable.select(pl.col(made[0]).alias(over))
         if not p.presences:
             total = self.data.cardinality[over] == reachable.select(pl.len()).collect().item()
-            return () if total else (Presence(reachable.select(over), (over,)),)
+            return () if total else (Presence(fine, (over,)),)
 
         def pulled(presence: Presence) -> Presence:
             keys = presence.keys(p.dims)
             if not keys:
-                return Presence(presence.restrict(reachable.select(over), keys), (over,))
+                return Presence(presence.restrict(fine, keys), (over,))
             carries_targets = all(i in keys for i in a.into)
             source, keys = (
                 (presence.frame, keys) if carries_targets else (self.widen(presence.frame, keys, p.dims), p.dims)
             )
             kept = tuple(k for k in keys if k not in a.into)
-            return Presence(source.join(reachable, on=list(a.into), how='inner').select(*kept, over), (*kept, over))
+            landed = source.join(reachable, left_on=list(a.into), right_on=taken, how='inner')
+            return Presence(landed.select(*kept, pl.col(made[0]).alias(over)), (*kept, over))
 
         return tuple(pulled(x) for x in p.presences)
 
@@ -804,11 +832,20 @@ class PolarsCompiler:
         One of the two sides is always a single dim — a group consumes the one
         the coordinates are over, a pullback produces it — so exactly one join
         happens whatever the arity.
+
+        The join names its sides — ``left_on`` the fragment's dims, ``right_on``
+        the mapping's own columns — so a walk that lands on the dimension it
+        started from trades one column for the other rather than asking for two
+        of one name.
         """
         dropped = set(consumed)
         keep = tuple(x for x in p.dims if x not in dropped)
-        mapping = self._mapping(node.over[0], node.coordinate, node.into)
-        frame = p.frame.join(mapping, on=list(consumed), how='inner').select(*keep, *produced, *p.carried)
+        taken, made = self._walk_columns(node)
+        mapping = self._mapping(node.over[0], node.coordinate)
+        landed = [pl.col(column).alias(dim) for column, dim in zip(made, produced, strict=True)]
+        frame = p.frame.join(mapping, left_on=list(consumed), right_on=taken, how='inner').select(
+            *keep, *landed, *p.carried
+        )
         return TermFragment((*keep, *produced), frame, p.kind)
 
     def widen(self, presence: pl.LazyFrame, have: tuple[str, ...], want: tuple[str, ...]) -> pl.LazyFrame:
@@ -822,6 +859,17 @@ class PolarsCompiler:
             if d not in have:
                 presence = presence.join(self.data.dimensions[d].select(pl.col('val').alias(d)), how='cross')
         return presence.select(*want)
+
+
+#: The mapping table's key column — one per walk, whatever the relations are
+#: over, since every walk in one node shares the dimension it is keyed by. The
+#: spaces make it unrepresentable as a declared name.
+WALK_KEY = '__walk key__'
+
+
+def walk_value(relation: str) -> str:
+    """The mapping table's value column for *relation*."""
+    return f'__walk value {relation}__'
 
 
 def ordinal(dim: str) -> str:
