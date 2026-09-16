@@ -44,75 +44,39 @@ _ORD_OUT = '__ord out__'
 
 @dataclass(frozen=True)
 class _Order:
-    """One dimension order as an operator walks along it: the table, and the two keyed sides of the remap.
+    """A grouping as an operator walks along it: the two keyed sides of the remap.
 
-    ``incoming`` and ``outgoing`` read the same position column, so a change to
-    how a partitioned walk ranks cannot move one side without the other — the
-    pair every remap and every edge computation here reads. Built once per
-    operator; everything below takes it rather than rebuilding it.
+    ``incoming`` and ``outgoing`` read the same rank column, so a change to how
+    a walk ranks cannot move one side without the other — the pair every remap
+    and every edge computation here reads. Built once per operator; everything
+    below takes it rather than rebuilding it.
     """
 
-    dimension: str
-    #: The groups the walk stays inside, or ``None`` along the whole dimension.
-    grouping: Grouping | None
-    #: The dimension table — the grouping's, ranked in-group, when partitioned.
-    table: pl.LazyFrame
-    #: The walked position: within-group rank under a partition, the ``ord`` along the whole dimension otherwise.
-    position: pl.Expr
-    #: What a wrap closes on: the group's size, or the dimension's cardinality.
-    span: pl.Expr
+    #: The groups the walk stays inside — the whole dimension as one group
+    #: where no ``by=`` was written (:meth:`Grouping.whole`).
+    grouping: Grouping
     incoming: pl.LazyFrame
     outgoing: pl.LazyFrame
-    landing: list[str]
-    card: int
 
     @classmethod
     def of(cls, compiler: PolarsCompiler, dimension: str, partition: program.Walk | None) -> _Order:
-        """Rank *dimension* inside each group where the walk is partitioned.
+        """Rank *dimension* inside each group of *partition*, or along the whole of it.
 
-        Unpartitioned, the ``ord`` along the whole dimension is the position and there is no
-        span for a wrap to close on. Under a partition both are read per group, so
-        a neighbour is decided by position within *that* group — and a
-        coordinate the map places nowhere is not in this table at all and joins
-        to nothing, which is what it reaches everywhere else.
+        A neighbour is decided by rank within the group, and a wrap closes on
+        the group's size. Under a partition a coordinate the map places nowhere
+        is not in the table at all and joins to nothing, which is what it
+        reaches everywhere else.
         """
-        card = compiler.data.cardinality[dimension]
-        grouping = None if partition is None else Grouping.of(compiler.data, partition)
-        if grouping is None:
-            table = compiler.data.dimensions[dimension]
-            position, span = pl.col('ord'), pl.lit(card, dtype=pl.Int64)
-            key: tuple[str, ...] = ()
-        else:
-            table = grouping.table
-            position, span = pl.col(GROUP_RANK), pl.col(GROUP_SIZE)
-            key = grouping.key
-        incoming = table.select(
-            pl.col('val').alias(dimension),
-            position.alias(_ORD_IN),
-            *key,
-            *([pl.col(GROUP_SIZE)] if grouping is not None else []),
+        grouping = (
+            Grouping.whole(compiler.data, dimension) if partition is None else Grouping.of(compiler.data, partition)
         )
-        outgoing = table.select(pl.col('val').alias(dimension), position.alias(_ORD_OUT), *key)
-        return cls(dimension, grouping, table, position, span, incoming, outgoing, [_ORD_OUT, *key], card)
-
-    @property
-    def joined(self) -> tuple[str, ...]:
-        """The partition's other key dimensions, which the operand carries and every keyed side reads at."""
-        return self.grouping.joined if self.grouping is not None else ()
-
-    @property
-    def keys(self) -> tuple[str, ...]:
-        """The columns a walked frame is keyed by: the dimension, and the partition's joined dimensions."""
-        return (self.dimension, *self.joined)
-
-    def placed(self) -> pl.LazyFrame:
-        """The coordinates the partition places in some group — the rows a partitioned walk can reach."""
-        assert self.grouping is not None, 'an unpartitioned walk places every label, so nothing asks which it grouped'
-        return self.grouping.placed()
-
-    def group_column(self, dim: str) -> str | None:
-        """The group column carrying *dim*'s labels, where the partition groups into it."""
-        return self.grouping.column_of(dim) if self.grouping is not None else None
+        incoming = grouping.table.select(
+            pl.col('val').alias(dimension), pl.col(GROUP_RANK).alias(_ORD_IN), *grouping.key, pl.col(GROUP_SIZE)
+        )
+        outgoing = grouping.table.select(
+            pl.col('val').alias(dimension), pl.col(GROUP_RANK).alias(_ORD_OUT), *grouping.key
+        )
+        return cls(grouping, incoming, outgoing)
 
     def remap(
         self,
@@ -131,12 +95,13 @@ class _Order:
         never had. *prepared* splices in whatever extra join the operator needs
         — a lag table, a named offset — between the two keyed sides.
         """
-        kept = [d for d in dims if d != self.dimension]
-        walked = prepared(source.join(self.incoming, on=list(self.keys), how='inner').drop(self.dimension))
+        dimension = self.grouping.dimension
+        kept = [d for d in dims if d != dimension]
+        walked = prepared(source.join(self.incoming, on=list(self.grouping.keys), how='inner').drop(dimension))
         return (
             walked.with_columns(moved.alias(_ORD_OUT))
-            .join(self.outgoing, on=self.landing, how='inner')
-            .select(*kept, self.dimension, *carried)
+            .join(self.outgoing, on=[_ORD_OUT, *self.grouping.key], how='inner')
+            .select(*kept, dimension, *carried)
         )
 
 
@@ -173,11 +138,11 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
     else:
         assert not isinstance(s.width, str)
         widest = s.width
-    lags = pl.LazyFrame({_LAG: pl.Series(range(min(widest, order.card)), dtype=pl.Int64)})
+    lags = pl.LazyFrame({_LAG: pl.Series(range(min(widest, compiler.data.cardinality[s.dimension])), dtype=pl.Int64)})
 
     moved = pl.col(_ORD_IN) + pl.col(_LAG)
     if s.wrap:
-        moved = moved % order.span
+        moved = moved % pl.col(GROUP_SIZE)
 
     def lagged(frame: pl.LazyFrame) -> pl.LazyFrame:
         """Every reachable lag beside each row — a named width keeps only the lags its entity reaches."""
@@ -191,13 +156,13 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
 
     def travelled(presence: Presence) -> Presence:
         keyed_by, source = presence.keyed_by, presence.frame
-        if keyed_by is not None and not set(order.keys).issubset(keyed_by):
+        if keyed_by is not None and not set(order.grouping.keys).issubset(keyed_by):
             source, keyed_by = compiler.widen(source, keyed_by, p.dims), None
         return Presence(remap(source, [], p.dims if keyed_by is None else keyed_by).unique(), keyed_by)
 
     frame = remap(p.frame, p.carried, p.dims)
-    if not p.presences and order.grouping is not None:
-        return replace(p, frame=frame, presences=(Presence(order.placed(), order.keys),))
+    if not p.presences and order.grouping.partial:
+        return replace(p, frame=frame, presences=(Presence(order.grouping.placed(), order.grouping.keys),))
     return replace(p, frame=frame, presences=tuple(travelled(x) for x in p.presences))
 
 
@@ -231,7 +196,7 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
         assert not isinstance(s.offset, str)
         moved = pl.col(_ORD_IN) + s.offset
     if s.wrap:
-        moved = (moved % order.span + order.span) % order.span
+        moved = (moved % pl.col(GROUP_SIZE) + pl.col(GROUP_SIZE)) % pl.col(GROUP_SIZE)
 
     def offsetted(frame: pl.LazyFrame) -> pl.LazyFrame:
         """A per-entity offset is one more equi-join, on keys the frame already carries."""
@@ -261,7 +226,7 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
         """
         if not p.presences:
             if s.wrap or s.fill is not None:
-                return () if order.grouping is None else (Presence(order.placed(), order.keys),)
+                return (Presence(order.grouping.placed(), order.grouping.keys),) if order.grouping.partial else ()
             return (Presence(edge.coordinates(vacated=False), edge.keys),)
         return tuple(travelled(x) for x in p.presences)
 
@@ -307,12 +272,12 @@ class _Edge:
         if not isinstance(s.offset, str):
             return cls(order, s, (), None)
         dims = compiler.program.parameter(s.offset).dims
-        offset_dims = tuple(d for d in dims if order.group_column(d) is None)
+        offset_dims = tuple(d for d in dims if order.grouping.column_of(d) is None)
         return cls(order, s, offset_dims, _named_amount(compiler, order, s.offset, _OFFSET))
 
     @property
     def keys(self) -> tuple[str, ...]:
-        return tuple(dict.fromkeys((self.order.dimension, *self.offset_dims, *self.order.joined)))
+        return tuple(dict.fromkeys((self.order.grouping.dimension, *self.offset_dims, *self.order.grouping.joined)))
 
     def coordinates(self, *, vacated: bool) -> pl.LazyFrame:
         """The coordinates the shift vacates, or keeps, under :attr:`keys`.
@@ -327,11 +292,11 @@ class _Edge:
         per-group offset reaches it by the group column rather than by a
         cross join, one lag standing for the whole group.
         """
-        order, s = self.order, self.shift
-        table, position, span = order.table, order.position, order.span
+        grouping, s = self.order.grouping, self.shift
+        table, position, span = grouping.table, pl.col(GROUP_RANK), pl.col(GROUP_SIZE)
         if self.offsets is not None:
             offsets, keys = self.offsets
-            on = [key for key in keys if order.grouping is not None and key in order.grouping.key]
+            on = [key for key in keys if key in grouping.key]
             table = table.join(offsets, on=on, how='inner') if on else table.join(offsets, how='cross')
             offset = pl.col(_OFFSET)
         else:
@@ -398,7 +363,7 @@ def _named_amount(compiler: PolarsCompiler, order: _Order, name: str, alias: str
     reaches everywhere else.
     """
     dims = compiler.program.parameter(name).dims
-    keys = [order.group_column(d) or d for d in dims]
+    keys = [order.grouping.column_of(d) or d for d in dims]
     frame = compiler.data.parameters[name].select(
         *(pl.col(d).alias(key) for d, key in zip(dims, keys, strict=True)),
         pl.col('value').cast(pl.Int64).alias(alias),

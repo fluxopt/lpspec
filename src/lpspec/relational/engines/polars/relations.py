@@ -170,6 +170,19 @@ class Grouping:
     table: pl.LazyFrame
 
     @classmethod
+    def whole(cls, data: AttachedSources, dimension: str) -> Grouping:
+        """*dimension* as one group: the rank is the ordinal, the size the cardinality, and every label is placed.
+
+        What an unpartitioned walk counts along, so ``shift`` and ``sum_back``
+        read one table shape whether or not a ``by=`` was written.
+        """
+        table = data.dimensions[dimension].with_columns(
+            pl.col('ord').alias(GROUP_RANK),
+            pl.lit(data.cardinality[dimension], dtype=pl.Int64).alias(GROUP_SIZE),
+        )
+        return cls(dimension, (), (), (), table)
+
+    @classmethod
     def of(cls, data: AttachedSources, walk: program.Walk) -> Grouping:
         """Rank the dimension *walk* consumes inside the groups it produces."""
         (consumed,) = walk.consumed
@@ -201,6 +214,11 @@ class Grouping:
     def keys(self) -> tuple[str, ...]:
         """What a coordinate of the walked dimension is identified by: the dimension, and the joined ones."""
         return (self.dimension, *self.joined)
+
+    @property
+    def partial(self) -> bool:
+        """Whether a coordinate can be in no group: a relation places only the labels it holds, the whole dimension every one."""
+        return bool(self.groups)
 
     def placed(self) -> pl.LazyFrame:
         """The coordinates the partition places in some group, under :attr:`keys`.
