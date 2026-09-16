@@ -11,7 +11,7 @@ dimension.
 Both take the :class:`~lpspec.relational.engines.polars.compiler.PolarsCompiler`
 and hold nothing. They read three things off it — ``data``, ``program`` and
 ``widen`` — and everything else here is their own, built once per operator
-as an :class:`_Axis`.
+as a :class:`_Ranked` dimension.
 """
 
 from __future__ import annotations
@@ -43,8 +43,8 @@ _ORD_OUT = '__ord out__'
 
 
 @dataclass(frozen=True)
-class _Axis:
-    """One dimension as an operator walks along it: its ranked table, and the two keyed sides of the remap.
+class _Ranked:
+    """One dimension ranked as an operator walks along it: the table, and the two keyed sides of the remap.
 
     ``incoming`` and ``outgoing`` read the same position column, so a change to
     how a partitioned walk ranks cannot move one side without the other — the
@@ -53,7 +53,7 @@ class _Axis:
     """
 
     dimension: str
-    #: The groups the walk stays inside, or ``None`` along the whole axis.
+    #: The groups the walk stays inside, or ``None`` along the whole dimension.
     grouping: Grouping | None
     #: The dimension table — the grouping's, ranked in-group, when partitioned.
     table: pl.LazyFrame
@@ -67,7 +67,7 @@ class _Axis:
     card: int
 
     @classmethod
-    def of(cls, compiler: PolarsCompiler, dimension: str, partition: program.Walk | None) -> _Axis:
+    def of(cls, compiler: PolarsCompiler, dimension: str, partition: program.Walk | None) -> _Ranked:
         """Rank *dimension* inside each group where the walk is partitioned.
 
         Unpartitioned, the axis-wide ``ord`` is the position and there is no
@@ -165,7 +165,7 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
     """
     if s.dimension not in p.dims:
         refuse_a_fragment_without_the_dims(p, [s.dimension], context, f'sum_back(along={s.dimension!r})')
-    axis = _Axis.of(compiler, s.dimension, s.partition)
+    ranked = _Ranked.of(compiler, s.dimension, s.partition)
 
     width_name = s.width if isinstance(s.width, str) else None
     if width_name is not None:
@@ -173,31 +173,31 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
     else:
         assert not isinstance(s.width, str)
         widest = s.width
-    lags = pl.LazyFrame({_LAG: pl.Series(range(min(widest, axis.card)), dtype=pl.Int64)})
+    lags = pl.LazyFrame({_LAG: pl.Series(range(min(widest, ranked.card)), dtype=pl.Int64)})
 
     moved = pl.col(_ORD_IN) + pl.col(_LAG)
     if s.wrap:
-        moved = moved % axis.span
+        moved = moved % ranked.span
 
     def lagged(frame: pl.LazyFrame) -> pl.LazyFrame:
         """Every reachable lag beside each row — a named width keeps only the lags its entity reaches."""
         frame = frame.join(lags, how='cross')
         if width_name is None:
             return frame
-        widths, keys = _named_amount(compiler, axis, width_name, _WIDTH)
+        widths, keys = _named_amount(compiler, ranked, width_name, _WIDTH)
         return frame.join(widths, on=keys, how='inner').filter(pl.col(_LAG) < pl.col(_WIDTH))
 
-    remap = partial(axis.remap, moved=moved, prepared=lagged)
+    remap = partial(ranked.remap, moved=moved, prepared=lagged)
 
     def travelled(presence: Presence) -> Presence:
         keyed_by, source = presence.keyed_by, presence.frame
-        if keyed_by is not None and not set(axis.keys).issubset(keyed_by):
+        if keyed_by is not None and not set(ranked.keys).issubset(keyed_by):
             source, keyed_by = compiler.widen(source, keyed_by, p.dims), None
         return Presence(remap(source, [], p.dims if keyed_by is None else keyed_by).unique(), keyed_by)
 
     frame = remap(p.frame, p.carried, p.dims)
-    if not p.presences and axis.grouping is not None:
-        return TermFragment(p.dims, frame, p.kind, presences=(Presence(axis.placed(), axis.keys),))
+    if not p.presences and ranked.grouping is not None:
+        return TermFragment(p.dims, frame, p.kind, presences=(Presence(ranked.placed(), ranked.keys),))
     return TermFragment(p.dims, frame, p.kind, presences=tuple(travelled(x) for x in p.presences))
 
 
@@ -221,8 +221,8 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
     if s.dimension not in p.dims:
         refuse_a_fragment_without_the_dims(p, [s.dimension], context, f'shift(along={s.dimension!r})')
     others = [d for d in p.dims if d != s.dimension]
-    axis = _Axis.of(compiler, s.dimension, s.partition)
-    edge = _Edge.of(compiler, axis, s)
+    ranked = _Ranked.of(compiler, s.dimension, s.partition)
+    edge = _Edge.of(compiler, ranked, s)
 
     named_offset = isinstance(s.offset, str)
     if named_offset:
@@ -231,7 +231,7 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
         assert not isinstance(s.offset, str)
         moved = pl.col(_ORD_IN) + s.offset
     if s.wrap:
-        moved = (moved % axis.span + axis.span) % axis.span
+        moved = (moved % ranked.span + ranked.span) % ranked.span
 
     def offsetted(frame: pl.LazyFrame) -> pl.LazyFrame:
         """A per-entity offset is one more equi-join, on keys the frame already carries."""
@@ -240,7 +240,7 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
         offsets, keys = edge.offsets
         return frame.join(offsets, on=keys, how='inner')
 
-    remap = partial(axis.remap, moved=moved, prepared=offsetted)
+    remap = partial(ranked.remap, moved=moved, prepared=offsetted)
 
     def travelled_presences() -> tuple[Presence, ...]:
         """Where the variable exists after the shift, and what keys it.
@@ -261,7 +261,7 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
         """
         if not p.presences:
             if s.wrap or s.fill is not None:
-                return () if axis.grouping is None else (Presence(axis.placed(), axis.keys),)
+                return () if ranked.grouping is None else (Presence(ranked.placed(), ranked.keys),)
             return (Presence(edge.coordinates(vacated=False), edge.keys),)
         return tuple(travelled(x) for x in p.presences)
 
@@ -283,7 +283,7 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
 
 @dataclass(frozen=True)
 class _Edge:
-    """The edge of an acyclic shift along an :class:`_Axis`: which coordinates it vacates, and what keys them.
+    """The edge of an acyclic shift along a :class:`_Ranked` dimension: which coordinates it vacates, and what keys them.
 
     Keyed by the translated dimension, a named offset's own dims and the
     partition's joined dims, each once. How far back a row reaches decides
@@ -295,24 +295,24 @@ class _Edge:
     per group varies along the translated dimension itself.
     """
 
-    axis: _Axis
+    ranked: _Ranked
     shift: program.Translate
     #: The dims a per-entity offset varies over — empty where it is a number.
     offset_dims: tuple[str, ...]
-    #: A named offset's values and the keys the axis table reads them by, or ``None`` for a number.
+    #: A named offset's values and the keys the ranked table reads them by, or ``None`` for a number.
     offsets: tuple[pl.LazyFrame, list[str]] | None
 
     @classmethod
-    def of(cls, compiler: PolarsCompiler, axis: _Axis, s: program.Translate) -> _Edge:
+    def of(cls, compiler: PolarsCompiler, ranked: _Ranked, s: program.Translate) -> _Edge:
         if not isinstance(s.offset, str):
-            return cls(axis, s, (), None)
+            return cls(ranked, s, (), None)
         dims = compiler.program.parameter(s.offset).dims
-        offset_dims = tuple(d for d in dims if axis.group_column(d) is None)
-        return cls(axis, s, offset_dims, _named_amount(compiler, axis, s.offset, _OFFSET))
+        offset_dims = tuple(d for d in dims if ranked.group_column(d) is None)
+        return cls(ranked, s, offset_dims, _named_amount(compiler, ranked, s.offset, _OFFSET))
 
     @property
     def keys(self) -> tuple[str, ...]:
-        return tuple(dict.fromkeys((self.axis.dimension, *self.offset_dims, *self.axis.joined)))
+        return tuple(dict.fromkeys((self.ranked.dimension, *self.offset_dims, *self.ranked.joined)))
 
     def coordinates(self, *, vacated: bool) -> pl.LazyFrame:
         """The coordinates the shift vacates, or keeps, under :attr:`keys`.
@@ -323,15 +323,15 @@ class _Edge:
         the translation itself walks: a coordinate reaches outside its own
         group exactly where it would have reached outside the axis. A
         coordinate in no group is neither — it is absent, the reading
-        :meth:`_Axis.placed` gives it, so it is not in the table at all. A
+        :meth:`_Ranked.placed` gives it, so it is not in the table at all. A
         per-group offset reaches it by the group column rather than by a
         cross join, one lag standing for the whole group.
         """
-        axis, s = self.axis, self.shift
-        table, position, span = axis.table, axis.position, axis.span
+        ranked, s = self.ranked, self.shift
+        table, position, span = ranked.table, ranked.position, ranked.span
         if self.offsets is not None:
             offsets, keys = self.offsets
-            on = [key for key in keys if axis.grouping is not None and key in axis.grouping.key]
+            on = [key for key in keys if ranked.grouping is not None and key in ranked.grouping.key]
             table = table.join(offsets, on=on, how='inner') if on else table.join(offsets, how='cross')
             offset = pl.col(_OFFSET)
         else:
@@ -387,7 +387,7 @@ class _Edge:
         return rows.join(edge, on=keys, how='inner') if keys else rows.join(edge, how='cross')
 
 
-def _named_amount(compiler: PolarsCompiler, axis: _Axis, name: str, alias: str) -> tuple[pl.LazyFrame, list[str]]:
+def _named_amount(compiler: PolarsCompiler, ranked: _Ranked, name: str, alias: str) -> tuple[pl.LazyFrame, list[str]]:
     """A named offset's or width's values, and the keys a frame reads them by.
 
     A **per-group** amount is declared over a dimension the partition groups
@@ -398,7 +398,7 @@ def _named_amount(compiler: PolarsCompiler, axis: _Axis, name: str, alias: str) 
     reaches everywhere else.
     """
     dims = compiler.program.parameter(name).dims
-    keys = [axis.group_column(d) or d for d in dims]
+    keys = [ranked.group_column(d) or d for d in dims]
     frame = compiler.data.parameters[name].select(
         *(pl.col(d).alias(key) for d, key in zip(dims, keys, strict=True)),
         pl.col('value').cast(pl.Int64).alias(alias),
