@@ -52,7 +52,7 @@ from lpspec.relational.engines.polars.predicates import (
     falsy_if_null,
 )
 from lpspec.relational.engines.polars.reindex import translate_fragment, window_fragment
-from lpspec.relational.engines.polars.relations import Ends, landed, mapping, walk_join
+from lpspec.relational.engines.polars.relations import joined_dims, landed, mapping, walk_join
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -699,9 +699,8 @@ class PolarsCompiler:
         spanned = [d for d in p.dims if d not in g.into]
         if spanned:
             universe = p.frame.select(spanned).unique().join(universe, how='cross')
-        ends = Ends.of(g.walks)
-        reached = landed(mapping(self.data.relations, g.walks), ends)
-        empty = universe.join(reached, on=list(ends.fine), how='anti')
+        reached = landed(mapping(self.data.relations, g.walks), g.walks)
+        empty = universe.join(reached, on=[*joined_dims(g.walks), *g.into], how='anti')
         return empty.with_columns(pl.lit(0.0, dtype=pl.Float64).alias('cval')).select(*p.dims, *p.carried)
 
     def _at_fragment(self, p: TermFragment, a: program.At, context: str) -> TermFragment:
@@ -740,23 +739,24 @@ class PolarsCompiler:
         dims while this frame keeps the columns that matter — the hazard
         :class:`Presence` names.
         """
-        ends = Ends.of(a.walks)
+        joined = joined_dims(a.walks)
+        fine = (*joined, *a.over)
         table = mapping(self.data.relations, a.walks)
-        reachable = landed(table, ends).unique()
+        reachable = landed(table, a.walks).unique()
         if not p.presences:
-            total = math.prod(self.data.cardinality[d] for d in ends.fine)
+            total = math.prod(self.data.cardinality[d] for d in fine)
             reached = reachable.select(pl.len()).collect().item()
-            return () if reached == total else (Presence(reachable, ends.fine),)
+            return () if reached == total else (Presence(reachable, fine),)
 
         def pulled(presence: Presence) -> Presence:
             keys = presence.keys(p.dims)
             if not keys:
-                return Presence(presence.restrict(reachable, keys), ends.fine)
-            carries_targets = all(i in keys for i in (*ends.consumed, *ends.joined))
+                return Presence(presence.restrict(reachable, keys), fine)
+            carries_targets = all(i in keys for i in (*a.into, *joined))
             source, keys = (
                 (presence.frame, keys) if carries_targets else (self.widen(presence.frame, keys, p.dims), p.dims)
             )
-            return Presence(*walk_join(source, table, ends, keys))
+            return Presence(*walk_join(source, table, a.walks, keys))
 
         return tuple(pulled(x) for x in p.presences)
 
@@ -768,8 +768,7 @@ class PolarsCompiler:
         (:meth:`_group_fragment`); an ``At`` reads the same tables backwards
         (:meth:`_at_fragment`).
         """
-        ends = Ends.of(walks)
-        frame, dims = walk_join(p.frame, mapping(self.data.relations, walks), ends, p.dims, p.carried)
+        frame, dims = walk_join(p.frame, mapping(self.data.relations, walks), walks, p.dims, p.carried)
         return TermFragment(dims, frame, p.kind)
 
     def widen(self, presence: pl.LazyFrame, have: tuple[str, ...], want: tuple[str, ...]) -> pl.LazyFrame:

@@ -5,10 +5,10 @@ relation an operator consumes, produces and joins on. The engine reads by
 *dimension*, since an operand carries its coordinates under the dimensions'
 names. Everything here is that translation, spelled once:
 
-- a group or a pullback trades the :class:`Ends` its walks name through
-  :func:`walk_join`, against the :func:`mapping` table;
-- a partition ranks the walked dimension inside a :class:`Grouping`;
-- a ``where`` reads a value column at the key through :func:`keyed`.
+- a group or a pullback trades the dimensions its walks consume for the
+  ones they produce through :func:`walk_join`, against the :func:`mapping`
+  table;
+- a partition ranks the walked dimension inside a :class:`Grouping`.
 
 Nothing here reads data or holds state: every function takes the attached
 frames and returns a lazy query.
@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
 
     from math_spec import program
 
@@ -60,31 +60,13 @@ def group_column(role: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class Ends:
-    """The dimensions a node's walks trade: consumed for produced, at each coordinate of the joined.
+def joined_dims(walks: Sequence[program.Walk]) -> tuple[str, ...]:
+    """The dimensions *walks* join on, each once — the key columns neither consumed nor produced, which the operand carries."""
+    return _each_once(d for walk in walks for d in walk.joined_dims)
 
-    Each dimension once. Every walk of one node consumes the same dimensions,
-    and several pullbacks land on the same fine ones, so the union is the
-    node's answer rather than a walk's.
-    """
 
-    consumed: tuple[str, ...]
-    joined: tuple[str, ...]
-    produced: tuple[str, ...]
-
-    @classmethod
-    def of(cls, walks: Sequence[program.Walk]) -> Ends:
-        return cls(
-            tuple(dict.fromkeys(d for walk in walks for d in walk.consumed_dims)),
-            tuple(dict.fromkeys(d for walk in walks for d in walk.joined_dims)),
-            tuple(dict.fromkeys(d for walk in walks for d in walk.produced_dims)),
-        )
-
-    @property
-    def fine(self) -> tuple[str, ...]:
-        """The dimensions a pullback's result is keyed by: the joined ones and the produced ones."""
-        return (*self.joined, *self.produced)
+def _each_once(dims: Iterable[str]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(dims))
 
 
 def mapping(relations: Mapping[str, pl.LazyFrame], walks: Sequence[program.Walk]) -> pl.LazyFrame:
@@ -111,40 +93,49 @@ def _walked(table: pl.LazyFrame, walk: program.Walk) -> pl.LazyFrame:
     )
 
 
-def landed(mapping: pl.LazyFrame, ends: Ends) -> pl.LazyFrame:
+def landed(mapping: pl.LazyFrame, walks: Sequence[program.Walk]) -> pl.LazyFrame:
     """*mapping* at the coordinates it lands on: the joined dimensions and the produced ones, under their names."""
-    return mapping.select(*ends.joined, *(pl.col(landing(d)).alias(d) for d in ends.produced))
+    produced = _each_once(d for walk in walks for d in walk.produced_dims)
+    return mapping.select(*joined_dims(walks), *(pl.col(landing(d)).alias(d) for d in produced))
 
 
 def walk_join(
-    frame: pl.LazyFrame, mapping: pl.LazyFrame, ends: Ends, have: Sequence[str], columns: Sequence[str] = ()
+    frame: pl.LazyFrame,
+    mapping: pl.LazyFrame,
+    walks: Sequence[program.Walk],
+    have: Sequence[str],
+    columns: Sequence[str] = (),
 ) -> tuple[pl.LazyFrame, tuple[str, ...]]:
     """*frame* traded through *mapping*: one inner equi-join, and the dimensions the result is over.
 
-    The join keys on the consumed and joined dimensions, and on a produced
-    dimension the frame already carries — the masked sum the language reads
-    that as. The result keeps every dimension of *have* but the consumed
-    ones, gains every other produced dimension under its own name, and keeps
-    *columns* beside them. The consumed and the gained may be one dimension,
-    which a self-map does, so the two are traded in a single select.
+    The join keys on the dimensions the walks consume and join on, and on a
+    produced dimension the frame already carries — the masked sum the
+    language reads that as. The result keeps every dimension of *have* but
+    the consumed ones, gains every other produced dimension under its own
+    name, and keeps *columns* beside them. The consumed and the gained may be
+    one dimension, which a self-map does, so the two are traded in a single
+    select.
 
     Args:
         frame: The operand, carrying *have* and *columns*.
         mapping: :func:`mapping` for the same walks.
-        ends: :class:`Ends` of the same walks.
+        walks: The node's walks.
         have: The dimensions *frame* carries.
         columns: The other columns to keep — a fragment's carried ones.
 
     Returns:
         The traded frame, and the dimensions it is over, in order.
     """
-    keep = [d for d in have if d not in ends.consumed]
-    carried = [d for d in ends.produced if d in keep]
-    gained = [d for d in ends.produced if d not in keep]
+    consumed = _each_once(d for walk in walks for d in walk.consumed_dims)
+    produced = _each_once(d for walk in walks for d in walk.produced_dims)
+    joined = joined_dims(walks)
+    keep = [d for d in have if d not in consumed]
+    carried = [d for d in produced if d in keep]
+    gained = [d for d in produced if d not in keep]
     traded = frame.join(
         mapping,
-        left_on=[*ends.consumed, *ends.joined, *carried],
-        right_on=[*ends.consumed, *ends.joined, *(landing(d) for d in carried)],
+        left_on=[*consumed, *joined, *carried],
+        right_on=[*consumed, *joined, *(landing(d) for d in carried)],
         how='inner',
     ).select(*keep, *(pl.col(landing(d)).alias(d) for d in gained), *columns)
     return traded, (*keep, *gained)
@@ -232,23 +223,3 @@ class Grouping:
         carries it.
         """
         return next((column for column, over in zip(self.groups, self.grouped, strict=True) if over == dim), None)
-
-
-# ---------------------------------------------------------------------------
-# a where: a relation read at its key
-# ---------------------------------------------------------------------------
-
-
-def keyed(
-    table: pl.LazyFrame, declaration: program.RelationDeclaration, dims: tuple[str, ...], column: str | None, alias: str
-) -> pl.LazyFrame:
-    """*declaration*'s table read at *dims* — one value column under *alias*, or with ``None`` a marker that a row is there.
-
-    The frame supplies the key's dimensions for a keyed relation and every
-    column's for a bare one, which is what the plan stamps on the leaf; the
-    columns read at are the relation's own, matched to *dims* in order.
-    """
-    roles = declaration.key or declaration.roles
-    assert tuple(declaration.dim(role) for role in roles) == dims, f"relation '{declaration.name}' is read at its key"
-    read = pl.col(column) if column is not None else pl.lit(value=True)
-    return table.select(*(pl.col(role).alias(dim) for role, dim in zip(roles, dims, strict=True)), read.alias(alias))

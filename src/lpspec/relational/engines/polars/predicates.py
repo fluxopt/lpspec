@@ -24,7 +24,7 @@ import polars as pl
 from math_spec import program
 
 from lpspec.errors import DataError, position_out_of_range_message, short_groups_message
-from lpspec.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE, Grouping, keyed
+from lpspec.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE, Grouping
 
 if TYPE_CHECKING:
     import datetime
@@ -150,14 +150,26 @@ def compile_predicate(
         )
 
     def join_relation(relation: str, dims: tuple[str, ...], column: str | None) -> str:
-        """*relation* read at *dims* — one value column, or with ``None`` whether a row is there at all."""
+        """*relation* read at *dims* — one value column, or with ``None`` whether a row is there at all.
+
+        The frame supplies the key's dimensions for a keyed relation and every
+        column's for a bare one, which is what the plan stamped on the leaf;
+        the columns read at are the relation's own, matched to *dims* in order.
+        """
         for dim in dims:
             refuse_outside_frame(f"relation '{relation}' reading dimension '{dim}'", dim)
-        declaration = compiler.program.relations[relation]
+        shape = compiler.program.relations[relation]
+        roles = shape.key or shape.roles
+        assert tuple(shape.dim(role) for role in roles) == dims, f"relation '{relation}' is read at its key"
+        read = pl.col(column) if column is not None else pl.lit(value=True)
         return carrier.once(
             f'__where relation {relation}.{column or ""}__',
             lambda f, alias: f.join(
-                keyed(compiler.data.relations[relation], declaration, dims, column, alias), on=list(dims), how='left'
+                compiler.data.relations[relation].select(
+                    *(pl.col(role).alias(dim) for role, dim in zip(roles, dims, strict=True)), read.alias(alias)
+                ),
+                on=list(dims),
+                how='left',
             ),
         )
 
