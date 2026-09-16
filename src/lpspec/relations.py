@@ -32,6 +32,7 @@ if TYPE_CHECKING:
         Program,
         RelationDeclaration,
         Translate,
+        Walk,
         Window,
     )
 
@@ -47,7 +48,7 @@ def refusal(program: Program) -> str | None:
     for node in _partitioning(program):
         assert node.partition is not None, '_partitioning yields only the nodes that carry one'
         if len(node.partition.key) > 1:
-            return _partition_by_a_conditioned_map_message(node.partition.relation)
+            return _partition_by_a_conditioned_map_message(node.partition)
     return None
 
 
@@ -77,13 +78,20 @@ def _wider_than_a_map_message(name: str, relation: RelationDeclaration) -> str:
     )
 
 
-def _partition_by_a_conditioned_map_message(relation: RelationDeclaration) -> str:
-    """A ``shift``, ``sum_back`` or ``position`` grouped by a map keyed on more than the dimension it walks."""
+def _partition_by_a_conditioned_map_message(walk: Walk) -> str:
+    """A ``shift``, ``sum_back`` or ``position`` grouped by a map keyed on more than the dimension it walks.
+
+    The language admits this one: the walk joins on the rest of the key, and
+    the operand carries those dimensions. What cannot build it is the group
+    table here, which ranks a dimension inside one group per key column.
+    """
+    relation = walk.relation
     return (
-        f"relation '{relation.name}' is keyed by {list(relation.key)}, and a partitioned shift, "
-        f'sum_back or position groups by a map keyed by the one dimension it walks: which group a '
-        f'coordinate is in would otherwise depend on the other key columns, and the walk has no row '
-        f"to read them at. Declare a relation keyed by '{relation.dim(relation.key[0])}' alone for "
+        f"relation '{relation.name}' is keyed by {list(relation.key)}, and this package groups a "
+        f'partitioned shift, sum_back or position by a map keyed by the dimension it walks alone. '
+        f'The language admits the wider key — the walk joins on {list(walk.joined_dims)} — but the '
+        f'group table here ranks each dimension inside one group per key column and carries no '
+        f"column for the rest of it. Declare a relation keyed by '{walk.consumed_dims[0]}' alone for "
         f'the grouping, or drop the by= and walk the whole axis.'
     )
 
