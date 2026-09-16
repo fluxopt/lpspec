@@ -84,7 +84,7 @@ DIMENSIONS = {
     'generator': pl.LazyFrame(schema={'val': pl.String, 'ord': pl.Int64}),
     'bus': pl.LazyFrame(schema={'val': pl.String, 'ord': pl.Int64}),
 }
-RELATIONS = {'gen_bus': pl.LazyFrame(schema={'generator': pl.String, 'gen_bus': pl.String})}
+RELATIONS = {'gen_bus': pl.LazyFrame(schema={'generator': pl.String, 'bus': pl.String})}
 PARAMETERS = {
     'cost': pl.LazyFrame(schema={'generator': pl.String, 'value': pl.Float64}),
     'load': pl.LazyFrame(schema={'snapshot': pl.Int64, 'value': pl.Float64}),

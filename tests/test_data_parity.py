@@ -422,7 +422,7 @@ _MAP = {'gen_bus': _tidy(g=['w', 's'], b=['n', 'e'])}
         ),
         pytest.param(
             {**_P_MAX, **_MAP, 'g': _tidy(g=['w', 's'], gen_bus=['n', 'e'])},
-            "is a relation keyed over 'g'",
+            "is a relation with a column over 'g'",
             id='a-map-carried-on-the-index-it-runs-over',
         ),
     ],

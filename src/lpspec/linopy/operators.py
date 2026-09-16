@@ -57,71 +57,83 @@ def _empty_sum(array: Any, over: str) -> Any:
 
 
 def operator_grouped_sum(
-    array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...], labels: Mapping[str, pd.Index]
+    array: Any,
+    mappings: tuple[Any, ...],
+    *,
+    into: tuple[str, ...],
+    joined: tuple[str, ...] = (),
+    labels: Mapping[str, pd.Index],
 ) -> Any:
     """Sum *array* through declared relations, producing dimensions *into*.
 
     YAML: ``sum(p, by=gen_bus)`` or ``sum(p, by=[gen_bus, gen_tech])``.
-    *mappings* are the maps' values as one-dimensional arrays over the dim
-    being grouped; that dim is summed out and *into* holds the group labels,
-    one dim per relation.
+    *mappings* are the maps' values as arrays over the dimensions their key
+    names — one dimension for a plain map, and one more per condition where the
+    key is several columns. The walked dimension is summed out and *into* holds
+    the group labels, one dim per relation.
 
-    A null value says the label belongs to no group, so its terms
-    contribute nowhere. linopy refuses to group by NaN at all, so those members
-    are dropped before grouping — and with several relations a member missing
-    *any* of them belongs to no group at all.
+    A null value says the key belongs to no group, so its terms contribute
+    nowhere. linopy refuses to group by NaN at all, so the operand is masked
+    to absent at those keys and a declared label stands in for them — which is
+    what lets a key of several columns leave one combination out without
+    dropping a whole label of any one dimension. With several relations a key
+    missing *any* of them belongs to no group.
 
-    *labels* holds each target's declared index, and the result is reindexed
-    onto them: a groupby yields only the labels some member actually points at,
-    in xarray's sort order, and linopy v1 aligns on membership *and* order.
-    A map's values are validated against their target's labels when they are
-    loaded, so this only ever adds a label, never drops a term.
+    *joined* names the dimensions the key holds beside the one walked: they
+    are group keys too, so a group is a (value, condition) pair rather than a
+    value summed across conditions — which is what the whole two-dimensional
+    label array would otherwise collapse into.
+
+    *labels* holds each group dimension's declared index, and the result is
+    reindexed onto them: a groupby yields only the labels some member actually
+    points at, in xarray's sort order, and linopy v1 aligns on membership *and*
+    order. A map's values are validated against their target's labels when they
+    are loaded, so this only ever adds a label, never drops a term.
     """
     mappings = _renamed(mappings, into)
     present = _present(mappings)
-    dim = str(mappings[0].dims[0])
     if not bool(present.all()):
-        mask = present.to_numpy()
-        mappings = tuple(m.isel({dim: mask}) for m in mappings)
-        array = array.isel({dim: mask})
-    attached = array.assign_coords({target: (dim, m.to_numpy()) for target, m in zip(into, mappings, strict=True)})
-    summed = attached.groupby(list(into)).sum()
-    return _reindexed(summed, into=into, labels=labels)
+        array = array.where(present)
+        mappings = tuple(m.fillna(labels[t][0]) for m, t in zip(mappings, into, strict=True))
+    attached = array.assign_coords({t: (m.dims, m.to_numpy()) for t, m in zip(into, mappings, strict=True)})
+    groups = (*into, *joined)
+    summed = attached.groupby(list(groups)).sum()
+    return _reindexed(summed, into=groups, labels=labels)
 
 
 def operator_at(array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...]) -> Any:
     """Read *array* through declared relations — the adjoint of a group.
 
-    YAML: ``at(on, by=component)``. *mappings* are the same one-dimensional
-    arrays ``sum`` takes; grouping sums *along* them, this indexes *through*
-    them, so the operand must carry every dim in ``into`` and the result
-    carries the mappings' own dim. xarray's vectorised selection is the
-    pullback exactly — one ``into`` label read once per fine label pointing at
-    it.
+    YAML: ``at(on, by=component)``. *mappings* are the same arrays ``sum``
+    takes; grouping sums *along* them, this indexes *through* them, so the
+    operand must carry every dim in ``into`` and the result carries the
+    mappings' own dims. xarray's vectorised selection is the pullback exactly
+    — one ``into`` label read once per fine key pointing at it, pointwise
+    along a condition the operand already carries.
 
     A null value reads nothing and its row is absent, the same reading
-    ``sum`` gives a null group. It cannot be selected, so it is dropped from
-    the indexer and the result is put back over the whole dim, the missing
-    positions holding the operand's own **absence** rather than a zero: absence
-    propagates and takes the row with it, where a zero would leave a row
-    asserting ``x <= 0`` at a coordinate the model said nothing about.
+    ``sum`` gives a null group. It cannot be selected, so a declared label
+    stands in for it and the result is masked back out at exactly those
+    coordinates, which leaves them holding the operand's own **absence**
+    rather than a zero: absence propagates and takes the row with it, where a
+    zero would leave a row asserting ``x <= 0`` at a coordinate the model said
+    nothing about.
 
-    **The coordinate comes back as the fine labels**, which a selection through
-    a map onto the fine dimension's own dimension would otherwise leave as the
-    labels it read: a self-map reads ``snapshot`` at ``snapshot``, and the row
-    the value lands at is the one that read it, not the one it read.
+    **The coordinates come back as the fine labels**, which a selection
+    through a map onto the fine dimension's own dimension would otherwise
+    leave as the labels it read: a self-map reads ``snapshot`` at
+    ``snapshot``, and the row the value lands at is the one that read it, not
+    the one it read.
     """
     mappings = _renamed(mappings, into)
     present = _present(mappings)
-    dim = str(mappings[0].dims[0])
-    labels = mappings[0][dim]
+    fine = {str(d): mappings[0].coords[d] for d in mappings[0].dims}
     if bool(present.all()):
-        picked = array.sel(dict(zip(into, mappings, strict=True)))
-        return picked.assign_coords({dim: labels})
+        return array.sel(dict(zip(into, mappings, strict=True))).assign_coords(fine)
 
-    kept = present.to_numpy()
-    picked = array.sel(dict(zip(into, (m.isel({dim: kept}) for m in mappings), strict=True)))
-    return picked.assign_coords({dim: labels[kept]}).reindex({dim: labels})
+    stood_in = tuple(m.fillna(array.coords[t].to_numpy()[0]) for m, t in zip(mappings, into, strict=True))
+    picked = array.sel(dict(zip(into, stood_in, strict=True))).assign_coords(fine)
+    return picked.where(present)
 
 
 @dataclass(frozen=True)

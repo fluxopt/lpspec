@@ -890,7 +890,7 @@ The tables this rung is the first to declare (31), as the prep produced them:
 `StorageUnit_bus.csv`
 
 ```csv
-storage_unit,StorageUnit_bus
+storage_unit,bus
 battery,south
 reservoir,south
 ```
@@ -1066,7 +1066,7 @@ snapshot,storage_unit,value
 `Store_bus.csv`
 
 ```csv
-store,Store_bus
+store,bus
 cavern,south
 ```
 

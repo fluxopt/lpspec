@@ -136,5 +136,5 @@ def test_a_self_map_supplied_twice_for_one_key_is_refused():
     """Both columns are over one dimension; the key is still the one the file named."""
     sources = _inputs()
     sources['rep_of'] = pl.concat([REP_OF, REP_OF.head(1)])
-    with pytest.raises(lps.DataError, match=r"maps 1 'snapshot' label\(s\) more than once"):
+    with pytest.raises(lps.DataError, match=r'maps 1 key\(s\) more than once: snapshot=0'):
         lps.solve(SPEC, sources)

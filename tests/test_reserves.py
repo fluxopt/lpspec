@@ -20,7 +20,6 @@ import polars as pl
 import pytest
 
 import lpspec as lps
-from lpspec.relations import maps_out_of
 from tests.conftest import EXAMPLES_DIR, port_sources
 from tests.differential import RTOL, differential
 
@@ -93,8 +92,9 @@ def test_each_many_to_many_shape_moves_the_optimum(mutate, direction):
 
 def test_the_instance_actually_holds_every_shape():
     """The mutations above prove effect; this pins presence, so neither can rot alone."""
-    maps = maps_out_of(lps.check(RESERVES_YAML), 'offer')
-    assert set(maps) == {'gen_of', 'market_of', 'tranche_of'}, 'the offer set is three-legged — the k-ary case'
+    program = lps.check(RESERVES_YAML)
+    maps = {name for name, r in program.relations.items() if 'offer' in {r.dim(k) for k in r.key}}
+    assert maps == {'gen_of', 'market_of', 'tranche_of'}, 'the offer set is three-legged — the k-ary case'
     sources = port_sources('reserves')
     endpoints = (
         sources['line_from']

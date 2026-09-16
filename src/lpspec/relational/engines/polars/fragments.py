@@ -70,6 +70,16 @@ GROUP_RANK = '__pos in group__'
 GROUP_SIZE = '__group size__'
 
 
+def group_column(role: str) -> str:
+    """The column a partitioned dimension table carries one group-making value column of the relation under.
+
+    Named for the role rather than its dimension, since a group may hold two
+    columns over one dimension, and kept apart from the dimension's own name,
+    which the operand may carry as an axis of its own.
+    """
+    return f'__group {role}__'
+
+
 @dataclass(frozen=True)
 class Presence:
     """Where the *variable* under a fragment exists, and what keys it.

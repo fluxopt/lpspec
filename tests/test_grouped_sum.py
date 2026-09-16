@@ -529,7 +529,7 @@ def test_a_mistyped_month_is_a_typo_and_not_a_new_group(monthly):
     typo = month_of.with_columns(
         pl.when(pl.col('month') == '2030-03').then(pl.lit('2030-3')).otherwise(pl.col('month')).alias('month')
     )
-    with pytest.raises(DataError, match=r"relation 'month_of' has value\(s\) that are not 'month' labels"):
+    with pytest.raises(DataError, match=r"relation 'month_of' has value\(s\) in 'month' that are not 'month' labels"):
         lps.solve(MONTHLY_YAML, {**sources, 'month_of': typo})
 
 

@@ -14,7 +14,6 @@ from math_spec.program import Program
 
 from lpspec.errors import LpspecError
 from lpspec.relational.sinks.capabilities import Capabilities
-from lpspec.relations import refusal as _relation_refusal
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping
@@ -140,11 +139,9 @@ def lowered(spec: Buildable) -> Program:
     Raises:
         LanguageError: A construct outside the streaming language.
         LpspecError: Two declarations of one namespace whose names differ only
-            by case, or a relation wider than the single-valued map either lane
-            builds.
+            by case.
     """
     program = to_program(spec)
-    for refused in (_case_collision(program), _relation_refusal(program)):
-        if refused is not None:
-            raise LpspecError(refused)
+    if (refused := _case_collision(program)) is not None:
+        raise LpspecError(refused)
     return program

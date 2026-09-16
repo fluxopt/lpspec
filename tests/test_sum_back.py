@@ -359,7 +359,7 @@ def test_a_window_width_may_be_read_per_group():
     """``window=`` over the dimension the partition groups into.
 
     No frame carries a column of `day`: what travels with an hour is the
-    relation's own value, so the width is read under the relation's name and each
+    relation's own value, so the width is read under the group's column and each
     group is reached by its own. The two days differ, which is what a single
     width cannot reproduce.
     """
