@@ -400,8 +400,8 @@ conventions are in `compiler.py` and `fragments.py`.
 `assembly.py`, `sinks/`, and `engine.py`, which runs that lifecycle and holds
 the solver between solves. `labels.py`, `readback.py` and `result.py` sit beside
 the engine, because each answers a question the engine only *uses*.
-`fragments.py`, `predicates.py`, `reindex.py` and `status.py` are off the spine
-and undrawn. `frames.py`, the other boundary, is top level because
+`fragments.py`, `predicates.py`, `reindex.py`, `coverage.py` and `status.py` are
+off the spine and undrawn. `frames.py`, the other boundary, is top level because
 all three consumers read it. The [module map](#module-map) says what each does.
 
 That split makes the ceiling's admissibility test something you can *perform*:
@@ -557,6 +557,7 @@ is structure.
 | `relational/engines/polars/labels.py` | which coordinate gets which solver index; one rule, one guarded shortcut that must agree with it |
 | `relational/engines/polars/attaching.py` | the door's tables → `AttachedSources`, the frozen, `Enum`-encoded tables every query is written against |
 | `relational/engines/polars/assembly.py` | one build: every declaration into rows of the model tables, quadratic constraints last |
+| `relational/engines/polars/coverage.py` | is the data there where a declaration reads it: a divisor, and a constant piece, each refused at the last moment the gap is still visible |
 | `relational/engines/polars/readback.py` | a built row, a solve's tables and a named expression, spelled back out in the model's own labels |
 | `relational/engines/polars/engine.py` | the lifecycle: build, hand to a sink, read back; the counters and clocks `diagnostics()` reports; and the one read with no build, a spec of parameters and expressions valued as arithmetic |
 | `relational/result.py` | what a solve returned: status, objective, the label joins that read values back, and the deferred expression readers |

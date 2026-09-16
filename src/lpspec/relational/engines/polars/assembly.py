@@ -10,30 +10,21 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from operator import itemgetter
 from typing import TYPE_CHECKING, get_args
 
 import numpy as np
 import polars as pl
 from math_spec import program
 
-from lpspec.errors import DataError, null_bounds_message, sparse_divisor_message, uncovered_constant_message
+from lpspec.errors import DataError, null_bounds_message
 from lpspec.relational import sinks
 from lpspec.relational.collect import polars_engine
-from lpspec.relational.engines.polars import labels
+from lpspec.relational.engines.polars import coverage, labels
 from lpspec.relational.engines.polars.compiler import PolarsCompiler
-from lpspec.relational.engines.polars.fragments import (
-    TermFragment,
-    absence_restrictions,
-    both_regions,
-    constant_scalar,
-    join_on,
-)
+from lpspec.relational.engines.polars.fragments import TermFragment, absence_restrictions, join_on
 from lpspec.relational.sinks.tables import SENSE
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
     import numpy.typing as npt
     from math_spec.program import ObjectiveSense
     from polars._typing import MaintainOrderJoin
@@ -223,21 +214,6 @@ class Assembly:
             objective_sense=self.obj_sense,
         )
 
-    def _refuse_undefined_divisors(
-        self, stacked: pl.DataFrame, name: str, *expressions: program.ExpressionNode
-    ) -> None:
-        """A null coefficient means a divisor had no value where the model divided.
-
-        A quotient left-joins its divisor, so a missing value leaves a null —
-        and a term whose row was masked out, or whose numerator variable is
-        absent, never gets this far. Asked of the stack before any cell
-        collapses, since ``sum`` reads a null as zero.
-        """
-        undefined = int(stacked.get_column('coeff').null_count())
-        if undefined:
-            params = sorted(program.divisor_parameters(*expressions))
-            raise DataError(f'{name}: {sparse_divisor_message(", ".join(params), undefined)}')
-
     def _matrix_share(
         self, pieces: list[pl.LazyFrame], name: str, *expressions: program.ExpressionNode
     ) -> tuple[pl.DataFrame, pl.Series]:
@@ -263,7 +239,7 @@ class Assembly:
             no terms.
         """
         stacked = pl.concat(pieces).collect(engine=polars_engine()).rechunk()
-        self._refuse_undefined_divisors(stacked, name, *expressions)
+        coverage.refuse_null_coefficients(stacked, name, *expressions)
         pruned = _pruned(stacked)
         term_rows = stacked.get_column('row').unique() if pruned.height != stacked.height else None
         stacked = pruned
@@ -387,20 +363,11 @@ class Assembly:
     ) -> tuple[pl.DataFrame, pl.DataFrame | None, pl.DataFrame | None]:
         """One constraint as its ``rows``, its share of the matrix, and its quadratic share.
 
-        Terms normalise to the left, constants to the right. Each constant
-        fragment is aggregated to its own coordinates and left-joined, so a
-        coordinate it has no row for contributes zero.
-
-        **The coverage check rides on the rows pass rather than taking its
-        own**, both reading the same joined carrier. The flag is a boolean
-        column dropped once counted, and the refusal still precedes any use of
-        the rows. It answers for the piece the row is given, which is why a
-        piece that arrives short of the parameter behind it — a translation past
-        the edge, a group no member maps to — is caught here and nowhere else.
-
-        What it cannot answer for is a gap an aggregation summed away, so the
-        two checks above it ask the fragments and the parameters instead,
-        before :func:`constant_scalar` collapses either.
+        Terms normalise to the left, constants to the right. Whether the data
+        is there where the row reads it is :mod:`coverage`'s to answer, in the
+        order its table gives: the two questions an aggregation would hide are
+        asked of the pieces and the parameters first, and the rows pass then
+        carries the third.
 
         Duplicates from ``Sum`` and ``GroupSum`` — which project rather than
         aggregate — and from ``x + 2 * x`` collapse in :meth:`_matrix_share`'s
@@ -429,39 +396,13 @@ class Assembly:
         frame = labelled.lazy()
         self.constraints[name] = labels.Labelled(frame, start, labelled.height)
 
-        self._refuse_undefined_constant_divisors(frame, [p for p, _ in consts], name, c)
-        self._refuse_short_constant_parameters(frame, name, c)
-
-        accumulated = pl.lit(0.0, dtype=pl.Float64)
-        uncovered: pl.Expr | None = None
-        carrier = frame
-        for i, (p, sign) in enumerate(consts):
-            column = f'__const {i}__'
-            aggregated = constant_scalar(p).rename({'cval': column})
-            carrier = join_on(carrier, aggregated, p.dims, 'left')
-            accumulated = accumulated + sign * pl.col(column).fill_null(0.0)
-            gap = pl.col(column).is_null()
-            if p.region is not None:
-                inside = f'__inside {i}__'
-                claimed = self.compiler.frame(c.dims, p.region).select(*c.dims).with_columns(pl.lit(True).alias(inside))
-                carrier = join_on(carrier, claimed, c.dims, 'left')
-                gap = gap & pl.col(inside).fill_null(False)
-            uncovered = gap if uncovered is None else uncovered | gap
-
-        gap_column = '__uncovered__'
-        rows = carrier.select(
-            'row',
-            pl.lit(c.sense, dtype=SENSE).alias('sense'),
-            accumulated.cast(pl.Float64).alias('rhs'),
-            *([uncovered.alias(gap_column)] if uncovered is not None else []),
-        ).collect(engine=polars_engine())
-
-        if uncovered is not None:
-            gaps = int(rows.get_column(gap_column).sum())
-            if gaps:
-                names = ', '.join(sorted(program.parameters_of(c.lhs, c.rhs)))
-                raise DataError(uncovered_constant_message(names, gaps, f"constraint '{name}'"))
-            rows = rows.drop(gap_column)
+        subject = f"constraint '{name}'"
+        pieces = [p for p, _ in consts]
+        coverage.refuse_null_constants(
+            coverage.narrowed_to_rows(frame, pieces), program.divisor_parameters(c.lhs, c.rhs), subject
+        )
+        coverage.refuse_short_constants(self.compiler, frame, pieces, c, subject, self.measured.sparse)
+        rows = coverage.constant_side(self.compiler, frame, consts, c, subject)
 
         if not terms and not quads:
             none = pl.Series('row', [], dtype=_DTYPES['row'])
@@ -480,7 +421,7 @@ class Assembly:
                 )
             )
         matrix, term_rows = (
-            self._matrix_share(pieces, f"constraint '{name}'", c.lhs, c.rhs)
+            self._matrix_share(pieces, subject, c.lhs, c.rhs)
             if pieces
             else (_stack([], _MATRIX), pl.Series('row', [], dtype=_DTYPES['row']))
         )
@@ -496,84 +437,6 @@ class Assembly:
         if qmatrix is not None:
             qmatrix = qmatrix.filter(pl.col('row').is_in(rows.get_column('row')))
         return rows, matrix, qmatrix
-
-    def _refuse_undefined_constant_divisors(
-        self, frame: pl.LazyFrame, consts: list[TermFragment], name: str, c: program.ConstraintDeclaration
-    ) -> None:
-        """A null value on the constant side means a divisor had no value where the model divided.
-
-        :meth:`_refuse_undefined_divisors` one position over, and asked before
-        :func:`constant_scalar` rather than after: a constant piece is summed
-        per coordinate on its way to the row, and polars reads a null as zero,
-        so a gap left behind for this to find is filled in by the time the
-        assembled constant is joined.
-
-        A piece keeping the row's own dims is narrowed to the rows built, the
-        semi-join standing in for the inner join that narrows a term; one that
-        lost them to a reduction is asked whole, because the rows summed into
-        a coordinate are exactly the rows a mask over the row's dims cannot
-        speak about. Whole still means *if the declaration builds a row at
-        all*, which is what the single carried row narrows it by — a ``where``
-        that emptied the frame has answered the question already.
-        """
-        divisors = sorted(program.divisor_parameters(c.lhs, c.rhs))
-        if not divisors:
-            return
-        within = [
-            p.frame.join(frame.select(*p.dims), on=list(p.dims), how='semi')
-            if p.dims
-            else p.frame.join(frame.select('row').head(1), how='cross')
-            for p in consts
-        ]
-        counts = pl.collect_all([f.select(pl.col('cval').null_count()) for f in within])
-        undefined = sum(int(count.item()) for count in counts)
-        if undefined:
-            raise DataError(f"constraint '{name}': {sparse_divisor_message(', '.join(divisors), undefined)}")
-
-    def _refuse_short_constant_parameters(
-        self, frame: pl.LazyFrame, name: str, c: program.ConstraintDeclaration
-    ) -> None:
-        """A parameter on a constant side must cover the coordinates the rows ask of it.
-
-        Asked of the *parameter* where :meth:`_build_constraint` asks the
-        assembled constant, because the parameter is what still has the answer
-        once an aggregation has stood between the two: a summed piece carries
-        one row per coordinate it does cover, so the gap it left is not a null
-        a join can find but a row that was never there.
-
-        Nothing is read for a parameter that arrived dense — it cannot be
-        short anywhere.
-        """
-        found = [
-            pair for side in (c.lhs, c.rhs) for pair in _constant_parameters(side) if pair[0] in self.measured.sparse
-        ]
-        for param, region in sorted(found, key=itemgetter(0)):
-            missing = self._uncovered_coordinates(frame, param, c, region)
-            if missing:
-                raise DataError(uncovered_constant_message(param, missing, f"constraint '{name}'"))
-
-    def _uncovered_coordinates(
-        self, frame: pl.LazyFrame, param: str, c: program.ConstraintDeclaration, region: program.Mask | None
-    ) -> int:
-        """How many coordinates *param* owes this constraint and has no row for.
-
-        The rows built carry the dims they share with the parameter; the dims a
-        reduction summed away are owed whole, a ``where`` over the row's dims
-        having no way to narrow them. A region narrows what is owed to the
-        coordinates it claims, as it does for the assembled constant — and a
-        region claiming no built row at all leaves the parameter owing nothing,
-        which is why the narrowing runs even where no dim is shared.
-        """
-        dims = self.program.parameter(param).dims
-        shared = tuple(d for d in dims if d in c.dims)
-        summed = tuple(d for d in dims if d not in c.dims)
-        built = frame
-        if region is not None:
-            built = join_on(built, self.compiler.frame(c.dims, region).select(*c.dims), c.dims, 'semi')
-        keys = built.select(*shared).unique() if shared else built.select('row').head(1)
-        needed = join_on(keys, self.compiler.frame(summed, None).select(*summed), (), 'cross') if summed else keys
-        holes = needed.join(self.attached.parameters[param].select(*dims), on=list(dims), how='anti')
-        return int(holes.select(pl.len()).collect().item())
 
     def _quadratic_share(
         self, frame: pl.LazyFrame, quads: list[tuple[TermFragment, float]], name: str, c: program.ConstraintDeclaration
@@ -595,7 +458,7 @@ class Assembly:
             for p, sign in quads
         ]
         stacked = pl.concat(pieces).collect(engine=polars_engine())
-        self._refuse_undefined_divisors(stacked, f"constraint '{name}'", c.lhs, c.rhs)
+        coverage.refuse_null_coefficients(stacked, f"constraint '{name}'", c.lhs, c.rhs)
         return _without_zeros(
             stacked.lazy()
             .group_by('row', 'col_l', 'col_r')
@@ -673,7 +536,7 @@ class Assembly:
             p.frame.select(pl.col('var_label').cast(_DTYPES['col']).alias('col'), pl.col('coeff')) for p in comp.terms
         ]
         stacked = pl.concat(pieces).collect(engine=polars_engine())
-        self._refuse_undefined_divisors(stacked, 'objective', o.expression)
+        coverage.refuse_null_coefficients(stacked, 'objective', o.expression)
         if _repeats_a_label(stacked.get_column('col'), self.n_cols):
             stacked = stacked.lazy().group_by('col').agg(pl.col('coeff').sum()).collect(engine=polars_engine())
         objective = _without_zeros(stacked)
@@ -700,7 +563,7 @@ class Assembly:
             return None
         pieces = [p.frame.select(*_ordered_pair(), pl.col('coeff')) for p in quads]
         stacked = pl.concat(pieces).collect(engine=polars_engine())
-        self._refuse_undefined_divisors(stacked, 'objective', expression)
+        coverage.refuse_null_coefficients(stacked, 'objective', expression)
         if stacked.select(pl.struct('col_l', 'col_r').n_unique()).item() != stacked.height:
             stacked = (
                 stacked.lazy().group_by('col_l', 'col_r').agg(pl.col('coeff').sum()).collect(engine=polars_engine())
@@ -724,51 +587,6 @@ def short_parameters(program: program.Program, attached: AttachedSources) -> dic
         if rows < reach:
             short[name] = (reach, rows)
     return short
-
-
-def _constant_parameters(
-    node: program.ExpressionNode, region: program.Mask | None = None, coefficient: bool = False
-) -> Iterator[tuple[str, program.Mask | None]]:
-    """Every parameter standing as a constant piece under *node*, each with the region it stands in.
-
-    A constant piece is a parameter in a variable-free additive position — `hi`
-    in `x + hi`, or in `sum(x) + sum(hi)`. A parameter a variable stands with in
-    a product is a coefficient instead, and a sparse coefficient is a zero the
-    absence rules allow, so ``coefficient`` records having passed through such a
-    product on the way down and suppresses the parameters below it. Additive
-    structure, a reduction and a division by it leave the flag as it was.
-
-    A region narrows what the pieces under it owe, and regions compose by
-    conjunction as the walk descends, which is what
-    :func:`~lpspec.relational.engines.polars.fragments.both_regions` says for a
-    product of two pieces.
-
-    Args:
-        node: The expression to walk.
-        region: The region *node* already stands in — the recursion's own
-            accumulator, ``None`` at the call a caller writes.
-        coefficient: Whether *node* stands in a product with a variable — the
-            recursion's own accumulator, ``False`` at the call a caller writes.
-    """
-    if isinstance(node, program.Variable):
-        return
-    if isinstance(node, program.Parameter):
-        if not coefficient:
-            yield node.name, region
-        return
-    if isinstance(node, program.Cases):
-        for r in node.regions:
-            yield from _constant_parameters(r.value, both_regions(region, r.when), coefficient)
-        return
-    if isinstance(node, program.Multiply):
-        yield from _constant_parameters(node.left, region, coefficient or program.carries_variable(node.right))
-        yield from _constant_parameters(node.right, region, coefficient or program.carries_variable(node.left))
-        return
-    if isinstance(node, program.Divide):
-        yield from _constant_parameters(node.numerator, region, coefficient)
-        return
-    for child in program.children(node):
-        yield from _constant_parameters(child, region, coefficient)
 
 
 def declares_quadratic(c: program.ConstraintDeclaration) -> bool:

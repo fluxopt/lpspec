@@ -148,7 +148,20 @@ class TermFragment:
 
     It travels through the arithmetic, and a product of two regions is the
     conjunction: ``ramp_limit * previous_status`` has a value exactly where
-    ``previous_status`` does.
+    ``previous_status`` does. A reduction that drops a dim the region reads
+    drops the region with it (:func:`region_over`): it can no longer say which
+    of the rows summed into a coordinate it claimed.
+    """
+
+    parameters: frozenset[str] = frozenset()
+    """The parameters standing as constant pieces under this fragment — what the coverage check asks of.
+
+    A constant piece is a parameter in a variable-free additive position, ``hi``
+    in ``x + hi`` or in ``sum(x) + sum(hi)``. A parameter a variable stands with
+    in a product is a coefficient instead, and a sparse coefficient is a zero
+    the absence rules allow, so a term carries none and a product strips the
+    factor that stood beside a variable (:meth:`PolarsCompiler.expression`).
+    A divisor is never owed here either: it has its own check.
     """
 
     @property
@@ -315,6 +328,11 @@ def both_regions(a: program.Mask | None, b: program.Mask | None) -> program.Mask
     return a if a == b else a & b
 
 
+def region_over(region: program.Mask | None, dims: Sequence[str]) -> program.Mask | None:
+    """*region* where a fragment over *dims* can still be cut to it, else ``None``."""
+    return region if region is not None and region.dims <= set(dims) else None
+
+
 def negate(p: TermFragment) -> TermFragment:
     return replace(p, frame=p.frame.with_columns(-pl.col(p.value_column)))
 
@@ -339,6 +357,9 @@ def join_mul(a: TermFragment, c: TermFragment, kind: Kind, divide: bool = False)
     presence its term would, so the presences of both sides travel out. The
     output dims may be wider than ``a.dims``, which is why the presence key
     travels with the fragment rather than being re-derived from dims here.
+
+    A constant product owes both factors' parameters; a divisor is owed
+    nowhere, having its own check; and a term owes none.
     """
     shared = [d for d in a.dims if d in c.dims]
     out_dims = a.dims + tuple(d for d in c.dims if d not in a.dims)
@@ -350,6 +371,12 @@ def join_mul(a: TermFragment, c: TermFragment, kind: Kind, divide: bool = False)
     combined = value / rhs if divide else value * rhs
     out = value_column(kind)
     frame = joined.with_columns(combined.alias(out)).select(*out_dims, *carried_columns(kind))
+    if kind != 'const':
+        parameters = frozenset[str]()
+    elif divide:
+        parameters = a.parameters
+    else:
+        parameters = a.parameters | c.parameters
     return replace(
         a,
         dims=out_dims,
@@ -357,6 +384,7 @@ def join_mul(a: TermFragment, c: TermFragment, kind: Kind, divide: bool = False)
         kind=kind,
         presences=a.presences + c.presences,
         region=both_regions(a.region, c.region),
+        parameters=parameters,
     )
 
 
@@ -378,7 +406,12 @@ def join_pow(a: TermFragment, b: TermFragment) -> TermFragment:
         *out_dims, *carried_columns('const')
     )
     return TermFragment(
-        out_dims, frame, 'const', presences=a.presences + b.presences, region=both_regions(a.region, b.region)
+        out_dims,
+        frame,
+        'const',
+        presences=a.presences + b.presences,
+        region=both_regions(a.region, b.region),
+        parameters=a.parameters | b.parameters,
     )
 
 

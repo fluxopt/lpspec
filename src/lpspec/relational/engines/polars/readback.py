@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from math_spec import program
 
-from lpspec.errors import DataError, LpspecError, sparse_divisor_message, unknown_name_message
+from lpspec.errors import LpspecError, unknown_name_message
 from lpspec.relational.collect import polars_engine
-from lpspec.relational.engines.polars import labels
+from lpspec.relational.engines.polars import coverage, labels
 from lpspec.relational.engines.polars.fragments import absence_restrictions
 from lpspec.relational.result import ConstraintRow
 
@@ -300,12 +300,11 @@ def expression_frame(name: str, expr: program.ExpressionNode, compiler: PolarsCo
     compiled = compiler.expression(expr, context)
 
     divisors = [q.divisor for q in program.quotients(expr)]
-    if divisors:
-        counts = pl.collect_all([p.frame.select(pl.col('cval').null_count()) for p in compiled.consts])
-        undefined = sum(count.item() for count in counts)
-        if undefined:
-            names = sorted({*program.parameters_of(*divisors), *program.variables_of(*divisors)})
-            raise DataError(f'{context}: {sparse_divisor_message(", ".join(names), undefined)}')
+    coverage.refuse_null_constants(
+        [p.frame for p in compiled.consts],
+        {*program.parameters_of(*divisors), *program.variables_of(*divisors)},
+        context,
+    )
 
     fragments = compiled.consts
     dims = compiler.spanned(fragments)
