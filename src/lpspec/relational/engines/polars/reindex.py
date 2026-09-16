@@ -8,8 +8,8 @@ ordinal arithmetic, the scratch columns below, and the question no other
 operator has to answer: what happens at the edge, where the walk runs out of
 dimension.
 
-Both take the :class:`~lpspec.relational.engines.polars.compiler.PolarsCompiler`
-and hold nothing. They read three things off it — ``data``, ``program`` and
+Both take the :class:`~lpspec.relational.engines.polars.scope.Scope` and
+hold nothing. They read three things off it — ``data``, ``program`` and
 ``widen`` — and everything else here is their own, built once per operator
 as an :class:`_Order`.
 """
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
     from math_spec import program
 
-    from lpspec.relational.engines.polars.compiler import PolarsCompiler
+    from lpspec.relational.engines.polars.scope import Scope
 
 
 #: Scratch columns. The spaces make them unrepresentable as declared names, so
@@ -59,7 +59,7 @@ class _Order:
     outgoing: pl.LazyFrame
 
     @classmethod
-    def of(cls, compiler: PolarsCompiler, dimension: str, partition: program.Walk | None) -> _Order:
+    def of(cls, scope: Scope, dimension: str, partition: program.Walk | None) -> _Order:
         """Rank *dimension* inside each group of *partition*, or along the whole of it.
 
         A neighbour is decided by rank within the group, and a wrap closes on
@@ -67,9 +67,7 @@ class _Order:
         is not in the table at all and joins to nothing, which is what it
         reaches everywhere else.
         """
-        grouping = (
-            Grouping.whole(compiler.data, dimension) if partition is None else Grouping.of(compiler.data, partition)
-        )
+        grouping = Grouping.whole(scope.data, dimension) if partition is None else Grouping.of(scope.data, partition)
         incoming = grouping.table.select(
             pl.col('val').alias(dimension), pl.col(GROUP_RANK).alias(_ORD_IN), *grouping.key, pl.col(GROUP_SIZE)
         )
@@ -105,7 +103,7 @@ class _Order:
         )
 
 
-def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window, context: str) -> TermFragment:
+def window_fragment(scope: Scope, p: TermFragment, s: program.Window, context: str) -> TermFragment:
     """A one-to-many remap of the dim through its ord.
 
     A row at *o* contributes at every ``o + lag`` for ``lag`` inside the
@@ -130,15 +128,15 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
     """
     if s.dimension not in p.dims:
         refuse_a_fragment_without_the_dims(p, [s.dimension], context, f'sum_back(along={s.dimension!r})')
-    order = _Order.of(compiler, s.dimension, s.partition)
+    order = _Order.of(scope, s.dimension, s.partition)
 
     width_name = s.width if isinstance(s.width, str) else None
     if width_name is not None:
-        widest = int(compiler.data.parameters[width_name].select(pl.col('value').max()).collect().item() or 0)
+        widest = int(scope.data.parameters[width_name].select(pl.col('value').max()).collect().item() or 0)
     else:
         assert not isinstance(s.width, str)
         widest = s.width
-    lags = pl.LazyFrame({_LAG: pl.Series(range(min(widest, compiler.data.cardinality[s.dimension])), dtype=pl.Int64)})
+    lags = pl.LazyFrame({_LAG: pl.Series(range(min(widest, scope.data.cardinality[s.dimension])), dtype=pl.Int64)})
 
     moved = pl.col(_ORD_IN) + pl.col(_LAG)
     if s.wrap:
@@ -149,7 +147,7 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
         frame = frame.join(lags, how='cross')
         if width_name is None:
             return frame
-        widths, keys = _named_amount(compiler, order, width_name, _WIDTH)
+        widths, keys = _named_amount(scope, order, width_name, _WIDTH)
         return frame.join(widths, on=keys, how='inner').filter(pl.col(_LAG) < pl.col(_WIDTH))
 
     remap = partial(order.remap, moved=moved, prepared=lagged)
@@ -157,7 +155,7 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
     def travelled(presence: Presence) -> Presence:
         keyed_by, source = presence.keyed_by, presence.frame
         if keyed_by is not None and not set(order.grouping.keys).issubset(keyed_by):
-            source, keyed_by = compiler.widen(source, keyed_by, p.dims), None
+            source, keyed_by = scope.widen(source, keyed_by, p.dims), None
         return Presence(remap(source, [], p.dims if keyed_by is None else keyed_by).unique(), keyed_by)
 
     frame = remap(p.frame, p.carried, p.dims)
@@ -166,7 +164,7 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
     return replace(p, frame=frame, presences=tuple(travelled(x) for x in p.presences))
 
 
-def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Translate, context: str) -> TermFragment:
+def translate_fragment(scope: Scope, p: TermFragment, s: program.Translate, context: str) -> TermFragment:
     """A pointwise remap of the dim through its ord.
 
     A row at *o* contributes at ``(o + by) % card``.
@@ -186,8 +184,8 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
     if s.dimension not in p.dims:
         refuse_a_fragment_without_the_dims(p, [s.dimension], context, f'shift(along={s.dimension!r})')
     others = [d for d in p.dims if d != s.dimension]
-    order = _Order.of(compiler, s.dimension, s.partition)
-    edge = _Edge.of(compiler, order, s)
+    order = _Order.of(scope, s.dimension, s.partition)
+    edge = _Edge.of(scope, order, s)
 
     named_offset = isinstance(s.offset, str)
     if named_offset:
@@ -233,16 +231,16 @@ def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Tra
     def travelled(presence: Presence) -> Presence:
         source, keyed_by = presence.frame, presence.keyed_by
         if keyed_by is not None and not set(edge.keys).issubset(keyed_by):
-            source, keyed_by = compiler.widen(source, keyed_by, p.dims), None
+            source, keyed_by = scope.widen(source, keyed_by, p.dims), None
         moved_presence = remap(source, [], p.dims if keyed_by is None else keyed_by)
         if s.wrap or s.fill is None:
             return Presence(moved_presence, keyed_by)
-        vacated = edge.vacated_of(compiler, presence, p.dims)
+        vacated = edge.vacated_of(scope, presence, p.dims)
         return Presence(pl.concat([moved_presence, vacated], how='vertical_relaxed').unique())
 
     frame = remap(p.frame, p.carried, p.dims)
     if not s.wrap and s.fill is not None and p.kind == 'const':
-        frame = pl.concat([frame, edge.filled(compiler, others, s.fill)], how='vertical_relaxed')
+        frame = pl.concat([frame, edge.filled(scope, others, s.fill)], how='vertical_relaxed')
     return replace(p, frame=frame, presences=travelled_presences())
 
 
@@ -268,12 +266,12 @@ class _Edge:
     offsets: tuple[pl.LazyFrame, list[str]] | None
 
     @classmethod
-    def of(cls, compiler: PolarsCompiler, order: _Order, s: program.Translate) -> _Edge:
+    def of(cls, scope: Scope, order: _Order, s: program.Translate) -> _Edge:
         if not isinstance(s.offset, str):
             return cls(order, s, (), None)
-        dims = compiler.program.parameter(s.offset).dims
+        dims = scope.program.parameter(s.offset).dims
         offset_dims = tuple(d for d in dims if order.grouping.column_of(d) is None)
-        return cls(order, s, offset_dims, _named_amount(compiler, order, s.offset, _OFFSET))
+        return cls(order, s, offset_dims, _named_amount(scope, order, s.offset, _OFFSET))
 
     @property
     def keys(self) -> tuple[str, ...]:
@@ -308,7 +306,7 @@ class _Edge:
         keyed = [d for d in self.keys if d != s.dimension]
         return table.filter(outside if vacated else ~outside).select(pl.col('val').alias(s.dimension), *keyed)
 
-    def filled(self, compiler: PolarsCompiler, others: list[str], fill: float) -> pl.LazyFrame:
+    def filled(self, scope: Scope, others: list[str], fill: float) -> pl.LazyFrame:
         """``(dims…, cval=fill)`` at every coordinate the shift vacated.
 
         Dense over *others*, not over the rows the operand happened to carry.
@@ -321,12 +319,12 @@ class _Edge:
         for d in others:
             if d in self.keys:
                 continue
-            edge = edge.join(compiler.data.dimensions[d].select(pl.col('val').alias(d)), how='cross')
+            edge = edge.join(scope.data.dimensions[d].select(pl.col('val').alias(d)), how='cross')
         return edge.with_columns(pl.lit(fill, dtype=pl.Float64).alias('cval')).select(
             *others, self.shift.dimension, 'cval'
         )
 
-    def vacated_of(self, compiler: PolarsCompiler, presence: Presence, dims: tuple[str, ...]) -> pl.LazyFrame:
+    def vacated_of(self, scope: Scope, presence: Presence, dims: tuple[str, ...]) -> pl.LazyFrame:
         """The edge positions ``shift`` leaves with nothing to move in, for one presence.
 
         Reached only under ``fill=0``, which is the whole of what ``fill`` does
@@ -346,13 +344,13 @@ class _Edge:
         if not others:
             return edge
         have = presence.keys(dims)
-        source = presence.frame if all(d in have for d in others) else compiler.widen(presence.frame, have, dims)
+        source = presence.frame if all(d in have for d in others) else scope.widen(presence.frame, have, dims)
         keys = [d for d in self.keys if d in others]
         rows = source.select(*others).unique()
         return rows.join(edge, on=keys, how='inner') if keys else rows.join(edge, how='cross')
 
 
-def _named_amount(compiler: PolarsCompiler, order: _Order, name: str, alias: str) -> tuple[pl.LazyFrame, list[str]]:
+def _named_amount(scope: Scope, order: _Order, name: str, alias: str) -> tuple[pl.LazyFrame, list[str]]:
     """A named offset's or width's values, and the keys a frame reads them by.
 
     A **per-group** amount is declared over a dimension the partition groups
@@ -362,9 +360,9 @@ def _named_amount(compiler: PolarsCompiler, order: _Order, name: str, alias: str
     nowhere is in no partitioned table and joins to nothing, which is what it
     reaches everywhere else.
     """
-    dims = compiler.program.parameter(name).dims
+    dims = scope.program.parameter(name).dims
     keys = [order.grouping.column_of(d) or d for d in dims]
-    frame = compiler.data.parameters[name].select(
+    frame = scope.data.parameters[name].select(
         *(pl.col(d).alias(key) for d, key in zip(dims, keys, strict=True)),
         pl.col('value').cast(pl.Int64).alias(alias),
     )

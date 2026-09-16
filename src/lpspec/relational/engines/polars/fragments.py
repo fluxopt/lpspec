@@ -428,7 +428,7 @@ def join_quad(a: TermFragment, b: TermFragment) -> TermFragment:
 
     Nothing is canonicalised here: which of ``x * y`` and ``y * x`` a pair is
     depends on column labels, which fragments do not carry until the engine
-    places them (:meth:`PolarsEngine._build_objective`).
+    places them (:meth:`Assembly._build_objective`).
     """
     shared = [d for d in a.dims if d in b.dims]
     out_dims = a.dims + tuple(d for d in b.dims if d not in a.dims)

@@ -1,6 +1,8 @@
 """Logical plan → polars. Lazy: nothing is read, nothing is executed.
 
-The language compiles a spec to a plan; this compiles the plan to a query.
+The language compiles a spec to a plan; this compiles the plan to a query,
+in the :class:`~lpspec.relational.engines.polars.scope.Scope` the model's names
+resolve in.
 
 Column conventions, relied on by the engine:
 
@@ -47,29 +49,17 @@ from lpspec.relational.engines.polars.fragments import (
     refuse_a_fragment_without_the_dims,
     region_over,
 )
-from lpspec.relational.engines.polars.predicates import (
-    Carrier,
-    compile_predicate,
-    falsy_if_null,
-)
+from lpspec.relational.engines.polars.predicates import Carrier, compile_predicate, falsy_if_null, masked
 from lpspec.relational.engines.polars.reindex import translate_fragment, window_fragment
 from lpspec.relational.engines.polars.relations import landed, mapping, walk_join
+from lpspec.relational.engines.polars.scope import UNIT, Scope
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
     import numpy.typing as npt
-    from polars._typing import JoinStrategy, MaintainOrderJoin
 
-    from lpspec.relational.engines.polars.attaching import AttachedSources
     from lpspec.relational.engines.polars.labels import Labelled
-
-
-#: Carries the single row of the empty coordinate product. Polars cannot hold a
-#: frame with one row and no columns — collecting one reports ``(0, 0)`` — so the
-#: unit needs a column to exist in, and every path drops it by selecting the
-#: dims and the label instead.
-UNIT = '__unit__'
 
 
 def _presence(held: Labelled, dims: tuple[str, ...], label: str) -> pl.LazyFrame:
@@ -106,102 +96,14 @@ class Solution:
 class PolarsCompiler:
     """Turn plan nodes into polars queries over the model's tidy frames.
 
-    ``data`` is everything attaching produced, frozen. ``variables`` is the
-    engine's own dict, not a copy: a variable frame appears while its
-    declaration is built and a constraint compiled afterwards has to see it.
-    ``solution`` is set on the compiler a read builds and on no other: with it
-    every variable and every ``dual(c)`` compiles to a value (:class:`Solution`).
+    ``scope`` is what every query is written against
+    (:class:`~lpspec.relational.engines.polars.scope.Scope`). ``solution`` is
+    set on the compiler a read builds and on no other: with it every variable
+    and every ``dual(c)`` compiles to a value (:class:`Solution`).
     """
 
-    program: program.Program
-    data: AttachedSources
-    variables: Mapping[str, Labelled]
+    scope: Scope
     solution: Solution | None = None
-
-    # ------------------------------------------------------------------
-    # frames — the masked coordinate product a declaration is instantiated over
-    # ------------------------------------------------------------------
-
-    def frame(self, dims: tuple[str, ...], where: program.Mask | None) -> pl.LazyFrame:
-        """The masked coordinate product over *dims*.
-
-        Labels, plus the ordinals a caller sorts by so labels follow
-        declaration order.
-
-        A mask that has to join restricts by semi-join: the predicate reads
-        only its own dims, so it is evaluated over *their* product and the full
-        product is semi-joined against the truth set, which leaves the left
-        side's row order intact.
-
-        Four shapes stay on the direct filter path, which is pointwise and
-        keeps order too: a predicate that joins nothing, one reading no frame
-        dim, one reading dims outside the frame (so errors name the full
-        frame), and one reading **every** frame dim.
-        """
-        out = self._coordinate_product(dims)
-        if where is None:
-            return out
-        on = tuple(d for d in dims if d in where.dims)
-        if on and len(on) < len(dims) and where.dims <= set(dims):
-            keyed = self._coordinate_product(on)
-            carrier, condition = compile_predicate(self, keyed, where, on)
-            if carrier is keyed:
-                return out.filter(falsy_if_null(condition))
-            surviving = carrier.filter(falsy_if_null(condition)).select(*on)
-            return out.join(surviving, on=list(on), how='semi')
-        carrier, condition = compile_predicate(self, out, where, dims)
-        return carrier.filter(falsy_if_null(condition))
-
-    def _coordinate_product(self, dims: tuple[str, ...]) -> pl.LazyFrame:
-        """Cross join of the dim tables: labels and ordinals, nothing else.
-
-        **Folded in reverse, then projected back.** polars' streaming engine
-        walks a cross join right-major, so folding backwards makes the product
-        arrive in declaration row-major order — label order.
-        :func:`labels.frame` verifies that rather than trusting it.
-
-        The empty product is one *real* row carrying only :data:`UNIT`: a
-        ``where`` on a scalar declaration filters this frame, and nothing
-        survives a filter.
-        """
-        out: pl.LazyFrame | None = None
-        for d in reversed(dims):
-            table = self.data.dimensions[d].select(pl.col('val').alias(d), pl.col('ord').alias(ordinal(d)))
-            out = table if out is None else out.join(table, how='cross')
-        if out is None:
-            return pl.LazyFrame({UNIT: [0]})
-        return out.select(*(c for d in dims for c in (d, ordinal(d))))
-
-    def parameter_join(
-        self,
-        frame: pl.LazyFrame,
-        param: str,
-        frame_dims: tuple[str, ...],
-        alias: str,
-        subject: str,
-        how: JoinStrategy = 'left',
-        maintain_order: MaintainOrderJoin | None = None,
-    ) -> pl.LazyFrame:
-        """Join *param* onto *frame*, its value column renamed to *alias*.
-
-        A parameter carrying a dim the frame lacks would be reduced over it,
-        widening a mask or picking an arbitrary bound, so that is refused;
-        *subject* is the caller's word for the declaration to name.
-
-        *how* is ``left`` for a bound, where a missing value is a fact to
-        report rather than a row to drop. ``inner`` is :meth:`_predicate`'s
-        story.
-
-        *maintain_order* is asked for only by the bounds, which become ``cols``
-        and are read in order; every other consumer verifies order where it
-        reads.
-        """
-        declaration = self.program.parameter(param)
-        assert not set(declaration.dims) - set(frame_dims), (
-            f'{subject} has dims outside the frame dims {list(frame_dims)}'
-        )
-        table = self.data.parameters[param].rename({'value': alias})
-        return join_on(frame, table, declaration.dims, how, maintain_order)
 
     # ------------------------------------------------------------------
     # bounds
@@ -216,7 +118,7 @@ class PolarsCompiler:
             if aligned is not None:
                 return aligned
             subject = f"bound parameter '{name}' of variable '{variable}'"
-            return self.parameter_join(f, name, v.dims, alias, subject, maintain_order='left')
+            return self.scope.parameter_join(f, name, v.dims, alias, subject, maintain_order='left')
 
         def bound(e: program.ExpressionNode) -> pl.Expr:
             """A bound is a number or a parameter name; lowering admits nothing else."""
@@ -253,48 +155,18 @@ class PolarsCompiler:
         Duplicate coordinates would break density without changing the height,
         and the door refuses them before this.
         """
-        declaration = self.program.parameter(param)
+        declaration = self.scope.program.parameter(param)
         if v.where is not None or tuple(declaration.dims) != tuple(v.dims) or not v.dims:
             return None
 
-        expected = math.prod(self.data.cardinality[d] for d in v.dims)
-        table = self.data.parameters[param]
+        expected = math.prod(self.scope.data.cardinality[d] for d in v.dims)
+        table = self.scope.data.parameters[param]
         if table.select(pl.len()).collect().item() != expected:
             return None
 
-        position = self.row_major(v.dims, self.ordinal_of)
+        position = self.scope.row_major(v.dims, self.scope.ordinal_of)
         pairs = table.select(position.alias('__at__'), pl.col('value')).collect(engine=polars_engine())
         return frame.with_columns(pl.Series(alias, _scattered(pairs['__at__'], pairs['value'], expected)))
-
-    def row_major(self, dims: tuple[str, ...], ordinals: Callable[[str], pl.Expr]) -> pl.Expr:
-        """A coordinate's row-major position in the declared product of *dims*.
-
-        A label, a bound's slot and a set's position all read this one rule, so
-        two builds of one model agree on every index. Dense over the *full*
-        product rather than the survivors; with no dims, the literal zero of the
-        empty product's one row. *ordinals* says how the frame in hand carries a
-        dim's ordinal — a compiler frame has the column beside the label, a
-        built variable frame kept only the label and reads it through
-        :meth:`ordinal_of`.
-        """
-        position: pl.Expr = pl.lit(0, dtype=pl.Int64)
-        for d in dims:
-            position = position * self.data.cardinality[d] + ordinals(d)
-        return position.cast(pl.Int64)
-
-    def ordinal_of(self, dim: str) -> pl.Expr:
-        """A *dim* value column as that dimension's ordinal.
-
-        A string dimension is Enum-encoded by attaching over the labels in
-        ordinal order (``_Attacher.encode_dimensions``), so the physical code
-        already *is* the ordinal. Every other dtype uses a dictionary built from
-        the dimension table — one entry per label, not per row.
-        """
-        column = pl.col(dim)
-        if self.data.is_enum_encoded(dim):
-            return column.to_physical().cast(pl.Int64)
-        labels = self.data.dimensions[dim].select('val').collect()['val']
-        return column.replace_strict({value: at for at, value in enumerate(labels)}, return_dtype=pl.Int64)
 
     # ------------------------------------------------------------------
     # expressions → fragments
@@ -409,8 +281,8 @@ class PolarsCompiler:
 
         def region(r: program.Region) -> CompiledExpression:
             """One region's value, kept only where that region applies."""
-            on = tuple(d for d in self.program.dimensions if d in r.when.dims)
-            truth = self.frame(on, r.when).select(*on) if on else None
+            on = tuple(d for d in self.scope.program.dimensions if d in r.when.dims)
+            truth = masked(self.scope, on, r.when).select(*on) if on else None
 
             def relaxed(x: Presence, dims: tuple[str, ...]) -> Presence:
                 """A region's presence, silent about the coordinates the region does not claim.
@@ -432,9 +304,9 @@ class PolarsCompiler:
                 """
                 have = x.keys(dims)
                 keys = tuple(dict.fromkeys((*have, *on)))
-                complement = self.frame(on, ~r.when)
+                complement = masked(self.scope, on, ~r.when)
                 elsewhere = complement.select(*on) if on else complement.select(UNIT)
-                widened = [self.widen(x.frame, have, keys), self.widen(elsewhere, on, keys)]
+                widened = [self.scope.widen(x.frame, have, keys), self.scope.widen(elsewhere, on, keys)]
                 return Presence(pl.concat(widened, how='vertical_relaxed').unique(), keys)
 
             def kept(p: TermFragment) -> TermFragment:
@@ -452,7 +324,7 @@ class PolarsCompiler:
                 nothing, and a region claiming nothing may not unmake a row.
                 """
                 if truth is None:
-                    carrier, condition = compile_predicate(self, p.frame, r.when, p.dims)
+                    carrier, condition = compile_predicate(self.scope, p.frame, r.when, p.dims)
                     frame = carrier.filter(falsy_if_null(condition)).select(*p.dims, *p.carried)
                     presences = tuple(relaxed(x, p.dims) for x in p.presences)
                     return replace(p, frame=frame, presences=presences, region=both_regions(p.region, r.when))
@@ -515,9 +387,9 @@ class PolarsCompiler:
             if isinstance(e, program.At):
                 return shaped(e, lambda p: self._at_fragment(p, e, context))
             if isinstance(e, program.Translate):
-                return shaped(e, lambda p: translate_fragment(self, p, e, context))
+                return shaped(e, lambda p: translate_fragment(self.scope, p, e, context))
             if isinstance(e, program.Window):
-                return shaped(e, lambda p: window_fragment(self, p, e, context))
+                return shaped(e, lambda p: window_fragment(self.scope, p, e, context))
             if isinstance(e, program.Cases):
                 return cases(e)
             assert_never(e)
@@ -530,8 +402,8 @@ class PolarsCompiler:
         One row per coordinate, which the engine enforces by refusing a
         duplicated one.
         """
-        dims = self.program.parameter(name).dims
-        frame = self.data.parameters[name].select(*dims, pl.col('value').cast(pl.Float64).alias('cval'))
+        dims = self.scope.program.parameter(name).dims
+        frame = self.scope.data.parameters[name].select(*dims, pl.col('value').cast(pl.Float64).alias('cval'))
         return TermFragment(dims, frame, 'const', parameters=frozenset({name}))
 
     def _variable_fragment(self, name: str) -> TermFragment:
@@ -550,14 +422,16 @@ class PolarsCompiler:
         because dims are rewritten downstream while the presence frame is not
         — the hazard :class:`Presence` names.
         """
-        dims = self.program.variable(name).dims
-        frame = self.variables[name].frame.select(*dims, 'var_label', pl.lit(1.0, dtype=pl.Float64).alias('coeff'))
+        dims = self.scope.program.variable(name).dims
+        frame = self.scope.variables[name].frame.select(
+            *dims, 'var_label', pl.lit(1.0, dtype=pl.Float64).alias('coeff')
+        )
         return TermFragment(dims, frame, 'term', presences=self._variable_presences(name, dims))
 
     def _variable_presences(self, name: str, dims: tuple[str, ...]) -> tuple[Presence, ...]:
-        declaration = self.program.variable(name)
+        declaration = self.scope.program.variable(name)
         propagates = declaration.where is not None and declaration.absence == 'undefined'
-        return (Presence(_presence(self.variables[name], dims, 'var_label'), dims),) if propagates else ()
+        return (Presence(_presence(self.scope.variables[name], dims, 'var_label'), dims),) if propagates else ()
 
     def _solved_fragment(self, name: str) -> TermFragment:
         """A variable at its primal — the const fragment a read compiles it to, carrying the presence its term would.
@@ -570,12 +444,12 @@ class PolarsCompiler:
         an absent term contributes nothing to a row either way.
         """
         assert self.solution is not None
-        held, declaration = self.variables[name], self.program.variable(name)
+        held, declaration = self.scope.variables[name], self.scope.program.variable(name)
         dims = declaration.dims
         keys = dims or (UNIT,)
         rows = held.frame.select(*keys).with_columns(held.share(self.solution.primal).alias('cval'))
         if declaration.where is not None and declaration.absence == 'zero':
-            everywhere = self.frame(dims, None).select(*keys)
+            everywhere = masked(self.scope, dims, None).select(*keys)
             rows = join_on(everywhere, rows, keys, 'left').with_columns(pl.col('cval').fill_null(0.0))
         return TermFragment(dims, rows.select(*dims, 'cval'), 'const', presences=self._variable_presences(name, dims))
 
@@ -595,7 +469,7 @@ class PolarsCompiler:
         if solution.dual is None:
             assert solution.no_duals is not None, 'a solve without duals says why'
             raise LpspecError(solution.no_duals)
-        held, dims = solution.constraints[name], self.program.constraints[name].dims
+        held, dims = solution.constraints[name], self.scope.program.constraints[name].dims
         frame = held.frame.select(*dims).with_columns(held.share(solution.dual).alias('cval'))
         return TermFragment(dims, frame, 'const', presences=(Presence(_presence(held, dims, 'row'), dims),))
 
@@ -612,8 +486,8 @@ class PolarsCompiler:
             return compiled
         assert not (compiled.terms or compiled.quads), 'a read compiles every variable to its value'
         fragments = compiled.consts
-        dims, restrictions = self.spanned(fragments), absence_restrictions(fragments)
-        carrier = self.frame(dims, None)
+        dims, restrictions = self.scope.spanned(fragments), absence_restrictions(fragments)
+        carrier = masked(self.scope, dims, None)
         for restriction in restrictions:
             carrier = restriction.restrict(carrier, restriction.keyed_by or ())
         added = self.added(fragments, carrier, fill=False)
@@ -621,11 +495,6 @@ class PolarsCompiler:
         return CompiledExpression(
             (), (TermFragment(dims, added, 'const', presences=tuple(restrictions), parameters=parameters),)
         )
-
-    def spanned(self, fragments: Sequence[TermFragment]) -> tuple[str, ...]:
-        """The dims *fragments* carry between them, in declaration order."""
-        union = {d for p in fragments for d in p.dims}
-        return tuple(d for d in self.program.dimensions if d in union)
 
     def added(self, fragments: Sequence[TermFragment], carrier: pl.LazyFrame, *, fill: bool) -> pl.LazyFrame:
         """Const *fragments* added per coordinate onto *carrier* — its columns, then ``cval``.
@@ -664,7 +533,7 @@ class PolarsCompiler:
         if missing and p.kind == 'const':
             refuse_a_fragment_without_the_dims(p, missing, context, f'sum(over={list(over)})')
         keep = tuple(d for d in p.dims if d not in over)
-        scale = math.prod(self.data.cardinality[d] for d in missing)
+        scale = math.prod(self.scope.data.cardinality[d] for d in missing)
         frame = p.frame.select(*keep, *p.carried)
         if scale != 1:
             frame = frame.with_columns(pl.col(p.value_column) * scale)
@@ -697,7 +566,7 @@ class PolarsCompiler:
 
         A group with no members contributes nothing, so on a constant side it
         holds a *value* — the empty sum — and not a hole. The two are the same
-        missing row to :meth:`PolarsEngine._build_constraint`'s coverage check,
+        missing row to :func:`coverage.constant_side`'s check,
         which reads what the fragment produced and cannot see why a label is
         absent, so the value is written down here where the reason is known.
 
@@ -710,14 +579,14 @@ class PolarsCompiler:
         Only for a constant part: an empty group contributes no *term*, and a
         row left with no terms is not built at all.
         """
-        universe = self.data.dimensions[g.into[0]].select(pl.col('val').alias(g.into[0]))
+        universe = self.scope.data.dimensions[g.into[0]].select(pl.col('val').alias(g.into[0]))
         for target in g.into[1:]:
-            labels = self.data.dimensions[target].select(pl.col('val').alias(target))
+            labels = self.scope.data.dimensions[target].select(pl.col('val').alias(target))
             universe = universe.join(labels, how='cross')
         spanned = [d for d in p.dims if d not in g.into]
         if spanned:
             universe = p.frame.select(spanned).unique().join(universe, how='cross')
-        reached = landed(mapping(self.data.relations, g.walks), g)
+        reached = landed(mapping(self.scope.data.relations, g.walks), g)
         empty = universe.join(reached, on=[*g.joined, *g.into], how='anti')
         return empty.with_columns(pl.lit(0.0, dtype=pl.Float64).alias('cval')).select(*p.dims, *p.carried)
 
@@ -759,10 +628,10 @@ class PolarsCompiler:
         """
         joined = a.joined
         fine = (*joined, *a.over)
-        table = mapping(self.data.relations, a.walks)
+        table = mapping(self.scope.data.relations, a.walks)
         reachable = landed(table, a).unique()
         if not p.presences:
-            total = math.prod(self.data.cardinality[d] for d in fine)
+            total = math.prod(self.scope.data.cardinality[d] for d in fine)
             reached = reachable.select(pl.len()).collect().item()
             return () if reached == total else (Presence(reachable, fine),)
 
@@ -772,7 +641,7 @@ class PolarsCompiler:
                 return Presence(presence.restrict(reachable, keys), fine)
             carries_targets = all(i in keys for i in (*a.into, *joined))
             source, keys = (
-                (presence.frame, keys) if carries_targets else (self.widen(presence.frame, keys, p.dims), p.dims)
+                (presence.frame, keys) if carries_targets else (self.scope.widen(presence.frame, keys, p.dims), p.dims)
             )
             return Presence(*walk_join(source, table, a, keys))
 
@@ -786,25 +655,8 @@ class PolarsCompiler:
         (:meth:`_group_fragment`); an ``At`` reads the same tables backwards
         (:meth:`_at_fragment`).
         """
-        frame, dims = walk_join(p.frame, mapping(self.data.relations, node.walks), node, p.dims, p.carried)
+        frame, dims = walk_join(p.frame, mapping(self.scope.data.relations, node.walks), node, p.dims, p.carried)
         return TermFragment(dims, frame, p.kind, region=region_over(p.region, dims), parameters=p.parameters)
-
-    def widen(self, presence: pl.LazyFrame, have: tuple[str, ...], want: tuple[str, ...]) -> pl.LazyFrame:
-        """*presence* over every dim in *want*, saying the same thing.
-
-        A presence frame is silent about the dims it omits, which reads as
-        "present at all of them" — so the widening is a cross join with those
-        dimensions' own tables, and it changes no answer.
-        """
-        for d in want:
-            if d not in have:
-                presence = presence.join(self.data.dimensions[d].select(pl.col('val').alias(d)), how='cross')
-        return presence.select(*want)
-
-
-def ordinal(dim: str) -> str:
-    """The frame column carrying *dim*'s position in its declared order."""
-    return f'__ord {dim}__'
 
 
 def _scattered(at: pl.Series, values: pl.Series, size: int) -> npt.NDArray[np.float64]:

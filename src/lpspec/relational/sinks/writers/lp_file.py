@@ -149,7 +149,7 @@ def _quadratic_terms(tables: Tables) -> pl.LazyFrame:
     and the off-diagonal does not.
 
     A pair arrives ordered, summed and deduplicated
-    (:meth:`~lpspec.relational.engines.polars.engine.PolarsEngine._objective_quadratic`),
+    (:meth:`~lpspec.relational.engines.polars.assembly.Assembly._objective_quadratic`),
     so nothing here sorts.
     """
     return tables.quad.lazy().select(_pair(pl.col('coeff') * 2))

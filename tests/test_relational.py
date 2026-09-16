@@ -49,6 +49,7 @@ import lpspec as lps
 from lpspec.errors import DataError, LaneError, LanguageError, LpspecError
 from lpspec.relational.engines.polars.compiler import PolarsCompiler
 from lpspec.relational.engines.polars.engine import PolarsEngine
+from lpspec.relational.engines.polars.scope import Scope
 from lpspec.relational.sinks import SOLVERS
 from lpspec.relational.sinks.solvers.highs import Highs
 from lpspec.relational.sinks.tables import ranges
@@ -1035,7 +1036,7 @@ class TestWhatReachesTheSolverAsAnEntry:
         with lps.build(spec, sources) as model:
             program = to_program(Spec(**spec))
             built = model._engine._model
-            compiler = PolarsCompiler(built.program, built.attached, built.variables)
+            compiler = PolarsCompiler(Scope(built.program, built.attached, built.variables))
             terms = compiler.expression(next(iter(program.constraints.values())).lhs, 'test').terms
             assert len(terms) == 2
 
