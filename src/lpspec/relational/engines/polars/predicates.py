@@ -133,7 +133,7 @@ def compile_predicate(
         Joined on the dimension and the partition's joined dimensions, which
         the frame carries: a group is read at the rest of its key.
         """
-        assert p.partition is not None, 'an ungrouped position counts along the axis and asks for no table'
+        assert p.partition is not None, 'an ungrouped position counts along the whole dimension and asks for no table'
         grouping = Grouping.of(compiler.data, p.partition)
         for dim in grouping.keys:
             refuse_outside_frame(f"dimension '{dim}'", dim)

@@ -57,9 +57,9 @@ class _Ranked:
     grouping: Grouping | None
     #: The dimension table — the grouping's, ranked in-group, when partitioned.
     table: pl.LazyFrame
-    #: The walked position: within-group rank under a partition, axis-wide ``ord`` otherwise.
+    #: The walked position: within-group rank under a partition, the ``ord`` along the whole dimension otherwise.
     position: pl.Expr
-    #: What a wrap closes on: the group's size, or the axis cardinality.
+    #: What a wrap closes on: the group's size, or the dimension's cardinality.
     span: pl.Expr
     incoming: pl.LazyFrame
     outgoing: pl.LazyFrame
@@ -70,7 +70,7 @@ class _Ranked:
     def of(cls, compiler: PolarsCompiler, dimension: str, partition: program.Walk | None) -> _Ranked:
         """Rank *dimension* inside each group where the walk is partitioned.
 
-        Unpartitioned, the axis-wide ``ord`` is the position and there is no
+        Unpartitioned, the ``ord`` along the whole dimension is the position and there is no
         span for a wrap to close on. Under a partition both are read per group, so
         a neighbour is decided by position within *that* group — and a
         coordinate the map places nowhere is not in this table at all and joins
@@ -160,7 +160,7 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
     a window loses a row it would otherwise keep.
 
     Under ``by=`` the walk is inside the group: positions are the within-group
-    rank rather than the axis-wide ``ord``, and a wrap closes on the group's
+    rank rather than the ``ord`` along the whole dimension, and a wrap closes on the group's
     own size, exactly as :func:`translate_fragment` walks a partitioned shift.
     """
     if s.dimension not in p.dims:
@@ -321,7 +321,7 @@ class _Edge:
         disagree about which coordinates the edge is. Under a partition the
         edge is **each group's**, counted along the same within-group rank
         the translation itself walks: a coordinate reaches outside its own
-        group exactly where it would have reached outside the axis. A
+        group exactly where it would have reached outside the dimension. A
         coordinate in no group is neither — it is absent, the reading
         :meth:`_Ranked.placed` gives it, so it is not in the table at all. A
         per-group offset reaches it by the group column rather than by a
