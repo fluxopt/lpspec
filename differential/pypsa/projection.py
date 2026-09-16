@@ -24,15 +24,21 @@ NAME = re.compile(r'\b[A-Za-z_][A-Za-z0-9_]*\b')
 def _relation_dims(relation: dict[str, Any]) -> set[str]:
     """The dimensions a relation declaration names, read off the raw block.
 
-    This module shapes YAML before the language reads it, so both spellings of
-    ``columns:`` are read here rather than off a loaded declaration: a list
-    names each column after its dimension, a mapping names the dimension per
-    column.
+    This module shapes YAML before the language reads it, so every spelling of
+    ``key:`` and ``value:`` is read here rather than off a loaded declaration:
+    a bare name or a list names each column after its dimension, a mapping
+    names the dimension per column. A bare relation writes no ``value:``.
     """
-    columns = relation['columns']
-    if isinstance(columns, dict):
-        return set(columns.values())
-    return {columns} if isinstance(columns, str) else set(columns)
+    return {dim for side in ('key', 'value') for dim in _side_dims(relation.get(side))}
+
+
+def _side_dims(written: str | list[str] | dict[str, str] | None) -> set[str]:
+    """The dimensions one side of a relation declaration is over."""
+    if written is None:
+        return set()
+    if isinstance(written, dict):
+        return set(written.values())
+    return {written} if isinstance(written, str) else set(written)
 
 
 def terms(expression: str) -> list[str]:

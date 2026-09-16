@@ -101,7 +101,7 @@ COMPONENT_GATE = {
         'component': {'dtype': 'str'},
         't': {'dtype': 'int'},
     },
-    'relations': {'component_of': {'columns': ['flow', 'component'], 'key': 'flow'}},
+    'relations': {'component_of': {'key': 'flow', 'value': 'component'}},
     'parameters': {'cost': {'dims': ['flow']}, 'oncost': {'dims': ['component']}},
     'variables': {
         'rate': {'dims': ['flow', 't'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -169,7 +169,7 @@ def test_at_agrees_with_the_oracle_through_a_reduction():
             'flow': {'dtype': 'str'},
             'component': {'dtype': 'str'},
         },
-        'relations': {'component_of': {'columns': ['flow', 'component'], 'key': 'flow'}},
+        'relations': {'component_of': {'key': 'flow', 'value': 'component'}},
         'parameters': {'cost': {'dims': ['flow']}, 'share': {'dims': ['flow']}},
         'variables': {
             'level': {'dims': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -230,7 +230,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
     spec = {
         'dimensions': {'unit': {'dtype': 'str'}, 't': {'dtype': 'int'}, 'tf': {'dtype': 'int'}},
         # every `tf` is the same moment as one `t` — single-valued, so a relation
-        'relations': {'same_moment': {'columns': ['tf', 't'], 'key': 'tf'}},
+        'relations': {'same_moment': {'key': 'tf', 'value': 't'}},
         'parameters': {
             'window': {'dims': ['unit', 't', 'tf']},
             'load': {'dims': ['t']},
@@ -297,7 +297,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
 #: the row built, its right-hand side is zero and it cannot move at all.
 DANGLING = {
     'dimensions': {'flow': {'dtype': 'str'}, 'component': {'dtype': 'str'}},
-    'relations': {'component_of': {'columns': ['flow', 'component'], 'key': 'flow'}},
+    'relations': {'component_of': {'key': 'flow', 'value': 'component'}},
     'variables': {
         'level': {'dims': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'dims': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -371,8 +371,8 @@ def test_at_through_a_null_relation_agrees_between_lanes():
 DANGLING_PAIR = {
     'dimensions': {'flow': {'dtype': 'str'}, 'component': {'dtype': 'str'}, 'kind': {'dtype': 'str'}},
     'relations': {
-        'component_of': {'columns': ['flow', 'component'], 'key': 'flow'},
-        'kind_of': {'columns': ['flow', 'kind'], 'key': 'flow'},
+        'component_of': {'key': 'flow', 'value': 'component'},
+        'kind_of': {'key': 'flow', 'value': 'kind'},
     },
     'variables': {
         'level': {'dims': ['component', 'kind'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -451,7 +451,7 @@ DANGLING_SHIFTED = {
         't': {'dtype': 'int'},
         'u': {'dtype': 'str'},
     },
-    'relations': {'component_of': {'columns': ['flow', 'component'], 'key': 'flow'}},
+    'relations': {'component_of': {'key': 'flow', 'value': 'component'}},
     'variables': {
         'level': {'dims': ['component', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'dims': ['flow', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},

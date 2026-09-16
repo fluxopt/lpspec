@@ -107,8 +107,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     relations:
       origin:
         description: the depot a connection leaves
-        columns: [connection, depot]
         key: connection
+        value: depot
 
     parameters:
       stock:

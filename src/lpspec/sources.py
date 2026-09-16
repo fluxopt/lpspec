@@ -318,7 +318,11 @@ def _read_relation(source: Source, name: str, relation: RelationDeclaration) -> 
         )
     available = table.collect_schema().names()
     if any(c not in available for c in roles):
-        keyed = f'{list(relation.key)} is the key it is single-valued per' if relation.key else 'it declares no key'
+        keyed = (
+            f'{list(relation.key)} is the key it is single-valued per'
+            if relation.values
+            else 'it is a bare relation, so every column is in its key'
+        )
         raise DataError(
             f"relation '{name}' must carry a column per column it declares, {roles} (has "
             f'{list(available)}). {keyed}, and every column is over a dimension of its own.'
@@ -337,11 +341,11 @@ def _read_relation(source: Source, name: str, relation: RelationDeclaration) -> 
             f'means by it.'
         )
 
-    key = list(relation.key) or roles
+    key = list(relation.key)
     twice = rows.group_by(key).len().filter(pl.col('len') > 1).sort(key)
     if twice.height:
         shown = coordinates_shown(key, twice.select(key).head(5).rows())
-        if relation.key:
+        if relation.values:
             raise DataError(
                 f"relation '{name}' maps {twice.height} key(s) more than once: {shown}. "
                 f'{key} is the declared key, so each key it maps takes exactly one row.'

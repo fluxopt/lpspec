@@ -40,8 +40,8 @@ dimensions:
 
 relations:
   zone_of:
-    columns: [generator, period, zone]
     key: [generator, period]
+    value: zone
     description: the zone a generator bids into in one period
 
 parameters:
@@ -213,21 +213,21 @@ def _shaped(relations: dict, expression: str, dims: list[str]) -> dict:
     ('relations', 'expression', 'dims', 'match'),
     [
         pytest.param(
-            {'connection': {'columns': ['generator', 'bus']}},
+            {'connection': {'key': ['generator', 'bus']}},
             'sum(p, by=connection, over=generator, into=bus) >= load',
             ['bus', 'period'],
             r"relation 'connection' declares no key",
             id='a-bare-relation',
         ),
         pytest.param(
-            {'gen_bp': {'columns': ['generator', 'bus', 'period'], 'key': 'generator'}},
+            {'gen_bp': {'key': 'generator', 'value': ['bus', 'period']}},
             'sum(p, by=gen_bp, over=generator, into=[bus, period]) >= load',
             ['bus', 'period'],
             r"relation 'gen_bp' has 2 columns its key does not determine \(\['bus', 'period'\]\)",
             id='a-key-determining-two-columns',
         ),
         pytest.param(
-            {'season_of': {'columns': ['generator', 'period', 'bus'], 'key': ['generator', 'period']}},
+            {'season_of': {'key': ['generator', 'period'], 'value': 'bus'}},
             'shift(p, along=period, offset=1, edge=0, by=season_of) >= load',
             ['generator', 'period'],
             r"a partition by 'season_of' groups by a map keyed by \['generator', 'period'\]",

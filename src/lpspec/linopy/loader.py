@@ -37,9 +37,11 @@ def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:
             it walks.
     """
     for name, relation in program.relations.items():
-        if not relation.key:
-            raise LaneError(_relation_shape_message(f"relation '{name}' declares no key"))
-        if len(relation.values) != 1:
+        if not relation.values:
+            raise LaneError(
+                _relation_shape_message(f"relation '{name}' is bare — every one of its columns is in its key")
+            )
+        if len(relation.values) > 1:
             raise LaneError(
                 _relation_shape_message(
                     f"relation '{name}' has {len(relation.values)} columns its key does not determine "

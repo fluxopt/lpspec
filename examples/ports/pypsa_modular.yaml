@@ -18,8 +18,8 @@ dimensions:
 relations:
   gen_bus:
     description: the bus a generator sits on
-    columns: [generator, bus]
     key: generator
+    value: bus
 
 parameters:
   p_nom_mod:
