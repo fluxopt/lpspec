@@ -88,58 +88,22 @@ class Measured:
 
 @dataclass(frozen=True)
 class BuiltModel:
-    """One build's product: the frames a sink drains, and what reads them back.
+    """One build's product: the tables a sink drains, and what reads them back.
 
-    The compiler holds the same ``variables`` dict rather than a copy.
+    ``tables`` is what every sink reads and no more, in the sink's own
+    contract; the rest is what puts a solver's answer back into the model's
+    labels. The compiler that built it is not kept: a read builds its own,
+    carrying the solution.
     """
 
     program: program.Program
     attached: AttachedSources
-    compiler: PolarsCompiler
     #: One :class:`~lpspec.relational.engines.polars.labels.Labelled` per
     #: declaration, one map per label space: columns and rows are numbered
     #: independently, and a model may name a variable and a constraint alike.
     variables: dict[str, labels.Labelled]
     constraints: dict[str, labels.Labelled]
-
-    cols: pl.DataFrame
-    obj: pl.DataFrame
-    #: The objective's quadratic part, one row per *unordered pair* of columns:
-    #: ``coeff`` is the coefficient of ``x[col_l] · x[col_r]`` in the objective
-    #: as written, and never half of it. Each sink converts into its own
-    #: spelling (:class:`~lpspec.relational.sinks.tables.Tables`).
-    quad: pl.DataFrame
-    #: The quadratic part of every quadratic constraint row, one row per
-    #: ``(row, unordered pair)``. Quadratic constraints are built last, so
-    #: these rows are the **tail** of the label space and a sink takes them as
-    #: a slice.
-    qmatrix: pl.DataFrame
-    rows: pl.DataFrame
-    matrix: pl.DataFrame
-    sos: pl.DataFrame
-    matrix_starts: npt.NDArray[np.int64]
-
-    column_count: int
-    row_count: int
-    objective_constant: float
-    objective_sense: ObjectiveSense | None
-
-    def tables(self) -> sinks.Tables:
-        """What every sink reads, and no more."""
-        return sinks.Tables(
-            cols=self.cols,
-            obj=self.obj,
-            quad=self.quad,
-            qmatrix=self.qmatrix,
-            rows=self.rows,
-            matrix=self.matrix,
-            sos=self.sos,
-            row_starts=self.matrix_starts,
-            column_count=self.column_count,
-            row_count=self.row_count,
-            objective_sense=self.objective_sense,
-            objective_constant=self.objective_constant,
-        )
+    tables: sinks.Tables
 
 
 class Assembly:
@@ -194,12 +158,7 @@ class Assembly:
         self.measured.columns = self.n_cols
         self.measured.rows = self.n_rows
         self.measured.nonzeros = matrix.height
-        return BuiltModel(
-            program=self.program,
-            attached=self.attached,
-            compiler=self.compiler,
-            variables=self.variables,
-            constraints=self.constraints,
+        tables = sinks.Tables(
             cols=_stack(cols, _COLS),
             obj=_stack([objective] if objective is not None else [], _OBJ),
             quad=_stack([] if self.quad is None else [self.quad], _QUAD),
@@ -207,12 +166,13 @@ class Assembly:
             rows=labels.in_position_order(_stack([r for r, _, _ in built], _ROWS), 'row'),
             matrix=matrix,
             sos=_stack(sets, _SOS),
-            matrix_starts=matrix_starts,
+            row_starts=matrix_starts,
             column_count=self.n_cols,
             row_count=self.n_rows,
-            objective_constant=self.obj_const,
             objective_sense=self.obj_sense,
+            objective_constant=self.obj_const,
         )
+        return BuiltModel(self.program, self.attached, self.variables, self.constraints, tables)
 
     def _matrix_share(
         self, pieces: list[pl.LazyFrame], name: str, *expressions: program.ExpressionNode

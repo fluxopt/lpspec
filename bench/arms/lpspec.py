@@ -63,15 +63,19 @@ def _tables(handle: Any) -> Any:
     """The built model's frames, wherever the checkout under test keeps them.
 
     ``build`` returns a handle *over* the engine; a checkout from before it
-    returned the engine itself, and one from before ``BuiltModel`` kept the
-    frames on the engine rather than on a value. Written the tolerant way for
+    returned the engine itself, one from before ``BuiltModel`` kept the
+    frames on the engine rather than on a value, and one from before it held
+    the sink's ``Tables`` as a field built them on demand. Written the tolerant way for
     the same reason the nonzero count below is optional — the ladder is run
     across checkouts, and a comparison that cannot reach the older one measures
     nothing.
     """
     engine = getattr(handle, '_engine', handle)
     built = getattr(engine, '_model', None)
-    return built.tables() if built is not None else engine._tables()
+    if built is None:
+        return engine._tables()
+    tables = built.tables
+    return tables() if callable(tables) else tables
 
 
 def _counts(tables: Any, *, nonzeros: bool) -> Counts:

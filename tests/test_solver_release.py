@@ -18,7 +18,7 @@ from tests.conftest import CASES
 def _tables(solver_name: str):
     del solver_name
     with lps.build(*CASES['LP']) as model:
-        return model._engine._model.tables()
+        return model._engine._model.tables
 
 
 def test_close_leaves_no_model(solver_name: str) -> None:

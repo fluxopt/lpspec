@@ -151,7 +151,7 @@ def test_quadratic_declarations_take_the_tail_of_the_label_space():
         }
     )
     with lps.build(first, SOURCES) as model:
-        tables = model._engine._model.tables()
+        tables = model._engine._model.tables
         assert model._engine._model.constraints['cap'].start == 0, 'the linear declaration is built first'
         assert [row for row, _ in tables.quadratic_blocks()] == [1, 2], (
             'the quadratic rows are the tail, however the file was written'
@@ -197,7 +197,7 @@ def _entries(expression: str, sources=None) -> pl.DataFrame:
     """The quadratic stream of a model whose row is *expression*."""
     varied = spec(constraints={'coupled': {'dims': ['g'], 'expression': expression}})
     with lps.build(varied, dict(sources or SOURCES)) as model:
-        return model._engine._model.qmatrix
+        return model._engine._model.tables.qmatrix
 
 
 def test_a_pair_in_a_row_is_stored_once_whichever_order_it_was_written():
@@ -252,7 +252,7 @@ def test_the_pair_a_row_holds_is_structure_even_at_the_same_coefficient():
     directly instead: one entry at a different column, same coefficient.
     """
     with lps.build(SPEC, SOURCES) as model:
-        tables = model._engine._model.tables()
+        tables = model._engine._model.tables
         assert tables.qmatrix.height, 'the model under test carries a quadratic row'
         moved = replace(tables, qmatrix=tables.qmatrix.with_columns(pl.col('col_r') + 1))
         assert moved.structure != tables.structure, (
@@ -299,7 +299,7 @@ def test_the_highs_hand_off_refuses_one_even_when_reached_directly():
     from lpspec.relational.sinks.solvers.highs import build_highs
 
     with lps.build(SPEC, SOURCES) as model, pytest.raises(LpspecError, match='no quadratic-constraint concept'):
-        build_highs(model._engine._model.tables())
+        build_highs(model._engine._model.tables)
 
 
 def test_a_bare_check_stays_silent_about_all_of_it():

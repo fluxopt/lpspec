@@ -50,7 +50,7 @@ def quad_of(expression: str, sources=None) -> pl.DataFrame:
     be the one place no test could tell whether the contract held.
     """
     with lps.build(spec(expression), dict(sources or SOURCES)) as model:
-        return model._engine._model.quad
+        return model._engine._model.tables.quad
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +196,7 @@ def test_a_quadratic_term_is_absent_where_either_factor_is():
         pass
 
     with lps.build(masked, SOURCES) as model:
-        pairs = model._engine._model.quad
+        pairs = model._engine._model.tables.quad
         assert pairs.filter(pl.col('col_l') != pl.col('col_r')).height == 1, (
             "the cross term exists only where 'q' does — one coordinate of two"
         )
@@ -211,7 +211,7 @@ def test_absence_under_a_quadratic_term_reaches_its_siblings():
     masked = spec('sum(p * q + p, over=g)')
     masked['variables'] = {**SPEC['variables'], 'q': {**SPEC['variables']['q'], 'where': 'weight > 2'}}
     with lps.build(masked, SOURCES) as model:
-        objective = model._engine._model.obj
+        objective = model._engine._model.tables.obj
         assert objective.height == 1, (
             "the lone 'p' survives only where 'q' does — a quadratic term is absent wherever "
             'either of its factors is, and that absence reaches the terms summed beside it'

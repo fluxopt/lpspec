@@ -85,7 +85,7 @@ def test_the_highs_solver_takes_integrality_over_the_whole_column_index(commitme
     index, where it once walked bounded column chunks and applied
     ``changeColsIntegrality`` per chunk.
     """
-    tables = commitment_run.engine._model.tables()
+    tables = commitment_run.engine._model.tables
     with Highs(tables, None, None) as sink:
         loaded = sink.run(tables)
     assert loaded.status.is_ok
@@ -120,8 +120,8 @@ def test_cols_vtype_is_an_enum_over_every_declared_domain(commitment_run):
     fails where the column is built rather than in whichever sink first
     compares against a name it does not know.
     """
-    vtype = commitment_run.engine._model.tables().cols.schema['vtype']
-    held = set(commitment_run.engine._model.tables().cols['vtype'].unique().to_list())
+    vtype = commitment_run.engine._model.tables.cols.schema['vtype']
+    held = set(commitment_run.engine._model.tables.cols['vtype'].unique().to_list())
 
     assert isinstance(vtype, pl.Enum), f'vtype is {vtype}, so it stores a word per column'
     assert set(vtype.categories.to_list()) == set(get_args(program.VariableDomain))

@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping, Sequence
 
     from math_spec import program
+    from polars._typing import PolarsDataType
 
 
 def _no_built_model(doing: str) -> str:
@@ -130,7 +131,7 @@ class PolarsEngine:
         path = Path(path)
         suffix = path.suffix.lower()
         chosen = sinks.writer(suffix)
-        tables = self._model.tables()
+        tables = self._model.tables
         if (refused := sinks.refusal(self._model.program, suffix)) is not None:
             raise LpspecError(refused)
         with _clocked(self._seconds, 'write'):
@@ -184,7 +185,7 @@ class PolarsEngine:
         """
         if keep not in KEEPS:
             raise LpspecError(unknown_keep_message(keep))
-        built = self._model.tables()
+        built = self._model.tables
         with _clocked(self._seconds, 'handoff'):
             tables = sinks.ingestible(solver_name, built, self._model.program)
             self._added_columns = tables.column_count - built.column_count
@@ -238,55 +239,25 @@ class PolarsEngine:
         Answerable after :meth:`close`: every field is a count, a clock or a
         small frame this keeps, not a read of the model it releases.
         """
+        measured = self._measured
         return Diagnostics(
-            columns=self._measured.columns,
-            rows=self._measured.rows,
-            nonzeros=self._measured.nonzeros,
+            columns=measured.columns,
+            rows=measured.rows,
+            nonzeros=measured.nonzeros,
             added_columns=self._added_columns,
             added_rows=self._added_rows,
-            omissions=pl.DataFrame(
-                {'constraint': list(self._measured.omitted), 'rows_not_built': list(self._measured.omitted.values())},
-                schema={'constraint': pl.String, 'rows_not_built': pl.UInt32},
+            omissions=_per_name('constraint', measured.omitted, rows_not_built=pl.UInt32),
+            coefficient_range=_per_name('constraint', measured.coefficients, smallest=pl.Float64, largest=pl.Float64),
+            bound_range=_per_name('variable', measured.bounds, smallest=pl.Float64, largest=pl.Float64),
+            rhs_range=_per_name('constraint', measured.rhs, smallest=pl.Float64, largest=pl.Float64),
+            sparse_parameters=_per_name(
+                'parameter',
+                {name: (reach, rows, reach - rows) for name, (reach, rows) in measured.sparse.items()},
+                coordinates=pl.UInt64,
+                rows=pl.UInt64,
+                missing=pl.UInt64,
             ),
-            coefficient_range=pl.DataFrame(
-                {
-                    'constraint': list(self._measured.coefficients),
-                    'smallest': [low for low, _ in self._measured.coefficients.values()],
-                    'largest': [high for _, high in self._measured.coefficients.values()],
-                },
-                schema={'constraint': pl.String, 'smallest': pl.Float64, 'largest': pl.Float64},
-            ),
-            bound_range=pl.DataFrame(
-                {
-                    'variable': list(self._measured.bounds),
-                    'smallest': [low for low, _ in self._measured.bounds.values()],
-                    'largest': [high for _, high in self._measured.bounds.values()],
-                },
-                schema={'variable': pl.String, 'smallest': pl.Float64, 'largest': pl.Float64},
-            ),
-            rhs_range=pl.DataFrame(
-                {
-                    'constraint': list(self._measured.rhs),
-                    'smallest': [low for low, _ in self._measured.rhs.values()],
-                    'largest': [high for _, high in self._measured.rhs.values()],
-                },
-                schema={'constraint': pl.String, 'smallest': pl.Float64, 'largest': pl.Float64},
-            ),
-            sparse_parameters=pl.DataFrame(
-                {
-                    'parameter': list(self._measured.sparse),
-                    'coordinates': [reach for reach, _ in self._measured.sparse.values()],
-                    'rows': [rows for _, rows in self._measured.sparse.values()],
-                    'missing': [reach - rows for reach, rows in self._measured.sparse.values()],
-                },
-                schema={
-                    'parameter': pl.String,
-                    'coordinates': pl.UInt64,
-                    'rows': pl.UInt64,
-                    'missing': pl.UInt64,
-                },
-            ),
-            objective_range=self._measured.objective_range,
+            objective_range=measured.objective_range,
             solves=self._solves,
             loads=self._loads,
             seconds=dict(self._seconds),
@@ -423,6 +394,20 @@ class PolarsEngine:
     def __exit__(self, *exc: object) -> Literal[False]:
         self.close()
         return False
+
+
+def _per_name(kind: str, measured: Mapping[str, Any], **columns: PolarsDataType) -> pl.DataFrame:
+    """One :class:`~lpspec.relational.result.Diagnostics` frame: a row per name in *measured*, in build order.
+
+    *kind* names the first column, and the remaining *columns* carry each
+    value in order — a scalar for one column, a tuple for several.
+    """
+    names = list(measured)
+    values = [v if isinstance(v, tuple) else (v,) for v in measured.values()]
+    schema = {kind: pl.String, **columns}
+    return pl.DataFrame(
+        {kind: names, **{column: [v[i] for v in values] for i, column in enumerate(columns)}}, schema=schema
+    )
 
 
 def expression_readers(

@@ -415,12 +415,13 @@ tables are passed *beside* it and stay mutable. A variable table appears as its
 declaration is built, and a constraint compiled afterwards has to see it. That
 is the one live registry in the lane, and it is visible in a signature.
 
-**What a build produces is a value too.** `BuiltModel` is frozen: the model
-tables, the label tables, the per-declaration blocks and the compiler that
-made them. What fills during assembly lives on `_Assembly`, discarded once it
-has frozen. So the engine holds one field rather than seven, `close()` is one
-assignment, and a build that raises leaves no model rather than half of one.
-What survives that release is `_Measured`, the counts `diagnostics()` reports.
+**What a build produces is a value too.** `BuiltModel` is frozen: the sink's
+`Tables`, held as one field rather than restated, and the label table each
+declaration owns. What fills during assembly lives on `Assembly`, discarded
+once it has frozen, the compiler with it. So the engine holds one field rather
+than seven, `close()` is one assignment, and a build that raises leaves no
+model rather than half of one. What survives that release is `Measured`, the
+counts `diagnostics()` reports.
 
 **Tables are tidy.** Parameters are `(dims…, value)`. A variable table is
 `(dims…, var_label)`, one row per *existing* variable. A linear expression is
