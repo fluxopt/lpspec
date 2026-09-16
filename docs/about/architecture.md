@@ -400,8 +400,8 @@ conventions are in `compiler.py` and `fragments.py`.
 `assembly.py`, `sinks/`, and `engine.py`, which runs that lifecycle and holds
 the solver between solves. `labels.py`, `readback.py` and `result.py` sit beside
 the engine, because each answers a question the engine only *uses*.
-`fragments.py`, `predicates.py`, `reindex.py`, `evaluate.py` and `status.py` are
-off the spine and undrawn. `frames.py`, the other boundary, is top level because
+`fragments.py`, `predicates.py`, `reindex.py` and `status.py` are off the spine
+and undrawn. `frames.py`, the other boundary, is top level because
 all three consumers read it. The [module map](#module-map) says what each does.
 
 That split makes the ceiling's admissibility test something you can *perform*:
@@ -558,8 +558,7 @@ is structure.
 | `relational/engines/polars/attaching.py` | the door's tables → `AttachedSources`, the frozen, `Enum`-encoded tables every query is written against |
 | `relational/engines/polars/assembly.py` | one build: every declaration into rows of the model tables, quadratic constraints last |
 | `relational/engines/polars/readback.py` | a built row, a solve's tables and a named expression, spelled back out in the model's own labels |
-| `relational/engines/polars/evaluate.py` | a spec of parameters and expressions, no variables: the named expressions read straight off the data as arithmetic, with no solver |
-| `relational/engines/polars/engine.py` | the lifecycle: build, hand to a sink, read back; the counters and clocks `diagnostics()` reports |
+| `relational/engines/polars/engine.py` | the lifecycle: build, hand to a sink, read back; the counters and clocks `diagnostics()` reports; and the one read with no build, a spec of parameters and expressions valued as arithmetic |
 | `relational/result.py` | what a solve returned: status, objective, the label joins that read values back, and the deferred expression readers |
 | `expressions.py` | expressions spliced into the model as written and lowered with it — what a reader values when the file never named the quantity |
 | `relational/parquet.py` | answers on disk: the `<kind>/<name>` layout a result and a sweep both write, and the writer that lands a file whole |

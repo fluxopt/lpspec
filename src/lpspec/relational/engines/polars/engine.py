@@ -353,7 +353,7 @@ class PolarsEngine:
         model = self._model
         solution = Solution(primal, dual, dict(model.constraints), no_duals)
         compiler = PolarsCompiler(model.program, model.attached, dict(model.variables), solution)
-        return readback.evaluation_readers(compiler, model.program.named_expressions, lower)
+        return readback.readers(compiler, model.program.named_expressions, lower)
 
     def reconstruct(
         self,
@@ -423,6 +423,33 @@ class PolarsEngine:
     def __exit__(self, *exc: object) -> Literal[False]:
         self.close()
         return False
+
+
+def expression_readers(
+    program: program.Program,
+    sources: Mapping[str, pl.LazyFrame],
+    lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
+) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, Any]], pl.DataFrame] | None]:
+    """Attach *sources* and defer the reads :func:`lpspec.evaluate` values one expression through.
+
+    A spec that declares no variables is a calculation rather than an
+    optimisation, so every expression has a value with no solver and no chosen
+    point. The readers are the ones a solve hands out, over a compiler carrying
+    no solution: a variable is never reached, every leaf a number already.
+
+    Args:
+        program: A lowered program with no variables — a calculation.
+        sources: Tidied sources, as :func:`~lpspec.sources.tidy_sources` produces.
+        lower: How an ad-hoc expression becomes a plan node in the model's
+            namespace, or ``None`` where ad-hoc evaluation is not offered.
+
+    Returns:
+        One deferred reader per declared named expression, and the ad-hoc
+        evaluator (or ``None``); calling either compiles and evaluates against
+        the attached data.
+    """
+    compiler = PolarsCompiler(program, attach(program, sources), {}, None)
+    return readback.readers(compiler, program.named_expressions, lower)
 
 
 def _no_duals_message(

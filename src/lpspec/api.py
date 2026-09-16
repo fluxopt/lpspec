@@ -41,8 +41,7 @@ from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
 from lpspec.lanes import LANES, Buildable, Label, Source, declared, lowered
 from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational import sinks
-from lpspec.relational.engines.polars.engine import PolarsEngine
-from lpspec.relational.engines.polars.evaluate import expression_readers
+from lpspec.relational.engines.polars.engine import PolarsEngine, expression_readers
 from lpspec.relational.parquet import (
     METRICS_FILE,
     METRICS_SCHEMA,
@@ -404,6 +403,29 @@ class Model:
         """
         return self._engine.row(name, coordinate)
 
+    def evaluator(
+        self,
+        primals: Mapping[str, pl.DataFrame],
+        duals: Mapping[str, pl.DataFrame] | None,
+        no_duals: str | None,
+    ) -> Callable[[str | Mapping[str, Any]], pl.DataFrame]:
+        """An ad-hoc expression reader over a *saved* solution, put back against this build.
+
+        What an archive and a sweep hand :meth:`~lpspec.relational.result.Result.evaluate`
+        for a quantity the file never named: the saved frames are laid back in
+        this build's label order, and the reader is the one a live solve gives.
+        A build, never a solve.
+
+        Args:
+            primals: The saved ``(dims…, value)`` frame per variable.
+            duals: The same per constraint, or ``None`` where the solve left no
+                duals — *no_duals* then says why, and a read of one raises it.
+            no_duals: Why there are no duals, or ``None`` when *duals* holds them.
+        """
+        evaluate = self._engine.reconstruct(primals, duals, no_duals, self._lower)
+        assert evaluate is not None, 'a model built from a spec as written lowers an ad-hoc expression'
+        return evaluate
+
     def diagnostics(self) -> Diagnostics:
         """What this build and its solves did that the answer does not show.
 
@@ -681,7 +703,7 @@ def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source
     frames = answer._primals
     dual_frames = answer._duals
     no_duals = answer._no_duals
-    built: list[Callable[[str | Mapping[str, Any]], pl.DataFrame] | None] = []
+    built: list[Callable[[str | Mapping[str, Any]], pl.DataFrame]] = []
 
     def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
         if not built:
@@ -691,10 +713,7 @@ def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source
                 if no_duals is None and dual_frames
                 else None
             )
-            model = build(spec, sources)
-            built.append(model._engine.reconstruct(primals, duals, no_duals, model._lower))
-        evaluator = built[0]
-        assert evaluator is not None, 'a rebuilt model with a spec as written lowers an ad-hoc expression'
-        return evaluator(written)
+            built.append(build(spec, sources).evaluator(primals, duals, no_duals))
+        return built[0](written)
 
     return replace(answer, _evaluate=evaluate)

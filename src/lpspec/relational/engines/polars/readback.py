@@ -236,41 +236,17 @@ def _aligned(
     return joined['value'].rename(SOLUTION)
 
 
-def deferred_readers(
-    compiler: PolarsCompiler, named: Mapping[str, program.ExpressionDeclaration]
-) -> dict[str, Callable[[], pl.DataFrame]]:
-    """One deferred reader per named expression — nothing compiled until one is called.
-
-    Shared by the two paths that read named expressions: a solve reads them at a
-    solution, and :func:`~lpspec.evaluate` reads them as arithmetic. The two
-    differ only in the *compiler* handed in — whether it carries a
-    :class:`~lpspec.relational.engines.polars.compiler.Solution` — never in how a
-    declared name becomes a thunk, so that turn lives here once.
-
-    Args:
-        compiler: The compiler each reader compiles its expression through.
-        named: The declared named expressions, by name.
-
-    Returns:
-        A reader per name; calling one compiles and evaluates that expression.
-    """
-
-    def reader(name: str, expression: program.ExpressionNode) -> Callable[[], pl.DataFrame]:
-        return lambda: expression_frame(name, expression, compiler)
-
-    return {name: reader(name, e.expression) for name, e in named.items()}
-
-
-def evaluation_readers(
+def readers(
     compiler: PolarsCompiler,
     named: Mapping[str, program.ExpressionDeclaration],
     lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
 ) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, Any]], pl.DataFrame] | None]:
     """The reads :meth:`~lpspec.relational.result.Result.evaluate` is built from, over one compiler.
 
-    Shared by every producer of them — a live solve, a rebuilt archive, and the
-    variable-free arithmetic path — so the two reads a declared name and an
-    ad-hoc expression get are defined once, and differ only in the compiler.
+    Every producer of them — a live solve, a rebuilt archive, and the
+    variable-free arithmetic path — comes through here, so the read a declared
+    name gets and the read an ad-hoc expression gets are defined once and
+    differ only in the compiler. Nothing is compiled until a reader is called.
 
     Args:
         compiler: The compiler each read compiles through — carrying a solution,
@@ -285,7 +261,11 @@ def evaluation_readers(
         One deferred reader per declared name, and the ad-hoc evaluator (or
         ``None``).
     """
-    declared = deferred_readers(compiler, named)
+
+    def reader(name: str, expression: program.ExpressionNode) -> Callable[[], pl.DataFrame]:
+        return lambda: expression_frame(name, expression, compiler)
+
+    declared = {name: reader(name, e.expression) for name, e in named.items()}
     if lower is None:
         return declared, None
 
