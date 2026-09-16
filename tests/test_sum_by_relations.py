@@ -263,7 +263,7 @@ def test_a_hand_built_walk_onto_two_columns_is_refused():
         ('generator',),
     )
     node = GroupSum(Variable('p'), (Walk(gen_bt, ('generator',), ('bus', 'technology'), ()),))
-    with pytest.raises(ValueError, match='zip'):
+    with pytest.raises(AssertionError, match=r"landing on \['bus', 'technology'\]"):
         compiler().expression(node, 'a hand-built plan')
 
 
