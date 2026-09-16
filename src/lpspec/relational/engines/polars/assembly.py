@@ -179,51 +179,16 @@ class Assembly:
     ) -> tuple[pl.DataFrame, pl.Series]:
         """One constraint's share: in ``(row, col)`` order, repeated cells summed.
 
-        Nothing runs unconditionally except three linear probes — the null
-        count, whether the stack arrives in order, whether any cell repeats —
-        so the sort and the aggregate run only when a probe says they would
-        change something. The share is rechunked first: a streaming collect
-        returns morsels as chunks, and ``shift(1)`` crosses chunk boundaries
-        that ``is_sorted`` does not.
-
-        Zeros go before any of that, so the probes read them and the sort
-        orders them no longer — pruned behind a probe too, so a share with
-        nothing to drop skips the rechunk. A cancelling pair survives to the
-        aggregate and only becomes a zero there, so the prune runs again on
-        the path that aggregated, and only on it.
-
         Returns:
-            The share, and the rows that had *any* term — read off the frame
-            before a prune takes the answer away: a row whose every
-            coefficient is zero owns no entries and is not thereby a row with
-            no terms.
+            The share, and the rows that had *any* term — read off the stack
+            before a prune takes the answer away, and off the ordered share
+            where nothing was pruned: a row whose every coefficient is zero
+            owns no entries and is not thereby a row with no terms.
         """
-        stacked = pl.concat(pieces).collect(engine=polars_engine()).rechunk()
+        stacked = pl.concat(pieces).collect(engine=polars_engine())
         coverage.refuse_null_coefficients(stacked, name, *expressions)
-        pruned = _pruned(stacked)
-        term_rows = stacked.get_column('row').unique() if pruned.height != stacked.height else None
-        stacked = pruned
-        row, col = pl.col('row'), pl.col('col')
-        tied, ahead = row == row.shift(1), row > row.shift(1)
-        repeat = tied & (col == col.shift(1))
-        probes = stacked.select(
-            (ahead | (tied & (col >= col.shift(1)))).all().alias('#ordered'),
-            repeat.any().alias('#repeated'),
-        )
-        ordered, repeated = probes.row(0)
-        if not ordered:
-            stacked = stacked.sort('row', 'col')
-            repeated = stacked.select(repeat.any()).item()
-        if not repeated:
-            return stacked, term_rows if term_rows is not None else _ordered_rows(stacked)
-        aggregated = (
-            stacked.lazy()
-            .group_by('row', 'col')
-            .agg(pl.col('coeff').sum())
-            .sort('row', 'col')
-            .collect(engine=polars_engine())
-        )
-        return _pruned(aggregated), term_rows if term_rows is not None else _ordered_rows(aggregated)
+        share, dropped = _collapsed(stacked, ('row', 'col'), ordered=True)
+        return share, stacked.get_column('row').unique() if dropped else _ordered_rows(share)
 
     # ------------------------------------------------------------------
     # declarations
@@ -401,11 +366,10 @@ class Assembly:
     def _quadratic_share(
         self, frame: pl.LazyFrame, quads: list[tuple[TermFragment, float]], name: str, c: program.ConstraintDeclaration
     ) -> pl.DataFrame | None:
-        """One constraint's quadratic entries as ``(row, col_l, col_r, coeff)``.
+        """One constraint's quadratic entries as ``(row, col_l, col_r, coeff)``, in that order.
 
-        It sorts and aggregates unconditionally, where :meth:`_matrix_share`
-        probes first. Pairs are ordered by column index for
-        :meth:`_objective_quadratic`'s reason.
+        Pairs are ordered by column index for :meth:`_objective_quadratic`'s
+        reason.
         """
         if not quads:
             return None
@@ -419,13 +383,8 @@ class Assembly:
         ]
         stacked = pl.concat(pieces).collect(engine=polars_engine())
         coverage.refuse_null_coefficients(stacked, f"constraint '{name}'", c.lhs, c.rhs)
-        return _without_zeros(
-            stacked.lazy()
-            .group_by('row', 'col_l', 'col_r')
-            .agg(pl.col('coeff').sum())
-            .sort('row', 'col_l', 'col_r')
-            .collect(engine=polars_engine())
-        )
+        share, _ = _collapsed(stacked, ('row', 'col_l', 'col_r'), ordered=True)
+        return share
 
     def _drop_termless_rows(
         self, name: str, rows: pl.DataFrame, matrix: pl.DataFrame, kept: pl.Series, start: int
@@ -475,9 +434,9 @@ class Assembly:
         This projection drops the dims, so a dim that arrived by broadcast puts
         several rows on one column and their **sum** is the coefficient — the
         hand-off scatters with ``dense[at] = values``, which keeps the *last*
-        write. The aggregate runs only when a column repeats, probed by
-        :func:`_repeats_a_label`: the stack arrives unordered, so adjacency
-        proves nothing.
+        write. The stack arrives unordered and nothing downstream needs it
+        ordered, so a repeat is probed over the dense column space rather than
+        by adjacency.
         """
         if o is None:
             return None
@@ -497,9 +456,7 @@ class Assembly:
         ]
         stacked = pl.concat(pieces).collect(engine=polars_engine())
         coverage.refuse_null_coefficients(stacked, 'objective', o.expression)
-        if _repeats_a_label(stacked.get_column('col'), self.n_cols):
-            stacked = stacked.lazy().group_by('col').agg(pl.col('coeff').sum()).collect(engine=polars_engine())
-        objective = _without_zeros(stacked)
+        objective, _ = _collapsed(stacked, ('col',), ordered=False, space=self.n_cols)
         self.measured.objective_range = _magnitude_range(objective, 'coeff')
         return objective
 
@@ -512,8 +469,7 @@ class Assembly:
         ``coeff · x[col_l] · x[col_r]``, whole and not halved. Each sink spells
         that differently — a Hessian is :math:`\frac12 x^\top Q x`, the LP
         section is divided by two, Gurobi takes :math:`x^\top Q x` — so what
-        leaves here is the algebra and the conversion is theirs. The aggregate
-        runs only when a pair repeats, probed like the linear half.
+        leaves here is the algebra and the conversion is theirs.
 
         **It leaves sorted, and that is a contract**:
         :attr:`~lpspec.relational.sinks.tables.Tables.structure` hashes it, and
@@ -524,11 +480,8 @@ class Assembly:
         pieces = [p.frame.select(*_ordered_pair(), pl.col('coeff')) for p in quads]
         stacked = pl.concat(pieces).collect(engine=polars_engine())
         coverage.refuse_null_coefficients(stacked, 'objective', expression)
-        if stacked.select(pl.struct('col_l', 'col_r').n_unique()).item() != stacked.height:
-            stacked = (
-                stacked.lazy().group_by('col_l', 'col_r').agg(pl.col('coeff').sum()).collect(engine=polars_engine())
-            )
-        return _without_zeros(stacked.sort('col_l', 'col_r'))
+        quad, _ = _collapsed(stacked, ('col_l', 'col_r'), ordered=True)
+        return quad
 
 
 def short_parameters(program: program.Program, attached: AttachedSources) -> dict[str, tuple[int, int]]:
@@ -604,18 +557,77 @@ def _without_zeros(matrix: pl.DataFrame) -> pl.DataFrame:
     return matrix.filter(pl.col('coeff') != 0)
 
 
+def _collapsed(
+    stacked: pl.DataFrame, keys: tuple[str, ...], *, ordered: bool, space: int | None = None
+) -> tuple[pl.DataFrame, bool]:
+    """*stacked* with repeated *keys* summed and zeros dropped, in key order where *ordered* — and whether a zero went.
+
+    The one rule every share of the model obeys, linear and quadratic, row and
+    objective: a cell the pieces reach twice holds their sum, and a cell at
+    exactly zero is not there. Nothing runs unconditionally except linear
+    probes — whether any coefficient is zero, whether the stack arrives in key
+    order, whether any key repeats — so the sort and the aggregate run only
+    when a probe says they would change something.
+
+    Zeros go first, so the probes read them and the sort orders them no
+    longer; a share with nothing to drop is not rechunked. A cancelling pair
+    survives to the aggregate and only becomes a zero there, so the prune runs
+    again on the path that aggregated, and only on it. The stack is rechunked
+    first: a streaming collect returns morsels as chunks, and ``shift(1)``
+    crosses chunk boundaries that ``is_sorted`` does not.
+
+    Unordered, a repeat is probed by *space*, the dense label count a single
+    integer key was drawn from (:func:`_repeats_a_label`), which is what the
+    objective's stack has; adjacency proves nothing there.
+
+    Returns:
+        The share, and whether any zero was dropped — the caller that reads
+        which rows had terms reads them off the stack in that case, the share
+        no longer saying.
+    """
+    pruned = _pruned(stacked.rechunk())
+    dropped = pruned.height != stacked.height
+    stacked = pruned
+    if ordered:
+        tied = pl.all_horizontal([pl.col(k) == pl.col(k).shift(1) for k in keys])
+        probes = stacked.select(_in_key_order(keys).all().alias('#ordered'), tied.any().alias('#repeated'))
+        in_order, repeated = probes.row(0)
+        if not in_order:
+            stacked = stacked.sort(*keys)
+            repeated = stacked.select(tied.any()).item()
+    else:
+        assert space is not None and len(keys) == 1, 'an unordered probe counts one dense integer key'
+        repeated = _repeats_a_label(stacked.get_column(keys[0]), space)
+    if not repeated:
+        return stacked, dropped
+    aggregated = stacked.lazy().group_by(*keys).agg(pl.col('coeff').sum())
+    if ordered:
+        aggregated = aggregated.sort(*keys)
+    collected = aggregated.collect(engine=polars_engine())
+    share = _pruned(collected)
+    return share, dropped or share.height != collected.height
+
+
+def _in_key_order(keys: tuple[str, ...]) -> pl.Expr:
+    """Whether each row is at or after the one before it, lexicographically over *keys*."""
+    head, *rest = keys
+    now, before = pl.col(head), pl.col(head).shift(1)
+    if not rest:
+        return now >= before
+    return (now > before) | ((now == before) & _in_key_order(tuple(rest)))
+
+
 def _ordered_rows(matrix: pl.DataFrame) -> pl.Series:
     """The distinct ``row`` labels of a matrix already ordered by ``row``.
 
-    Only ever called where the caller has *established* that order — the
-    ``#ordered`` probe returned true, or the sort ran, or the aggregate ended
-    on ``sort('row', 'col')``.
+    Only ever called on what :func:`_collapsed` handed back ordered, which
+    has *established* that order — by probe, by sort, or by the aggregate's
+    own sort.
 
     ``set_sorted`` is an assertion, not a check: on a column that is not
     ascending it returns whichever labels the walk happens to see, which is a
-    model missing rows rather than an error. A caller that moves the probe, or
-    reaches here on a path that never ran one, breaks this silently — which is
-    why every call site is inside the branch that just proved it.
+    model missing rows rather than an error. A caller that reaches here with a
+    share it did not ask for ordered breaks this silently.
     """
     return matrix.get_column('row').set_sorted().unique()
 
