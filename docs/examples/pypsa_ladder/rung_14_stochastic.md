@@ -557,7 +557,7 @@ value
 `Generator_bus.csv`
 
 ```csv
-generator,Generator_bus
+generator,bus
 coal,north
 gas,south
 wind14,south
@@ -677,7 +677,7 @@ wind14,0.0
 `Link_bus0.csv`
 
 ```csv
-link,Link_bus0
+link,bus
 wire,north
 ```
 
@@ -701,14 +701,14 @@ snapshot,link,value
 `Link_output_bus.csv`
 
 ```csv
-link_output,Link_output_bus
+link_output,bus
 wire_bus1,south
 ```
 
 `Link_output_link.csv`
 
 ```csv
-link_output,Link_output_link
+link_output,link
 wire_bus1,wire
 ```
 
@@ -742,7 +742,7 @@ wire,40.0
 `Load_bus.csv`
 
 ```csv
-load,Load_bus
+load,bus
 north_load,north
 port14,south
 south_load,south

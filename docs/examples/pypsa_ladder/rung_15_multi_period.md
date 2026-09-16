@@ -611,7 +611,7 @@ snapshot,generator,value
 `Generator_bus.csv`
 
 ```csv
-generator,Generator_bus
+generator,bus
 gas30,south
 old_gas,north
 wind20,north
@@ -641,7 +641,7 @@ wind30,0.5
 `Generator_carrier.csv`
 
 ```csv
-generator,Generator_carrier
+generator,carrier
 gas30,gas
 old_gas,gas
 wind20,wind
@@ -819,7 +819,7 @@ wind30,0.0
 `Link_bus0.csv`
 
 ```csv
-link,Link_bus0
+link,bus
 wire15,north
 ```
 
@@ -847,14 +847,14 @@ snapshot,link,value
 `Link_output_bus.csv`
 
 ```csv
-link_output,Link_output_bus
+link_output,bus
 wire15_bus1,south
 ```
 
 `Link_output_link.csv`
 
 ```csv
-link_output,Link_output_link
+link_output,link
 wire15_bus1,wire15
 ```
 
@@ -896,7 +896,7 @@ wire15,60.0
 `Load_bus.csv`
 
 ```csv
-load,Load_bus
+load,bus
 port15,south
 town15,north
 ```
@@ -1004,7 +1004,7 @@ snapshot
 `snapshot_period.csv`
 
 ```csv
-snapshot,snapshot_period
+snapshot,period
 2020-01-01T00:00:00.000000,2020
 2020-01-01T01:00:00.000000,2020
 2020-01-01T02:00:00.000000,2020

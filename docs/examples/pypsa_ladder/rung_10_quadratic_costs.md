@@ -377,7 +377,7 @@ The tables this rung is the first to declare (24), as the prep produced them:
 `Generator_bus.csv`
 
 ```csv
-generator,Generator_bus
+generator,bus
 coal,north
 engine,north
 gas,south
@@ -485,7 +485,7 @@ steam,80.0
 `Link_bus0.csv`
 
 ```csv
-link,Link_bus0
+link,bus
 wire,north
 wire2,north
 ```
@@ -529,7 +529,7 @@ snapshot,link,value
 `Link_output_bus.csv`
 
 ```csv
-link_output,Link_output_bus
+link_output,bus
 wire2_bus1,village
 wire_bus1,south
 ```
@@ -537,7 +537,7 @@ wire_bus1,south
 `Link_output_link.csv`
 
 ```csv
-link_output,Link_output_link
+link_output,link
 wire2_bus1,wire2
 wire_bus1,wire
 ```
@@ -581,7 +581,7 @@ wire2,40.0
 `Load_bus.csv`
 
 ```csv
-load,Load_bus
+load,bus
 extra10,north
 north_load,north
 south_load,south

@@ -915,7 +915,7 @@ The tables this rung is the first to declare (16), as the prep produced them:
 `Line_bus0.csv`
 
 ```csv
-line,Line_bus0
+line,bus
 ab,a
 bc,b
 ca,c
@@ -926,7 +926,7 @@ ca3,c
 `Line_bus1.csv`
 
 ```csv
-line,Line_bus1
+line,bus
 ab,b
 bc,c
 ca,a
