@@ -45,6 +45,7 @@ from lpspec.relational.engines.polars.fragments import (
     negate,
     propagate_absence,
     refuse_a_fragment_without_the_dims,
+    region_over,
 )
 from lpspec.relational.engines.polars.predicates import (
     Carrier,
@@ -327,6 +328,11 @@ class PolarsCompiler:
             invariants of a checked plan rather than refusals of a file: a
             cubic product has no third label column, and a quadratic one is
             unrepresentable in a position whose caller compiled it as affine.
+
+            A constant piece of the product owes a factor's parameters only
+            where the *other* factor carries no variable: a parameter a
+            variable stands with in a product is a coefficient, whichever
+            piece it lands in (:attr:`TermFragment.parameters`).
             """
             assert not ((a.quads and b.terms) or (b.quads and a.terms) or (a.quads and b.quads)), (
                 f'in {context}: a product of degree 3 reached the compiler'
@@ -339,7 +345,16 @@ class PolarsCompiler:
             quads += tuple(join_mul(q, c, 'quad') for q in b.quads for c in a.consts)
             terms = tuple(join_mul(t, c, t.kind) for t in a.terms for c in b.consts)
             terms += tuple(join_mul(t, c, t.kind) for t in b.terms for c in a.consts)
-            consts = tuple(join_mul(x, c, 'const') for x in a.consts for c in b.consts)
+            a_carries, b_carries = bool(a.terms or a.quads), bool(b.terms or b.quads)
+            consts = tuple(
+                replace(
+                    join_mul(x, c, 'const'),
+                    parameters=(frozenset() if b_carries else x.parameters)
+                    | (frozenset() if a_carries else c.parameters),
+                )
+                for x in a.consts
+                for c in b.consts
+            )
             return CompiledExpression(terms, consts, quads)
 
         def quotient(a: CompiledExpression, b: CompiledExpression) -> CompiledExpression:
@@ -517,7 +532,7 @@ class PolarsCompiler:
         """
         dims = self.program.parameter(name).dims
         frame = self.data.parameters[name].select(*dims, pl.col('value').cast(pl.Float64).alias('cval'))
-        return TermFragment(dims, frame, 'const')
+        return TermFragment(dims, frame, 'const', parameters=frozenset({name}))
 
     def _variable_fragment(self, name: str) -> TermFragment:
         """A variable as a term with unit coefficients.
@@ -602,7 +617,10 @@ class PolarsCompiler:
         for restriction in restrictions:
             carrier = restriction.restrict(carrier, restriction.keyed_by or ())
         added = self.added(fragments, carrier, fill=False)
-        return CompiledExpression((), (TermFragment(dims, added, 'const', presences=tuple(restrictions)),))
+        parameters = frozenset[str]().union(*(p.parameters for p in fragments))
+        return CompiledExpression(
+            (), (TermFragment(dims, added, 'const', presences=tuple(restrictions), parameters=parameters),)
+        )
 
     def spanned(self, fragments: Sequence[TermFragment]) -> tuple[str, ...]:
         """The dims *fragments* carry between them, in declaration order."""
@@ -650,7 +668,7 @@ class PolarsCompiler:
         frame = p.frame.select(*keep, *p.carried)
         if scale != 1:
             frame = frame.with_columns(pl.col(p.value_column) * scale)
-        return TermFragment(keep, frame, p.kind)
+        return TermFragment(keep, frame, p.kind, region=region_over(p.region, keep), parameters=p.parameters)
 
     def _group_fragment(self, p: TermFragment, g: program.GroupSum, context: str) -> TermFragment:
         """Relabel the dims ``over`` to ``into`` through the walks' relations.
@@ -769,7 +787,7 @@ class PolarsCompiler:
         (:meth:`_at_fragment`).
         """
         frame, dims = walk_join(p.frame, mapping(self.data.relations, node.walks), node, p.dims, p.carried)
-        return TermFragment(dims, frame, p.kind)
+        return TermFragment(dims, frame, p.kind, region=region_over(p.region, dims), parameters=p.parameters)
 
     def widen(self, presence: pl.LazyFrame, have: tuple[str, ...], want: tuple[str, ...]) -> pl.LazyFrame:
         """*presence* over every dim in *want*, saying the same thing.

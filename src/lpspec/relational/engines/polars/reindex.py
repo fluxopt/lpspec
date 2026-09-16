@@ -197,8 +197,8 @@ def window_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Window
 
     frame = remap(p.frame, p.carried, p.dims)
     if not p.presences and order.grouping is not None:
-        return TermFragment(p.dims, frame, p.kind, presences=(Presence(order.placed(), order.keys),))
-    return TermFragment(p.dims, frame, p.kind, presences=tuple(travelled(x) for x in p.presences))
+        return replace(p, frame=frame, presences=(Presence(order.placed(), order.keys),))
+    return replace(p, frame=frame, presences=tuple(travelled(x) for x in p.presences))
 
 
 def translate_fragment(compiler: PolarsCompiler, p: TermFragment, s: program.Translate, context: str) -> TermFragment:

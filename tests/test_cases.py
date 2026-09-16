@@ -422,6 +422,42 @@ def test_a_region_narrows_what_a_summed_constant_side_owes():
         assert run.oracle == pytest.approx(110.0, rel=RTOL), 'the flagged steps cap at 30+10 and 30+30, the rest at 5'
 
 
+#: The whole cased quantity under the sum, rather than a sum inside a region:
+#: `bound` is cased over `(k, t)` and the row reads its total over `t`.
+SUMMED_CASES = {
+    'dimensions': {'k': {'dtype': 'str'}, 't': {}},
+    'parameters': {'hi': {'dims': ['k', 't']}, 'lo': {'dims': ['k', 't']}},
+    'variables': {'x': {'dims': ['k'], 'bounds': {'lower': 0, 'upper': 100}}},
+    'expressions': {
+        'bound': {'dims': ['k', 't'], 'cases': {'a': {'when': "k == 'a'", 'expression': 'hi'}}, 'otherwise': 'lo'},
+    },
+    'constraints': {'cap': {'dims': ['k'], 'expression': 'x <= sum(bound, over=t)'}},
+    'objective': {'sense': 'maximize', 'expression': 'sum(x, over=k)'},
+}
+
+#: Both parameters dense over the whole product, so nothing is owed anywhere.
+SUMMED_CASES_SOURCES = {
+    'k': ['a', 'b'],
+    't': [0, 1],
+    'hi': {'k': ['a', 'a', 'b', 'b'], 't': [0, 1, 0, 1], 'value': [5.0, 6.0, 7.0, 8.0]},
+    'lo': {'k': ['a', 'a', 'b', 'b'], 't': [0, 1, 0, 1], 'value': [1.0, 2.0, 3.0, 4.0]},
+}
+
+
+def test_a_cased_quantity_summed_onto_a_constant_side_builds():
+    """A region's claim survives the reduction that keeps the dims it reads.
+
+    Each region's piece has rows only inside its region by construction, so
+    after the sum over `t` the `a` piece has no row at `k = b` and the
+    `otherwise` piece none at `k = a`. The relational lane dropped the region
+    at the sum and read both as holes, refusing dense data the eager lane
+    built (`parameter 'hi, lo' covers 2 fewer coordinates`). A region reading
+    only dims the sum keeps still says whose coordinate a missing row is.
+    """
+    with differential(SUMMED_CASES, _frames(SUMMED_CASES_SOURCES)) as run:
+        assert run.oracle == pytest.approx(18.0, rel=RTOL), 'k=a caps at 5+6 and k=b at 3+4'
+
+
 def test_a_hole_the_summed_region_reads_is_still_refused():
     """One coordinate of one flagged step, and the sum no longer says so.
 
