@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import shutil
 import zipfile
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -20,8 +21,9 @@ import yaml as pyyaml
 from math_spec import to_program, to_spec
 
 import lpspec as lps
+from lpspec.api import read_against
 from lpspec.layout import ANSWER_DIR, _staging_for
-from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of_file
+from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of, digest_of_file
 from lpspec.sources import attachable, tidy_sources
 from tests.conftest import (
     DISPATCH_COST,
@@ -30,10 +32,12 @@ from tests.conftest import (
     DISPATCH_SNAPSHOTS,
     PORT_REFERENCES,
     _dispatch_load,
+    dispatch_spec_path,
     override,
     port_sources,
     port_spec,
     raw_of,
+    schema_of,
 )
 
 if TYPE_CHECKING:
@@ -907,4 +911,112 @@ def test_a_written_archive_leaves_no_staging_beside_it(dispatch_yaml: Path, disp
         _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / name)
     assert sorted(path.name for path in tmp_path.iterdir()) == ['case', 'case.zip'], (
         'the staging each write allocated is gone, leaving the two archives alone'
+    )
+
+
+# ---------------------------------------------------------------------------
+# spec= / sources= on the loaders: an answer that travelled without its question
+# ---------------------------------------------------------------------------
+
+
+#: A quantity `examples/dispatch.yaml` never names, so no saved frame carries it.
+_UNDECLARED = 'sum(p * cost, over=generator)'
+
+
+def _saved_alone(spec: Path, sources: Mapping[str, object], out: Path) -> float:
+    """A solve saved the way a dispatched one comes home, and what it made of `_UNDECLARED`."""
+    with lps.solve(spec, sources) as solved:
+        want = solved.evaluate(_UNDECLARED)['value'].sum()
+        solved.save(out)
+    return want
+
+
+@pytest.mark.parametrize('reader', [lps.load_result, lps.scan_result], ids=['load', 'scan'])
+def test_an_answer_given_its_question_at_the_load_reads_an_undeclared_expression(
+    reader, dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The remote-solve round trip: the question goes out, only the answer comes back.
+
+    A saved answer holds the values without the model they belong to, so a
+    quantity the file never named has nothing to lower against. Handing the
+    loader the spec and the data puts the model back.
+    """
+    want = _saved_alone(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'answer')
+
+    alone = reader(tmp_path / 'answer')
+    with pytest.raises(lps.LpspecError, match='no model behind it'):
+        alone.evaluate(_UNDECLARED)
+
+    paired = reader(tmp_path / 'answer', spec=dispatch_yaml, sources=dispatch_frame_inputs)
+    assert paired.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
+        'an answer read against the spec it answered evaluates what the live result evaluated'
+    )
+    assert paired.primal('p').equals(alone.primal('p')), 'and the readers a save wrote are untouched'
+
+
+def test_an_answer_loaded_against_a_spec_it_did_not_answer_is_refused(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The one guard the archive route never needed: there the pair travels together.
+
+    A dispatched solve sends the spec out and brings only the answer home, so
+    nothing but the digest says the two belong together. Read against another
+    document the saved values would be laid out in that model's label order,
+    and an undeclared expression would hand back numbers rather than raise.
+    """
+    _saved_alone(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'answer')
+    other = schema_of(dispatch_yaml, **{'objective.expression': 'sum(p * cost * 2)'})
+
+    with pytest.raises(lps.LpspecError, match='came back from another model') as refused:
+        lps.load_result(tmp_path / 'answer', spec=other, sources=dispatch_frame_inputs)
+    carried = lps.load_result(tmp_path / 'answer').spec_digest
+    assert carried in str(refused.value), 'the refusal names the digest the answer carries'
+    assert digest_of(other.to_yaml()) in str(refused.value), 'and the one the spec it was handed digests to'
+
+
+def test_the_pairing_is_checked_before_the_answer_is_asked_for_values(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """An answer with no values is still an answer to one document rather than another.
+
+    Nothing is read against the model until an undeclared expression asks, so
+    the check has to be at the load, or an infeasible answer pairs with any
+    spec at all.
+    """
+    infeasible = dispatch_spec_path(tmp_path, **{'variables.p.bounds.upper': 0})
+    with lps.solve(infeasible, dispatch_frame_inputs) as solved:
+        assert not solved.has_primal, 'the fixture has to be an answer that left no values'
+        solved.save(tmp_path / 'answer')
+
+    with pytest.raises(lps.LpspecError, match='came back from another model'):
+        lps.load_result(tmp_path / 'answer', spec=dispatch_yaml, sources=dispatch_frame_inputs)
+
+
+@pytest.mark.parametrize(
+    ('half', 'says'),
+    [
+        pytest.param({'spec': 'model.yaml'}, 'given a spec and no sources', id='spec alone'),
+        pytest.param({'sources': {}}, 'given sources and no spec', id='sources alone'),
+    ],
+)
+def test_half_a_question_is_refused_at_the_load(
+    half: dict, says: str, dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The rebuild is a build, and a build takes the document and its data together."""
+    _saved_alone(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'answer')
+
+    with pytest.raises(lps.LpspecError, match=says):
+        lps.load_result(tmp_path / 'answer', **half)
+
+
+def test_an_answer_that_names_no_document_is_taken_as_given(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A solve off a lowered program has no document to have answered, so there is nothing to compare."""
+    want = _saved_alone(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'answer')
+    anonymous = replace(lps.load_result(tmp_path / 'answer'), _spec_digest=None)
+
+    attached = read_against(anonymous, dispatch_yaml, dispatch_frame_inputs)
+    assert attached.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
+        'an answer carrying no digest reads against the spec it is handed'
     )

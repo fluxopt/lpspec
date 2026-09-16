@@ -37,7 +37,14 @@ import polars as pl
 from math_spec import advice
 
 from lpspec import expressions
-from lpspec.errors import DataError, LayoutError, LpspecError, LpspecWarning
+from lpspec.errors import (
+    DataError,
+    LayoutError,
+    LpspecError,
+    LpspecWarning,
+    another_spec_behind_this_answer_message,
+    half_a_question_message,
+)
 from lpspec.lanes import LANES, Buildable, Label, Source, declared, lowered
 from lpspec.layout import beside, check_the_target, write_archive
 from lpspec.relational import sinks
@@ -49,6 +56,7 @@ from lpspec.relational.parquet import (
     Record,
     check_format,
     digest_of,
+    other_specs,
     read_reasons,
     write_whole,
 )
@@ -585,7 +593,12 @@ def _absent(reason: str) -> Callable[[], pl.DataFrame]:
     return read
 
 
-def load_result(directory: str | Path) -> Result:
+def load_result(
+    directory: str | Path,
+    *,
+    spec: Buildable | None = None,
+    sources: Mapping[str, Source] | None = None,
+) -> Result:
     """Read back an answer :meth:`Result.save` wrote — a solve, off disk.
 
     Every reader answers what it answered in the session that solved: the
@@ -607,6 +620,12 @@ def load_result(directory: str | Path) -> Result:
         directory: Where :meth:`~lpspec.relational.result.Result.save` wrote
             it. One that came out of an archive is
             :func:`~lpspec.archive.load_archive`'s to find.
+        spec: The model this answer came back from, as :func:`build` takes it.
+            Given with *sources*, it makes
+            :meth:`~lpspec.relational.result.Result.evaluate` read a quantity
+            the file never named — which no saved frame carries, the model as
+            written being what an undeclared expression lowers against.
+        sources: What it was solved with, as :func:`build` takes them.
 
     Returns:
         The result, read whole: the frames are in memory when this returns, so
@@ -617,11 +636,18 @@ def load_result(directory: str | Path) -> Result:
         LayoutError: A directory holding no ``objective.parquet``, which is
             what every answer written there carries, or one whose layout has
             moved since it was written.
+        LpspecError: One of *spec* and *sources* without the other, or an
+            answer that came back from another spec.
     """
-    return _answer_under(Path(directory), _whole)
+    return _answer_under(Path(directory), _whole, spec, sources)
 
 
-def scan_result(directory: str | Path) -> Result:
+def scan_result(
+    directory: str | Path,
+    *,
+    spec: Buildable | None = None,
+    sources: Mapping[str, Source] | None = None,
+) -> Result:
     """The answer under *directory*, read as its readers are called rather than now.
 
     :func:`load_result`'s other half, and the same value: every reader answers
@@ -635,19 +661,30 @@ def scan_result(directory: str | Path) -> Result:
 
     Args:
         directory: As :func:`load_result` takes it.
+        spec: As :func:`load_result` takes it.
+        sources: As :func:`load_result` takes them.
 
     Raises:
         LayoutError: As :func:`load_result` raises it.
+        LpspecError: As :func:`load_result` raises it.
     """
-    return _answer_under(Path(directory), pl.scan_parquet)
+    return _answer_under(Path(directory), pl.scan_parquet, spec, sources)
 
 
-def _answer_under(out: Path, read: Reading) -> Result:
+def _answer_under(
+    out: Path,
+    read: Reading,
+    spec: Buildable | None,
+    sources: Mapping[str, Source] | None,
+) -> Result:
     """The saved answer under *out*, its frames read *read*'s way.
 
     Shared body of :func:`load_result` and :func:`scan_result`; only the
-    reading differs.
+    reading differs. *spec* and *sources* travel together or not at all: the
+    rebuild an undeclared expression needs is a build, and a build takes both.
     """
+    if (spec is None) != (sources is None):
+        raise LpspecError(half_a_question_message(spec is None))
     record_file = out / RECORD_FILE
     if not record_file.is_file():
         raise LayoutError(
@@ -660,14 +697,15 @@ def _answer_under(out: Path, read: Reading) -> Result:
     objective = float('nan') if record.objective is None else record.objective
     carried = {'_spec_digest': record.spec_digest, '_solved_at': record.solved_at}
     if not status.is_readable:
-        return Result(status, objective, {}, {}, {}, 'nothing', **carried)
+        answer = Result(status, objective, {}, {}, {}, 'nothing', **carried)
+        return answer if spec is None else read_against(answer, spec, sources or {})
 
     no_duals, no_expressions = read_reasons(out)
     expressions: dict[str, Callable[[], pl.DataFrame]] = {
         name: (lambda frame=frame: frame.collect()) for name, frame in _saved_frames(out / 'expression', read).items()
     }
     expressions.update({name: _absent(why) for name, why in no_expressions.items()})
-    return Result(
+    answer = Result(
         status,
         objective,
         _saved_frames(out / 'primal', read),
@@ -678,9 +716,10 @@ def _answer_under(out: Path, read: Reading) -> Result:
         _no_duals=no_duals,
         **carried,
     )
+    return answer if spec is None else read_against(answer, spec, sources or {})
 
 
-def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
+def read_against(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
     """*answer* with an undeclared expression readable through :meth:`~lpspec.relational.result.Result.evaluate`, over *spec* and *sources* rebuilt.
 
     Reading a quantity the file never named lowers the model as written, so the
@@ -692,12 +731,29 @@ def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source
     The rebuild is deferred to the first undeclared ``answer.evaluate`` call
     and cached.
 
+    What :func:`load_result` and :func:`scan_result` do with the ``spec=`` and
+    ``sources=`` they are given, and what :func:`~lpspec.archive.load_archive`
+    does with the pair an archive holds. Not a verb of its own: an answer is
+    read against its model at the load, there being nowhere else to get one.
+
+    The answer and the spec travel separately — a solve dispatched elsewhere
+    sends the question out and brings only the answer home — so the pairing is
+    checked here before anything is read against it.
+
     Args:
         answer: A saved solve, as :func:`load_result` or :func:`scan_result`
             read it back.
         spec: The model the answer solved, as :func:`build` takes it.
         sources: What it was solved with, as :func:`build` takes them.
+
+    Raises:
+        LpspecError: An answer that came back from another spec. One solved
+            off a lowered program carries no digest and is taken as given.
     """
+    document = declared(spec)
+    mine = digest_of(document.to_yaml())
+    if others := other_specs(mine, [answer.spec_digest]):
+        raise LpspecError(another_spec_behind_this_answer_message(others, mine))
     if not answer._primals:
         return answer
     frames = answer._primals
@@ -713,7 +769,7 @@ def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source
                 if no_duals is None and dual_frames
                 else None
             )
-            built.append(build(spec, sources).evaluator(primals, duals, no_duals))
+            built.append(build(document, sources).evaluator(primals, duals, no_duals))
         return built[0](written)
 
     return replace(answer, _evaluate=evaluate)

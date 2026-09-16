@@ -36,6 +36,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `lps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
 | `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Runs` |
 | `lps.scan_archive` / `scan_result` / `scan_runs` | the same three left on disk and read as they are asked for: [loading or scanning](#loading-or-scanning) |
+| `spec=` / `sources=` on `lps.load_result` / `scan_result` | an answer that travelled without its question, read against the spec it answered: [reading an answer against its model](#reading-an-answer-against-its-model) |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
 | `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` |
@@ -485,6 +486,55 @@ a zip needs, which the table above gives.
 **A loaded value is fixed and a scanned one is not.** A load leaves nothing to
 be read later. A scan re-reads the file at every collect, so a frame rewritten
 underneath it comes back changed.
+
+## Reading an answer against its model
+
+A saved answer holds its values without the model they belong to. Give
+`load_result` or `scan_result` the `spec=` and `sources=` it was solved with,
+and `evaluate` reads a quantity the file never named. Use it where the answer
+travelled without its question: a solve dispatched to another machine sends the
+spec and its data out, and brings only the answer home.
+
+```python
+answer = lps.load_result('answer/')  # solved elsewhere, sent back
+answer.primal('p')  # a declared reader answers already
+whole = lps.load_result('answer/', spec='spec.yaml', sources=sources)
+whole.evaluate('sum(p * cost, over=generator)')  # and now an undeclared one does
+```
+
+**Only an undeclared expression needs the pair.** A saved answer already
+answers `primal`, `dual`, `activity` and every expression the file declares.
+Reading a quantity the file never named lowers the model as written, and no
+saved frame carries it.
+
+**The two travel together or not at all.** The rebuild is a build, and a build
+takes the document and its data. One without the other is refused at the load.
+
+**The rebuild is deferred and cached.** It happens at the first undeclared
+`evaluate`, and it is a build, never a solve. An answer whose undeclared
+expressions go unread never builds the model at all.
+
+**An answer that came back from another spec is refused.** Each answer carries
+the digest of the spec it answered, and the pairing is checked at the load,
+before anything is read against it:
+
+```text
+this answer came back from another model: it carries ['1f4c9a2b7d3e5081'] and
+the spec given here digests to 91c40b6ef2a3d715. An answer holds values without
+the model they belong to, so reading a quantity the file never named against
+another document would lay these values out in that model's label order and
+hand back numbers rather than raise.
+  Attach the answer to the spec it answered — lps.load_archive gives back the
+  pair that was solved together — or solve this spec to get an answer that
+  belongs to it.
+```
+
+An answer solved off a lowered `Program` carries no digest, and is taken as
+given.
+
+**`load_archive` and `scan_archive` need no pair.** An archive holds the answer
+beside the spec and the data it was solved with, so what those hand back reads
+an undeclared expression already.
 
 ## Diagnostics
 

@@ -137,6 +137,30 @@ def no_model_behind_this_answer_message() -> str:
     )
 
 
+def half_a_question_message(spec_missing: bool) -> str:
+    """One of ``spec`` and ``sources`` given to a loader without the other."""
+    given, missing = ('sources', 'spec') if spec_missing else ('a spec', 'sources')
+    return (
+        f'this answer was given {given} and no {missing}. Reading a quantity the '
+        f'file never named rebuilds the model as written, and a build takes the document and its data '
+        f'together.\n'
+        f'  Pass spec= and sources= together, or neither: an answer loaded without them still reads '
+        f'every value it saved and every expression the file declares.'
+    )
+
+
+def another_spec_behind_this_answer_message(answered: list[str], given: str) -> str:
+    """A saved answer attached to a spec that is not the one it came back from."""
+    return (
+        f'this answer came back from another model: it carries {answered} and the spec given here '
+        f'digests to {given}. An answer holds values without the model they belong to, so reading a '
+        f'quantity the file never named against another document would lay these values out in that '
+        f"model's label order and hand back numbers rather than raise.\n"
+        f'  Attach the answer to the spec it answered — lps.load_archive gives back the pair that '
+        f'was solved together — or solve this spec to get an answer that belongs to it.'
+    )
+
+
 def position_out_of_range_message(name: str, op: str, position: int, at: int, cardinality: int) -> str:
     """A ``position(dim)`` boundary naming no coordinate of the dimension."""
     return (
