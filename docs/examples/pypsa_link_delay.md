@@ -87,7 +87,7 @@ $`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -184,7 +184,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_link_delay.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_link_delay.yaml', sources) as solution:
         solution.objective  # 4311.111111111111
         solution.dual('nodal_balance')
     ```
@@ -197,7 +197,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         Both links are given a ``delay`` — 2 for ``ship`` and 0 for ``wire`` — so the
         column is read rather than a constant applied to everything, and neither

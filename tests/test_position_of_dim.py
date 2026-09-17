@@ -24,8 +24,8 @@ import polars as pl
 import pytest
 import yaml as pyyaml
 
-import lpspec as lps
-from lpspec.errors import DataError, LanguageError, LpspecError
+import specsolve as sps
+from specsolve.errors import DataError, LanguageError, SpecsolveError
 from tests.conftest import EXAMPLES_DIR, by_coord, relation, schema_of
 from tests.differential import RTOL, differential
 from tests.oracle import pd
@@ -133,7 +133,7 @@ def test_the_hardcoded_label_is_what_this_replaces():
     """
     sources = _inputs()
     hardcoded = pyyaml.safe_load(SPEC.replace('position(snapshot) == 0', 'snapshot == 0'))
-    with lps.solve(hardcoded, _relational(sources)) as result:
+    with sps.solve(hardcoded, _relational(sources)) as result:
         assert result.is_ok, 'the point is that nothing complains'
         assert result.objective == pytest.approx(420.0), (
             'an unanchored recurrence releases energy the model never had — 420 against the true 105'
@@ -188,12 +188,12 @@ def test_a_position_no_coordinate_occupies_is_an_error_at_bind(tmp_path, positio
     path.write_text(spec)
 
     with pytest.raises(DataError, match=r'which has 3 coordinate\(s\)'):
-        lps.solve(pyyaml.safe_load(spec), _relational(sources))
+        sps.solve(pyyaml.safe_load(spec), _relational(sources))
 
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import specsolve_linopy
 
     with pytest.raises(DataError, match=r'which has 3 coordinate\(s\)'):
-        lpspec_linopy.build(path, sources)
+        specsolve_linopy.build(path, sources)
 
 
 def test_a_position_along_a_dimension_the_frame_lacks_is_refused():
@@ -211,7 +211,7 @@ def test_a_position_along_a_dimension_the_frame_lacks_is_refused():
         '  other: {dtype: int, description: a second axis}',
     ).replace('"position(snapshot) == 0"', '"position(other) == 0"')
     with pytest.raises(
-        LpspecError, match=r"where-dimension 'other' reads dims \['other'\] outside the frame \['snapshot'\]"
+        SpecsolveError, match=r"where-dimension 'other' reads dims \['other'\] outside the frame \['snapshot'\]"
     ):
         schema_of(spec)
 
@@ -346,12 +346,12 @@ def test_a_group_shorter_than_the_position_is_an_error_at_bind(tmp_path):
     sources = _grouped_sources()
 
     with pytest.raises(DataError, match=r'1 of them are shorter than that'):
-        lps.solve(pyyaml.safe_load(spec), sources)
+        sps.solve(pyyaml.safe_load(spec), sources)
 
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import specsolve_linopy
 
     with pytest.raises(DataError, match=r'1 of them are shorter than that'):
-        lpspec_linopy.build(path, sources)
+        specsolve_linopy.build(path, sources)
 
 
 @pytest.mark.parametrize(
@@ -475,7 +475,7 @@ def test_a_bare_partitioned_shift_vacates_each_group_s_first():
     spec = _partitioned('by=season_of')
     with differential(spec, _seasons_sources()) as run:
         assert run.result.is_ok, 'both lanes reach the same answer with two rows missing from it'
-    with lps.build(pyyaml.safe_load(spec), _seasons_sources()) as built:
+    with sps.build(pyyaml.safe_load(spec), _seasons_sources()) as built:
         omitted = {r['constraint']: r['rows_not_built'] for r in built.diagnostics().omissions.to_dicts()}
     assert omitted['season_balance'] == 2, 'one row per season, not one for the horizon'
 
@@ -485,7 +485,7 @@ def test_a_filled_partitioned_edge_builds_every_row():
     spec = _partitioned('edge=0, by=season_of')
     with differential(spec, _seasons_sources()) as run:
         held = by_coord(run.result, 'soc', 'snapshot')
-    with lps.build(pyyaml.safe_load(spec), _seasons_sources()) as built:
+    with sps.build(pyyaml.safe_load(spec), _seasons_sources()) as built:
         assert built.diagnostics().omissions.is_empty(), 'a filled edge builds every row'
     assert held[5] == pytest.approx(0.0), "summer's first snapshot starts from the 0 its own edge was filled with"
 
@@ -536,7 +536,7 @@ def test_coordinates_in_no_group_translate_from_nothing(edge, omissions):
     spec = _partitioned(edge)
     with differential(spec, sources) as run:
         held = by_coord(run.result, 'soc', 'snapshot')
-    with lps.build(pyyaml.safe_load(spec), sources) as built:
+    with sps.build(pyyaml.safe_load(spec), sources) as built:
         omitted = {r['constraint']: r['rows_not_built'] for r in built.diagnostics().omissions.to_dicts()}
 
     assert omitted['season_balance'] == omissions, f'{edge}: the two group-less snapshots build no row'
@@ -554,5 +554,5 @@ def test_a_relation_over_another_dimension_cannot_partition_a_translation():
         )
         .replace('  season: {dtype: str}', '  season: {dtype: str}\n  plant: {dtype: str}')
     )
-    with pytest.raises(LpspecError, match=r"'plant_season' has no key column over 'snapshot'"):
+    with pytest.raises(SpecsolveError, match=r"'plant_season' has no key column over 'snapshot'"):
         schema_of(spec)

@@ -18,8 +18,8 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.relational.sinks import SOLVERS, solver
+import specsolve as sps
+from specsolve.relational.sinks import SOLVERS, solver
 from tests.conftest import SOLVER_VECTOR_LOAD, SOLVER_VECTOR_SPEC
 from tests.differential import RTOL, differential
 
@@ -55,7 +55,7 @@ def test_a_row_with_no_terms_is_not_built_and_is_reported(solver_name, batch_row
         'objective': {'sense': 'minimize', 'expression': 'sum(sum(p, over=g), over=t)'},
     }
     data = {'t': [0, 1, 2], 'g': ['a', 'b'], 'load': pl.DataFrame({'t': [0, 1, 2], 'value': [5.0, 4.0, 6.0]})}
-    with lps.build(spec, data) as model:
+    with sps.build(spec, data) as model:
         tables = model._engine._model.tables
         occupied = sorted(set(tables.matrix_block(0, tables.row_count)['row'].to_list()))
         assert occupied == [0, 1], 'the block closes up around the gap'
@@ -68,7 +68,7 @@ def test_a_row_with_no_terms_is_not_built_and_is_reported(solver_name, batch_row
 
 def test_omissions_is_empty_when_every_declared_row_is_built():
     """The common case says nothing, so the report is a signal rather than noise."""
-    with lps.build(SOLVER_VECTOR_SPEC, SOLVER_VECTOR_LOAD) as model:
+    with sps.build(SOLVER_VECTOR_SPEC, SOLVER_VECTOR_LOAD) as model:
         assert model.diagnostics().omissions.is_empty()
 
 
@@ -100,7 +100,7 @@ def test_a_row_a_propagated_absence_deleted_is_reported_too():
         'cap': pl.DataFrame({'g': ['a', 'b'], 'value': [10.0, 10.0]}),
         'extra': pl.DataFrame({'g': ['a'], 'value': [1.0]}),
     }
-    with lps.build(spec, data) as model:
+    with sps.build(spec, data) as model:
         assert model.diagnostics().omissions.to_dicts() == [{'constraint': 'both', 'rows_not_built': 1}], (
             'the row absence travelled out of y and deleted is counted'
         )
@@ -116,7 +116,7 @@ def test_diagnostics_say_where_the_time_went(tmp_path):
     only that each phase that ran left a clock, that none ran backwards, and
     that they accumulate across calls the way `solves` counts.
     """
-    with lps.build(SOLVER_VECTOR_SPEC, SOLVER_VECTOR_LOAD) as model:
+    with sps.build(SOLVER_VECTOR_SPEC, SOLVER_VECTOR_LOAD) as model:
         built = model.diagnostics().seconds
         assert set(built) == {'attach', 'build'}, (
             'a model only built has spent time attaching sources and building frames, nowhere else'
@@ -175,7 +175,7 @@ def test_the_coefficient_range_names_the_block_that_holds_the_outlier():
     negated and is scaled identically, which is the answer a modeller wants and
     the one a signed min/max cannot give.
     """
-    with lps.build(SCALING, SCALING_SOURCES) as model:
+    with sps.build(SCALING, SCALING_SOURCES) as model:
         spread = model.diagnostics().coefficient_range
 
     assert spread.to_dicts() == [
@@ -195,7 +195,7 @@ def test_the_objective_range_is_read_beside_the_matrix_and_not_in_it():
     magnitudes: a signed answer here would be ``(-0.5, 2.0)`` and say nothing
     about the four-fold spread it actually has.
     """
-    with lps.build(SCALING, SCALING_SOURCES) as model:
+    with sps.build(SCALING, SCALING_SOURCES) as model:
         seen = model.diagnostics()
 
     assert seen.objective_range == (0.5, 2.0), 'the objective is read off `obj`, never off the matrix'
@@ -239,7 +239,7 @@ def test_the_bound_range_names_the_variable_whose_bounds_are_the_outlier():
     the one it is complaining about. `BOUNDS` is exactly that model — every
     coefficient is 1 and the bounds span eight orders.
     """
-    with lps.build(BOUNDS, BOUNDS_SOURCES) as model:
+    with sps.build(BOUNDS, BOUNDS_SOURCES) as model:
         seen = model.diagnostics()
 
     assert seen.bound_range.to_dicts() == [{'variable': 'capped', 'smallest': 50.0, 'largest': 1e9}], (
@@ -257,7 +257,7 @@ def test_a_bound_of_zero_or_infinity_is_not_a_magnitude():
     every non-negative variable report a range of ``0 .. something`` — an
     infinite conditioning number on the most ordinary declaration there is.
     """
-    with lps.build(BOUNDS, BOUNDS_SOURCES) as model:
+    with sps.build(BOUNDS, BOUNDS_SOURCES) as model:
         reported = model.diagnostics().bound_range.get_column('variable').to_list()
 
     assert reported == ['capped'], '`free` is lower: 0 with no upper, so it has no finite bound and no row'
@@ -265,7 +265,7 @@ def test_a_bound_of_zero_or_infinity_is_not_a_magnitude():
 
 def test_the_rhs_range_is_read_per_block_like_the_coefficients():
     """The fourth range a solver prints, and the last one answerable per declaration."""
-    with lps.build(BOUNDS, BOUNDS_SOURCES) as model:
+    with sps.build(BOUNDS, BOUNDS_SOURCES) as model:
         seen = model.diagnostics().rhs_range
 
     assert seen.to_dicts() == [
@@ -282,7 +282,7 @@ def test_the_four_ranges_are_four_fields_because_they_have_four_repairs():
     together it would read as badly scaled with nothing saying which axis, which
     is the whole-model line a solver already prints.
     """
-    with lps.build(BOUNDS, BOUNDS_SOURCES) as model:
+    with sps.build(BOUNDS, BOUNDS_SOURCES) as model:
         seen = model.diagnostics()
 
     def ratio(frame):
@@ -297,7 +297,7 @@ def test_the_four_ranges_are_four_fields_because_they_have_four_repairs():
 def test_a_model_with_no_objective_has_no_objective_range():
     """A feasibility model has no costs to be badly scaled, and says so rather than lying with zeros."""
     feasibility = {k: v for k, v in SCALING.items() if k != 'objective'}
-    with lps.build(feasibility, SCALING_SOURCES) as model:
+    with sps.build(feasibility, SCALING_SOURCES) as model:
         seen = model.diagnostics()
 
     assert seen.objective_range is None, 'no objective is not an objective whose coefficients span nothing'
@@ -334,7 +334,7 @@ def test_a_parameter_short_of_its_dims_is_reported_rather_than_judged():
     meant is the caller's. Reporting is the half that can be said without
     taking the data contract.
     """
-    with lps.build(SPARSE_SOURCE, SPARSE_SOURCES) as model:
+    with sps.build(SPARSE_SOURCE, SPARSE_SOURCES) as model:
         short = model.diagnostics().sparse_parameters
 
     assert short.to_dicts() == [{'parameter': 'avail', 'coordinates': 6, 'rows': 3, 'missing': 3}], (
@@ -347,14 +347,14 @@ def test_a_model_whose_parameters_all_span_their_dims_reports_none():
         **SPARSE_SOURCES,
         'avail': pl.DataFrame({'t': [0, 0, 0, 1, 1, 1], 'g': ['wind', 'solar', 'gas'] * 2, 'value': [1.0] * 6}),
     }
-    with lps.build(SPARSE_SOURCE, dense) as model:
+    with sps.build(SPARSE_SOURCE, dense) as model:
         assert model.diagnostics().sparse_parameters.is_empty(), 'empty is what a complete model reports'
 
 
 def test_the_sparsity_report_survives_the_model_being_released():
     """Summarised at attach from two counts attaching already had, so it outlives
     the frames — the same reason the coefficient range does."""
-    with lps.build(SPARSE_SOURCE, SPARSE_SOURCES) as model:
+    with sps.build(SPARSE_SOURCE, SPARSE_SOURCES) as model:
         held = model.diagnostics()
     released = model.diagnostics()
 
@@ -387,11 +387,11 @@ def test_a_build_that_raises_reports_the_bind_it_got_through_and_no_size():
     anything raised and it is still true, and here it is the reason the build
     then raised at all — the parameter it names is the one the divisor lacked.
     """
-    with lps.build(UNDEFINED_DIVISOR, DENSE_DIVISOR) as model:
+    with sps.build(UNDEFINED_DIVISOR, DENSE_DIVISOR) as model:
         built = model.diagnostics()
         assert (built.columns, built.rows) == (2, 2), 'the model under test builds before it is asked not to'
 
-        with pytest.raises(lps.DataError, match='used as a divisor'):
+        with pytest.raises(sps.DataError, match='used as a divisor'):
             model.update(HALF_A_DIVISOR)
         after = model.diagnostics()
 
@@ -409,7 +409,7 @@ def test_the_coefficient_range_survives_the_model_being_released():
     The alternative — a reader over the live matrix — would go dark exactly
     when a caller comes back to a finished run asking why it solved badly.
     """
-    with lps.build(SCALING, SCALING_SOURCES) as model:
+    with sps.build(SCALING, SCALING_SOURCES) as model:
         held = model.diagnostics()
     released = model.diagnostics()
 

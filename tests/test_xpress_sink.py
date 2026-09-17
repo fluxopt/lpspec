@@ -26,9 +26,9 @@ from typing import Any
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LpspecError
-from lpspec.relational.sinks.solvers.xpress import Xpress, build_xpress
+import specsolve as sps
+from specsolve.errors import SpecsolveError
+from specsolve.relational.sinks.solvers.xpress import Xpress, build_xpress
 from tests.conftest import CASES, assert_agrees_with_highs, assert_infeasible_reports_both_axes, port_sources
 
 xpress = pytest.importorskip('xpress', reason='the xpress sink needs the [xpress] extra')
@@ -65,7 +65,7 @@ def test_every_port_reaches_its_reference_optimum_on_xpress(port: dict[str, Any]
     """
     if port['name'] in OVER_THE_XPRESS_LIMIT:
         pytest.skip(f'{port["name"]} exceeds the bundled xpress licence — see OVER_THE_XPRESS_LIMIT')
-    with lps.solve(port['spec'], port_sources(port['name']), solver_name='xpress') as solution:
+    with sps.solve(port['spec'], port_sources(port['name']), solver_name='xpress') as solution:
         assert solution.is_ok, f'{port["name"]} did not solve: {solution.status}'
         assert solution.objective == pytest.approx(port['objective'], rel=port['rtol'])
 
@@ -78,7 +78,7 @@ def test_block_boundaries_do_not_move_the_answer(batch_rows: int | None) -> None
     the budget is varied against a fixed answer rather than asserted about.
     """
     spec, data = CASES['LP']
-    with lps.build(spec, data) as model:
+    with sps.build(spec, data) as model:
         tables = model._engine._model.tables
         reference = model.solve().objective
     problem = build_xpress(tables, batch_rows=batch_rows).handle
@@ -94,8 +94,8 @@ def test_a_mixed_integer_model_has_no_duals() -> None:
     """Xpress refuses the read rather than handing back zeros, and the refusal
     is the answer — a zero vector would be indistinguishable from real prices."""
     with (
-        lps.solve(*CASES['MIP'], solver_name='xpress') as solution,
-        pytest.raises(LpspecError, match='mixed-integer'),
+        sps.solve(*CASES['MIP'], solver_name='xpress') as solution,
+        pytest.raises(SpecsolveError, match='mixed-integer'),
     ):
         solution.dual('budget')
 
@@ -107,7 +107,7 @@ def test_the_objective_constant_rides_on_the_model_not_the_answer() -> None:
     where the other two sinks set an attribute — so a sign error here is a
     model that solves and answers wrong by a constant.
     """
-    with lps.solve(*CASES['MAX'], solver_name='xpress') as solution:
+    with sps.solve(*CASES['MAX'], solver_name='xpress') as solution:
         assert solution.objective == pytest.approx(12.0), 'cap 3 + cap 4, plus the declared 5'
 
 
@@ -121,7 +121,7 @@ def test_forgetting_makes_the_next_solve_start_cold() -> None:
     """
     from tests.test_warm_start import DISPATCH, SNAPSHOTS, dispatch_sources
 
-    with lps.build(DISPATCH, dispatch_sources() | {'snapshot': SNAPSHOTS}) as model:
+    with sps.build(DISPATCH, dispatch_sources() | {'snapshot': SNAPSHOTS}) as model:
         tables = model._engine._model.tables
     session = Xpress(tables)
     try:
@@ -142,7 +142,7 @@ def test_forgetting_makes_the_next_solve_start_cold() -> None:
 def test_solver_options_reach_xpress() -> None:
     """Forwarded verbatim, in the solver's own vocabulary — a control name here."""
     spec, data = CASES['LP']
-    with lps.build(spec, data) as model:
+    with sps.build(spec, data) as model:
         tables = model._engine._model.tables
     problem = build_xpress(tables, solver_options={'timelimit': 42}).handle
     assert int(problem.controls.timelimit) == 42, 'the option did not reach the problem'
@@ -151,7 +151,7 @@ def test_solver_options_reach_xpress() -> None:
 def test_build_xpress_loads_the_model_and_stops() -> None:
     """The seam `bench/` measures: a loaded problem, unsolved."""
     spec, data = CASES['LP']
-    with lps.build(spec, data) as model:
+    with sps.build(spec, data) as model:
         tables = model._engine._model.tables
     problem = build_xpress(tables).handle
     assert (problem.attributes.rows, problem.attributes.cols) == (tables.row_count, tables.column_count)
@@ -164,7 +164,7 @@ def test_a_set_reaches_the_solver_natively() -> None:
     plus the count the solver itself reports."""
     from tests.test_sos import DATA, best, spec
 
-    with lps.build(spec(2), DATA) as model:
+    with sps.build(spec(2), DATA) as model:
         tables = model._engine._model.tables
     problem = build_xpress(tables).handle
     assert int(problem.attributes.sets) == 2, 'both declared sets reached the solver as sets'
@@ -199,7 +199,7 @@ def test_activity_is_the_row_value_and_not_its_right_hand_side() -> None:
     both variables at 0 against caps of 10 and 20, so activity and rhs differ
     by the whole of each bound.
     """
-    with lps.solve(SLACK, SLACK_DATA, solver_name='xpress') as solution:
+    with sps.solve(SLACK, SLACK_DATA, solver_name='xpress') as solution:
         assert solution.activity('lim')['value'].to_list() == pytest.approx([0.0, 0.0]), (
             'activity is the row value at the solution, not the bound it was compared against'
         )
@@ -215,7 +215,7 @@ def test_a_solve_that_errored_is_not_reported_as_unknown() -> None:
     """
     from types import SimpleNamespace
 
-    from lpspec.relational.sinks.solvers.xpress import _status_of
+    from specsolve.relational.sinks.solvers.xpress import _status_of
 
     failed = _status_of(SimpleNamespace(attributes=SimpleNamespace(solvestatus=2, solstatus=0)))
     assert failed.termination_condition == 'internal_solver_error'
@@ -232,4 +232,4 @@ def test_the_missing_extra_is_named(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(Xpress, 'requires', ('xpress_not_installed',))
     assert not Xpress.is_available()
     with pytest.raises(ModuleNotFoundError, match=r'\[xpress\] extra'):
-        lps.solve(*CASES['LP'], solver_name='xpress')
+        sps.solve(*CASES['LP'], solver_name='xpress')

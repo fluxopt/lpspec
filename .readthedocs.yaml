@@ -13,7 +13,7 @@ build:
   #
   # The docs environment carries the project as well as the toolchain, because
   # mkdocs.yml executes `docs/interactive.ipynb` during the build and its first
-  # cell imports lpspec. A page whose outputs are this build's own is what that
+  # cell imports specsolve. A page whose outputs are this build's own is what that
   # buys, and there is no way to have it without running the package here.
   #
   # The installer is one request, unpinned, matching `prefix-dev/setup-pixi` in

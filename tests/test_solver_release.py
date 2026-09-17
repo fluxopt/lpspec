@@ -1,6 +1,6 @@
 """What every solver member promises about release, asked of each.
 
-The contract is :meth:`~lpspec.relational.sinks.solvers.base.Solver.close`'s
+The contract is :meth:`~specsolve.relational.sinks.solvers.base.Solver.close`'s
 docstring; this is where it is held to, one row per member of ``SOLVERS``.
 The ``solver_name`` fixture skips a member this environment cannot run.
 """
@@ -10,14 +10,14 @@ from __future__ import annotations
 import gc
 import weakref
 
-import lpspec as lps
-from lpspec.relational.sinks import SOLVERS
+import specsolve as sps
+from specsolve.relational.sinks import SOLVERS
 from tests.conftest import CASES
 
 
 def _tables(solver_name: str):
     del solver_name
-    with lps.build(*CASES['LP']) as model:
+    with sps.build(*CASES['LP']) as model:
         return model._engine._model.tables
 
 

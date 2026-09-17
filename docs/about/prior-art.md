@@ -1,7 +1,7 @@
 # Prior art and credit
 
-This page names the projects lpspec is derived from and says how to cite them,
-for anyone comparing lpspec with either project or citing it.
+This page names the projects specsolve is derived from and says how to cite them,
+for anyone comparing specsolve with either project or citing it.
 
 **[Calliope](https://github.com/calliope-project/calliope) (Apache-2.0) is
 where this surface comes from.** The surface is the YAML you write, and it is
@@ -22,7 +22,7 @@ operation parity with xarray or pandas is not a goal either.
 **[linopy](https://github.com/PyPSA/linopy) (MIT) is the vocabulary, the oracle
 and the denominator.** Where a concept is already theirs, we copy the spelling.
 Every language feature is differentially tested against a linopy build, and
-every ratio on the [benchmarks](benchmarks.md) page is lpspec ÷ linopy. The
+every ratio on the [benchmarks](benchmarks.md) page is specsolve ÷ linopy. The
 three relationships are [one page](linopy.md). The ported models in
 [the gallery](../examples/index.md) and their reference optima are **PyPSA**'s.
 

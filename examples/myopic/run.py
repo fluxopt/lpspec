@@ -1,4 +1,4 @@
-"""A myopic investment pathway on lpspec, one period at a time.
+"""A myopic investment pathway on specsolve, one period at a time.
 
     pixi run python examples/myopic/run.py
 
@@ -8,7 +8,7 @@ typical days, each inheriting the fleet the last one left.
 
 One file, `pathway.yaml`, written for *a* period. The driver supplies which:
 
-    lps.solve_over(model, sources, lps.EachCoordinate('year'),
+    sps.solve_over(model, sources, sps.EachCoordinate('year'),
                    carry={'existing': 'total'})
 
 The periods run in sorted order, which is the order the carry chains them in.
@@ -36,7 +36,7 @@ from pathlib import Path
 
 import polars as pl
 
-import lpspec as lps
+import specsolve as sps
 
 HERE = Path(__file__).parent
 MODEL = HERE / 'pathway.yaml'
@@ -103,10 +103,10 @@ def sources() -> dict[str, object]:
 
 
 def main() -> None:
-    runs = lps.solve_over(
+    runs = sps.solve_over(
         MODEL,
         sources(),
-        lps.EachCoordinate('year'),
+        sps.EachCoordinate('year'),
         carry={'existing': 'total'},
     )
 
@@ -129,7 +129,7 @@ def main() -> None:
     print(f'each period starts from the fleet the last one left, across {len(YEARS)} periods')
 
 
-def _check_the_carry_moved_the_fleet(runs: lps.Runs) -> None:
+def _check_the_carry_moved_the_fleet(runs: sps.Runs) -> None:
     """Period *i+1* inherited exactly the fleet period *i* ended with.
 
     `existing` is never read back — it is a parameter, not a variable — so the

@@ -9,7 +9,7 @@ of [Diátaxis](https://diataxis.fr): tutorials (`guide.md` and the notebooks,
 at the root), how-to guides (`howto/`), reference (`reference/`, and the
 model pages in `examples/`) and explanation (`about/`). The rules each kind
 has to meet are
-[the docs-writing skill](https://github.com/fluxopt/lpspec/blob/main/.claude/skills/docs-writing/SKILL.md).
+[the docs-writing skill](https://github.com/fluxopt/specsolve/blob/main/.claude/skills/docs-writing/SKILL.md).
 The language is a dependency documented with itself, so the nav links out to
 math-spec.
 

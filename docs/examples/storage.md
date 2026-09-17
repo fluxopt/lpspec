@@ -99,7 +99,7 @@ $`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size 
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -172,7 +172,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/storage.yaml', sources) as solution:
+    with sps.solve('examples/storage.yaml', sources) as solution:
         solution.objective  # 5650.0
         solution.dual('power_balance')
     ```
@@ -185,7 +185,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> linopy.Model:
         """The instance's tables as a linopy model, row for row.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
         """
         p_max: pd.Series = tables['p_max'].set_index('generator')['value']
         cost: pd.Series = tables['cost'].set_index('generator')['value']
@@ -218,4 +218,4 @@ yet*.
 
 ---
 
-[`examples/storage.yaml`](https://github.com/fluxopt/lpspec/blob/main/examples/storage.yaml) · back to [all models](index.md)
+[`examples/storage.yaml`](https://github.com/fluxopt/specsolve/blob/main/examples/storage.yaml) · back to [all models](index.md)

@@ -33,9 +33,9 @@ import numpy as np
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.relational.result import KEEPS
-from lpspec.relational.sinks import SOLVERS
+import specsolve as sps
+from specsolve.relational.result import KEEPS
+from specsolve.relational.sinks import SOLVERS
 from tests.conftest import ITEMS, KNAPSACK, knapsack_sources
 
 # ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ def capped_sources() -> dict[str, pl.DataFrame]:
 
 def _tables(spec: dict[str, Any], given: dict[str, Any]) -> Any:
     """*model*'s solver tables, read off it built on *given*."""
-    with lps.build(spec, given) as built:
+    with sps.build(spec, given) as built:
         return built._engine._model.tables
 
 
@@ -176,7 +176,7 @@ def test_the_three_keeps_hold_the_two_things_independently(solver_name):
     exists: `solver` skips the hand-off *and* begins from nothing, which no
     boolean over one axis can say.
     """
-    with lps.build(DISPATCH, dispatch_sources() | {'snapshot': SNAPSHOTS}) as model:
+    with sps.build(DISPATCH, dispatch_sources() | {'snapshot': SNAPSHOTS}) as model:
         first = model.solve(solver_name=solver_name)
         scratch = SIMPLEX_ITERATIONS[solver_name](model._engine._solver)
         assert first.kept == 'nothing', 'a first solve has nothing to keep'
@@ -213,15 +213,15 @@ def test_the_solver_is_kept_by_default_and_its_progress_is_not(solver_name):
     knows which kind it has — so the default takes the half that always pays
     (the hand-off) and leaves the bet to a caller who can make it.
     """
-    with lps.build(DISPATCH, dispatch_sources() | {'snapshot': SNAPSHOTS}) as model:
+    with sps.build(DISPATCH, dispatch_sources() | {'snapshot': SNAPSHOTS}) as model:
         model.solve(solver_name=solver_name)
         assert model.solve(solver_name=solver_name).kept == 'solver'
 
 
 def test_an_unknown_keep_names_the_three(solver_name):
     with (
-        lps.build(DISPATCH, dispatch_sources() | {'snapshot': SNAPSHOTS}) as model,
-        pytest.raises(lps.LpspecError, match='unknown keep') as raised,
+        sps.build(DISPATCH, dispatch_sources() | {'snapshot': SNAPSHOTS}) as model,
+        pytest.raises(sps.SpecsolveError, match='unknown keep') as raised,
     ):
         model.solve(solver_name=solver_name, keep='warm')
     assert all(word in str(raised.value) for word in KEEPS), 'the refusal has to say what the three are'
@@ -233,7 +233,7 @@ def test_keeping_nothing_after_a_mip_solve_is_cold_too(solver_name):
     An incumbent, a MIP start, cut pools — whatever the member squirrels away
     dies with the discarded solver, with no per-solver scrubbing to forget.
     """
-    with lps.build(KNAPSACK, knapsack_sources()) as model:
+    with sps.build(KNAPSACK, knapsack_sources()) as model:
         first = model.solve(solver_name=solver_name)
         cold = model.solve(solver_name=solver_name, keep='nothing')
 
@@ -318,7 +318,7 @@ def test_a_warm_start_for_a_differently_shaped_model_is_refused(solver_name, spe
     tables = _tables(other_spec, other_given)
     session = SOLVERS[solver_name](tables)
     try:
-        with pytest.raises(lps.LpspecError, match='warm start carries'):
+        with pytest.raises(sps.SpecsolveError, match='warm start carries'):
             session.warm(ws)
     finally:
         session.close()
@@ -331,7 +331,7 @@ def test_a_warm_start_from_another_solver_is_refused(solver_name):
     tables = _tables(DISPATCH, dispatch_sources() | {'snapshot': SNAPSHOTS})
     session = SOLVERS[solver_name](tables)
     try:
-        with pytest.raises(lps.LpspecError, match='read from'):
+        with pytest.raises(sps.SpecsolveError, match='read from'):
             session.warm(replace(ws, solver='someone_else'))
     finally:
         session.close()
@@ -384,7 +384,7 @@ def test_a_hint_the_solver_refuses_is_loud_not_a_silent_cold_start(spec, given, 
         ws = session.warm_start()
         assert ws is not None
         session._handle = _Refusing(session._handle, call)
-        with pytest.raises(lps.LpspecError, match='refused'):
+        with pytest.raises(sps.SpecsolveError, match='refused'):
             session.warm(ws)
     finally:
         session.close()

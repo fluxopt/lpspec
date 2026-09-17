@@ -16,7 +16,7 @@ is only a floor: it holds the instance's tables; nothing recorded here is
 reshaped with it.
 
 It reads the same instance the port binds and builds the network with PyPSA's
-own objects. Nothing here imports lpspec.
+own objects. Nothing here imports specsolve.
 
 **Capacity that comes in whole modules.** ``p_nom_mod`` on an extendable
 generator makes PyPSA emit an integer ``Generator-n_mod`` and the equality
@@ -49,7 +49,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
 def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
     """The port's tables as a PyPSA network, column for column.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
     ``p_nom_extendable`` and a positive ``p_nom_mod`` together are what make the
     capacity modular: PyPSA takes the module count only where a component is in

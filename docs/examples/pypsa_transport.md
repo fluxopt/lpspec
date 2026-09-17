@@ -73,7 +73,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -159,7 +159,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_transport.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_transport.yaml', sources) as solution:
         solution.objective  # 22000.0
         solution.dual('nodal_balance')
     ```
@@ -172,7 +172,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         ``p_min_pu = -1`` makes a link bidirectional. The port cannot say that in
         a bound — bounds take a name or a number, never arithmetic (the declaration rules) — so
@@ -226,9 +226,9 @@ PyPSA and reproduced in its own model: **a transport model** (this one) ·
 **This model hit the ceiling once.** PyPSA's `p_min_pu = -1` is a bound of
 `-rating`, an expression `bounds:` cannot take. It ships as a `neg_rating`
 column instead. The gap is
-[issue #31](https://github.com/fluxopt/lpspec/issues/31), verdict *primitive*,
+[issue #31](https://github.com/fluxopt/specsolve/issues/31), verdict *primitive*,
 and [the ledger](index.md#ledger--what-a-port-could-not-say) records it.
 
 ---
 
-[`examples/ports/pypsa_transport.yaml`](https://github.com/fluxopt/lpspec/blob/main/examples/ports/pypsa_transport.yaml) · back to [all models](index.md)
+[`examples/ports/pypsa_transport.yaml`](https://github.com/fluxopt/specsolve/blob/main/examples/ports/pypsa_transport.yaml) · back to [all models](index.md)

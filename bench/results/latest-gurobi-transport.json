@@ -147,7 +147,7 @@
             "l2_cache_associativity": 6
         },
         "versions": {
-            "lpspec": "0.0.1.dev1+g8d27e88b7",
+            "specsolve": "0.0.1.dev1+g8d27e88b7",
             "highspy": "1.15.1",
             "gurobipy": "13.0.3",
             "scipy": "1.18.1",
@@ -168,21 +168,21 @@
         "time": "2026-09-14T09:34:11+02:00",
         "author_time": "2026-09-14T09:34:11+02:00",
         "dirty": true,
-        "project": "lpspec",
+        "project": "specsolve",
         "branch": "main"
     },
     "benchmarks": [
         {
             "group": null,
-            "name": "test_emit[transport-xs-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[transport-xs-lpspec-gurobi]",
+            "name": "test_emit[transport-xs-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[transport-xs-specsolve-gurobi]",
             "params": {
                 "case_name": "transport",
                 "size": "xs",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "transport-xs-lpspec-gurobi",
+            "param": "transport-xs-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -539,15 +539,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[transport-s-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[transport-s-lpspec-gurobi]",
+            "name": "test_emit[transport-s-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[transport-s-specsolve-gurobi]",
             "params": {
                 "case_name": "transport",
                 "size": "s",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "transport-s-lpspec-gurobi",
+            "param": "transport-s-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -904,15 +904,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[transport-m-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[transport-m-lpspec-gurobi]",
+            "name": "test_emit[transport-m-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[transport-m-specsolve-gurobi]",
             "params": {
                 "case_name": "transport",
                 "size": "m",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "transport-m-lpspec-gurobi",
+            "param": "transport-m-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -1269,15 +1269,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[transport-l-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[transport-l-lpspec-gurobi]",
+            "name": "test_emit[transport-l-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[transport-l-specsolve-gurobi]",
             "params": {
                 "case_name": "transport",
                 "size": "l",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "transport-l-lpspec-gurobi",
+            "param": "transport-l-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -1415,15 +1415,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[transport-w1-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[transport-w1-lpspec-gurobi]",
+            "name": "test_emit[transport-w1-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[transport-w1-specsolve-gurobi]",
             "params": {
                 "case_name": "transport",
                 "size": "w1",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "transport-w1-lpspec-gurobi",
+            "param": "transport-w1-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -1780,15 +1780,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[transport-w10-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[transport-w10-lpspec-gurobi]",
+            "name": "test_emit[transport-w10-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[transport-w10-specsolve-gurobi]",
             "params": {
                 "case_name": "transport",
                 "size": "w10",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "transport-w10-lpspec-gurobi",
+            "param": "transport-w10-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -2145,15 +2145,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[transport-w100-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[transport-w100-lpspec-gurobi]",
+            "name": "test_emit[transport-w100-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[transport-w100-specsolve-gurobi]",
             "params": {
                 "case_name": "transport",
                 "size": "w100",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "transport-w100-lpspec-gurobi",
+            "param": "transport-w100-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -2437,15 +2437,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[transport-w1000-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[transport-w1000-lpspec-gurobi]",
+            "name": "test_emit[transport-w1000-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[transport-w1000-specsolve-gurobi]",
             "params": {
                 "case_name": "transport",
                 "size": "w1000",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "transport-w1000-lpspec-gurobi",
+            "param": "transport-w1000-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [

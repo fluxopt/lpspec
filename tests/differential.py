@@ -37,17 +37,17 @@ import numpy as np
 import pytest
 from math_spec import to_program
 
-import lpspec as lps
-from lpspec.errors import DataError
-from lpspec.relational.engines.polars.engine import PolarsEngine
-from lpspec.sources import tidy_sources
+import specsolve as sps
+from specsolve.errors import DataError
+from specsolve.relational.engines.polars.engine import PolarsEngine
+from specsolve.sources import tidy_sources
 from tests.conftest import raw_of, schema_of, solve_written_file
-from tests.oracle import linopy, lpspec_linopy
+from tests.oracle import linopy, specsolve_linopy
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
-    from lpspec.relational.engines.polars.engine import Result
+    from specsolve.relational.engines.polars.engine import Result
 
 #: Both lanes hand the same numbers to the same solver, so they must agree to
 #: solver precision, not to a fudge factor. One tolerance, one place.
@@ -119,7 +119,7 @@ def differential(
         work = Path(tmp)
         path = spec if isinstance(spec, Path) else _write(work / 'model.yaml', spec)
 
-        m = lpspec_linopy.build(path, dict(sources))
+        m = specsolve_linopy.build(path, dict(sources))
         m.solve(solver_name='highs', output_flag=False, reformulate_sos='auto')
         oracle = float(m.objective.value)
         if not np.isfinite(oracle):
@@ -157,9 +157,9 @@ def both_lanes_refuse(spec: str | Path | dict[str, Any], sources: Mapping[str, A
     with tempfile.TemporaryDirectory() as tmp:
         path = spec if isinstance(spec, Path) else _write(Path(tmp) / 'model.yaml', spec)
         with pytest.raises(DataError, match=match) as relational:
-            lps.build(path, dict(sources)).close()
+            sps.build(path, dict(sources)).close()
         with pytest.raises(DataError, match=match) as eager:
-            lpspec_linopy.build(path, dict(sources))
+            specsolve_linopy.build(path, dict(sources))
     assert str(relational.value) == str(eager.value), 'one defect, one sentence'
     return str(relational.value)
 

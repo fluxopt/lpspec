@@ -147,7 +147,7 @@
             "l2_cache_associativity": 6
         },
         "versions": {
-            "lpspec": "0.0.1.dev1+g8d27e88b7",
+            "specsolve": "0.0.1.dev1+g8d27e88b7",
             "highspy": "1.15.1",
             "gurobipy": "13.0.3",
             "scipy": "1.18.1",
@@ -168,21 +168,21 @@
         "time": "2026-09-14T09:34:11+02:00",
         "author_time": "2026-09-14T09:34:11+02:00",
         "dirty": true,
-        "project": "lpspec",
+        "project": "specsolve",
         "branch": "main"
     },
     "benchmarks": [
         {
             "group": null,
-            "name": "test_emit[fleet-xs-lpspec-highs]",
-            "fullname": "bench/test_ladder.py::test_emit[fleet-xs-lpspec-highs]",
+            "name": "test_emit[fleet-xs-specsolve-highs]",
+            "fullname": "bench/test_ladder.py::test_emit[fleet-xs-specsolve-highs]",
             "params": {
                 "case_name": "fleet",
                 "size": "xs",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "highs"
             },
-            "param": "fleet-xs-lpspec-highs",
+            "param": "fleet-xs-specsolve-highs",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -466,15 +466,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[fleet-s-lpspec-highs]",
-            "fullname": "bench/test_ladder.py::test_emit[fleet-s-lpspec-highs]",
+            "name": "test_emit[fleet-s-specsolve-highs]",
+            "fullname": "bench/test_ladder.py::test_emit[fleet-s-specsolve-highs]",
             "params": {
                 "case_name": "fleet",
                 "size": "s",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "highs"
             },
-            "param": "fleet-s-lpspec-highs",
+            "param": "fleet-s-specsolve-highs",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -758,15 +758,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[fleet-m-lpspec-highs]",
-            "fullname": "bench/test_ladder.py::test_emit[fleet-m-lpspec-highs]",
+            "name": "test_emit[fleet-m-specsolve-highs]",
+            "fullname": "bench/test_ladder.py::test_emit[fleet-m-specsolve-highs]",
             "params": {
                 "case_name": "fleet",
                 "size": "m",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "highs"
             },
-            "param": "fleet-m-lpspec-highs",
+            "param": "fleet-m-specsolve-highs",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -977,15 +977,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[fleet-l-lpspec-highs]",
-            "fullname": "bench/test_ladder.py::test_emit[fleet-l-lpspec-highs]",
+            "name": "test_emit[fleet-l-specsolve-highs]",
+            "fullname": "bench/test_ladder.py::test_emit[fleet-l-specsolve-highs]",
             "params": {
                 "case_name": "fleet",
                 "size": "l",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "highs"
             },
-            "param": "fleet-l-lpspec-highs",
+            "param": "fleet-l-specsolve-highs",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -1196,14 +1196,14 @@
         },
         {
             "group": null,
-            "name": "test_rebuild[fleet-xs-lpspec]",
-            "fullname": "bench/test_ladder.py::test_rebuild[fleet-xs-lpspec]",
+            "name": "test_rebuild[fleet-xs-specsolve]",
+            "fullname": "bench/test_ladder.py::test_rebuild[fleet-xs-specsolve]",
             "params": {
                 "case_name": "fleet",
                 "size": "xs",
-                "arm": "lpspec"
+                "arm": "specsolve"
             },
-            "param": "fleet-xs-lpspec",
+            "param": "fleet-xs-specsolve",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -1586,14 +1586,14 @@
         },
         {
             "group": null,
-            "name": "test_rebuild[fleet-s-lpspec]",
-            "fullname": "bench/test_ladder.py::test_rebuild[fleet-s-lpspec]",
+            "name": "test_rebuild[fleet-s-specsolve]",
+            "fullname": "bench/test_ladder.py::test_rebuild[fleet-s-specsolve]",
             "params": {
                 "case_name": "fleet",
                 "size": "s",
-                "arm": "lpspec"
+                "arm": "specsolve"
             },
-            "param": "fleet-s-lpspec",
+            "param": "fleet-s-specsolve",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -1976,14 +1976,14 @@
         },
         {
             "group": null,
-            "name": "test_rebuild[fleet-m-lpspec]",
-            "fullname": "bench/test_ladder.py::test_rebuild[fleet-m-lpspec]",
+            "name": "test_rebuild[fleet-m-specsolve]",
+            "fullname": "bench/test_ladder.py::test_rebuild[fleet-m-specsolve]",
             "params": {
                 "case_name": "fleet",
                 "size": "m",
-                "arm": "lpspec"
+                "arm": "specsolve"
             },
-            "param": "fleet-m-lpspec",
+            "param": "fleet-m-specsolve",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -2366,14 +2366,14 @@
         },
         {
             "group": null,
-            "name": "test_rebuild[fleet-l-lpspec]",
-            "fullname": "bench/test_ladder.py::test_rebuild[fleet-l-lpspec]",
+            "name": "test_rebuild[fleet-l-specsolve]",
+            "fullname": "bench/test_ladder.py::test_rebuild[fleet-l-specsolve]",
             "params": {
                 "case_name": "fleet",
                 "size": "l",
-                "arm": "lpspec"
+                "arm": "specsolve"
             },
-            "param": "fleet-l-lpspec",
+            "param": "fleet-l-specsolve",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [

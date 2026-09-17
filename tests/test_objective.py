@@ -124,7 +124,7 @@ def test_a_bracketed_addition_under_a_product_means_what_it_prints(expression, e
 
 def test_an_objective_carrying_dims_is_refused_with_the_wrapper_named():
     """The rule that used to be implied is now the load error that asks for it."""
-    from lpspec.errors import DimensionError
+    from specsolve.errors import DimensionError
 
     spec = {**DISJOINT_SPEC, 'objective': {'sense': 'minimize', 'expression': 'x * a + y * b'}}
     with pytest.raises(DimensionError, match=r"carries dims \['i', 'j'\].*Wrap each additive term"):
@@ -151,31 +151,31 @@ def test_a_model_with_no_objective_is_a_feasibility_problem(tmp_path):
     """
     import yaml as pyyaml
 
-    import lpspec as lps
-    from tests.oracle import lpspec_linopy
+    import specsolve as sps
+    from tests.oracle import specsolve_linopy
 
     sources = {'g': ['wind', 'gas'], 'cap': {'wind': 40.0, 'gas': 100.0}, 'need': 90.0}
 
     path = tmp_path / 'feasibility.yaml'
     path.write_text(pyyaml.safe_dump(FEASIBILITY_SPEC))
-    eager = lpspec_linopy.build(path, sources)
+    eager = specsolve_linopy.build(path, sources)
     assert 'meet' in eager.constraints, 'the eager lane built the same file'
 
-    with lps.solve(FEASIBILITY_SPEC, sources) as result:
+    with sps.solve(FEASIBILITY_SPEC, sources) as result:
         assert result.is_ok, 'the constraints can be met, so this is not a failed solve'
         assert result.objective == 0.0, 'nothing was optimised, so the objective is the zero it was given'
         served = result.primal('x')['value'].sum()
         assert served == pytest.approx(90.0), 'the constraint is the whole model, so it binds'
 
-    lp = lps.write(FEASIBILITY_SPEC, sources, tmp_path / 'feasibility.lp')
+    lp = sps.write(FEASIBILITY_SPEC, sources, tmp_path / 'feasibility.lp')
     assert 'obj:\n\ns.t.' in lp.read_text(), 'the objective section is written, and is empty'
 
 
 def test_a_model_with_no_objective_still_says_when_it_cannot_be_met():
     """The answer a feasibility problem exists to give."""
-    import lpspec as lps
+    import specsolve as sps
 
     sources = {'g': ['wind', 'gas'], 'cap': {'wind': 40.0, 'gas': 10.0}, 'need': 90.0}
-    with lps.solve(FEASIBILITY_SPEC, sources) as result:
+    with sps.solve(FEASIBILITY_SPEC, sources) as result:
         assert not result.is_ok
         assert result.termination_condition == 'infeasible'

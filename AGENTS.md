@@ -170,7 +170,7 @@ rather than the alpha counter. Describe the break in the PR body instead.
   precautions.
 
   ```bash
-  pixi run python -m tools.mutate 'src/lpspec/sources.py:98-99#the empty-parameter guard'
+  pixi run python -m tools.mutate 'src/specsolve/sources.py:98-99#the empty-parameter guard'
   ```
 
   For #658's two-column form, run it once in each worktree and put the columns

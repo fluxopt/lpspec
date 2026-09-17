@@ -11,12 +11,12 @@ What may enter it is
 [the limits of the language](https://math-spec.readthedocs.io/en/latest/about/limits/). Plans
 and refusals are [the roadmap](roadmap.md). Measured results are
 [the benchmarks](benchmarks.md), produced by the harness in
-[bench/](https://github.com/fluxopt/lpspec/blob/main/bench/README.md), which is
+[bench/](https://github.com/fluxopt/specsolve/blob/main/bench/README.md), which is
 also how a claim on this page gets falsified.
 
 `python examples/walkthrough.py` runs the pipeline below stage by stage,
-through the same public calls `lps.solve` makes. Its output is committed as
-[examples/walkthrough.out](https://github.com/fluxopt/lpspec/blob/main/examples/walkthrough.out)
+through the same public calls `sps.solve` makes. Its output is committed as
+[examples/walkthrough.out](https://github.com/fluxopt/specsolve/blob/main/examples/walkthrough.out)
 and asserted line for line by `tests/test_walkthrough.py`.
 
 [The glossary](../reference/glossary.md) defines the nouns this page uses. The
@@ -135,11 +135,11 @@ place among them. A module only one lane reaches is that lane's, down to a
 language](#what-counts-as-language).
 
 **Eligibility is decided by attempting the lowering.** `to_program` returns a
-`Program` or raises `lps.LanguageError`. Both lanes call it, so "neither lane
+`Program` or raises `sps.LanguageError`. Both lanes call it, so "neither lane
 accepts a file the other refuses" is mechanical rather than maintained.
 `linopy/` asks only for the verdict and discards the plan. Errors split model
 from run. Everything under `LanguageError` is decidable without data,
-`DataError` is what a source failed to supply, and both are `LpspecError`
+`DataError` is what a source failed to supply, and both are `SpecsolveError`
 (`errors.py`). `LaneError` is the third thing that can be wrong. A lane may
 accept what it cannot build, and it says so in its own words ([hard rule
 3](#hard-rules)). Expansion precedes validation in **both** lanes, because a
@@ -205,7 +205,7 @@ reaches the plan. The names, by role:
   one back whole and `scan_archive`, `scan_result` and `scan_runs` to read it
   off the directory it lies in;
 - the three types a verb hands back, `Model`, `Result` and `Runs`;
-- the error tree under `LpspecError`, `NoSolutionError` and `LpspecWarning`.
+- the error tree under `SpecsolveError`, `NoSolutionError` and `SpecsolveWarning`.
 
 What each one takes and returns is [the Python API](../reference/api.md).
 `evaluate`, which reads a spec of parameters and expressions as arithmetic,
@@ -217,7 +217,7 @@ needs no solver installed.
 back a `Program` and every verb accepts a `Spec`. Obtaining either means calling
 `math_spec`, so a caller annotating one is already in the package that owns it.
 **The errors are the only exception**, because a caller meets them *without
-choosing to*: a `LanguageError` arrives unbidden out of `lps.solve`.
+choosing to*: a `LanguageError` arrives unbidden out of `sps.solve`.
 
 **Nothing here reads a `Spec`.** Binding, the guards and both lanes take the
 `Program`. A `Spec` reaching a verb is passed straight to
@@ -227,15 +227,15 @@ line: editing it, dumping it and typesetting it.
 **What a verb hands back is part of its signature.** A caller that *wraps* this
 package writes the type down. A type it cannot import is a type it cannot write.
 So `Model`, `Result` and `Runs` are named here. So are `NoSolutionError`, which
-every reader on a `Result` raises, and `LpspecWarning`, which `check` emits. A
+every reader on a `Result` raises, and `SpecsolveWarning`, which `check` emits. A
 sweep that records an infeasible scenario rather than dying on it needs both by
 name. None of the five constructs math or reaches the plan.
 
 **The namespace is flat, and a namespace marks a lane rather than a topic.**
-`lpspec.linopy` is the only one: its own dependencies, its own oracle, its own
+`specsolve.linopy` is the only one: its own dependencies, its own oracle, its own
 surface with its own test. `strategy.py` is not a lane, so `solve_over` and its
 axes sit at the top level beside `solve`. The surface test exempts submodules
-(`not inspect.ismodule`). So moving names under `lpspec.something` moves them
+(`not inspect.ismodule`). So moving names under `specsolve.something` moves them
 out from under the list a reviewer reads.
 
 **A handle's methods answer "what do I do with this", never "what is this"**:
@@ -283,7 +283,7 @@ the language's rulebook.
    about what a name refers to. What a model *means* cannot depend on what is
    done with it, because the package that decides the meaning cannot import this
    one ([above](#thesis)). **Our half of it is checked**: every `math_spec`
-   import under `src/lpspec` names the package and never a module inside it
+   import under `src/specsolve` names the package and never a module inside it
    (`test_the_language_is_imported_as_one_package`). So what this repository
    depends on is the one `__all__` math-spec pins, never a private name a
    submodule path could carry.
@@ -324,7 +324,7 @@ the language's rulebook.
    There is no API for *constructing* a model, no way to hand in a plan, and no
    registry to populate. The contract underneath is the language's two states, a
    `Spec` and the `Program` it lowers to. Whether that seam is ever blessed is
-   open ([#381](https://github.com/fluxopt/lpspec/issues/381)). The Python
+   open ([#381](https://github.com/fluxopt/specsolve/issues/381)). The Python
    surface is the runner (`api.py`) and the driver over it (`strategy.py`); the
    plan is internal. The whole of it is [twenty-nine
    names](#the-python-surface), pinned by a test.
@@ -352,7 +352,7 @@ relate to the input's. `math_spec.program.fan_in` answers it for every node, so
 a lane asks rather than keeping its own list of which kinds reshape anything.
 Anything but one-to-one mixes several input slots into one output row. So
 absence has to be pushed into the operand before the rewrite consumes it
-([#1142](https://github.com/fluxopt/lpspec/issues/1142)).
+([#1142](https://github.com/fluxopt/specsolve/issues/1142)).
 
 | plan node | the file writes | fan-in | the relational query |
 | --- | --- | --- | --- |
@@ -493,7 +493,7 @@ So a solver **declares** how it satisfies one, `native` or `reformulated`, and
 the *family* acts on the answer (`solvers.ingestible`). A sink that cannot take
 a set is handed the same feasible region as binaries and linking rows
 (`sinks/sos.py`, whose README carries the per-sink table). That is the first two
-entries of what [Track 3](https://github.com/fluxopt/lpspec/issues/472) asked
+entries of what [Track 3](https://github.com/fluxopt/specsolve/issues/472) asked
 for. What the rewrite adds goes **after** the model, the label contract spent
 rather than bent. An appended column moves none of the model's own, and an
 appended row renumbers none of its rows. A solve reads its answer back by the
@@ -549,7 +549,7 @@ is structure.
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
 | `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
-| `errors.py` | the run half, and the whole re-exported: what a caller catches off `lps.`; a wording lives here only where two modules raise it |
+| `errors.py` | the run half, and the whole re-exported: what a caller catches off `sps.`; a wording lives here only where two modules raise it |
 | `strategy.py` | the driver above the runner: one plan per slice, folded — scenarios, rolling horizon, myopic pathways |
 | `relational/engines/polars/scope.py` | the scope a query is compiled in: the program, its attached data and the variable frames built so far; the product of its dimensions and the one row-major rule every index reads — what every helper takes, and the compiler holds |
 | `relational/engines/polars/compiler.py` | plan → lazy queries; pure, reads nothing |
@@ -570,7 +570,7 @@ is structure.
 | `relational/sinks/tables.py` | what every sink reads and no more: the five tables, the batching scalars, and their projection onto the solver's column index |
 | `relational/sinks/capabilities.py` | what a sink can ingest — hard rule 3's *accepts ≠ builds* axis; `lanes.py` declares each **lane** in the same vocabulary |
 | `relational/sinks/sos.py` | the one stream a sink may not ingest, written as two it can: sets → binaries and linking rows |
-| `relational/sinks/` | how a built model leaves, in two families: `solvers/` (one module per solver, chosen by name) and `writers/` (one per format, chosen by suffix) — [README](https://github.com/fluxopt/lpspec/blob/main/src/lpspec/relational/sinks/README.md) |
+| `relational/sinks/` | how a built model leaves, in two families: `solvers/` (one module per solver, chosen by name) and `writers/` (one per format, chosen by suffix) — [README](https://github.com/fluxopt/specsolve/blob/main/src/specsolve/relational/sinks/README.md) |
 | `linopy/__init__.py` | the lane's two verbs: `build` constructing a `linopy.Model`, and `evaluate` valuing an expression at a solved one |
 | `linopy/loader.py` | the crossing into pandas and xarray: `tidy_sources`' tables as master coords, an `xr.Dataset`, and one array per relation; refuses the relation shapes the lane does not build, naming the relational lane |
 | `linopy/coverage.py` | the two positions an absent row has no reading for: a divisor and a constant side |
@@ -654,7 +654,7 @@ declares what it can ingest, as a `Capabilities` descriptor beside the code that
 knows. A sink declaring nothing reads as taking nothing. Nothing above it
 changes: no method on the engine, no branch in `api.py`, no name on the Python
 surface. The
-[README](https://github.com/fluxopt/lpspec/blob/main/src/lpspec/relational/sinks/README.md)
+[README](https://github.com/fluxopt/specsolve/blob/main/src/specsolve/relational/sinks/README.md)
 is the full list, and `tests/test_architecture.py` checks the shape off the
 path.
 
@@ -669,7 +669,7 @@ landed and tagged. Then **here**, against that tag: linopy implementation →
 compiler case → engine → differential test through a solver *and* the LP
 writer, and this file if structural. Nothing here can lower an operator the
 pinned language does not parse.
-[The nightly canary](https://github.com/fluxopt/lpspec/blob/main/.github/workflows/canary.yml)
+[The nightly canary](https://github.com/fluxopt/specsolve/blob/main/.github/workflows/canary.yml)
 says the two halves have not drifted since.
 
 The dim rule, the degree verdict and the dense-label assignment

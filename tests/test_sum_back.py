@@ -14,8 +14,8 @@ from copy import deepcopy
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import DimensionError, LanguageError
+import specsolve as sps
+from specsolve.errors import DimensionError, LanguageError
 from tests.conftest import masked_operand_spec, relation
 from tests.differential import differential
 from tests.oracle import pd
@@ -404,7 +404,7 @@ def test_a_literal_width_is_a_whole_number_of_positions(width: str):
     spec = up_time_spec(None)
     spec['constraints']['stays_up_its_own_time']['expression'] = f'sum_back(started, along=t, window={width}) <= on'
     with pytest.raises(LanguageError, match='whole number of positions of at least 1'):
-        lps.check(spec)
+        sps.check(spec)
 
 
 def test_a_window_refuses_a_numeric_edge():
@@ -414,7 +414,7 @@ def test_a_window_refuses_a_numeric_edge():
         'sum_back(started, along=t, window=min_up, edge=0) <= on'
     )
     with pytest.raises(LanguageError, match="takes 'wrap' or nothing"):
-        lps.check(spec)
+        sps.check(spec)
 
 
 def test_a_window_needs_the_dimension_it_sums_over():
@@ -424,7 +424,7 @@ def test_a_window_needs_the_dimension_it_sums_over():
         'sum_back(sum(started, over=t), along=t, window=min_up) <= on'
     )
     with pytest.raises(DimensionError, match='sum_back\\(along=t\\)'):
-        lps.check(spec)
+        sps.check(spec)
 
 
 def test_a_window_at_the_first_position_is_short_not_empty():

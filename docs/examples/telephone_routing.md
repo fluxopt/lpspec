@@ -80,7 +80,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{capacity}`$
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-

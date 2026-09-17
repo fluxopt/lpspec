@@ -16,7 +16,7 @@ is only a floor: it holds the instance's tables and reshapes the recorded
 duals.
 
 It reads the same instance the port binds and builds the network with PyPSA's
-own objects. Nothing here imports lpspec.
+own objects. Nothing here imports specsolve.
 
 **A bound on energy, not on power.** ``e_sum_min`` and ``e_sum_max`` reduce a
 generator's dispatch across the whole horizon and bound the total — a
@@ -53,7 +53,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
 def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
     """The port's tables as a PyPSA network, column for column.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
     The energy bounds arrive as short frames — one row per generator that has
     one — and are reindexed onto the full generator index, which is where the

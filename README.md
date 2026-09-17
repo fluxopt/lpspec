@@ -1,4 +1,4 @@
-# lpspec
+# specsolve
 
 **Self-documenting optimisation models — at any scale.**
 
@@ -10,12 +10,12 @@ column index — assembled relationally and handed to the solver in batches.
 The consequence worth the headline is **cost to a loaded solver** — YAML and
 data in, a populated solver out, no LP file anywhere in between. Measured
 against linopy's own best path to the same place, through HiGHS — the solver
-`lps.solve` reaches for when you name none
+`sps.solve` reaches for when you name none
 ([benchmarks](docs/about/benchmarks.md)):
 
 - **1.01x to 1.29x faster**, on `dispatch` at 10M variables and `fleet` at 12M,
   at 0.83x and 0.84x of linopy's peak memory.
-- **Most of what that measures is the solver, not either library.** Of lpspec's
+- **Most of what that measures is the solver, not either library.** Of specsolve's
   1.51 s at 10M variables, 0.57 s is the build and 0.94 s is HiGHS taking the
   model.
 
@@ -23,7 +23,7 @@ against linopy's own best path to the same place, through HiGHS — the solver
 across four models at 0.73x to 0.98x of the peak. There is less of either
 library left in it. The same 10M-variable model costs 9.85 s to a loaded Gurobi
 and 1.51 s to a loaded HiGHS. Raw `gurobipy`, with no modelling layer at all,
-costs 9.31 s of that 9.85 s: lpspec adds 0.54 s to the floor and linopy adds
+costs 9.31 s of that 9.85 s: specsolve adds 0.54 s to the floor and linopy adds
 1.98 s, so the libraries land 1.15x apart while what each adds is 3.7x apart.
 Read the sink you use; the page has a table per sink.
 
@@ -50,7 +50,7 @@ flowchart LR
     R -->|"no"| ERR["load error<br/>naming the construct + rewrite"]
     R -->|"yes"| S["relational engine<br/>polars"]
     S --> OUT["solver (batched) / LP file"]
-    R -->|"yes, and you asked<br/>for a linopy.Model"| E["lpspec.linopy"]
+    R -->|"yes, and you asked<br/>for a linopy.Model"| E["specsolve.linopy"]
     E --> LS["linopy.Model → solve"]
 
     classDef stream fill:#f0f7f0,stroke:#3a7d44,stroke-width:2px,color:#111
@@ -92,7 +92,7 @@ objective:
 
 <!--solve-start-->
 ```python
-import lpspec as lps, polars as pl
+import specsolve as sps, polars as pl
 
 generators = ['wind', 'solar', 'gas']
 sources = {
@@ -103,7 +103,7 @@ sources = {
     'generator': generators,
 }
 
-result = lps.solve('dispatch.yaml', sources)
+result = sps.solve('dispatch.yaml', sources)
 print(result.objective)  # 1920.0
 print(result.primal('p'))  # a tidy table: (snapshot, generator, value)
 print(result.dual('power_balance'))  # the price at each snapshot
@@ -139,9 +139,9 @@ instead of solving it here. One import decides which lane builds it; the
 language, the data and the refusals are the same either way:
 
 ```python
-from lpspec import linopy as lpspec_linopy
+from specsolve import linopy as specsolve_linopy
 
-m = lpspec_linopy.build('spec.yaml', sources={...})  # a linopy.Model you own
+m = specsolve_linopy.build('spec.yaml', sources={...})  # a linopy.Model you own
 m.solve()
 ```
 
@@ -174,11 +174,11 @@ committed as [examples/walkthrough.out](examples/walkthrough.out), if you would
 rather read it than run it.
 
 ```bash
-pip install lpspec  # the relational engine (polars, highspy)
-pip install "lpspec[linopy]"  # adds linopy + xarray + pandas: the lane, the
+pip install specsolve  # the relational engine (polars, highspy)
+pip install "specsolve[linopy]"  # adds linopy + xarray + pandas: the lane, the
                               # oracle, and to_pandas / to_dataarray
-pip install "lpspec[gurobi]"  # adds the gurobi sink: solver_name='gurobi'
-pip install "lpspec[xpress]"  # adds the xpress sink: solver_name='xpress'
+pip install "specsolve[gurobi]"  # adds the gurobi sink: solver_name='gurobi'
+pip install "specsolve[xpress]"  # adds the xpress sink: solver_name='xpress'
 ```
 
 Not a solver wrapper, not a domain package, not a data-loading layer — bring
@@ -204,7 +204,7 @@ compatibility shim for every earlier spelling would defeat the point of a small
 language.
 
 In practice: pin an exact version if you depend on this, and read the
-[changelog](https://github.com/fluxopt/lpspec/blob/main/CHANGELOG.md) before upgrading — every entry links the PR that
+[changelog](https://github.com/fluxopt/specsolve/blob/main/CHANGELOG.md) before upgrading — every entry links the PR that
 describes the break, and a retired spelling fails at load naming its rewrite
 rather than drifting on silently. What exists is tested: real models round-trip
 through solve, differentially verified against linopy. It is the

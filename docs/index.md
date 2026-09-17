@@ -6,13 +6,13 @@ hide:
 
 <div class="hero" markdown>
 
-# lpspec
+# specsolve
 
 **Self-documenting optimisation models — at any scale.**
 
 Write the math in YAML, attach data at runtime, solve.
 
-[![PyPI](https://img.shields.io/pypi/v/lpspec)](https://pypi.org/project/lpspec/)
+[![PyPI](https://img.shields.io/pypi/v/specsolve)](https://pypi.org/project/specsolve/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -297,11 +297,11 @@ is a choice, and **How** shows the one that was made here.
 </div>
 
 ```bash
-pip install lpspec  # the relational engine (polars, highspy)
-pip install "lpspec[linopy]"  # adds linopy + xarray + pandas: the lane, the
+pip install specsolve  # the relational engine (polars, highspy)
+pip install "specsolve[linopy]"  # adds linopy + xarray + pandas: the lane, the
                               # oracle, and to_pandas / to_dataarray
-pip install "lpspec[gurobi]"  # adds the gurobi sink: solver_name='gurobi'
-pip install "lpspec[xpress]"  # adds the xpress sink: solver_name='xpress'
+pip install "specsolve[gurobi]"  # adds the gurobi sink: solver_name='gurobi'
+pip install "specsolve[xpress]"  # adds the xpress sink: solver_name='xpress'
 ```
 
 !!! warning "Alpha, pre-1.0"

@@ -1,13 +1,13 @@
 # Decomposition, as evidence
 
 This page shows that the language can express a Benders decomposition and reach
-the right answer, for anyone decomposing a model in lpspec or asking for a
+the right answer, for anyone decomposing a model in specsolve or asking for a
 driver that does it.
 
-**lpspec ships no decomposition driver.** Whether it should is
-[#596](https://github.com/fluxopt/lpspec/issues/596). Every block below is
+**specsolve ships no decomposition driver.** Whether it should is
+[#596](https://github.com/fluxopt/specsolve/issues/596). Every block below is
 validated against
-[`examples/benders/`](https://github.com/fluxopt/lpspec/blob/main/examples/benders/run.py).
+[`examples/benders/`](https://github.com/fluxopt/specsolve/blob/main/examples/benders/run.py).
 
 ## Why anyone wants it
 
@@ -136,10 +136,10 @@ availability and summed over snapshots. `sources` is the data the model
 attaches ([glossary](../reference/glossary.md#how-it-runs)):
 
 ```python
-import lpspec as lps
+import specsolve as sps
 import polars as pl
 
-with lps.solve('examples/benders/sub.yaml', sources) as sub:
+with sps.solve('examples/benders/sub.yaml', sources) as sub:
     slope = (
         sub.dual('capacity')
         .join(avail, on=['snapshot', 'generator'], suffix='_avail')
@@ -156,7 +156,7 @@ two `pl.concat` calls onto the parameter tables the master already declares.
 ## When the subproblem is infeasible
 
 Below some capacity there is no dispatch at all, and the subproblem is
-infeasible. lpspec hands back **no Farkas ray**. An infeasible solve has no
+infeasible. specsolve hands back **no Farkas ray**. An infeasible solve has no
 readable status, so `dual()` raises rather than returning a vector of zeros
 that looks like an answer.
 
@@ -200,7 +200,7 @@ model declares one objective.
 sub_model, feasibility_model, master_model = (to_spec(path) for path in paths)
 
 for step in range(25):
-    with lps.solve(sub_model, {**dispatch, 'cap_hat': capacity}) as sub:
+    with sps.solve(sub_model, {**dispatch, 'cap_hat': capacity}) as sub:
         dispatchable = sub.has_primal
         if dispatchable:
             slope, here_value = slope_at(sub, capacity)
@@ -208,11 +208,11 @@ for step in range(25):
             appended(tables, 'cut', sub.objective - here_value, slope)
 
     if not dispatchable:
-        with lps.solve(feasibility_model, {**dispatch, 'cap_hat': capacity}) as short:
+        with sps.solve(feasibility_model, {**dispatch, 'cap_hat': capacity}) as short:
             slope, here_value = slope_at(short, capacity)
             appended(tables, 'fcut', here_value - short.objective, slope)
 
-    with lps.solve(master_model, {**master_sources, **coordinates}) as master:
+    with sps.solve(master_model, {**master_sources, **coordinates}) as master:
         lower = master.objective
         capacity = master.primal('cap').select('generator', 'value')
 
@@ -220,12 +220,12 @@ for step in range(25):
         break
 ```
 
-Twenty lines, three `lps.solve` calls, and a growing pair of tables. **A reader
+Twenty lines, three `sps.solve` calls, and a growing pair of tables. **A reader
 could write this**, which is the observation that matters most for
-[#596](https://github.com/fluxopt/lpspec/issues/596).
+[#596](https://github.com/fluxopt/specsolve/issues/596).
 
 The models are read once above the loop, because a cut is a row in a
-parameter table rather than an edit to a file. `lps.solve` takes a `Spec`
+parameter table rather than an edit to a file. `sps.solve` takes a `Spec`
 ([glossary](../reference/glossary.md#the-chain)) anywhere it takes a path, so
 parsing and validation are paid once per run rather than three times an
 iteration.
@@ -255,7 +255,7 @@ the first optimality cut then closes the gap exactly.
 
 ## The check is the algorithm's own
 
-lpspec can always build the monolith from the same sources, so the example
+specsolve can always build the monolith from the same sources, so the example
 solves both and prints the difference: `0.0e+00` above, asserted in
 `tests/test_benders_example.py`. That is the two-lane differential test aimed
 at an algorithm instead of an engine. It is always available because the
@@ -266,5 +266,5 @@ undecomposed form is another file over the same data.
 Missing is everything that makes a decomposition survive a real model: cut
 management as the master grows, stabilisation, multi-cut, tolerances that hold
 when duals are degenerate, and an answer for when convergence does not happen.
-That is the surface [#596](https://github.com/fluxopt/lpspec/issues/596) asks
+That is the surface [#596](https://github.com/fluxopt/specsolve/issues/596) asks
 whether to own. This page settles only that the *language* is not the obstacle.

@@ -83,7 +83,7 @@ A cap on what each technology may generate per calendar month — an aggregate o
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -146,7 +146,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/monthly_budget.yaml', sources) as solution:
+    with sps.solve('examples/monthly_budget.yaml', sources) as solution:
         solution.objective  # 9500.0
         solution.dual('monthly_budget')
     ```
@@ -159,7 +159,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> linopy.Model:
         """The instance's tables as a linopy model, row for row.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
         """
         p_max: pd.Series = tables['p_max'].set_index('generator')['value']
         cost: pd.Series = tables['cost'].set_index('generator')['value']
@@ -265,9 +265,9 @@ contributes nothing.
 It cannot express an **overlapping** aggregate such as *trailing twelve months,
 at every month*: each snapshot would belong to twelve groups, and no single
 column can say so. That is a sliding window over a variable,
-[#468](https://github.com/fluxopt/lpspec/issues/468).
+[#468](https://github.com/fluxopt/specsolve/issues/468).
 
 The same split appears one level up, where a *process* loops over plans rather
 than an expression over rows
-([#457](https://github.com/fluxopt/lpspec/issues/457)): slicing a model per
+([#457](https://github.com/fluxopt/specsolve/issues/457)): slicing a model per
 group is a partition, slicing it per window overlaps.

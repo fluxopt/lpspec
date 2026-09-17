@@ -83,7 +83,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{stock}`$, a
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -171,7 +171,7 @@ Mosel model writes `flow(a) >= MINCAP(a)` unconditionally, so every rail
 connection carries at least 10 t whether it is wanted or not. The published
 1715 is that reading. The port matches the model that produced the number. The
 semi-continuous variant is
-[#383](https://github.com/fluxopt/lpspec/issues/383).
+[#383](https://github.com/fluxopt/specsolve/issues/383).
 
 ## What it exercises
 

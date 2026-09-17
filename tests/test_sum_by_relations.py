@@ -32,7 +32,7 @@ import pytest
 from math_spec import to_program
 from math_spec.program import GroupSum, Variable
 
-from lpspec.errors import DimensionError
+from specsolve.errors import DimensionError
 from tests.conftest import by_coord, override, raw_of, relation, schema_of
 from tests.differential import RTOL, differential
 from tests.oracle import operators, pd, xr

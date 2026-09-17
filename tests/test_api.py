@@ -23,8 +23,8 @@ import polars as pl
 import pytest
 from math_spec import Spec, to_program, to_spec
 
-import lpspec as lps
-from lpspec.errors import DimensionError
+import specsolve as sps
+from specsolve.errors import DimensionError
 from tests.conftest import (
     CASES,
     DISPATCH_COST,
@@ -42,7 +42,7 @@ from tests.conftest import (
 def dispatch_solution(dispatch_yaml, dispatch_frame_inputs):
     """The dispatch model solved on the native lane, closed after the test."""
     sources = dispatch_frame_inputs
-    with lps.solve(dispatch_yaml, sources) as result:
+    with sps.solve(dispatch_yaml, sources) as result:
         yield result
 
 
@@ -56,12 +56,12 @@ def test_solve(dispatch_solution, dispatch_frame_inputs):
 
 def test_build_context_manager_and_write(dispatch_yaml, dispatch_frame_inputs, tmp_path):
     sources = dispatch_frame_inputs
-    with lps.build(dispatch_yaml, sources) as model:
+    with sps.build(dispatch_yaml, sources) as model:
         result = model.solve()
         assert result.is_ok
         objective_direct = result.objective
 
-    lp = lps.write(dispatch_yaml, sources, tmp_path / 'm.lp')
+    lp = sps.write(dispatch_yaml, sources, tmp_path / 'm.lp')
     assert solve_written_file(lp) == pytest.approx(objective_direct, rel=1e-9)
 
 
@@ -79,8 +79,8 @@ def test_a_points_parameter_supplied_as_a_parquet_path_keeps_its_own_curve_lengt
         paths[name] = str(tmp_path / f'{name}.parquet')
 
     with (
-        lps.solve(port_spec('piecewise_ragged'), paths) as from_paths,
-        lps.solve(port_spec('piecewise_ragged'), frames) as from_frames,
+        sps.solve(port_spec('piecewise_ragged'), paths) as from_paths,
+        sps.solve(port_spec('piecewise_ragged'), frames) as from_frames,
     ):
         assert from_paths.objective == pytest.approx(from_frames.objective, rel=1e-9), (
             'a curve read from a file is the curve read from a frame'
@@ -92,7 +92,7 @@ def test_a_string_is_a_parquet_path_at_every_door(tmp_path):
     through, so a path attaches the same at a parameter, an index, a relation,
     a curve and a sweep's axis — the `points:` curve that was refused from a
     path while accepted from a frame was the fifth reader lacking it."""
-    from lpspec.frames import as_frame
+    from specsolve.frames import as_frame
 
     frame = pl.DataFrame({'snapshot': [0, 1], 'value': [1.0, 2.0]})
     frame.write_parquet(tmp_path / 'load.parquet')
@@ -110,11 +110,11 @@ def test_parquet_path_sources(dispatch_yaml, dispatch_frame_inputs, tmp_path):
         frame.write_parquet(p)
         paths[name] = str(p)
 
-    with lps.solve(dispatch_yaml, paths) as result:
+    with sps.solve(dispatch_yaml, paths) as result:
         assert result.is_ok
         objective = result.objective
 
-    with lps.solve(dispatch_yaml, sources) as ref:
+    with sps.solve(dispatch_yaml, sources) as ref:
         assert objective == pytest.approx(ref.objective, rel=1e-9)
 
 
@@ -142,11 +142,11 @@ def test_plain_python_sources_reach_the_same_answer_as_tables(dispatch_yaml, dis
     which is why the dimensions are resolved before any parameter is read.
     """
     frames = dispatch_frame_inputs
-    with lps.solve(dispatch_yaml, frames) as tables:
+    with sps.solve(dispatch_yaml, frames) as tables:
         expected = tables.objective
 
     index = {'snapshot': frames['snapshot'], 'generator': frames['generator']}
-    with lps.solve(dispatch_yaml, _PLAIN[shape] | index) as plain:
+    with sps.solve(dispatch_yaml, _PLAIN[shape] | index) as plain:
         assert plain.objective == pytest.approx(expected, rel=1e-9)
 
 
@@ -161,8 +161,8 @@ def test_one_number_stands_for_every_coordinate(dispatch_yaml, dispatch_frame_in
     spelled = {**frames, 'cost': pl.DataFrame({'generator': list(DISPATCH_GENERATORS), 'value': [7.0] * 3})}
 
     with (
-        lps.solve(dispatch_yaml, flat) as broadcast,
-        lps.solve(dispatch_yaml, spelled) as written,
+        sps.solve(dispatch_yaml, flat) as broadcast,
+        sps.solve(dispatch_yaml, spelled) as written,
     ):
         assert broadcast.objective == pytest.approx(written.objective, rel=1e-9)
 
@@ -177,8 +177,8 @@ def test_one_number_stands_for_every_coordinate(dispatch_yaml, dispatch_frame_in
 )
 def test_a_plain_python_source_that_does_not_fit_is_refused(dispatch_yaml, dispatch_frame_inputs, sources, match):
     frames = dispatch_frame_inputs
-    with pytest.raises(lps.DataError, match=match):
-        lps.build(dispatch_yaml, {**frames, **sources}).close()
+    with pytest.raises(sps.DataError, match=match):
+        sps.build(dispatch_yaml, {**frames, **sources}).close()
 
 
 #: One parameter over two dims — what a dict and a sequence cannot cover.
@@ -199,16 +199,16 @@ _TWO_DIMS = {
 )
 def test_a_flat_shape_cannot_cover_two_dimensions(source, match):
     """Both carry one axis, and the rewrite is the table that carries both."""
-    with pytest.raises(lps.DataError, match=match):
-        lps.build(_TWO_DIMS, {'cap': source}).close()
+    with pytest.raises(sps.DataError, match=match):
+        sps.build(_TWO_DIMS, {'cap': source}).close()
 
 
 def test_a_one_level_series_cannot_cover_two_dimensions():
     """A pandas Series is a sequence with its index along: one axis, declined the same way."""
     pandas = pytest.importorskip('pandas')
     series = pandas.Series([1.0, 2.0], index=pandas.Index(['wind', 'gas'], name='g'))
-    with pytest.raises(lps.DataError, match='a sequence runs along one dimension'):
-        lps.build(_TWO_DIMS, {'cap': series}).close()
+    with pytest.raises(sps.DataError, match='a sequence runs along one dimension'):
+        sps.build(_TWO_DIMS, {'cap': series}).close()
 
 
 def test_a_positional_source_needs_the_labels_it_is_written_against():
@@ -220,8 +220,8 @@ def test_a_positional_source_needs_the_labels_it_is_written_against():
         'variables': {'x': {'dims': ['g'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'objective': {'sense': 'maximize', 'expression': 'sum(x, over=g)'},
     }
-    with pytest.raises(lps.DataError, match='nothing else supplies an index'):
-        lps.build(spec, {'cap': [1.0, 2.0]}).close()
+    with pytest.raises(sps.DataError, match='nothing else supplies an index'):
+        sps.build(spec, {'cap': [1.0, 2.0]}).close()
 
 
 def test_runtime_is_linopy_free(dispatch_yaml):
@@ -245,11 +245,11 @@ def test_runtime_is_linopy_free(dispatch_yaml):
         assert "linopy" not in sys.modules
 
         import polars as pl
-        import lpspec as lps
+        import specsolve as sps
         for lib in {absent!r}:
             assert lib not in sys.modules, f"package import pulled in {{lib}}"
 
-        result = lps.solve(
+        result = sps.solve(
             {str(dispatch_yaml)!r},
             {{
                 "p_max": pl.DataFrame({{"generator": ["wind", "solar", "gas"],
@@ -295,19 +295,19 @@ def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispa
         'dict': to_spec(dispatch_yaml).to_dict(),
         'spec': to_spec(dispatch_yaml),
     }[form]
-    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as reference:
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs) as reference:
         expected = reference.objective
 
-    assert lps.check(spec).variables['p'].dims == ('snapshot', 'generator'), (
+    assert sps.check(spec).variables['p'].dims == ('snapshot', 'generator'), (
         'check lowers it, and the plan is the same one whichever form the model arrived as'
     )
-    with lps.build(spec, dispatch_frame_inputs) as model:
+    with sps.build(spec, dispatch_frame_inputs) as model:
         assert model.solve('highs').objective == pytest.approx(expected, rel=1e-9), 'build takes it'
-    with lps.solve(spec, dispatch_frame_inputs) as result:
+    with sps.solve(spec, dispatch_frame_inputs) as result:
         assert result.objective == pytest.approx(expected, rel=1e-9), 'and so does solve'
-    assert lps.write(spec, dispatch_frame_inputs, tmp_path / f'{form}.lp').exists(), 'and write'
+    assert sps.write(spec, dispatch_frame_inputs, tmp_path / f'{form}.lp').exists(), 'and write'
 
-    runs = lps.solve_over(spec, dispatch_frame_inputs, [(0, dict(dispatch_frame_inputs))], key_name='draw')
+    runs = sps.solve_over(spec, dispatch_frame_inputs, [(0, dict(dispatch_frame_inputs))], key_name='draw')
     assert runs.keys == [0], 'a hand-built axis of one slice still runs, whatever the model arrived as'
     assert runs.objective['objective'].to_list() == pytest.approx([expected], rel=1e-9), (
         'and the sweep reaches the answer the one-shot verbs do'
@@ -317,7 +317,7 @@ def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispa
 def test_check_and_to_program_need_no_data(dispatch_yaml):
     """The model stands for itself: the plan is read from the file when
     wanted, never carried on a built model."""
-    for program in (lps.check(dispatch_yaml), to_program(dispatch_yaml)):
+    for program in (sps.check(dispatch_yaml), to_program(dispatch_yaml)):
         assert program.variables['p'].dims == ('snapshot', 'generator')
         assert program.parameters['load'].dims == ('snapshot',)
 
@@ -345,21 +345,21 @@ def test_check_reports_language_errors_before_any_data_is_bound(
     """
     raw = {**to_spec(dispatch_yaml).model_dump(), 'objective': {'sense': 'minimize', 'expression': expression}}
 
-    with pytest.raises(lps.LanguageError, match=match):
-        lps.check(raw)
+    with pytest.raises(sps.LanguageError, match=match):
+        sps.check(raw)
     sources = dispatch_frame_inputs
-    with pytest.raises(lps.LanguageError, match=match):
-        lps.build(raw, sources)
+    with pytest.raises(sps.LanguageError, match=match):
+        sps.build(raw, sources)
 
 
 def test_error_hierarchy_is_one_catchable_tree():
     """One ``except`` covers the package, and the model/run split is real."""
-    for cls in (lps.LanguageError, lps.DataError):
-        assert issubclass(cls, lps.LpspecError)
-    for cls in (lps.SchemaError, lps.DimensionError, lps.PiecewiseExpansionError):
-        assert issubclass(cls, lps.LanguageError)
-    assert not issubclass(lps.DataError, lps.LanguageError)
-    assert issubclass(lps.LpspecError, ValueError)
+    for cls in (sps.LanguageError, sps.DataError):
+        assert issubclass(cls, sps.SpecsolveError)
+    for cls in (sps.SchemaError, sps.DimensionError, sps.PiecewiseExpansionError):
+        assert issubclass(cls, sps.LanguageError)
+    assert not issubclass(sps.DataError, sps.LanguageError)
+    assert issubclass(sps.SpecsolveError, ValueError)
 
 
 def test_an_unknown_solver_is_refused_with_the_alternatives(dispatch_yaml, dispatch_frame_inputs):
@@ -368,11 +368,11 @@ def test_an_unknown_solver_is_refused_with_the_alternatives(dispatch_yaml, dispa
     answer that cannot be right. Here rather than in ``test_gurobi_sink.py``,
     which skips without the extra: the closed set is a property of the package,
     not of gurobi. Refused before the build, as an unwritable suffix is."""
-    from lpspec.relational.sinks import SOLVERS
+    from specsolve.relational.sinks import SOLVERS
 
     sources = dispatch_frame_inputs
-    with pytest.raises(lps.LpspecError, match='unknown solver'):
-        lps.solve(dispatch_yaml, sources, solver_name='cplex')
+    with pytest.raises(sps.SpecsolveError, match='unknown solver'):
+        sps.solve(dispatch_yaml, sources, solver_name='cplex')
     assert set(SOLVERS) == {'highs', 'gurobi', 'xpress'}
 
 
@@ -381,7 +381,7 @@ def test_a_solver_this_environment_cannot_run_is_refused_before_the_build(
 ):
     """A name in the closed set is not a promise the package is installed.
 
-    `gurobi` is a name lpspec knows on an install that never took the extra, so
+    `gurobi` is a name specsolve knows on an install that never took the extra, so
     the two mistakes are different and get different sentences. Both refuse
     where the sink is resolved, which is before the build: resolving it there is
     what makes naming a sink nothing can serve cost no model, and that was only
@@ -391,8 +391,8 @@ def test_a_solver_this_environment_cannot_run_is_refused_before_the_build(
     so the check runs wherever the suite does and still goes through the real
     probe.
     """
-    from lpspec import api
-    from lpspec.relational.sinks import SOLVERS
+    from specsolve import api
+    from specsolve.relational.sinks import SOLVERS
 
     sources = dispatch_frame_inputs
     monkeypatch.setattr(SOLVERS['gurobi'], 'requires', ('a_package_no_environment_has',))
@@ -401,7 +401,7 @@ def test_a_solver_this_environment_cannot_run_is_refused_before_the_build(
     )
 
     with pytest.raises(ModuleNotFoundError, match=r'not installed here.*\[gurobi\] extra'):
-        lps.solve(dispatch_yaml, sources, solver_name='gurobi')
+        sps.solve(dispatch_yaml, sources, solver_name='gurobi')
 
 
 def test_a_list_of_models_is_refused(dispatch_yaml):
@@ -410,8 +410,8 @@ def test_a_list_of_models_is_refused(dispatch_yaml):
     The message points at the dict, because a caller holding two files has
     somewhere to go — #30 declined the native merge rather than deferring it.
     """
-    with pytest.raises(lps.LanguageError, match='merge the declarations'):
-        lps.check([dispatch_yaml, dispatch_yaml])
+    with pytest.raises(sps.LanguageError, match='merge the declarations'):
+        sps.check([dispatch_yaml, dispatch_yaml])
 
 
 #: A model over `t` with one variable, one constraint and one named expression,
@@ -457,8 +457,8 @@ def test_two_names_in_one_namespace_differing_only_by_case_are_refused(spec):
     `save`, so a solve worth archiving is not found to be unarchivable after
     it has run.
     """
-    with pytest.raises(lps.LpspecError, match='differ only by case'):
-        lps.check(spec)
+    with pytest.raises(sps.SpecsolveError, match='differ only by case'):
+        sps.check(spec)
 
 
 def test_a_case_pair_across_two_namespaces_is_allowed():
@@ -469,7 +469,7 @@ def test_a_case_pair_across_two_namespaces_is_allowed():
     rule is per namespace rather than over every name in the file.
     """
     spec = _named(constraints={'P': {'dims': ['t'], 'expression': 'p >= load'}})
-    assert 'P' in lps.check(spec).constraints, "a constraint named like a variable is the language's to allow"
+    assert 'P' in sps.check(spec).constraints, "a constraint named like a variable is the language's to allow"
 
 
 @pytest.mark.parametrize('door', ['check', 'build', 'solve', 'archive'], ids=str)
@@ -483,22 +483,22 @@ def test_every_door_refuses_a_case_pair_rather_than_only_the_front_one(door, tmp
     spec = _named(variables={'P': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 10}}})
     sources = {'t': range(2), 'load': [1.0, 2.0]}
     call = {
-        'check': lambda: lps.check(spec),
-        'build': lambda: lps.build(spec, sources),
-        'solve': lambda: lps.solve(spec, sources),
-        'archive': lambda: lps.solve(spec, sources, archive=tmp_path / 'case.zip'),
+        'check': lambda: sps.check(spec),
+        'build': lambda: sps.build(spec, sources),
+        'solve': lambda: sps.solve(spec, sources),
+        'archive': lambda: sps.solve(spec, sources, archive=tmp_path / 'case.zip'),
     }[door]
-    with pytest.raises(lps.LpspecError, match='differ only by case'):
+    with pytest.raises(sps.SpecsolveError, match='differ only by case'):
         call()
     assert not (tmp_path / 'case.zip').exists(), 'and a refused archive leaves no file behind'
 
 
 def test_write_suffix_dispatch(dispatch_yaml, dispatch_frame_inputs, tmp_path):
     sources = dispatch_frame_inputs
-    out = lps.write(dispatch_yaml, sources, tmp_path / 'm.lp')
+    out = sps.write(dispatch_yaml, sources, tmp_path / 'm.lp')
     assert out.stat().st_size > 0
     with pytest.raises(ValueError, match='unknown output format'):
-        lps.write(dispatch_yaml, sources, tmp_path / 'm.nc')
+        sps.write(dispatch_yaml, sources, tmp_path / 'm.nc')
 
 
 def test_a_solution_saves_every_kind_it_answered_with(dispatch_solution, dispatch_yaml, tmp_path):
@@ -513,7 +513,7 @@ def test_a_solution_saves_every_kind_it_answered_with(dispatch_solution, dispatc
     frame = pl.read_parquet(out / 'primal' / 'p.parquet')
     assert set(frame.columns) == {'snapshot', 'generator', 'value'}
     assert frame.height == dispatch_solution.primal('p').height
-    assert {p.stem for p in (out / 'dual').iterdir()} == set(lps.check(dispatch_yaml).constraints), (
+    assert {p.stem for p in (out / 'dual').iterdir()} == set(sps.check(dispatch_yaml).constraints), (
         'one dual file per constraint'
     )
 
@@ -562,11 +562,11 @@ def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
         'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
     }
     sources = {'t': range(2), 'load': [1.5, 2.5], 'scale': pl.DataFrame({'t': [0], 'value': [2.0]})}
-    with lps.solve(spec, sources) as result:
+    with sps.solve(spec, sources) as result:
         out = result.save(tmp_path)
-        with pytest.raises(lps.LpspecError):
+        with pytest.raises(sps.SpecsolveError):
             result.evaluate('ratio')
-        with pytest.raises(lps.LpspecError, match='integer'):
+        with pytest.raises(sps.SpecsolveError, match='integer'):
             result.to_dataset(kind='dual')
     assert sorted(p.name for p in out.iterdir()) == [
         'activity',
@@ -590,7 +590,7 @@ def test_a_saved_solution_carries_the_activities(dispatch_solution, dispatch_yam
     cannot answer what a row's left-hand side reached.
     """
     out = dispatch_solution.save(tmp_path / 'solution')
-    constraints = set(lps.check(dispatch_yaml).constraints)
+    constraints = set(sps.check(dispatch_yaml).constraints)
     assert {p.stem for p in (out / 'activity').iterdir()} == constraints, 'one activity file per constraint'
     for name in constraints:
         assert pl.read_parquet(out / 'activity' / f'{name}.parquet').equals(dispatch_solution.activity(name))
@@ -613,11 +613,11 @@ def test_a_saved_solution_says_why_a_kind_is_absent(tmp_path):
         'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
     }
     sources = {'t': range(2), 'load': [1.5, 2.5], 'scale': pl.DataFrame({'t': [0], 'value': [2.0]})}
-    with lps.solve(spec, sources) as result:
+    with sps.solve(spec, sources) as result:
         out = result.save(tmp_path)
-        with pytest.raises(lps.LpspecError) as no_dual:
+        with pytest.raises(sps.SpecsolveError) as no_dual:
             result.dual('meet')
-        with pytest.raises(lps.LpspecError) as no_ratio:
+        with pytest.raises(sps.SpecsolveError) as no_ratio:
             result.evaluate('ratio')
 
     absent = pl.read_parquet(out / 'reasons.parquet')
@@ -635,7 +635,7 @@ def test_a_saved_solution_loads_back_as_the_result_it_was(dispatch_solution, dis
     and a handful of scalars, so nothing about it needs the build that made
     it, the solver that filled it, or the process either ran in.
     """
-    loaded = lps.load_result(dispatch_solution.save(tmp_path / 'solution'))
+    loaded = sps.load_result(dispatch_solution.save(tmp_path / 'solution'))
 
     assert (loaded.status, loaded.termination_condition) == (
         dispatch_solution.status,
@@ -643,7 +643,7 @@ def test_a_saved_solution_loads_back_as_the_result_it_was(dispatch_solution, dis
     ), 'the outcome as recorded, on both axes'
     assert loaded.objective == dispatch_solution.objective
     assert loaded.has_primal
-    program = lps.check(dispatch_yaml)
+    program = sps.check(dispatch_yaml)
     for name in program.variables:
         assert loaded.primal(name).equals(dispatch_solution.primal(name))
     for name in program.constraints:
@@ -662,17 +662,17 @@ def test_a_loaded_result_gives_the_reason_the_solve_gave(tmp_path):
         'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
     }
     sources = {'t': range(2), 'load': [1.5, 2.5], 'scale': pl.DataFrame({'t': [0], 'value': [2.0]})}
-    with lps.solve(spec, sources) as result:
-        loaded = lps.load_result(result.save(tmp_path))
-        with pytest.raises(lps.LpspecError) as no_dual:
+    with sps.solve(spec, sources) as result:
+        loaded = sps.load_result(result.save(tmp_path))
+        with pytest.raises(sps.SpecsolveError) as no_dual:
             result.dual('meet')
-        with pytest.raises(lps.LpspecError) as no_ratio:
+        with pytest.raises(sps.SpecsolveError) as no_ratio:
             result.evaluate('ratio')
 
     assert loaded.evaluate('twice').equals(pl.DataFrame({'t': [0, 1], 'value': [4.0, 6.0]}))
-    with pytest.raises(lps.LpspecError, match='integer'):
+    with pytest.raises(sps.SpecsolveError, match='integer'):
         loaded.dual('meet')
-    with pytest.raises(lps.LpspecError) as loaded_no_ratio:
+    with pytest.raises(sps.SpecsolveError) as loaded_no_ratio:
         loaded.evaluate('ratio')
     assert (str(loaded_no_ratio.value), str(no_ratio.value)) == (str(no_ratio.value), str(no_ratio.value)), (
         'the expression names the same reason it named in the process that solved'
@@ -682,20 +682,20 @@ def test_a_loaded_result_gives_the_reason_the_solve_gave(tmp_path):
 
 def test_a_solve_that_left_no_values_loads_back_and_still_has_none(tmp_path):
     """A run that did not solve is an answer, and reads back as that answer."""
-    with lps.solve(*CASES['INFEASIBLE']) as solution:
-        loaded = lps.load_result(solution.save(tmp_path / 'infeasible'))
+    with sps.solve(*CASES['INFEASIBLE']) as solution:
+        loaded = sps.load_result(solution.save(tmp_path / 'infeasible'))
     assert loaded.termination_condition == 'infeasible'
     assert not loaded.has_primal, 'the record says the solve produced none, so no reader is offered any'
     assert loaded.objective != loaded.objective, 'nan, as the solve reported it'
-    with pytest.raises(lps.NoSolutionError, match='infeasible'):
+    with pytest.raises(sps.NoSolutionError, match='infeasible'):
         loaded.primal('p')
 
 
 def test_a_directory_that_is_not_a_saved_answer_is_refused(tmp_path):
     empty = tmp_path / 'nothing'
     empty.mkdir()
-    with pytest.raises(lps.LayoutError, match=r'objective\.parquet'):
-        lps.load_result(empty)
+    with pytest.raises(sps.LayoutError, match=r'objective\.parquet'):
+        sps.load_result(empty)
 
 
 def test_a_loaded_answer_outlives_the_directory_and_a_scanned_one_does_not(dispatch_solution, tmp_path):
@@ -707,8 +707,8 @@ def test_a_loaded_answer_outlives_the_directory_and_a_scanned_one_does_not(dispa
     serves an answer larger than memory and what the files have to outlive.
     """
     saved = dispatch_solution.save(tmp_path / 'solution')
-    loaded = lps.load_result(saved)
-    scanned = lps.scan_result(saved)
+    loaded = sps.load_result(saved)
+    scanned = sps.scan_result(saved)
     expected = dispatch_solution.primal('p')
     assert scanned.primal('p').equals(expected), 'both read the same answer while the directory is there'
     shutil.rmtree(saved)
@@ -726,8 +726,8 @@ def test_a_scanned_answer_reads_its_frames_at_the_call_that_asks(dispatch_soluti
     loaded, which is the same fact from the other side.
     """
     saved = dispatch_solution.save(tmp_path / 'solution')
-    loaded = lps.load_result(saved)
-    scanned = lps.scan_result(saved)
+    loaded = sps.load_result(saved)
+    scanned = sps.scan_result(saved)
     was = dispatch_solution.primal('p')
     was.with_columns(pl.col('value') * 2).write_parquet(saved / 'primal' / 'p.parquet')
 
@@ -749,7 +749,7 @@ def test_read_back_is_in_label_order_and_stays_there(dispatch_yaml, dispatch_fra
     """
     sources = dispatch_frame_inputs
     generators = list(sources['p_max']['generator'])
-    with lps.solve(dispatch_yaml, sources) as result:
+    with sps.solve(dispatch_yaml, sources) as result:
         first = result.primal('p')
         assert first.equals(result.primal('p')), 'a second read agrees, to the row'
 
@@ -771,13 +771,13 @@ def test_a_result_stays_readable_until_it_is_closed(dispatch_yaml, dispatch_fram
     it, there is nothing left to read.
     """
     sources = dispatch_frame_inputs
-    result = lps.solve(dispatch_yaml, sources)
+    result = sps.solve(dispatch_yaml, sources)
     height = result.primal('p').height
     assert height > 0
     assert result.primal('p').height == height, 'still readable, with no close in sight'
 
     result.close()
-    with pytest.raises(lps.LpspecError, match='this result was closed'):
+    with pytest.raises(sps.SpecsolveError, match='this result was closed'):
         result.primal('p')
 
 
@@ -793,7 +793,7 @@ def test_a_second_solve_does_not_rewrite_the_first_result(dispatch_yaml, dispatc
     """
     key = ['snapshot', 'generator']  # a read is a join, so compare on coordinates
     sources = dispatch_frame_inputs
-    with lps.build(dispatch_yaml, sources) as model:
+    with sps.build(dispatch_yaml, sources) as model:
         first = model.solve()
         before = first.primal('p').sort(key)
         assert first.is_ok
@@ -847,7 +847,7 @@ def test_a_bridge_out_names_the_extra_that_carries_it(dispatch_solution, absent,
     """
     with (
         mock.patch.dict(sys.modules, {absent: None}),
-        pytest.raises(ModuleNotFoundError, match=r'pip install "lpspec\[linopy\]"'),
+        pytest.raises(ModuleNotFoundError, match=r'pip install "specsolve\[linopy\]"'),
     ):
         getattr(dispatch_solution, bridge)('p')
 
@@ -862,7 +862,7 @@ def test_no_operator_registry_on_this_package():
     ``math_spec`` exports is pinned name by name in math-spec's own suite, so
     the surface asserted here is this package's.
     """
-    assert not hasattr(lps, 'register')
+    assert not hasattr(sps, 'register')
 
 
 def test_solution_to_dataarray(dispatch_solution):
@@ -899,15 +899,15 @@ def test_every_bridge_takes_a_kind(dispatch_solution, dispatch_yaml):
     `DataArray` without going through `dual` and the bridge by hand, and a
     dataset of every dual has no name to collide with."""
     pytest.importorskip('xarray')
-    constraint = next(iter(lps.check(dispatch_yaml).constraints))
+    constraint = next(iter(sps.check(dispatch_yaml).constraints))
     tidy = dispatch_solution.to_pandas(constraint, 'dual')
     assert tidy['value'].tolist() == dispatch_solution.dual(constraint)['value'].to_list()
     array = dispatch_solution.to_dataarray(constraint, 'dual')
     assert array.name == constraint
-    assert set(dispatch_solution.to_dataset(kind='dual').data_vars) == set(lps.check(dispatch_yaml).constraints), (
+    assert set(dispatch_solution.to_dataset(kind='dual').data_vars) == set(sps.check(dispatch_yaml).constraints), (
         'all of one kind by default, as to_dataset() is all of the variables'
     )
-    with pytest.raises(lps.LpspecError, match='primal, dual, expression'):
+    with pytest.raises(sps.SpecsolveError, match='primal, dual, expression'):
         dispatch_solution.to_pandas('p', 'objective')
 
 
@@ -924,7 +924,7 @@ def test_a_dataset_of_expressions_holds_every_one_this_data_evaluates():
         'snapshot': range(n),
         'generator': ['wind', 'gas'],
     }
-    with lps.solve(spec, sources) as result:
+    with sps.solve(spec, sources) as result:
         ds = result.to_dataset(kind='expression')
         assert set(ds.data_vars) == {'shed_twice', 'total'}, 'every declared expression, none named'
         assert list(ds['total'].dims) == ['snapshot'], 'each over its own dims'
@@ -958,7 +958,7 @@ def test_to_dataset_defaults_to_every_variable():
         'load': pl.DataFrame({'snapshot': list(range(n)), 'value': np.full(n, 90.0)}),
     }
 
-    with lps.solve(TWO_VARIABLE_SPEC, sources | {'snapshot': range(n), 'generator': ['wind', 'gas']}) as result:
+    with sps.solve(TWO_VARIABLE_SPEC, sources | {'snapshot': range(n), 'generator': ['wind', 'gas']}) as result:
         ds = result.to_dataset()
         subset = result.to_dataset('shed')
 
@@ -984,10 +984,10 @@ def test_to_dataset_defaults_to_every_variable():
     ],
 )
 def test_a_wrong_model_raises_one_tree(raw: dict[str, object], tmp_path):
-    """Every documented door answers with `LpspecError` (#527).
+    """Every documented door answers with `SpecsolveError` (#527).
 
     Spec checking happens in two places — pydantic's validators and the
-    language checkers — and they failed differently, so `except LpspecError`,
+    language checkers — and they failed differently, so `except SpecsolveError`,
     the thing `docs/reference/api.md` tells a caller to write, missed the majority of
     model mistakes and a caller had no way to know which.
 
@@ -997,13 +997,13 @@ def test_a_wrong_model_raises_one_tree(raw: dict[str, object], tmp_path):
     """
     doors = {
         'to_spec': lambda: to_spec(raw),
-        'lps.check': lambda: lps.check(raw),
-        'lps.solve': lambda: lps.solve(raw, {}),
-        'lps.write': lambda: lps.write(raw, {}, str(tmp_path / 'm.lp')),
+        'sps.check': lambda: sps.check(raw),
+        'sps.solve': lambda: sps.solve(raw, {}),
+        'sps.write': lambda: sps.write(raw, {}, str(tmp_path / 'm.lp')),
         'Spec.model_validate': lambda: Spec.model_validate(raw),
     }
     for door, call in doors.items():
-        with pytest.raises(lps.LpspecError) as ei:
+        with pytest.raises(sps.SpecsolveError) as ei:
             call()
         assert 'errors.pydantic.dev' not in str(ei.value), f"{door} leaks pydantic's envelope"
 
@@ -1017,7 +1017,7 @@ def test_a_closed_result_says_it_was_closed(dispatch_yaml, dispatch_frame_inputs
     and stay valid, which is the half worth stating in the message.
     """
     sources = dispatch_frame_inputs
-    sol = lps.solve(dispatch_yaml, sources)
+    sol = sps.solve(dispatch_yaml, sources)
     frame = sol.primal('p')
     objective = sol.objective
     sol.close()
@@ -1025,7 +1025,7 @@ def test_a_closed_result_says_it_was_closed(dispatch_yaml, dispatch_frame_inputs
     assert frame.height > 0, 'a frame read before the close is its own data'
     assert sol.objective == objective, 'and the outcome needs no model to report'
     for read in (lambda: sol.primal('p'), lambda: sol.dual('power_balance')):
-        with pytest.raises(lps.LpspecError, match='this result was closed'):
+        with pytest.raises(sps.SpecsolveError, match='this result was closed'):
             read()
 
 
@@ -1043,4 +1043,4 @@ def test_check_catches_a_dim_error_with_no_sources_bound():
         **{'constraints.stray': {'dims': ['snapshot'], 'expression': 'p <= p_max'}},
     )
     with pytest.raises(DimensionError):
-        lps.check(raw)
+        sps.check(raw)

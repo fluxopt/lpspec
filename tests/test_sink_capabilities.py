@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from lpspec.relational.sinks import SOLVERS, WRITERS
-from lpspec.relational.sinks.capabilities import CAPABILITIES, Capabilities
+from specsolve.relational.sinks import SOLVERS, WRITERS
+from specsolve.relational.sinks.capabilities import CAPABILITIES, Capabilities
 
 EMPTY = Capabilities(supports={})
 

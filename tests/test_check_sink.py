@@ -14,12 +14,12 @@ import warnings
 import pytest
 from math_spec import to_program, to_spec
 
-import lpspec as lps
-from lpspec.errors import LpspecError, LpspecWarning
-from lpspec.relational import sinks
-from lpspec.relational.sinks.capabilities import Capabilities
-from lpspec.relational.sinks.solvers import SOLVERS
-from lpspec.relational.sinks.writers import WRITERS
+import specsolve as sps
+from specsolve.errors import SpecsolveError, SpecsolveWarning
+from specsolve.relational import sinks
+from specsolve.relational.sinks.capabilities import Capabilities
+from specsolve.relational.sinks.solvers import SOLVERS
+from specsolve.relational.sinks.writers import WRITERS
 
 #: A pure LP: every sink takes it whole, so it is what "silent" is measured
 #: against.
@@ -46,8 +46,8 @@ WITH_A_QUADRATIC_ROW = PLAIN | {
 def _warnings(spec, **kwargs) -> list[str]:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
-        lps.check(spec, **kwargs)
-    return [str(w.message) for w in caught if issubclass(w.category, LpspecWarning)]
+        sps.check(spec, **kwargs)
+    return [str(w.message) for w in caught if issubclass(w.category, SpecsolveWarning)]
 
 
 @pytest.mark.parametrize('sink', ['highs', 'gurobi', '.lp'])
@@ -80,8 +80,8 @@ def test_a_set_is_silent_on_the_sinks_that_carry_one(sink):
 
 
 def test_an_unknown_sink_names_the_ones_there_are():
-    with pytest.raises(LpspecError, match='unknown sink') as refused:
-        lps.check(PLAIN, sink='cplex')
+    with pytest.raises(SpecsolveError, match='unknown sink') as refused:
+        sps.check(PLAIN, sink='cplex')
     assert re.search(r'\.lp, \.mps, gurobi, highs, xpress', str(refused.value)), (
         'the refusal lists every sink there is, so a reader picks one instead of guessing'
     )
@@ -187,8 +187,8 @@ def test_a_refusal_does_not_swallow_the_solver_independent_advice(recwarn):
         patch.setitem(SOLVERS, 'stub', Stub)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always')
-            with pytest.raises(LpspecError):
-                lps.check(unused | {'sos': {'pick': {'variable': 'p', 'over': 'g', 'type': 1}}}, sink='stub')
+            with pytest.raises(SpecsolveError):
+                sps.check(unused | {'sos': {'pick': {'variable': 'p', 'over': 'g', 'type': 1}}}, sink='stub')
         assert [str(w.message) for w in caught] == bare, 'the advice a bare check gives is issued before the raise'
 
 
@@ -213,7 +213,7 @@ def test_a_set_beside_a_hessian_is_the_pair_highs_refuses():
     so the pair is declared there and named here in the model's own words,
     rather than derived into integrality the file never mentions.
     """
-    from lpspec.relational.sinks.capabilities import required
+    from specsolve.relational.sinks.capabilities import required
 
     needed = required(_program(WITH_A_SET)) | {'quadratic_objective'}
     excluded = sinks.sink_capabilities('highs').excluded(needed)

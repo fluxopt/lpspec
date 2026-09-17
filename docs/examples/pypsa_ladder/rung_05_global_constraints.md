@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **10282.833333333332** on both sides; structure ≠ `operational_limit` 3 vs 1+1+1 — one block per sense — ==, <=, >= — where PyPSA writes one row per labelled constraint whatever its sense; `primary_energy` 3 vs 1+1+1 — one block per sense — ==, <=, >= — where PyPSA writes one row per labelled constraint whatever its sense; size ✔ 102 rows · ✔ 44 columns · ✔ 190 nonzeros; duals ✔ 102 rows, 2 negated; **model for model**: 23 blocks equal, 2 documented splits.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 8 | 8 |
 | `Generator-fix-p-lower` | 20 | 20 |
@@ -29,7 +29,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `operational_limit` | 3 | ≠ 1+1+1 |
 | `primary_energy` | 3 | ≠ 1+1+1 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Generator-p` | 20 | 20 |
 | `Link-p` | 4 | 4 |
@@ -356,7 +356,7 @@ q_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_05_global_constraints.yaml` — the file projected onto what this rung builds:
 
@@ -979,7 +979,7 @@ q_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
             ),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_05_global_constraints.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_05_global_constraints.yaml', sources) as solution:
         solution.objective  # 10282.833333333332
     ```
 

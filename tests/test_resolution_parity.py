@@ -15,10 +15,10 @@ import polars as pl
 import pytest
 import yaml as pyyaml
 
-import lpspec as lps
+import specsolve as sps
 from tests.conftest import DISPATCH_SPEC, dispatch_spec_path, override
 from tests.differential import differential
-from tests.oracle import lpspec_linopy, pd  # skips the module without the [linopy] extra
+from tests.oracle import pd, specsolve_linopy  # skips the module without the [linopy] extra
 
 
 @pytest.mark.parametrize(
@@ -36,10 +36,10 @@ def test_both_lanes_refuse_the_same_where(tmp_path, dispatch_spec_inputs, where,
     path = dispatch_spec_path(tmp_path, **{'variables.p.where': where})
 
     with pytest.raises(ValueError, match=match):
-        lpspec_linopy.build(path, data)
+        specsolve_linopy.build(path, data)
 
     with pytest.raises(ValueError, match=match):
-        lps.check(path)
+        sps.check(path)
 
 
 def test_both_lanes_refuse_a_comparison_that_carries_no_variable(tmp_path, dispatch_spec_inputs):
@@ -54,10 +54,10 @@ def test_both_lanes_refuse_a_comparison_that_carries_no_variable(tmp_path, dispa
     path = dispatch_spec_path(tmp_path, **{'constraints.balance.expression': 'p_max <= 1'})
 
     with pytest.raises(ValueError, match='decides nothing'):
-        lpspec_linopy.build(path, data)
+        specsolve_linopy.build(path, data)
 
     with pytest.raises(ValueError, match='decides nothing'):
-        lps.check(path)
+        sps.check(path)
 
 
 #: Where-strings that must build *identically* on both lanes. Chosen to cover
@@ -110,11 +110,11 @@ def test_both_lanes_build_the_same_model(tmp_path, dispatch_spec_inputs, where):
     data = dispatch_spec_inputs
     path = dispatch_spec_path(tmp_path, **{'variables.p.where': where})
 
-    m = lpspec_linopy.build(path, data)
+    m = specsolve_linopy.build(path, data)
     eager_rows = int((m.variables['p'].labels != -1).sum())
     eager_status = m.solve(solver_name='highs')[1]
 
-    with lps.build(path, data) as model:
+    with sps.build(path, data) as model:
         relational_rows = model._engine._model.variables['p'].frame.select(pl.len()).collect().item()
         relational_status = model.solve().termination_condition
 
@@ -180,10 +180,10 @@ def test_a_constraint_row_left_with_no_variables(tmp_path, dispatch_spec_inputs)
     data = dispatch_spec_inputs
     path = dispatch_spec_path(tmp_path, **{'variables.p.where': 'snapshot > 0'})
 
-    m = lpspec_linopy.build(path, data)
+    m = specsolve_linopy.build(path, data)
     eager_status = m.solve(solver_name='highs')[1]
 
-    with lps.build(path, data) as model:
+    with sps.build(path, data) as model:
         relational_status = model.solve().termination_condition
         assert model.diagnostics().omissions.to_dicts() == [{'constraint': 'balance', 'rows_not_built': 1}], (
             'a dropped row has to be reported, or a declared constraint goes quietly unenforced'
@@ -419,11 +419,11 @@ def test_a_datetime_boundary_is_sayable_on_both_lanes(tmp_path):
         'generator': pd.Index(['wind', 'gas'], name='generator'),
     }
 
-    m = lpspec_linopy.build(path, eager_data)
+    m = specsolve_linopy.build(path, eager_data)
     m.solve(solver_name='highs')
     eager = float(m.objective.value)
 
-    with lps.solve(path, frames) as result:
+    with sps.solve(path, frames) as result:
         relational = result.objective
         assert result.primal('p')['snapshot'].dtype in (pl.Date, pl.Datetime('us')), 'the coordinate keeps its dtype'
         assert result.primal('p').height == 2, 'only the third day survives the boundary'

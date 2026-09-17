@@ -16,7 +16,7 @@ is only a floor: it holds the instance's tables; nothing recorded here is
 reshaped with it.
 
 It reads the same instance the port binds and builds the network with PyPSA's
-own objects. Nothing here imports lpspec.
+own objects. Nothing here imports specsolve.
 
 **A unit that has started must stay on.** ``pypsa_unit_commitment`` takes the
 status and the two transition variables and stops there. The rows that make
@@ -59,7 +59,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
 def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
     """The port's tables as a PyPSA network, column for column.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
     One bus and no network: a model that fails to match should implicate one
     feature, and here it is the window length. ``committable`` is what turns the

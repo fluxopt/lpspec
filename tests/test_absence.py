@@ -17,8 +17,8 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import DataError
+import specsolve as sps
+from specsolve.errors import DataError
 from tests.conftest import by_coord, override
 from tests.differential import RTOL, both_lanes_refuse, differential
 from tests.oracle import pd
@@ -472,7 +472,7 @@ def test_a_masked_out_scalar_variable_drops_the_row_that_uses_it():
     """
     data = {'f': ['a', 'b'], 'cost': pl.DataFrame({'f': ['a', 'b'], 'value': [1.0, 2.0]}), 'budget': 120.0}
 
-    with lps.solve(SCALAR_MASKED_SPEC, data) as sol:
+    with sps.solve(SCALAR_MASKED_SPEC, data) as sol:
         assert sol.dual('cap').height == 0, 'the row is gone, not slackened — a dropped row has no dual'
         assert sol.objective == pytest.approx(300.0), 'unbudgeted, both generators run flat out'
 

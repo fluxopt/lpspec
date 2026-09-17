@@ -235,7 +235,7 @@
           }
         }
       },
-      "lpspec_objective": 7182.222222222221,
+      "specsolve_objective": 7182.222222222221,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -247,13 +247,13 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 12
               },
               "pypsa": 12
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 4
               },
               "pypsa": 4
@@ -261,43 +261,43 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 8
               },
               "pypsa": 8
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 12
               },
               "pypsa": 12
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 12
               },
               "pypsa": 12
             },
             "Generator-p_set": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_set": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 4
               },
               "pypsa": 4
             },
             "Link-p_set": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p_set": 1
               },
               "pypsa": 1
@@ -309,7 +309,7 @@
           45
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 16,
             "nonzeros": 57,
             "rows": 45
@@ -679,7 +679,7 @@
           }
         }
       },
-      "lpspec_objective": 4456.659315422355,
+      "specsolve_objective": 4456.659315422355,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -691,49 +691,49 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 8
               },
               "pypsa": 8
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 4
               },
               "pypsa": 4
             },
             "StorageUnit-p_dispatch": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_p_dispatch": 8
               },
               "pypsa": 8
             },
             "StorageUnit-p_store": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_p_store": 8
               },
               "pypsa": 8
             },
             "StorageUnit-spill": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_spill": 4
               },
               "pypsa": 4
             },
             "StorageUnit-state_of_charge": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_state_of_charge": 8
               },
               "pypsa": 8
             },
             "Store-e": {
-              "lpspec": {
+              "specsolve": {
                 "Store_e": 4
               },
               "pypsa": 4
             },
             "Store-p": {
-              "lpspec": {
+              "specsolve": {
                 "Store_p": 4
               },
               "pypsa": 4
@@ -741,109 +741,109 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 8
               },
               "pypsa": 8
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 8
               },
               "pypsa": 8
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 8
               },
               "pypsa": 8
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 4
               },
               "pypsa": 4
             },
             "StorageUnit-energy_balance": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_energy_balance": 8
               },
               "pypsa": 8
             },
             "StorageUnit-fix-p_dispatch-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_dispatch_lower": 8
               },
               "pypsa": 8
             },
             "StorageUnit-fix-p_dispatch-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_dispatch_upper": 8
               },
               "pypsa": 8
             },
             "StorageUnit-fix-p_store-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_store_lower": 8
               },
               "pypsa": 8
             },
             "StorageUnit-fix-p_store-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_store_upper": 8
               },
               "pypsa": 8
             },
             "StorageUnit-fix-state_of_charge-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_state_of_charge_lower": 8
               },
               "pypsa": 8
             },
             "StorageUnit-fix-state_of_charge-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_state_of_charge_upper": 8
               },
               "pypsa": 8
             },
             "StorageUnit-p_set": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_p_set": 1
               },
               "pypsa": 1
             },
             "StorageUnit-state_of_charge_set": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_state_of_charge_set": 1
               },
               "pypsa": 1
             },
             "Store-e_set": {
-              "lpspec": {
+              "specsolve": {
                 "Store_e_set": 1
               },
               "pypsa": 1
             },
             "Store-energy_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Store_energy_balance": 4
               },
               "pypsa": 4
             },
             "Store-fix-e-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Store_fix_e_lower": 4
               },
               "pypsa": 4
             },
             "Store-fix-e-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Store_fix_e_upper": 4
               },
               "pypsa": 4
@@ -855,7 +855,7 @@
           103
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 48,
             "nonzeros": 166,
             "rows": 103
@@ -1439,7 +1439,7 @@
           }
         }
       },
-      "lpspec_objective": 7633.908502024291,
+      "specsolve_objective": 7633.908502024291,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -1450,7 +1450,7 @@
         "differences": {
           "tech_capacity_expansion_limit": {
             "kind": "rows",
-            "lpspec": {
+            "specsolve": {
               "GlobalConstraint_tech_capacity_expansion_limit_eq": 1,
               "GlobalConstraint_tech_capacity_expansion_limit_lb": 2,
               "GlobalConstraint_tech_capacity_expansion_limit_ub": 2
@@ -1460,7 +1460,7 @@
           },
           "transmission_expansion_cost_limit": {
             "kind": "rows",
-            "lpspec": {
+            "specsolve": {
               "GlobalConstraint_transmission_expansion_cost_limit_eq": 1,
               "GlobalConstraint_transmission_expansion_cost_limit_lb": 1
             },
@@ -1471,67 +1471,67 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 20
               },
               "pypsa": 20
             },
             "Generator-p_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_nom_ext": 2
               },
               "pypsa": 2
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 8
               },
               "pypsa": 8
             },
             "Link-p_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p_nom_ext": 1
               },
               "pypsa": 1
             },
             "StorageUnit-p_dispatch": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_p_dispatch": 8
               },
               "pypsa": 8
             },
             "StorageUnit-p_nom": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_p_nom_ext": 1
               },
               "pypsa": 1
             },
             "StorageUnit-p_store": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_p_store": 8
               },
               "pypsa": 8
             },
             "StorageUnit-state_of_charge": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_state_of_charge": 8
               },
               "pypsa": 8
             },
             "Store-e": {
-              "lpspec": {
+              "specsolve": {
                 "Store_e": 8
               },
               "pypsa": 8
             },
             "Store-e_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Store_e_nom_ext": 1
               },
               "pypsa": 1
             },
             "Store-p": {
-              "lpspec": {
+              "specsolve": {
                 "Store_p": 8
               },
               "pypsa": 8
@@ -1539,277 +1539,277 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 12
               },
               "pypsa": 12
             },
             "Generator-e_sum_max": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_e_sum_max": 1
               },
               "pypsa": 1
             },
             "Generator-e_sum_min": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_e_sum_min": 1
               },
               "pypsa": 1
             },
             "Generator-ext-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_lower": 8
               },
               "pypsa": 8
             },
             "Generator-ext-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_upper": 8
               },
               "pypsa": 8
             },
             "Generator-ext-p_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_nom_lower": 2
               },
               "pypsa": 2
             },
             "Generator-ext-p_nom-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_nom_upper": 2
               },
               "pypsa": 2
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 12
               },
               "pypsa": 12
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 12
               },
               "pypsa": 12
             },
             "Generator-p-ramp_limit_down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_down": 3
               },
               "pypsa": 3
             },
             "Generator-p-ramp_limit_up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_up": 3
               },
               "pypsa": 3
             },
             "Generator-p_nom_set": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_nom_set": 1
               },
               "pypsa": 1
             },
             "Link-ext-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_ext_p_lower": 4
               },
               "pypsa": 4
             },
             "Link-ext-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_ext_p_upper": 4
               },
               "pypsa": 4
             },
             "Link-ext-p_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_ext_p_nom_lower": 1
               },
               "pypsa": 1
             },
             "Link-ext-p_nom-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_ext_p_nom_upper": 1
               },
               "pypsa": 1
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 4
               },
               "pypsa": 4
             },
             "Link-p-ramp_limit_down": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p_ramp_limit_down": 3
               },
               "pypsa": 3
             },
             "Link-p-ramp_limit_up": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p_ramp_limit_up": 3
               },
               "pypsa": 3
             },
             "Link-p_nom_set": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p_nom_set": 1
               },
               "pypsa": 1
             },
             "StorageUnit-energy_balance": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_energy_balance": 8
               },
               "pypsa": 8
             },
             "StorageUnit-ext-p_dispatch-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_ext_p_dispatch_lower": 4
               },
               "pypsa": 4
             },
             "StorageUnit-ext-p_dispatch-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_ext_p_dispatch_upper": 4
               },
               "pypsa": 4
             },
             "StorageUnit-ext-p_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_ext_p_nom_lower": 1
               },
               "pypsa": 1
             },
             "StorageUnit-ext-p_nom-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_ext_p_nom_upper": 1
               },
               "pypsa": 1
             },
             "StorageUnit-ext-p_store-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_ext_p_store_lower": 4
               },
               "pypsa": 4
             },
             "StorageUnit-ext-p_store-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_ext_p_store_upper": 4
               },
               "pypsa": 4
             },
             "StorageUnit-ext-state_of_charge-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_ext_state_of_charge_lower": 4
               },
               "pypsa": 4
             },
             "StorageUnit-ext-state_of_charge-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_ext_state_of_charge_upper": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-p_dispatch-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_dispatch_lower": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-p_dispatch-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_dispatch_upper": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-p_store-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_store_lower": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-p_store-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_store_upper": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-state_of_charge-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_state_of_charge_lower": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-state_of_charge-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_state_of_charge_upper": 4
               },
               "pypsa": 4
             },
             "StorageUnit-p_nom_set": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_p_nom_set": 1
               },
               "pypsa": 1
             },
             "Store-e_nom_set": {
-              "lpspec": {
+              "specsolve": {
                 "Store_e_nom_set": 1
               },
               "pypsa": 1
             },
             "Store-energy_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Store_energy_balance": 8
               },
               "pypsa": 8
             },
             "Store-ext-e-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Store_ext_e_lower": 4
               },
               "pypsa": 4
             },
             "Store-ext-e-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Store_ext_e_upper": 4
               },
               "pypsa": 4
             },
             "Store-ext-e_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Store_ext_e_nom_lower": 1
               },
               "pypsa": 1
             },
             "Store-ext-e_nom-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Store_ext_e_nom_upper": 1
               },
               "pypsa": 1
             },
             "Store-fix-e-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Store_fix_e_lower": 4
               },
               "pypsa": 4
             },
             "Store-fix-e-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Store_fix_e_upper": 4
               },
               "pypsa": 4
             },
             "tech_capacity_expansion_limit": {
-              "lpspec": {
+              "specsolve": {
                 "GlobalConstraint_tech_capacity_expansion_limit_eq": 1,
                 "GlobalConstraint_tech_capacity_expansion_limit_lb": 2,
                 "GlobalConstraint_tech_capacity_expansion_limit_ub": 2
@@ -1817,14 +1817,14 @@
               "pypsa": 5
             },
             "transmission_expansion_cost_limit": {
-              "lpspec": {
+              "specsolve": {
                 "GlobalConstraint_transmission_expansion_cost_limit_eq": 1,
                 "GlobalConstraint_transmission_expansion_cost_limit_lb": 1
               },
               "pypsa": 2
             },
             "transmission_volume_expansion_limit": {
-              "lpspec": {
+              "specsolve": {
                 "GlobalConstraint_transmission_volume_expansion_limit_ub": 1
               },
               "pypsa": 1
@@ -1836,7 +1836,7 @@
           184
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 73,
             "nonzeros": 328,
             "rows": 184
@@ -2171,7 +2171,7 @@
           }
         }
       },
-      "lpspec_objective": 8785.0,
+      "specsolve_objective": 8785.0,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -2183,13 +2183,13 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 12
               },
               "pypsa": 12
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 8
               },
               "pypsa": 8
@@ -2197,55 +2197,55 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 12
               },
               "pypsa": 12
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 12
               },
               "pypsa": 12
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 12
               },
               "pypsa": 12
             },
             "Generator-p-ramp_limit_down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_down": 3
               },
               "pypsa": 3
             },
             "Generator-p-ramp_limit_up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_up": 3
               },
               "pypsa": 3
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 8
               },
               "pypsa": 8
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 8
               },
               "pypsa": 8
             },
             "Link-p-ramp_limit_down": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p_ramp_limit_down": 3
               },
               "pypsa": 3
             },
             "Link-p-ramp_limit_up": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p_ramp_limit_up": 3
               },
               "pypsa": 3
@@ -2257,7 +2257,7 @@
           64
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 20,
             "nonzeros": 92,
             "rows": 64
@@ -2630,7 +2630,7 @@
           }
         }
       },
-      "lpspec_objective": 10282.833333333332,
+      "specsolve_objective": 10282.833333333332,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -2641,7 +2641,7 @@
         "differences": {
           "operational_limit": {
             "kind": "rows",
-            "lpspec": {
+            "specsolve": {
               "GlobalConstraint_operational_limit_eq": 1,
               "GlobalConstraint_operational_limit_lb": 1,
               "GlobalConstraint_operational_limit_ub": 1
@@ -2651,7 +2651,7 @@
           },
           "primary_energy": {
             "kind": "rows",
-            "lpspec": {
+            "specsolve": {
               "GlobalConstraint_primary_energy_eq": 1,
               "GlobalConstraint_primary_energy_lb": 1,
               "GlobalConstraint_primary_energy_ub": 1
@@ -2663,43 +2663,43 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 20
               },
               "pypsa": 20
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 4
               },
               "pypsa": 4
             },
             "StorageUnit-p_dispatch": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_p_dispatch": 4
               },
               "pypsa": 4
             },
             "StorageUnit-p_store": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_p_store": 4
               },
               "pypsa": 4
             },
             "StorageUnit-state_of_charge": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_state_of_charge": 4
               },
               "pypsa": 4
             },
             "Store-e": {
-              "lpspec": {
+              "specsolve": {
                 "Store_e": 4
               },
               "pypsa": 4
             },
             "Store-p": {
-              "lpspec": {
+              "specsolve": {
                 "Store_p": 4
               },
               "pypsa": 4
@@ -2707,97 +2707,97 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 8
               },
               "pypsa": 8
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 20
               },
               "pypsa": 20
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 20
               },
               "pypsa": 20
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 4
               },
               "pypsa": 4
             },
             "StorageUnit-energy_balance": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_energy_balance": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-p_dispatch-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_dispatch_lower": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-p_dispatch-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_dispatch_upper": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-p_store-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_store_lower": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-p_store-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_p_store_upper": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-state_of_charge-lower": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_state_of_charge_lower": 4
               },
               "pypsa": 4
             },
             "StorageUnit-fix-state_of_charge-upper": {
-              "lpspec": {
+              "specsolve": {
                 "StorageUnit_fix_state_of_charge_upper": 4
               },
               "pypsa": 4
             },
             "Store-energy_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Store_energy_balance": 4
               },
               "pypsa": 4
             },
             "Store-fix-e-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Store_fix_e_lower": 4
               },
               "pypsa": 4
             },
             "Store-fix-e-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Store_fix_e_upper": 4
               },
               "pypsa": 4
             },
             "operational_limit": {
-              "lpspec": {
+              "specsolve": {
                 "GlobalConstraint_operational_limit_eq": 1,
                 "GlobalConstraint_operational_limit_lb": 1,
                 "GlobalConstraint_operational_limit_ub": 1
@@ -2805,7 +2805,7 @@
               "pypsa": 3
             },
             "primary_energy": {
-              "lpspec": {
+              "specsolve": {
                 "GlobalConstraint_primary_energy_eq": 1,
                 "GlobalConstraint_primary_energy_lb": 1,
                 "GlobalConstraint_primary_energy_ub": 1
@@ -2819,7 +2819,7 @@
           102
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 44,
             "nonzeros": 190,
             "rows": 102
@@ -3180,7 +3180,7 @@
           }
         }
       },
-      "lpspec_objective": 23962.0,
+      "specsolve_objective": 23962.0,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -3191,7 +3191,7 @@
         "differences": {
           "transmission_expansion_cost_limit": {
             "kind": "rows",
-            "lpspec": {
+            "specsolve": {
               "GlobalConstraint_transmission_expansion_cost_limit_lb": 1,
               "GlobalConstraint_transmission_expansion_cost_limit_ub": 1
             },
@@ -3200,7 +3200,7 @@
           },
           "transmission_volume_expansion_limit": {
             "kind": "rows",
-            "lpspec": {
+            "specsolve": {
               "GlobalConstraint_transmission_volume_expansion_limit_eq": 1,
               "GlobalConstraint_transmission_volume_expansion_limit_lb": 1
             },
@@ -3211,25 +3211,25 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 16
               },
               "pypsa": 16
             },
             "Line-s": {
-              "lpspec": {
+              "specsolve": {
                 "Line_s": 20
               },
               "pypsa": 20
             },
             "Line-s_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Line_s_nom_ext": 2
               },
               "pypsa": 2
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 4
               },
               "pypsa": 4
@@ -3237,104 +3237,104 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 20
               },
               "pypsa": 20
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 16
               },
               "pypsa": 16
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 16
               },
               "pypsa": 16
             },
             "Kirchhoff-Voltage-Law": {
-              "lpspec": {
+              "specsolve": {
                 "Kirchhoff_Voltage_Law": 12
               },
               "pypsa": 12
             },
             "Line-ext-s-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_lower": 8
               },
               "pypsa": 8
             },
             "Line-ext-s-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_upper": 8
               },
               "pypsa": 8
             },
             "Line-ext-s_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_nom_lower": 2
               },
               "pypsa": 2
             },
             "Line-ext-s_nom-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_nom_upper": 2
               },
               "pypsa": 2
             },
             "Line-fix-s-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Line_fix_s_lower": 12
               },
               "pypsa": 12
             },
             "Line-fix-s-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Line_fix_s_upper": 12
               },
               "pypsa": 12
             },
             "Line-s_nom_set": {
-              "lpspec": {
+              "specsolve": {
                 "Line_s_nom_set": 1
               },
               "pypsa": 1
             },
             "Line-s_set": {
-              "lpspec": {
+              "specsolve": {
                 "Line_s_set": 1
               },
               "pypsa": 1
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 4
               },
               "pypsa": 4
             },
             "tech_capacity_expansion_limit": {
-              "lpspec": {
+              "specsolve": {
                 "GlobalConstraint_tech_capacity_expansion_limit_ub": 1
               },
               "pypsa": 1
             },
             "transmission_expansion_cost_limit": {
-              "lpspec": {
+              "specsolve": {
                 "GlobalConstraint_transmission_expansion_cost_limit_lb": 1,
                 "GlobalConstraint_transmission_expansion_cost_limit_ub": 1
               },
               "pypsa": 2
             },
             "transmission_volume_expansion_limit": {
-              "lpspec": {
+              "specsolve": {
                 "GlobalConstraint_transmission_volume_expansion_limit_eq": 1,
                 "GlobalConstraint_transmission_volume_expansion_limit_lb": 1
               },
@@ -3347,7 +3347,7 @@
           123
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 42,
             "nonzeros": 204,
             "rows": 123
@@ -3586,7 +3586,7 @@
         "per_name": {},
         "skipped": "duals are undefined for a mixed-integer model: 'Generator_n_mod', 'Generator_shut_down', 'Generator_start_up', 'Generato"
       },
-      "lpspec_objective": 7775.0,
+      "specsolve_objective": 7775.0,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -3598,31 +3598,31 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 16
               },
               "pypsa": 16
             },
             "Generator-shut_down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_shut_down": 8
               },
               "pypsa": 8
             },
             "Generator-start_up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_start_up": 8
               },
               "pypsa": 8
             },
             "Generator-status": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_status": 8
               },
               "pypsa": 8
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 4
               },
               "pypsa": 4
@@ -3630,103 +3630,103 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 8
               },
               "pypsa": 8
             },
             "Generator-com-down-time": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_down_time": 6
               },
               "pypsa": 6
             },
             "Generator-com-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_p_lower": 8
               },
               "pypsa": 8
             },
             "Generator-com-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_p_upper": 8
               },
               "pypsa": 8
             },
             "Generator-com-status-min_up_time_must_stay_up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_status_must_stay_up": 2
               },
               "pypsa": 2
             },
             "Generator-com-transition-shut-down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_transition_shut_down": 8
               },
               "pypsa": 8
             },
             "Generator-com-transition-start-up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_transition_start_up": 8
               },
               "pypsa": 8
             },
             "Generator-com-up-time": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_up_time": 6
               },
               "pypsa": 6
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 8
               },
               "pypsa": 8
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 8
               },
               "pypsa": 8
             },
             "Generator-p-ramp_limit_down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_down": 7
               },
               "pypsa": 7
             },
             "Generator-p-ramp_limit_up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_up": 7
               },
               "pypsa": 7
             },
             "Generator-shut_down-p-fixed-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_shut_down_p_fixed_upper": 8
               },
               "pypsa": 8
             },
             "Generator-start_up-p-fixed-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_start_up_p_fixed_upper": 8
               },
               "pypsa": 8
             },
             "Generator-status-p-fixed-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_status_p_fixed_upper": 8
               },
               "pypsa": 8
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 4
               },
               "pypsa": 4
@@ -3738,7 +3738,7 @@
           116
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 44,
             "nonzeros": 237,
             "rows": 116
@@ -3979,7 +3979,7 @@
         "per_name": {},
         "skipped": "duals are undefined for a mixed-integer model: 'Generator_n_mod', 'Generator_shut_down', 'Generator_start_up', 'Generato"
       },
-      "lpspec_objective": 15915.0,
+      "specsolve_objective": 15915.0,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -3991,43 +3991,43 @@
         "per_name": {
           "columns": {
             "Generator-n_mod": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_n_mod": 1
               },
               "pypsa": 1
             },
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 24
               },
               "pypsa": 24
             },
             "Generator-p_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_nom_ext": 3
               },
               "pypsa": 3
             },
             "Generator-shut_down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_shut_down": 16
               },
               "pypsa": 16
             },
             "Generator-start_up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_start_up": 16
               },
               "pypsa": 16
             },
             "Generator-status": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_status": 16
               },
               "pypsa": 16
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 4
               },
               "pypsa": 4
@@ -4035,169 +4035,169 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 12
               },
               "pypsa": 12
             },
             "Generator-com-ext-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_ext_p_lower": 8
               },
               "pypsa": 8
             },
             "Generator-com-ext-p-lower-nonneg": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_ext_p_lower_nonneg": 4
               },
               "pypsa": 4
             },
             "Generator-com-ext-p-upper-bigM": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_ext_p_upper_big_m": 8
               },
               "pypsa": 8
             },
             "Generator-com-ext-p-upper-cap": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_ext_p_upper_cap": 8
               },
               "pypsa": 8
             },
             "Generator-com-mod-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_mod_p_lower": 8
               },
               "pypsa": 8
             },
             "Generator-com-mod-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_mod_p_upper": 8
               },
               "pypsa": 8
             },
             "Generator-com-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_p_lower": 4
               },
               "pypsa": 4
             },
             "Generator-com-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_p_upper": 4
               },
               "pypsa": 4
             },
             "Generator-com-transition-shut-down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_transition_shut_down": 16
               },
               "pypsa": 16
             },
             "Generator-com-transition-start-up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_transition_start_up": 16
               },
               "pypsa": 16
             },
             "Generator-ext-p_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_nom_lower": 3
               },
               "pypsa": 3
             },
             "Generator-ext-p_nom-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_nom_upper": 3
               },
               "pypsa": 3
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 8
               },
               "pypsa": 8
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 8
               },
               "pypsa": 8
             },
             "Generator-p-ramp_limit_down-run-bigM": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_down_run_big_m": 4
               },
               "pypsa": 4
             },
             "Generator-p-ramp_limit_down-shut-bigM": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_down_shut_big_m": 4
               },
               "pypsa": 4
             },
             "Generator-p-ramp_limit_up-run-bigM": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_up_run_big_m": 4
               },
               "pypsa": 4
             },
             "Generator-p-ramp_limit_up-start-bigM": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_up_start_big_m": 4
               },
               "pypsa": 4
             },
             "Generator-p_nom_modularity": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_nom_modularity": 1
               },
               "pypsa": 1
             },
             "Generator-shut_down-p-fixed-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_shut_down_p_fixed_upper": 12
               },
               "pypsa": 12
             },
             "Generator-shut_down-p_nom-variable-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_shut_down_p_nom_variable_upper": 4
               },
               "pypsa": 4
             },
             "Generator-start_up-p-fixed-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_start_up_p_fixed_upper": 12
               },
               "pypsa": 12
             },
             "Generator-start_up-p_nom-variable-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_start_up_p_nom_variable_upper": 4
               },
               "pypsa": 4
             },
             "Generator-status-p-fixed-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_status_p_fixed_upper": 12
               },
               "pypsa": 12
             },
             "Generator-status-p_nom-variable-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_status_p_nom_variable_upper": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 4
               },
               "pypsa": 4
@@ -4209,7 +4209,7 @@
           191
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 80,
             "nonzeros": 379,
             "rows": 191
@@ -4488,7 +4488,7 @@
           }
         }
       },
-      "lpspec_objective": 11714.4,
+      "specsolve_objective": 11714.4,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -4500,13 +4500,13 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 24
               },
               "pypsa": 24
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 8
               },
               "pypsa": 8
@@ -4514,31 +4514,31 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 28
               },
               "pypsa": 28
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 24
               },
               "pypsa": 24
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 24
               },
               "pypsa": 24
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 8
               },
               "pypsa": 8
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 8
               },
               "pypsa": 8
@@ -4550,7 +4550,7 @@
           92
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 32,
             "nonzeros": 116,
             "rows": 92
@@ -4663,7 +4663,7 @@
           }
         }
       },
-      "lpspec_objective": 12587.437500000098,
+      "specsolve_objective": 12587.437500000098,
       "matches": true,
       "spec": "pypsa_quadratic.yaml",
       "structure": {
@@ -4675,13 +4675,13 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 16
               },
               "pypsa": 16
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 8
               },
               "pypsa": 8
@@ -4689,31 +4689,31 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 12
               },
               "pypsa": 12
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 16
               },
               "pypsa": 16
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 16
               },
               "pypsa": 16
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 8
               },
               "pypsa": 8
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 8
               },
               "pypsa": 8
@@ -4725,7 +4725,7 @@
           60
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 24,
             "nonzeros": 80,
             "rows": 60
@@ -5034,7 +5034,7 @@
           }
         }
       },
-      "lpspec_objective": 18441021.477729,
+      "specsolve_objective": 18441021.477729,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -5045,13 +5045,13 @@
         "differences": {
           "objective_constant": {
             "kind": "columns",
-            "lpspec": {},
+            "specsolve": {},
             "pypsa": 1,
             "reason": "PyPSA carries a nonzero objective constant as a fixed variable of that name; the file states no constant, and the objective is compared net of it"
           },
           "solver model": {
             "kind": "solver",
-            "lpspec": {
+            "specsolve": {
               "columns": 187,
               "nonzeros": 1007,
               "rows": 468
@@ -5067,115 +5067,115 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 60
               },
               "pypsa": 60
             },
             "Generator-p_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_nom_ext": 6
               },
               "pypsa": 6
             },
             "Line-s": {
-              "lpspec": {
+              "specsolve": {
                 "Line_s": 70
               },
               "pypsa": 70
             },
             "Line-s_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Line_s_nom_ext": 7
               },
               "pypsa": 7
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 40
               },
               "pypsa": 40
             },
             "Link-p_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p_nom_ext": 4
               },
               "pypsa": 4
             },
             "objective_constant": {
-              "lpspec": {},
+              "specsolve": {},
               "pypsa": 1
             }
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 90
               },
               "pypsa": 90
             },
             "Generator-ext-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_lower": 60
               },
               "pypsa": 60
             },
             "Generator-ext-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_upper": 60
               },
               "pypsa": 60
             },
             "Generator-ext-p_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_nom_lower": 6
               },
               "pypsa": 6
             },
             "Kirchhoff-Voltage-Law": {
-              "lpspec": {
+              "specsolve": {
                 "Kirchhoff_Voltage_Law": 20
               },
               "pypsa": 20
             },
             "Line-ext-s-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_lower": 70
               },
               "pypsa": 70
             },
             "Line-ext-s-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_upper": 70
               },
               "pypsa": 70
             },
             "Line-ext-s_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_nom_lower": 7
               },
               "pypsa": 7
             },
             "Link-ext-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_ext_p_lower": 40
               },
               "pypsa": 40
             },
             "Link-ext-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_ext_p_upper": 40
               },
               "pypsa": 40
             },
             "Link-ext-p_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_ext_p_nom_lower": 4
               },
               "pypsa": 4
             },
             "primary_energy": {
-              "lpspec": {
+              "specsolve": {
                 "GlobalConstraint_primary_energy_ub": 1
               },
               "pypsa": 1
@@ -5187,7 +5187,7 @@
           468
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 187,
             "nonzeros": 1007,
             "rows": 468
@@ -5450,7 +5450,7 @@
           }
         }
       },
-      "lpspec_objective": 7775.0,
+      "specsolve_objective": 7775.0,
       "matches": true,
       "spec": "pypsa_linearized_uc.yaml",
       "structure": {
@@ -5462,31 +5462,31 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 16
               },
               "pypsa": 16
             },
             "Generator-shut_down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_shut_down": 8
               },
               "pypsa": 8
             },
             "Generator-start_up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_start_up": 8
               },
               "pypsa": 8
             },
             "Generator-status": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_status": 8
               },
               "pypsa": 8
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 4
               },
               "pypsa": 4
@@ -5494,127 +5494,127 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 8
               },
               "pypsa": 8
             },
             "Generator-com-down-time": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_down_time": 6
               },
               "pypsa": 6
             },
             "Generator-com-p-before": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_p_before": 3
               },
               "pypsa": 3
             },
             "Generator-com-p-current": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_p_current": 3
               },
               "pypsa": 3
             },
             "Generator-com-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_p_lower": 8
               },
               "pypsa": 8
             },
             "Generator-com-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_p_upper": 8
               },
               "pypsa": 8
             },
             "Generator-com-partly-shut-down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_partly_shut_down": 3
               },
               "pypsa": 3
             },
             "Generator-com-partly-start-up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_partly_start_up": 3
               },
               "pypsa": 3
             },
             "Generator-com-status-min_up_time_must_stay_up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_status_must_stay_up": 2
               },
               "pypsa": 2
             },
             "Generator-com-transition-shut-down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_transition_shut_down": 8
               },
               "pypsa": 8
             },
             "Generator-com-transition-start-up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_transition_start_up": 8
               },
               "pypsa": 8
             },
             "Generator-com-up-time": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_com_up_time": 6
               },
               "pypsa": 6
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 8
               },
               "pypsa": 8
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 8
               },
               "pypsa": 8
             },
             "Generator-p-ramp_limit_down": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_down": 7
               },
               "pypsa": 7
             },
             "Generator-p-ramp_limit_up": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_ramp_limit_up": 7
               },
               "pypsa": 7
             },
             "Generator-shut_down-p-fixed-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_shut_down_p_fixed_upper": 8
               },
               "pypsa": 8
             },
             "Generator-start_up-p-fixed-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_start_up_p_fixed_upper": 8
               },
               "pypsa": 8
             },
             "Generator-status-p-fixed-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_status_p_fixed_upper": 8
               },
               "pypsa": 8
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 4
               },
               "pypsa": 4
@@ -5626,7 +5626,7 @@
           128
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 44,
             "nonzeros": 288,
             "rows": 128
@@ -5860,7 +5860,7 @@
           }
         }
       },
-      "lpspec_objective": 10805.29588,
+      "specsolve_objective": 10805.29588,
       "matches": true,
       "spec": "pypsa_losses.yaml",
       "structure": {
@@ -5871,13 +5871,13 @@
         "differences": {
           "objective_constant": {
             "kind": "columns",
-            "lpspec": {},
+            "specsolve": {},
             "pypsa": 1,
             "reason": "PyPSA carries a nonzero objective constant as a fixed variable of that name; the file states no constant, and the objective is compared net of it"
           },
           "solver model": {
             "kind": "solver",
-            "lpspec": {
+            "specsolve": {
               "columns": 45,
               "nonzeros": 290,
               "rows": 150
@@ -5893,139 +5893,139 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 16
               },
               "pypsa": 16
             },
             "Line-loss": {
-              "lpspec": {
+              "specsolve": {
                 "Line_loss": 12
               },
               "pypsa": 12
             },
             "Line-s": {
-              "lpspec": {
+              "specsolve": {
                 "Line_s": 12
               },
               "pypsa": 12
             },
             "Line-s_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Line_s_nom_ext": 1
               },
               "pypsa": 1
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 4
               },
               "pypsa": 4
             },
             "objective_constant": {
-              "lpspec": {},
+              "specsolve": {},
               "pypsa": 1
             }
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 20
               },
               "pypsa": 20
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 16
               },
               "pypsa": 16
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 16
               },
               "pypsa": 16
             },
             "Kirchhoff-Voltage-Law": {
-              "lpspec": {
+              "specsolve": {
                 "Kirchhoff_Voltage_Law": 4
               },
               "pypsa": 4
             },
             "Line-ext-s-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_lower": 4
               },
               "pypsa": 4
             },
             "Line-ext-s-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_upper": 4
               },
               "pypsa": 4
             },
             "Line-ext-s_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_nom_lower": 1
               },
               "pypsa": 1
             },
             "Line-ext-s_nom-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Line_ext_s_nom_upper": 1
               },
               "pypsa": 1
             },
             "Line-fix-s-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Line_fix_s_lower": 8
               },
               "pypsa": 8
             },
             "Line-fix-s-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Line_fix_s_upper": 8
               },
               "pypsa": 8
             },
             "Line-loss_tangents-1--1": {
-              "lpspec": {
+              "specsolve": {
                 "Line_loss_tangents_reverse": 12
               },
               "pypsa": 12
             },
             "Line-loss_tangents-1-1": {
-              "lpspec": {
+              "specsolve": {
                 "Line_loss_tangents_forward": 12
               },
               "pypsa": 12
             },
             "Line-loss_tangents-2--1": {
-              "lpspec": {
+              "specsolve": {
                 "Line_loss_tangents_reverse": 12
               },
               "pypsa": 12
             },
             "Line-loss_tangents-2-1": {
-              "lpspec": {
+              "specsolve": {
                 "Line_loss_tangents_forward": 12
               },
               "pypsa": 12
             },
             "Line-loss_upper": {
-              "lpspec": {
+              "specsolve": {
                 "Line_loss_upper": 12
               },
               "pypsa": 12
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 4
               },
               "pypsa": 4
@@ -6037,7 +6037,7 @@
           150
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 45,
             "nonzeros": 290,
             "rows": 150
@@ -6230,7 +6230,7 @@
           }
         }
       },
-      "lpspec_objective": 9267.386667,
+      "specsolve_objective": 9267.386667,
       "matches": true,
       "spec": "pypsa_stochastic.yaml",
       "structure": {
@@ -6241,7 +6241,7 @@
         "differences": {
           "Generator-ext-p_nom-lower": {
             "kind": "rows",
-            "lpspec": {
+            "specsolve": {
               "Generator_ext_p_nom_lower": 1
             },
             "pypsa": 2,
@@ -6249,7 +6249,7 @@
           },
           "Generator-ext-p_nom-upper": {
             "kind": "rows",
-            "lpspec": {
+            "specsolve": {
               "Generator_ext_p_nom_upper": 1
             },
             "pypsa": 2,
@@ -6257,7 +6257,7 @@
           },
           "solver model": {
             "kind": "solver",
-            "lpspec": {
+            "specsolve": {
               "columns": 37,
               "nonzeros": 146,
               "rows": 85
@@ -6273,37 +6273,37 @@
         "per_name": {
           "columns": {
             "CVaR": {
-              "lpspec": {
+              "specsolve": {
                 "CVaR": 1
               },
               "pypsa": 1
             },
             "CVaR-a": {
-              "lpspec": {
+              "specsolve": {
                 "CVaR_a": 2
               },
               "pypsa": 2
             },
             "CVaR-theta": {
-              "lpspec": {
+              "specsolve": {
                 "CVaR_theta": 1
               },
               "pypsa": 1
             },
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 24
               },
               "pypsa": 24
             },
             "Generator-p_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_nom_ext": 1
               },
               "pypsa": 1
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 8
               },
               "pypsa": 8
@@ -6311,73 +6311,73 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 16
               },
               "pypsa": 16
             },
             "CVaR-def": {
-              "lpspec": {
+              "specsolve": {
                 "CVaR_def": 1
               },
               "pypsa": 1
             },
             "CVaR-excess-calm": {
-              "lpspec": {
+              "specsolve": {
                 "CVaR_excess": 1
               },
               "pypsa": 1
             },
             "CVaR-excess-stormy": {
-              "lpspec": {
+              "specsolve": {
                 "CVaR_excess": 1
               },
               "pypsa": 1
             },
             "Generator-ext-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_lower": 8
               },
               "pypsa": 8
             },
             "Generator-ext-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_upper": 8
               },
               "pypsa": 8
             },
             "Generator-ext-p_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_nom_lower": 1
               },
               "pypsa": 2
             },
             "Generator-ext-p_nom-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_nom_upper": 1
               },
               "pypsa": 2
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 16
               },
               "pypsa": 16
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 16
               },
               "pypsa": 16
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 8
               },
               "pypsa": 8
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 8
               },
               "pypsa": 8
@@ -6389,7 +6389,7 @@
           85
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 37,
             "nonzeros": 146,
             "rows": 85
@@ -6564,7 +6564,7 @@
           }
         }
       },
-      "lpspec_objective": 12747.191096,
+      "specsolve_objective": 12747.191096,
       "matches": true,
       "spec": "pypsa_multi_period.yaml",
       "structure": {
@@ -6576,19 +6576,19 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 20
               },
               "pypsa": 20
             },
             "Generator-p_nom": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p_nom_ext": 3
               },
               "pypsa": 3
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 8
               },
               "pypsa": 8
@@ -6596,61 +6596,61 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 16
               },
               "pypsa": 16
             },
             "Carrier-growth_limit": {
-              "lpspec": {
+              "specsolve": {
                 "Carrier_growth_limit": 2
               },
               "pypsa": 2
             },
             "Generator-ext-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_lower": 16
               },
               "pypsa": 16
             },
             "Generator-ext-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_upper": 16
               },
               "pypsa": 16
             },
             "Generator-ext-p_nom-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_nom_lower": 3
               },
               "pypsa": 3
             },
             "Generator-ext-p_nom-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_ext_p_nom_upper": 3
               },
               "pypsa": 3
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 4
               },
               "pypsa": 4
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 4
               },
               "pypsa": 4
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 8
               },
               "pypsa": 8
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 8
               },
               "pypsa": 8
@@ -6662,7 +6662,7 @@
           80
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 31,
             "nonzeros": 117,
             "rows": 80
@@ -6919,7 +6919,7 @@
           }
         }
       },
-      "lpspec_objective": 5262.5,
+      "specsolve_objective": 5262.5,
       "matches": true,
       "spec": "pypsa.yaml",
       "structure": {
@@ -6931,13 +6931,13 @@
         "per_name": {
           "columns": {
             "Generator-p": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_p": 12
               },
               "pypsa": 12
             },
             "Link-p": {
-              "lpspec": {
+              "specsolve": {
                 "Link_p": 8
               },
               "pypsa": 8
@@ -6945,31 +6945,31 @@
           },
           "rows": {
             "Bus-nodal_balance": {
-              "lpspec": {
+              "specsolve": {
                 "Bus_nodal_balance": 12
               },
               "pypsa": 12
             },
             "Generator-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_lower": 12
               },
               "pypsa": 12
             },
             "Generator-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Generator_fix_p_upper": 12
               },
               "pypsa": 12
             },
             "Link-fix-p-lower": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_lower": 8
               },
               "pypsa": 8
             },
             "Link-fix-p-upper": {
-              "lpspec": {
+              "specsolve": {
                 "Link_fix_p_upper": 8
               },
               "pypsa": 8
@@ -6981,7 +6981,7 @@
           52
         ],
         "solver": {
-          "lpspec": {
+          "specsolve": {
             "columns": 20,
             "nonzeros": 67,
             "rows": 52

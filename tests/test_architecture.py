@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
 
 REPO = Path(__file__).parent.parent
-PKG = REPO / 'src' / 'lpspec'
+PKG = REPO / 'src' / 'specsolve'
 
 #: pandas is deliberately absent: it ships with the [linopy] extra too, but the
 #: core lane holds sanctioned lazy imports of it (``Result.to_pandas``), so the
@@ -26,7 +26,7 @@ FORBIDDEN_RUNTIME = {'linopy', 'xarray'}
 
 def _in_linopy_lane(path: Path) -> bool:
     """The linopy/oracle lane — the ONLY modules allowed to import linopy or
-    xarray at module level (they load only via ``import lpspec.linopy``).
+    xarray at module level (they load only via ``import specsolve.linopy``).
 
     Structural, not a filename allowlist: membership is "lives under
     ``linopy/``". A new eager-lane module therefore cannot land outside the
@@ -98,7 +98,7 @@ def _reaches_past(
 ) -> dict[str, list[str]]:
     """Modules under *package* importing a name its fence forbids.
 
-    Forbidden is an ``lpspec`` name outside *allowed* and *allowlist*, or a
+    Forbidden is an ``specsolve`` name outside *allowed* and *allowlist*, or a
     name whose root package is in *third_party*. Lazy imports are included by
     default: a fence a function body could step over is not one — *nodes* can
     prune instead (:func:`_runtime_nodes`). Membership is read off the path,
@@ -112,7 +112,7 @@ def _reaches_past(
             n
             for n in _imported(ast.parse(path.read_text()), nodes=nodes)
             if n.split('.')[0] in third_party
-            or (n.startswith('lpspec') and not n.startswith(allowed) and n not in allowlist)
+            or (n.startswith('specsolve') and not n.startswith(allowed) and n not in allowlist)
         ]
         if bad:
             offenders[str(path.relative_to(PKG))] = sorted(set(bad))
@@ -236,7 +236,7 @@ def test_lazy_oracle_imports_stay_on_the_allowlist():
 #: language writes the plan and the engine reads it, so the vocabulary the two
 #: speak lives upstream of both, and a fence cannot enclose what neither side
 #: owns.
-ENGINE_MAY_IMPORT = {'lpspec.errors', 'math_spec.program'}
+ENGINE_MAY_IMPORT = {'specsolve.errors', 'math_spec.program'}
 
 
 def test_engine_is_isolated():
@@ -256,7 +256,7 @@ def test_engine_is_isolated():
     """
     offenders = _reaches_past(
         'relational',
-        ('lpspec.relational',),
+        ('specsolve.relational',),
         ENGINE_MAY_IMPORT,
         third_party=FORBIDDEN_RUNTIME | {'yaml'},
         nodes=_runtime_nodes,
@@ -443,7 +443,7 @@ PUBLIC_API = {
     },
     'name what came back': {'Model', 'Result', 'Runs'},
     'catch it': {
-        'LpspecError',
+        'SpecsolveError',
         'LanguageError',
         'LaneError',
         'DataError',
@@ -452,7 +452,7 @@ PUBLIC_API = {
         'SchemaError',
         'PiecewiseExpansionError',
         'NoSolutionError',
-        'LpspecWarning',
+        'SpecsolveWarning',
     },
 }
 
@@ -484,28 +484,28 @@ def test_the_public_surface_is_exactly_what_is_declared():
     """
     import inspect
 
-    import lpspec
+    import specsolve
 
-    unresolved = sorted(name for name in lpspec.__all__ if not hasattr(lpspec, name))
+    unresolved = sorted(name for name in specsolve.__all__ if not hasattr(specsolve, name))
     assert not unresolved, (
-        f'__all__ names what the package does not bind: {unresolved} — `from lpspec import *` '
+        f'__all__ names what the package does not bind: {unresolved} — `from specsolve import *` '
         f'raises, and an annotation naming one is only silent because it is never evaluated'
     )
 
     declared = {name for names in PUBLIC_API.values() for name in names}
-    assert set(lpspec.__all__) == declared, (
-        f'lpspec.__all__ and PUBLIC_API disagree: only in __all__ '
-        f'{sorted(set(lpspec.__all__) - declared)}, only in the table '
-        f'{sorted(declared - set(lpspec.__all__))} — add the name to PUBLIC_API '
+    assert set(specsolve.__all__) == declared, (
+        f'specsolve.__all__ and PUBLIC_API disagree: only in __all__ '
+        f'{sorted(set(specsolve.__all__) - declared)}, only in the table '
+        f'{sorted(declared - set(specsolve.__all__))} — add the name to PUBLIC_API '
         f'with the role it plays, and to docs/about/architecture.md'
     )
 
     leaked = sorted(
         name
-        for name in dir(lpspec)
+        for name in dir(specsolve)
         if not name.startswith('_')
         and name not in declared
-        and not inspect.ismodule(getattr(lpspec, name))  # submodules are import paths, not API
+        and not inspect.ismodule(getattr(specsolve, name))  # submodules are import paths, not API
     )
     assert not leaked, (
         f'public names outside __all__: {leaked} — a surface that grows by '
@@ -558,12 +558,12 @@ def test_each_sink_family_is_its_directory_and_its_registry():
     """
     import importlib
 
-    from lpspec.relational.sinks import SOLVERS, WRITERS, Solver
+    from specsolve.relational.sinks import SOLVERS, WRITERS, Solver
 
     solvers = _family('solvers') - {'base'}
     assert set(SOLVERS) == solvers, f'solver modules and SOLVERS keys disagree: {solvers ^ set(SOLVERS)}'
     for name in sorted(solvers):
-        module = importlib.import_module(f'lpspec.relational.sinks.solvers.{name}')
+        module = importlib.import_module(f'specsolve.relational.sinks.solvers.{name}')
         held = SOLVERS[name]
         assert issubclass(held, Solver), f'SOLVERS[{name!r}] is not a Solver'
         assert held.__module__.rsplit('.', 1)[-1] == name, (
@@ -595,8 +595,8 @@ def test_every_sink_declares_what_it_can_ingest():
     """
     from typing import get_args
 
-    from lpspec.relational.sinks import SOLVERS, WRITERS
-    from lpspec.relational.sinks.capabilities import (
+    from specsolve.relational.sinks import SOLVERS, WRITERS
+    from specsolve.relational.sinks.capabilities import (
         CAPABILITIES,
         REWRITTEN_AS_INTEGRALITY,
         Capabilities,
@@ -635,7 +635,7 @@ def test_the_door_gives_every_declared_dimension_dtype_a_column():
     """
     from math_spec import DIMENSION_DTYPES
 
-    from lpspec.sources import _DECLARED
+    from specsolve.sources import _DECLARED
 
     assert set(_DECLARED) == set(DIMENSION_DTYPES), 'the two homes of the dimension dtype vocabulary disagree'
 
@@ -649,7 +649,7 @@ def test_the_door_accepts_the_declared_parameter_dtype_vocabulary():
     """
     from math_spec import PARAMETER_DTYPES
 
-    from lpspec.sources import _COLUMNS, ACCEPTED_VALUE_TYPES
+    from specsolve.sources import _COLUMNS, ACCEPTED_VALUE_TYPES
 
     assert set(_COLUMNS) == set(PARAMETER_DTYPES), 'the column table and the language disagree'
     assert set(ACCEPTED_VALUE_TYPES) == set(PARAMETER_DTYPES), 'the accepted table and the language disagree'
@@ -686,7 +686,7 @@ def test_no_sink_reaches_a_sibling():
             reached = {
                 name
                 for name in _imported(ast.parse(path.read_text()))
-                if name.startswith('lpspec.relational.sinks.') and not name.endswith(shareable)
+                if name.startswith('specsolve.relational.sinks.') and not name.endswith(shareable)
             }
             if reached and path.stem != '__init__':
                 offenders[f'{family}/{path.name}'] = sorted(reached)
@@ -757,7 +757,7 @@ def test_the_model_argument_is_what_the_language_takes_minus_the_lowered_form():
     upstream = members(str(inspect.signature(to_program).parameters['spec'].annotation))
     ours = members(type_alias_value(PKG / 'lanes.py', 'Buildable'))
     assert upstream - ours == {'Program'}, (
-        f'the language takes {sorted(upstream)} and lpspec.lanes.Buildable takes {sorted(ours)} — '
+        f'the language takes {sorted(upstream)} and specsolve.lanes.Buildable takes {sorted(ours)} — '
         f'the one shape this package refuses is the lowered Program, and it refuses no other'
     )
 
@@ -781,17 +781,17 @@ def test_the_sources_argument_is_one_type_at_every_door():
     the annotations are strings. The linopy lane's two verbs are asked in
     ``tests/test_linopy_lane.py``, where the extra is installed.
     """
-    import lpspec
-    from lpspec.strategy import EachCoordinate, EachWindow, solve_over
+    import specsolve
+    from specsolve.strategy import EachCoordinate, EachWindow, solve_over
 
     doors = {
-        'build': lpspec.build,
-        'solve': lpspec.solve,
-        'write': lpspec.write,
-        'SolveArchive': lpspec.SolveArchive.__init__,
-        'SweepArchive': lpspec.SweepArchive.__init__,
-        'Model': lpspec.Model.__init__,
-        'Model.update': lpspec.Model.update,
+        'build': specsolve.build,
+        'solve': specsolve.solve,
+        'write': specsolve.write,
+        'SolveArchive': specsolve.SolveArchive.__init__,
+        'SweepArchive': specsolve.SweepArchive.__init__,
+        'Model': specsolve.Model.__init__,
+        'Model.update': specsolve.Model.update,
         'solve_over': solve_over,
         'EachCoordinate.slices': EachCoordinate.slices,
         'EachWindow.slices': EachWindow.slices,
@@ -1055,7 +1055,7 @@ def test_every_module_is_documented_somewhere():
     )
 
 
-#: Every in-function ``lpspec`` import in the package, with the cycle it
+#: Every in-function ``specsolve`` import in the package, with the cycle it
 #: breaks. Empty, and that is the claim: the layers are ordered with no
 #: exception at all, so a lazy import is only ever a leftover.
 DELIBERATE_LAZY_IMPORTS: dict[tuple[str, str], str] = {}
@@ -1084,7 +1084,7 @@ def test_lazy_intra_package_imports_are_all_declared():
             if (
                 isinstance(node, ast.ImportFrom)
                 and node.module
-                and node.module.startswith('lpspec')
+                and node.module.startswith('specsolve')
                 and id(node) not in module_level
             ):
                 found[(str(path.relative_to(PKG)), node.module)] = node.lineno

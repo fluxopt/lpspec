@@ -98,7 +98,7 @@ $`t \ominus^{\mathrm{relation}(t)} k`$ denotes a translation counted inside the 
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -158,7 +158,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/seasons.yaml', sources) as solution:
+    with sps.solve('examples/seasons.yaml', sources) as solution:
         solution.objective  # 74.0
         solution.primal('soc')
     ```

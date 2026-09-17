@@ -13,8 +13,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LpspecError, NoSolutionError
+import specsolve as sps
+from specsolve.errors import NoSolutionError, SpecsolveError
 from tests.conftest import recomputed_row_values
 from tests.differential import differential
 from tests.oracle import pd  # through the guard: a bare import would beat it
@@ -72,14 +72,14 @@ def test_a_milp_returns_activity_where_dual_refuses(commitment_inputs):
         assert balance == pytest.approx(data['load'].sort_index().to_numpy(), rel=ACTIVITY_RTOL), (
             'the == balance row is met exactly at any feasible incumbent, so its activity is the load'
         )
-        with pytest.raises(LpspecError, match='mixed-integer'):
+        with pytest.raises(SpecsolveError, match='mixed-integer'):
             run.result.dual('balance')
 
 
 def test_equality_row_activity_equals_rhs(dispatch_yaml, dispatch_frame_inputs):
     """On an `==` row activity equals the rhs up to solver tolerance, by construction."""
     data = dispatch_frame_inputs
-    with lps.solve(dispatch_yaml, data) as sol:
+    with sps.solve(dispatch_yaml, data) as sol:
         got = sol.activity('power_balance').sort('snapshot')['value'].to_numpy()
         assert got == pytest.approx(data['load'].sort('snapshot')['value'].to_numpy(), rel=ACTIVITY_RTOL), (
             'an == row holds at the solution, so its activity is its rhs — a residual check, not a bug'
@@ -94,7 +94,7 @@ def test_infeasible_solve_refuses_activity(dispatch_yaml, dispatch_inputs):
     data = dispatch_inputs
     data = dict(data, load=pd.Series(1e6, index=data['snapshot']))  # more than every generator together
 
-    with lps.solve(dispatch_yaml, data) as result:
+    with sps.solve(dispatch_yaml, data) as result:
         assert not result.has_primal
         with pytest.raises(NoSolutionError, match='cannot read the activity'):
             result.activity('power_balance')
@@ -103,7 +103,7 @@ def test_infeasible_solve_refuses_activity(dispatch_yaml, dispatch_inputs):
 def test_a_closed_result_refuses_activity(dispatch_yaml, dispatch_frame_inputs):
     """close() releases the activity frames with the primal and dual ones."""
     data = dispatch_frame_inputs
-    with lps.solve(dispatch_yaml, data) as sol:
+    with sps.solve(dispatch_yaml, data) as sol:
         pass
-    with pytest.raises(LpspecError, match='closed'):
+    with pytest.raises(SpecsolveError, match='closed'):
         sol.activity('power_balance')

@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import pytest
 
-from lpspec.errors import DataError
+from specsolve.errors import DataError
 from tests.conftest import law_data, law_spec, override
 from tests.differential import RTOL, both_lanes_refuse, differential
 from tests.oracle import pd

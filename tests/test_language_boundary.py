@@ -1,7 +1,7 @@
 """The streaming language boundary: out-of-subset constructs are load errors.
 
 There is no runtime fallback — the streaming subset IS the language
-(docs/about/architecture.md), and both lanes are inside it: `lpspec.linopy`
+(docs/about/architecture.md), and both lanes are inside it: `specsolve.linopy`
 builds the same file through the same `to_program` gate.
 Errors must carry the construct and its context, verbatim.
 """
@@ -11,8 +11,8 @@ from __future__ import annotations
 import pytest
 from math_spec import to_program
 
-import lpspec as lps
-from lpspec.errors import LanguageError
+import specsolve as sps
+from specsolve.errors import LanguageError
 from tests.conftest import EXAMPLES_DIR, SPEC_PATHS, schema_of
 
 DISPATCH = EXAMPLES_DIR / 'dispatch.yaml'
@@ -71,11 +71,11 @@ def test_inside_the_language(patch):
     ],
 )
 def test_outside_the_language_is_a_load_error(patch, match):
-    """The refusal reaches the caller through ``lps.check``, with no data attached.
+    """The refusal reaches the caller through ``sps.check``, with no data attached.
 
     Two rows, one per position the verb has to reach — which rules it enforces
     there is the language's inventory and is swept in math-spec's own
-    ``test_degree.py``. Asked of ``lps.check`` rather than of
+    ``test_degree.py``. Asked of ``sps.check`` rather than of
     ``to_program``, because the verb is the claim: the affine guard once
     needed data bound, so ``check`` accepted the model and it blew up at build
     time — useless as a CI verb for exactly the rules it should enforce first.
@@ -84,7 +84,7 @@ def test_outside_the_language_is_a_load_error(patch, match):
     is refused there, and one the math never reads is held to nothing.
     """
     with pytest.raises(LanguageError, match=match):
-        lps.check(schema_of(DISPATCH, **patch))
+        sps.check(schema_of(DISPATCH, **patch))
 
 
 def test_an_unknown_operator_names_its_context_and_teaches_the_rewrite():

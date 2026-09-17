@@ -21,9 +21,9 @@ import polars as pl
 import pytest
 from math_spec import to_program
 
-import lpspec as lps
-from lpspec.errors import LpspecError
-from lpspec.relational.sinks.writers import mps_file
+import specsolve as sps
+from specsolve.errors import SpecsolveError
+from specsolve.relational.sinks.writers import mps_file
 from tests.conftest import (
     DISPATCH_SPEC,
     PORT_REFERENCES,
@@ -103,7 +103,7 @@ CASES = [
 
 def _written(spec: Any, data: Any, directory: Path) -> Path:
     """*model* built once and written as MPS text."""
-    return lps.write(spec, data, directory / 'model.mps')
+    return sps.write(spec, data, directory / 'model.mps')
 
 
 @pytest.mark.parametrize(('spec', 'data'), CASES)
@@ -114,7 +114,7 @@ def test_a_written_model_reaches_the_optimum_the_engine_reaches(spec: Any, data:
     by both writers cannot hide — the LP file is checked here too, but as a
     third opinion.
     """
-    with lps.build(spec, data) as model:
+    with sps.build(spec, data) as model:
         direct = model.solve().objective
         model.write(tmp_path / 'model.mps')
         model.write(tmp_path / 'model.lp')
@@ -139,7 +139,7 @@ def test_every_referenced_model_reaches_its_optimum_through_the_file(name: str, 
     if to_program(port_spec(name)).sos:
         pytest.skip(f'{name} declares a set, and HiGHS reads no SOS section from a file')
     path = tmp_path / f'{name}.mps'
-    lps.write(port_spec(name), port_sources(name), path)
+    sps.write(port_spec(name), port_sources(name), path)
     assert solve_written_file(path) == pytest.approx(PORT_REFERENCES[name]['objective'], rel=1e-6)
 
 
@@ -169,7 +169,7 @@ def test_a_set_survives_the_file(sos_type: int, tmp_path: Path) -> None:
 def test_an_objective_constant_is_written_negated(tmp_path: Path) -> None:
     """MPS carries the constant as the objective row's right-hand side, sign flipped."""
     spec = DISPATCH_SPEC | {'objective': DISPATCH_SPEC['objective'] | {'expression': 'sum(p * cost) + 12.5'}}
-    with lps.build(spec, DISPATCH_DATA) as model:
+    with sps.build(spec, DISPATCH_DATA) as model:
         direct = model.solve().objective
         model.write(tmp_path / 'model.mps')
 
@@ -185,7 +185,7 @@ def test_only_the_integer_columns_are_wrapped_in_markers(tmp_path: Path) -> None
     the built tables: the two writers name their columns the same way, so
     either one disagreeing with the other is the failure this is looking for.
     """
-    with lps.build(COMMITMENT, COMMITMENT_DATA) as model:
+    with sps.build(COMMITMENT, COMMITMENT_DATA) as model:
         model.write(tmp_path / 'model.mps')
         model.write(tmp_path / 'model.lp')
 
@@ -233,7 +233,7 @@ def test_one_model_writes_the_same_bytes_every_time(tmp_path: Path) -> None:
     digests = []
     for attempt in range(3):
         path = tmp_path / f'model{attempt}.mps'
-        lps.write(COMMITMENT, COMMITMENT_DATA, path)
+        sps.write(COMMITMENT, COMMITMENT_DATA, path)
         digests.append(hashlib.sha256(path.read_bytes()).hexdigest())
     assert len(set(digests)) == 1, 'three writes of one model produced different bytes'
 
@@ -244,11 +244,11 @@ def test_chunking_the_columns_section_leaves_the_bytes_alone(
 ) -> None:
     """The chunk width is a memory knob and nothing else."""
     reference = tmp_path / 'reference.mps'
-    lps.write(COMMITMENT, COMMITMENT_DATA, reference)
+    sps.write(COMMITMENT, COMMITMENT_DATA, reference)
 
     monkeypatch.setattr(mps_file, 'EMIT_BUDGET', budget)
     chunked = tmp_path / 'chunked.mps'
-    lps.write(COMMITMENT, COMMITMENT_DATA, chunked)
+    sps.write(COMMITMENT, COMMITMENT_DATA, chunked)
 
     assert chunked.read_bytes() == reference.read_bytes(), f'a budget of {budget} moved the bytes'
 
@@ -256,7 +256,7 @@ def test_chunking_the_columns_section_leaves_the_bytes_alone(
 def test_a_format_nothing_writes_names_both_of_the_ones_that_do(tmp_path: Path) -> None:
     """The registry's error is where a caller learns MPS shipped."""
     with pytest.raises(ValueError, match=r'\.lp, \.mps'):
-        lps.write(DISPATCH_SPEC, DISPATCH_DATA, tmp_path / 'model.nl')
+        sps.write(DISPATCH_SPEC, DISPATCH_DATA, tmp_path / 'model.nl')
 
 
 #: The two constructs this writer has no section for, each in the position it
@@ -280,8 +280,8 @@ def test_a_construct_this_format_cannot_spell_is_refused_rather_than_written(spe
     on the write path asked it, where the solve path asks
     ``ingestible`` and ``check(sink=)`` asks directly.
     """
-    with pytest.raises(LpspecError, match=r"the '\.mps' sink cannot take a quadratic"):
-        lps.write(spec, QUADRATIC_DATA, tmp_path / 'model.mps')
+    with pytest.raises(SpecsolveError, match=r"the '\.mps' sink cannot take a quadratic"):
+        sps.write(spec, QUADRATIC_DATA, tmp_path / 'model.mps')
 
-    lps.write(spec, QUADRATIC_DATA, tmp_path / 'model.lp')
+    sps.write(spec, QUADRATIC_DATA, tmp_path / 'model.lp')
     assert '[' in (tmp_path / 'model.lp').read_text(), 'the same model is a section the LP writer does emit'

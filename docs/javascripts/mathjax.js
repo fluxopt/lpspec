@@ -1,7 +1,7 @@
 // Two sources of math on this site, and they are spelled differently.
 // pymdownx.arithmatex in `generic: true` mode rewrites `$...$` / `$$...$$` in a
 // markdown page into `\(...\)` / `\[...\]`; a notebook page never passes through
-// it — mkdocs-jupyter hands mkdocs finished HTML, and what `lps.to_markdown`
+// it — mkdocs-jupyter hands mkdocs finished HTML, and what `sps.to_markdown`
 // rendered into a cell keeps the `$` it was written with. So both delimiter
 // sets are enabled.
 //

@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#   "lpspec[gurobi,linopy] @ git+https://github.com/fluxopt/lpspec@8d27e88b79",
+#   "specsolve[gurobi,linopy] @ git+https://github.com/fluxopt/specsolve@8d27e88b79",
 #   "pyomo>=6.7",
 #   "pytest==9.1.1",
 #   "pytest-benchmem>=0.5",
@@ -14,7 +14,7 @@
     uv run --locked bench/reproduce.py --sizes xs # a smaller look
 
 **Why this file exists at all.** `pixi.lock` is not committed, and two of the
-libraries the benchmark measures are installed from git — lpspec itself, and
+libraries the benchmark measures are installed from git — specsolve itself, and
 linopy from `master`, a branch that moves. So "the versions that produced a
 number" was recorded only inside the results file, after the fact, in a form
 nobody could install. `bench/reproduce.py.lock` beside this script freezes every
@@ -33,7 +33,7 @@ measured. So this needs the repository checked out, which anyone reproducing a
 number needs anyway — the rival formulations are in it.
 
 **The published numbers predate this file and cannot be reproduced from it.**
-They were taken against `lpspec 0.0.1a61.dev3+gf319cd10f` and a linopy built
+They were taken against `specsolve 0.0.1a61.dev3+gf319cd10f` and a linopy built
 from a branch, neither of which resolves from an index. That is the argument for
 the lock rather than an objection to it: the next published run is taken through
 this script, and then the pins and the page describe the same environment.

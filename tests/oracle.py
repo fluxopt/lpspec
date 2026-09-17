@@ -30,7 +30,7 @@ green having quietly stopped checking the lanes against each other on precisely
 the cases the convention changed.
 
 The lane is imported under its own name rather than something shorter, because
-this module re-exports the *real* ``linopy`` too: ``lpspec_linopy`` names the
+this module re-exports the *real* ``linopy`` too: ``specsolve_linopy`` names the
 module it actually is, and cannot be confused with it.
 """
 
@@ -51,16 +51,16 @@ if 'semantics' not in getattr(linopy.options, '_defaults', {}):
         f'measure against the legacy convention instead. Install the pin in pyproject.toml '
         f'(the [linopy] extra: PyPSA/linopy@master) — `pixi install`.'
     )
-from lpspec import linopy as lpspec_linopy  # noqa: E402  — must follow the guard above
-from lpspec.linopy import builder, loader, operators, where  # noqa: E402
+from specsolve import linopy as specsolve_linopy  # noqa: E402  — must follow the guard above
+from specsolve.linopy import builder, loader, operators, where  # noqa: E402
 
 __all__ = [
     'builder',
     'linopy',
     'loader',
-    'lpspec_linopy',
     'operators',
     'pd',
+    'specsolve_linopy',
     'transport_eager_objective',
     'where',
     'xr',

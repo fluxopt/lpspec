@@ -20,13 +20,13 @@ from typing import Any, NamedTuple
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import NoSolutionError
-from lpspec.relational.parquet import Metrics, Record, SliceMetrics, _column_types
-from lpspec.relational.sinks.solvers.gurobi import _CONDITION_OF_GUROBI_STATUS, _LINOPY_DIVERGENCES
-from lpspec.relational.sinks.solvers.highs import _CONDITION_OF_HIGHS_STATUS
-from lpspec.relational.sinks.solvers.xpress import _CONDITION_OF_SOL_STATUS
-from lpspec.relational.status import STATUS_TO_TERMINATION_CONDITIONS, SolveStatus
+import specsolve as sps
+from specsolve.errors import NoSolutionError
+from specsolve.relational.parquet import Metrics, Record, SliceMetrics, _column_types
+from specsolve.relational.sinks.solvers.gurobi import _CONDITION_OF_GUROBI_STATUS, _LINOPY_DIVERGENCES
+from specsolve.relational.sinks.solvers.highs import _CONDITION_OF_HIGHS_STATUS
+from specsolve.relational.sinks.solvers.xpress import _CONDITION_OF_SOL_STATUS
+from specsolve.relational.status import STATUS_TO_TERMINATION_CONDITIONS, SolveStatus
 from tests.conftest import CASES
 
 # ---------------------------------------------------------------------------
@@ -153,7 +153,7 @@ def test_ok_means_values_worth_reading_not_optimality():
 
 
 def test_an_infeasible_solve_reports_both_axes_and_a_nan_objective():
-    with lps.solve(*CASES['INFEASIBLE']) as solution:
+    with sps.solve(*CASES['INFEASIBLE']) as solution:
         assert solution.status == 'warning'
         assert solution.termination_condition == 'infeasible'
         assert not solution.is_ok
@@ -163,7 +163,7 @@ def test_an_infeasible_solve_reports_both_axes_and_a_nan_objective():
 def test_reading_results_without_a_solution_raises():
     """HiGHS returns a full-length vector of zeros whatever the status, so
     handing it back would be indistinguishable from an answer."""
-    with lps.solve(*CASES['INFEASIBLE']) as solution:
+    with sps.solve(*CASES['INFEASIBLE']) as solution:
         with pytest.raises(NoSolutionError, match='infeasible'):
             solution.primal('p')
         with pytest.raises(NoSolutionError, match='infeasible'):
@@ -177,7 +177,7 @@ def test_a_solve_that_left_no_values_writes_the_record_and_no_frames(tmp_path):
     disk and could not be told apart from one nobody ran. Reading a value
     still raises — there is none — and that is the test above.
     """
-    with lps.solve(*CASES['INFEASIBLE']) as solution:
+    with sps.solve(*CASES['INFEASIBLE']) as solution:
         out = solution.save(tmp_path / 'infeasible')
     assert sorted(entry.name for entry in out.iterdir()) == ['format.json', 'objective.parquet'], (
         'the record and the layout it is in; no values, so no primal/, dual/ or expression/'
@@ -197,7 +197,7 @@ def test_a_case_that_reached_no_objective_does_not_poison_the_others(tmp_path):
     on.
     """
     for name, case in (('solved', 'LP'), ('unsolved', 'INFEASIBLE')):
-        with lps.solve(*CASES[case]) as solution:
+        with sps.solve(*CASES[case]) as solution:
             solution.save(tmp_path / name)
 
     table = pl.read_parquet(tmp_path / '*' / 'objective.parquet')
@@ -219,7 +219,7 @@ def test_a_record_column_that_names_no_written_type_is_refused_at_import():
     class Unwritable(NamedTuple):
         when: bytes
 
-    with pytest.raises(lps.LpspecError, match='_WRITTEN_AS'):
+    with pytest.raises(sps.SpecsolveError, match='_WRITTEN_AS'):
         _column_types(Unwritable)
 
     for row_type in (Record, Metrics, SliceMetrics):
@@ -261,9 +261,9 @@ def test_solver_options_reach_the_solver(knapsack):
     """Forwarded verbatim, the way linopy's are. `time_limit=0` is the cheapest
     proof: without it this model solves to optimality."""
     spec, sources = knapsack
-    with lps.solve(spec, sources, solver_options={'time_limit': 0.0}) as result:
+    with sps.solve(spec, sources, solver_options={'time_limit': 0.0}) as result:
         assert result.termination_condition == 'time_limit'
-    with lps.solve(spec, sources) as result:
+    with sps.solve(spec, sources) as result:
         assert result.termination_condition == 'optimal'
 
 
@@ -275,7 +275,7 @@ def test_a_time_limit_with_no_incumbent_is_ok_but_unreadable(knapsack):
     answer. `has_primal` carries the solver's own verdict instead.
     """
     spec, sources = knapsack
-    with lps.solve(spec, sources, solver_options={'time_limit': 0.0}) as result:
+    with sps.solve(spec, sources, solver_options={'time_limit': 0.0}) as result:
         assert result.is_ok, "linopy's rollup says the run was not an error"
         assert not result.has_primal, 'but nothing was found'
         assert result.objective != result.objective, 'nan, not 0.0'
@@ -285,7 +285,7 @@ def test_a_time_limit_with_no_incumbent_is_ok_but_unreadable(knapsack):
 
 def test_an_optimal_solve_is_both_ok_and_readable(knapsack):
     spec, sources = knapsack
-    with lps.solve(spec, sources) as result:
+    with sps.solve(spec, sources) as result:
         assert result.is_ok
         assert result.has_primal
         assert result.primal('x')['value'].sum() > 0

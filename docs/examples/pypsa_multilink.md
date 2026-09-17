@@ -95,7 +95,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{gen}^{\math
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -177,7 +177,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_multilink.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_multilink.yaml', sources) as solution:
         solution.objective  # 1100.0
         solution.dual('nodal_balance')
     ```
@@ -190,7 +190,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``; only
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``; only
         the incidence table changes shape on the way in, pivoted from one row per
         link end into PyPSA's one row per link. The input end is the one with the
         negative value — PyPSA fixes its share at -1, so the pivot asserts it: a
@@ -237,7 +237,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 **The PyPSA tab pivots first.** Its first half turns rows into columns:
 finding the input, numbering the outputs, padding the narrow links with `''`
 and a filler efficiency no equation reads. The wide schema demands that
-reshape of any tidy source; the lpspec tab attaches the incidence table as it
+reshape of any tidy source; the specsolve tab attaches the incidence table as it
 stands. PyPSA fixes the input's share at `-1`, so the pivot asserts it. In
 rows that constant is data: an input entry of `-1.05` models a link burning 5%
 of its draw in station load, with no new column and no new construct.

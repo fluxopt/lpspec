@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27", "hatch-vcs"]  # 1.27 is the first with PEP 639 li
 build-backend = "hatchling.build"
 
 [project]
-name = "lpspec"
+name = "specsolve"
 # the git tag is the version — see RELEASING.md. Never hardcode it here.
 dynamic = ["version"]
 # "at any scale" and "streaming" were true of the duckdb engine, which built
@@ -32,7 +32,8 @@ dependencies = [
     # rules, the degree check and the lowering — everything decidable before a
     # byte of data is read. Extracted
     # to its own repository so a second consumer costs nothing (docs/about/architecture.md);
-    # this package is the first one, and PyPSA is the next.
+    # this package is the first one, and PyPSA is the next tool to sit on the
+    # pair: it writes the math as math-spec and builds it through specsolve.
     #
     # A direct reference until math-spec publishes, which is a thing PyPI refuses
     # (RELEASING.md) — the same wall the `linopy` extra is behind, with the same
@@ -54,7 +55,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# linopy + xarray power the linopy lane (lpspec.linopy): YAML math
+# linopy + xarray power the linopy lane (specsolve.linopy): YAML math
 # on a Python-built linopy.Model, plus the differential-test oracle.
 # The relational engine never imports them, and the `default` environment names
 # this extra as a feature rather than repeating it — one place for the pins, so
@@ -63,7 +64,7 @@ dependencies = [
 # linopy is a git requirement because the v1 arithmetic convention this lane
 # requires is in no release: PyPSA/linopy#717 merged to master on 2026-08-19
 # and no release carries it yet — 0.9.1 predates the merge and ships without
-# `options['semantics']`. `lpspec/linopy/__init__.py` sets that option on
+# `options['semantics']`. `specsolve/linopy/__init__.py` sets that option on
 # import and does not guard — its docstring says what legacy semantics would
 # answer instead — so a released linopy turns the import into a bare
 # `KeyError: semantics is not a valid setting`, which no version floor
@@ -117,7 +118,7 @@ xpress = [
 ]
 
 [project.urls]
-repository = "https://github.com/fluxopt/lpspec"
+repository = "https://github.com/fluxopt/specsolve"
 
 [tool.hatch.version]
 source = "vcs"
@@ -130,7 +131,7 @@ fallback-version = "0.0.0"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/lpspec"]
+packages = ["src/specsolve"]
 
 [tool.hatch.build.targets.sdist]
 include = ["/src"]
@@ -205,10 +206,10 @@ dev = [
     "pre-commit==4.6.1",
     # The tools, and only the tools. The three extras a dev environment also
     # wants — the linopy lane and the two opt-in solver sinks — are named by the
-    # `default` environment below rather than repeated here as `lpspec[…]`: a
+    # `default` environment below rather than repeated here as `specsolve[…]`: a
     # self-reference and a path dependency are two definitions of one package,
     # and pixi has to be given one. The pins stay in the extras, so a
-    # contributor and a `pip install lpspec[linopy]` still get the same
+    # contributor and a `pip install specsolve[linopy]` still get the same
     # versions, and the sinks' own tests still skip where a package is absent.
     #
     # how pandas reads parquet, which the benchmark harness's linopy arm does
@@ -282,16 +283,16 @@ python = "3.12.*"
 # The project itself, editable, in every environment that does not say
 # otherwise — `floors` is the one that does.
 [tool.pixi.pypi-dependencies]
-lpspec = { path = ".", editable = true }
+specsolve = { path = ".", editable = true }
 
 # The same project with the three extras a development environment wants: the
 # linopy lane and the two opt-in solver sinks. A feature that redeclares the
 # project overrides the line above for the environments that name it, so the
 # extras reach `default`, `bench` and `publish` and reach nothing else — `docs`
 # and `codspeed` stay as narrow as their comments below claim. The pins live in
-# the extras, so this cannot drift from `pip install lpspec[linopy]`.
+# the extras, so this cannot drift from `pip install specsolve[linopy]`.
 [tool.pixi.feature.dev.pypi-dependencies]
-lpspec = { path = ".", editable = true, extras = ["linopy", "gurobi", "xpress"] }
+specsolve = { path = ".", editable = true, extras = ["linopy", "gurobi", "xpress"] }
 
 # The shipped shape, at the declared floors: what `[project.dependencies]`
 # above promises, pinned to the version it names, and nothing else on disk.
@@ -305,7 +306,7 @@ lpspec = { path = ".", editable = true, extras = ["linopy", "gurobi", "xpress"] 
 # `tests/test_tooling_pins.py` fails when one disagrees with the floor it
 # mirrors, so a raised floor above is a raised floor here.
 #
-# `no-default-feature` in the environment, so lpspec is installed from the
+# `no-default-feature` in the environment, so specsolve is installed from the
 # built wheel rather than editable — a packaging error (a subpackage missing
 # from the wheel) is one of the things this gate is for.
 #
@@ -329,7 +330,7 @@ platforms = ["linux-64", "linux-aarch64"]
 python = "3.12.*"
 
 [tool.pixi.feature.floors.pypi-dependencies]
-lpspec = { path = "." }
+specsolve = { path = "." }
 polars = "==1.30"
 numpy = "==1.26"
 highspy = "==1.13"
@@ -341,9 +342,9 @@ default = ["dev"]
 # The site, and the only environment `.readthedocs.yaml` builds — the same one
 # CI builds strictly, which is what stops the two from drifting. No `dev`: the
 # docs toolchain plus the project is the whole of what the site needs, and
-# mkdocs-jupyter executes docs/interactive.ipynb, which imports lpspec.
+# mkdocs-jupyter executes docs/interactive.ipynb, which imports specsolve.
 docs = ["docs"]
-# The ladder measures lpspec against linopy, so the benchmark environment is
+# The ladder measures specsolve against linopy, so the benchmark environment is
 # the dev one plus the harness.
 bench = ["dev", "bench"]
 # Deliberately without `dev`: nothing measured here builds a linopy model, and
@@ -430,7 +431,7 @@ args = [
     { arg = "cases", default = "dispatch transport storage fleet" },
     { arg = "sizes", default = "xs s m l w1 w10 w100 w1000" },
     { arg = "sinks", default = "highs gurobi" },
-    { arg = "arms", default = "lpspec linopy pyomo gurobipy-loop gurobipy-matrix highspy-matrix" },
+    { arg = "arms", default = "specsolve linopy pyomo gurobipy-loop gurobipy-matrix highspy-matrix" },
     { arg = "out", default = "bench/results/latest.json" },
     { arg = "builds", default = "5" },
     { arg = "memory", default = "16" },
@@ -458,7 +459,7 @@ pytest bench --benchmark-memory --builds {{ builds }} \
 # directory. Numbers and method: #1315.
 #
 # A shared host still cannot resolve every comparison, and that is what the
-# bands are for. Of the eleven lpspec-vs-rival margins on the `gurobi` sink, six
+# bands are for. Of the eleven specsolve-vs-rival margins on the `gurobi` sink, six
 # are 1.3x to 4.1x and survive any host; five sit between 1.04x and 1.23x and do
 # not. Leaving the sink out to protect the five costs the six — including the
 # `gurobipy-loop` against `gurobipy-matrix` pair, 3x apart, which is the whole
@@ -487,7 +488,7 @@ args = [{ arg = "sink" }, { arg = "cases", default = "dispatch transport storage
 # `--builds` only on `highs`: `test_rebuild` is not parametrised by sink, so
 # running it in both invocations measures the same 98 cells twice — 16 minutes
 # of a run, for a second copy of a number that cannot differ.
-cmd = '''bash -c 'bash bench/memory-watchdog.sh & watchdog=$!; trap "kill $watchdog 2>/dev/null || true" EXIT; memory="${BENCH_MEMORY_BUDGET:-16}"; sizes="${BENCH_SIZES:-xs s m l w1 w10 w100 w1000}"; builds=0; lost=""; [ "{{ sink }}" = highs ] && builds=5; for case in {{ cases }}; do pixi run -e bench ladder "$case" "$sizes" "{{ sink }}" "lpspec linopy pyomo gurobipy-loop gurobipy-matrix highspy-matrix" "bench/results/latest-{{ sink }}-$case.json" "$builds" "$memory" || lost="$lost $case"; done; [ -z "$lost" ] || { echo "cases that did not finish:$lost"; exit 1; }' '''
+cmd = '''bash -c 'bash bench/memory-watchdog.sh & watchdog=$!; trap "kill $watchdog 2>/dev/null || true" EXIT; memory="${BENCH_MEMORY_BUDGET:-16}"; sizes="${BENCH_SIZES:-xs s m l w1 w10 w100 w1000}"; builds=0; lost=""; [ "{{ sink }}" = highs ] && builds=5; for case in {{ cases }}; do pixi run -e bench ladder "$case" "$sizes" "{{ sink }}" "specsolve linopy pyomo gurobipy-loop gurobipy-matrix highspy-matrix" "bench/results/latest-{{ sink }}-$case.json" "$builds" "$memory" || lost="$lost $case"; done; [ -z "$lost" ] || { echo "cases that did not finish:$lost"; exit 1; }' '''
 
 # The narrow run the `ladder` arguments exist for: one rung, one sink, two arms.
 # It measures nothing worth publishing and proves everything around it — that a
@@ -505,7 +506,7 @@ depends-on = [
     { task = "ladder", args = [
         "xs",
         "highs",
-        "lpspec linopy",
+        "specsolve linopy",
         "bench/results/latest-smoke.json",
     ] },
 ]
@@ -606,7 +607,7 @@ filterwarnings = ["error"]
 # Deliberately not in `addopts`: the bare-install job installs pytest alone, and
 # an unknown `--cov` there is a usage error rather than a skipped measurement.
 branch = true
-source = ["lpspec"]
+source = ["specsolve"]
 
 [tool.coverage.report]
 skip_covered = true
@@ -616,7 +617,7 @@ show_missing = true
 # check against the *lowest* supported interpreter, so 3.13+ syntax and stdlib
 # additions are caught here rather than by the 3.12 leg of the CI matrix.
 python-version = "3.12"
-project-includes = ["src/lpspec"]
+project-includes = ["src/specsolve"]
 preset = "strict"
 
 # Warn-by-default rules promoted to error, so a regression fails CI instead of

@@ -11,13 +11,13 @@ dims in columns, one metric per row, and whatever asks the question later does
 its own pivot.
 
     run,case,size,sink,arm,phase,variables,metric,value
-    latest,dispatch,l,highs,lpspec,emit,2000000,wall_seconds,0.83
+    latest,dispatch,l,highs,specsolve,emit,2000000,wall_seconds,0.83
 
 **A missing number is an absent row, never a null.** A cell the run did not
 produce — `peak_rss_bytes` without `isolate=True`, `nonzeros` on an arm whose
 model cannot count them — writes nothing, so every value column is complete.
 That is the same rule the language holds its own inputs to, and it is what
-makes this file loadable by lpspec without a fillna.
+makes this file loadable by specsolve without a fillna.
 
 **`phase` is why the shape is worth having.** Today it takes four values —
 ``emit`` for build-and-emit, ``window`` for a later window of a rolling horizon,

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lpspec — how the engine scales</title>
+<title>specsolve — how the engine scales</title>
 <style>*{box-sizing:border-box}body{margin:0}</style>
 </head>
 <body>
@@ -80,7 +80,7 @@
     <code>bench.plot</code>, which rewrites one line of it. Full method, the LP-file
     sink and the marginal-cost pass are in <code>docs/benchmarks.md</code>. The
     three-engine comparison this page used to carry — against the duckdb engine that
-    preceded this one — is in <a href="https://github.com/fluxopt/lpspec/pull/189">#189</a>
+    preceded this one — is in <a href="https://github.com/fluxopt/specsolve/pull/189">#189</a>
     and in git.
   </p>
 </footer>
@@ -381,7 +381,7 @@ function legend(host, entries) {
 /* The numbers under their own chart. A cell is one of three things and the
    table says which: a measurement, a bound the harness refused to spend time
    under, or an em dash for a library that could never reach this destination. */
-const SHORT = { polars: 'lpspec', 'gurobipy-loop': 'gp-loop', 'gurobipy-matrix': 'gp-matrix' };
+const SHORT = { polars: 'specsolve', 'gurobipy-loop': 'gp-loop', 'gurobipy-matrix': 'gp-matrix' };
 
 function numbers(panel, metric) {
   const fmt = metric === 'wall'
@@ -454,7 +454,7 @@ let METRIC = 'wall';
 function drawLegend() {
   document.getElementById('facet-legend').innerHTML = LIBRARIES.map(n =>
     `<button class="key${HIDDEN.has(n) ? ' off' : ''}" data-lib="${n}" aria-pressed="${!HIDDEN.has(n)}">` +
-    `<i class="swatch" style="background:${COLOR[n]}"></i>${n === 'polars' ? 'lpspec' : n}</button>`).join('');
+    `<i class="swatch" style="background:${COLOR[n]}"></i>${n === 'polars' ? 'specsolve' : n}</button>`).join('');
 }
 
 function redraw() { drawLegend(); facets(METRIC); }

@@ -111,7 +111,7 @@ p_{t,g} = \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \math
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -184,7 +184,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/piecewise_ragged.yaml', sources) as solution:
+    with sps.solve('examples/piecewise_ragged.yaml', sources) as solution:
         solution.objective  # 426.0
         solution.dual('balance')
     ```
@@ -197,7 +197,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> linopy.Model:
         """The instance's tables as a linopy model, row for row.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
         """
         p_max: pd.Series = tables['p_max'].set_index('generator')['value']
         load: pd.Series = tables['load'].set_index('snapshot')['value']
@@ -234,4 +234,4 @@ model keeps its duals.
 
 ---
 
-[`examples/piecewise_ragged.yaml`](https://github.com/fluxopt/lpspec/blob/main/examples/piecewise_ragged.yaml) · back to [all models](index.md)
+[`examples/piecewise_ragged.yaml`](https://github.com/fluxopt/specsolve/blob/main/examples/piecewise_ragged.yaml) · back to [all models](index.md)

@@ -1,4 +1,4 @@
-"""A rolling horizon on lpspec, checked against the horizon it approximates.
+"""A rolling horizon on specsolve, checked against the horizon it approximates.
 
     pixi run python examples/rolling/run.py
 
@@ -39,7 +39,7 @@ from pathlib import Path
 
 import polars as pl
 
-import lpspec as lps
+import specsolve as sps
 
 HERE = Path(__file__).parent
 MODEL = HERE / 'horizon.yaml'
@@ -76,16 +76,16 @@ SOURCES = {
 }
 
 
-def full_foresight() -> lps.Runs:
+def full_foresight() -> sps.Runs:
     """One window over the whole horizon — the answer rolling is measured against."""
-    return lps.solve_over(
+    return sps.solve_over(
         MODEL,
         SOURCES,
-        lps.EachWindow('snapshot', steps=PERIODS, lookahead=0, into='t'),
+        sps.EachWindow('snapshot', steps=PERIODS, lookahead=0, into='t'),
     )
 
 
-def rolling(steps: int, lookahead: int) -> lps.Runs:
+def rolling(steps: int, lookahead: int) -> sps.Runs:
     """Windows keeping *steps* coordinates and seeing *lookahead* beyond them.
 
     The carry names no coordinate: `soc` is over `(t)` and `soc_initial` over
@@ -93,15 +93,15 @@ def rolling(steps: int, lookahead: int) -> lps.Runs:
     window *keeps* rather than the last it solved. With lookahead those differ,
     and the last solved row is a level the next window is about to recompute.
     """
-    return lps.solve_over(
+    return sps.solve_over(
         MODEL,
         SOURCES,
-        lps.EachWindow('snapshot', steps=steps, lookahead=lookahead, into='t'),
+        sps.EachWindow('snapshot', steps=steps, lookahead=lookahead, into='t'),
         carry={'soc_initial': 'soc'},
     )
 
 
-def cost_of(runs: lps.Runs) -> float:
+def cost_of(runs: sps.Runs) -> float:
     """What the schedule cost, summed over the snapshots each window owns.
 
     A window objective covers its lookahead too, so summing them double-counts.

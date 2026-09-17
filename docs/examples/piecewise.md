@@ -105,7 +105,7 @@ p_{t,g} = \sum_{k \in \mathcal{K}} \lambda_{t,g,k} \cdot x_{g,k} \qquad \forall\
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -174,7 +174,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/piecewise.yaml', sources) as solution:
+    with sps.solve('examples/piecewise.yaml', sources) as solution:
         solution.objective  # 3850.0
         solution.dual('balance')
     ```
@@ -187,7 +187,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> linopy.Model:
         """The instance's tables as a linopy model, row for row.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
         """
         p_max: pd.Series = tables['p_max'].set_index('generator')['value']
         load: pd.Series = tables['load'].set_index('snapshot')['value']
@@ -218,4 +218,4 @@ inside the relational subset. `method: sos2` states the same restriction as a
 
 ---
 
-[`examples/piecewise.yaml`](https://github.com/fluxopt/lpspec/blob/main/examples/piecewise.yaml) · back to [all models](index.md)
+[`examples/piecewise.yaml`](https://github.com/fluxopt/specsolve/blob/main/examples/piecewise.yaml) · back to [all models](index.md)

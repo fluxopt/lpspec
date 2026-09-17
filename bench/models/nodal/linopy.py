@@ -14,7 +14,7 @@ the eager lane's best case for this shape, not a handicap arranged for it.
 **`fillna(0)` is what makes the sum mean what the YAML means**, and it is the
 line to read twice. An absent slot contributes zero to `sum(p, over=tech)`,
 which is legacy linopy's default and v1's only under `fillna` — the same
-mapping `lpspec.linopy` uses for a variable under `absence: zero`. Without it
+mapping `specsolve.linopy` uses for a variable under `absence: zero`. Without it
 the pinned linopy warns and the arm builds whichever model the option happens
 to be set to, which is how a benchmark comes to measure a different model.
 

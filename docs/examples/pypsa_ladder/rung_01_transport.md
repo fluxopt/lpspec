@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **7182.222222222221** on both sides; structure ✔ 7 constraints · 2 variables, name for name; size ✔ 45 rows · ✔ 16 columns · ✔ 57 nonzeros; duals ✔ 45 rows; **model for model**: 10 blocks equal, 0 documented splits.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 8 | 8 |
 | `Generator-fix-p-lower` | 12 | 12 |
@@ -19,7 +19,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `Link-fix-p-upper` | 4 | 4 |
 | `Link-p_set` | 1 | 1 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Generator-p` | 12 | 12 |
 | `Link-p` | 4 | 4 |
@@ -158,7 +158,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_01_transport.yaml` — the file projected onto what this rung builds:
 
@@ -415,7 +415,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
         'Link_p_set': varying(n, 'Link', 'p_set').dropna(),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_01_transport.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_01_transport.yaml', sources) as solution:
         solution.objective  # 7182.222222222221
     ```
 

@@ -80,10 +80,10 @@ numbers, so two runs of one model over different data carry the same one.
 `sources.parquet` separates them, and names the input that moved:
 
 ```python
-import lpspec as lps
+import specsolve as sps
 
-base = lps.load_archive('runs/base/')
-other = lps.load_archive('runs/halved/')
+base = sps.load_archive('runs/base/')
+other = sps.load_archive('runs/halved/')
 
 moved = base.source_digests.join(other.source_digests, on='source', suffix='_other').filter(
     pl.col('digest') != pl.col('digest_other')
