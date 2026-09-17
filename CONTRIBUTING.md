@@ -162,11 +162,10 @@ plus `chore` `test` `ci` `build` `style` `revert`, which are hidden. A subject
 that will not parse fails the required check rather than silently dropping the
 entry. Fixing it is an edit to the PR, not a branch rewrite.
 
-**No `!`, and no `BREAKING CHANGE:` footer.** The same check refuses both while
-the version is pinned to the alpha stream, because a breaking marker moves the
-*base* version rather than the alpha counter — the accident is written up in
-[RELEASING.md](RELEASING.md). Describe the break in the PR body instead; the
-next section is why there is nothing for the version to announce.
+**A `!`, or a `BREAKING CHANGE:` footer, bumps the minor** — the version stays
+below 1.0.0, and the minor is what says a consumer has to change something. See
+[RELEASING.md](RELEASING.md). Use one where the break is real, and say what
+broke in the PR body.
 
 `main` is protected: no force-push, no deletion, squash-only through a PR, and
 the two required checks above. Approvals are not required, but the PR is.
@@ -191,15 +190,14 @@ no it becomes a row in the deliberate non-primitives table.
 
 ## Breaking changes are free
 
-**The project is `0.0.1aN` until the first official release, and holds no
-compatibility promise.** So a construct that is named wrong, a default that is
+**The project is below 1.0.0 and holds no compatibility promise.** So a construct that is named wrong, a default that is
 wrong, or a permissive input that hides a silent wrong answer gets **fixed in
 place**: rename, move and delete outright — no alias for the old spelling, no
 `DeprecationWarning` cycle, no `legacy_` path beside the new one.
 
 Spend nothing on the retirement either. The closed schema already fails at load
 naming the valid keys and the near miss, and the operator table already names
-what it accepts — that is the whole migration story an alpha owes anyone. A
+what it accepts — that is the whole migration story a pre-1.0 release owes anyone. A
 hand-written message per retired spelling is a second place the old surface
 lives, it needs a test of its own, and it outlives every file it was written
 for: `shift(by=)` had one for a day before `by=` became a legal keyword again

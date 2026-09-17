@@ -66,7 +66,7 @@ In the tree nothing is marked: `Co-Authored-By: Claude …` is the record.
 
 ## Breaking changes are free
 
-The project is `0.0.1aN` and holds no compatibility promise. Asked to change
+The project is below 1.0.0 and holds no compatibility promise. Asked to change
 something, change it: rename, move, delete. No alias, no deprecation cycle, no
 `legacy_` path — and **no hand-written message for the retired spelling**: the
 closed schema's own error names the valid keys, which is the whole migration
@@ -74,9 +74,9 @@ story. **A test asserting the old behaviour is not a blocker**; say in the PR
 what coverage moved where.
 
 The one place this costs something: a breaking marker (`!`, or a
-`BREAKING CHANGE:` footer) in the PR title is **refused** by the
-`Conventional commit subject` check, because it would move the base version
-rather than the alpha counter. Describe the break in the PR body instead.
+`BREAKING CHANGE:` footer) in the PR title **bumps the minor**, which is what
+says a consumer has to change something. Use one where the break is real, and
+say what broke in the PR body.
 
 ## A claim carries its evidence
 
