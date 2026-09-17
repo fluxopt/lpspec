@@ -1,7 +1,7 @@
 name: PR title
 
 # The squash subject becomes a commit on main, and release-please parses it to
-# decide the changelog section and the version.
+# decide the changelog section (and, once we leave the alpha stream, the version).
 # A subject it cannot parse is silently dropped from the changelog — nothing fails,
 # the entry just never appears. This check is the only thing standing between a
 # sloppy title and a hole in CHANGELOG.md. See RELEASING.md.
@@ -97,9 +97,9 @@ jobs:
                      fix(parser): where clauses with a trailing comma
                      refactor!: closed helper set, no monkey-patch
 
-          A '!' (or a 'BREAKING CHANGE:' footer) bumps the minor, and the version
-          stays below 1.0.0. Use one where a consumer has to change something,
-          and say what in the PR body.
+          A '!' (or a 'BREAKING CHANGE:' footer) moves the base version: the
+          stream goes from 0.0.1-alpha.N to 0.1.0-alpha.N. Use one where a
+          consumer has to change something, and say what in the PR body.
 
           Fix the PR title — no need to rewrite the branch. Edits re-run this check.
           EOF

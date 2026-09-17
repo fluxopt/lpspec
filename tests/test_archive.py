@@ -838,7 +838,7 @@ def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispat
 def test_an_answer_in_another_layout_is_refused_by_name(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    """The layout moves while the package is below 1.0.0, so a stale one says so.
+    """The layout moves while the package is on 0.0.1aN, so a stale one says so.
 
     Nothing reads another layout back — there is no migration and there will
     not be one — so the stamp exists to turn a missing column into a sentence
