@@ -1277,7 +1277,7 @@ class TestThePositionalHandoff:
         with lps.build(spec, sources) as model:
             primal = pl.Series('value', np.arange(model._engine._model.tables.column_count, dtype=np.float64))
             dual = pl.Series('value', np.arange(model._engine._model.tables.row_count, dtype=np.float64))
-            primals, duals, activities = model._engine._read_back(primal, dual, dual)
+            primals, duals, activities, _ = model._engine._read_back(primal, dual, dual, None)
             assert 'SORT' not in primals['p'].explain(optimized=False), 'the labeller already ordered this'
             assert primals['p'].collect()['value'].to_list() == list(range(len(primal))), 'primal not in label order'
             assert duals['meet'].collect()['value'].to_list() == list(range(len(dual))), 'dual not in label order'

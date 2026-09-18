@@ -38,6 +38,8 @@ if TYPE_CHECKING:
     from math_spec import program
     from polars._typing import PolarsDataType
 
+    from lpspec.relational.status import SolveStatus
+
 
 def _no_built_model(doing: str) -> str:
     """The message for a call made with no built model."""
@@ -210,7 +212,7 @@ class PolarsEngine:
         assert (answer.activity is None) == (answer.primal is None), (
             'activity travels with the primal: every sink reads it whenever a solution exists, mixed-integer included'
         )
-        primals, duals, activities = self._read_back(answer.primal, answer.dual, answer.activity)
+        primals, duals, activities, rays = self._read_back(answer.primal, answer.dual, answer.activity, answer.dual_ray)
         no_duals = (
             None
             if answer.dual is not None
@@ -232,6 +234,8 @@ class PolarsEngine:
             _expressions=expressions,
             _evaluate=evaluate,
             _no_duals=no_duals,
+            _dual_rays=rays,
+            _no_dual_ray=None if answer.dual_ray is not None else _no_dual_ray_message(answer.status, solver_name),
         )
 
     def diagnostics(self) -> Diagnostics:
@@ -265,8 +269,12 @@ class PolarsEngine:
         )
 
     def _read_back(
-        self, primal: pl.Series | None, dual: pl.Series | None, activity: pl.Series | None
-    ) -> tuple[dict[str, pl.LazyFrame], dict[str, pl.LazyFrame], dict[str, pl.LazyFrame]]:
+        self,
+        primal: pl.Series | None,
+        dual: pl.Series | None,
+        activity: pl.Series | None,
+        dual_ray: pl.Series | None,
+    ) -> tuple[dict[str, pl.LazyFrame], ...]:
         """One solve's answer as one frame per declaration — a :class:`Result`'s own.
 
         References rather than copies: the frames point at this build's label
@@ -296,6 +304,7 @@ class PolarsEngine:
             else {},
             rows(dual),
             rows(activity),
+            rows(dual_ray),
         )
 
     def _readers(
@@ -436,6 +445,34 @@ def expression_readers(
     """
     compiler = PolarsCompiler(Scope(program, attach(program, sources), {}))
     return readback.readers(compiler, program.named_expressions, lower)
+
+
+def _no_dual_ray_message(status: SolveStatus, solver_name: str) -> str:
+    """Why this answer carries no certificate of infeasibility.
+
+    Two different noes. A solve that found an answer has nothing to certify,
+    and saying so is the whole message. A solve that *was* infeasible and
+    still produced nothing hit a solver setting, so the message names the
+    setting for the sink that was used — which is why this takes the sink's
+    name rather than asking the sink, whose session the engine may already
+    have let go.
+    """
+    if status.termination_condition != 'infeasible':
+        return (
+            f'a dual ray certifies that a model has no solution, and this solve terminated '
+            f'{status.termination_condition!r} rather than infeasible. Read dual() for the prices of a '
+            f'model that does have one.'
+        )
+    asks = {
+        'gurobi': "re-solve with solver_options={'InfUnbdInfo': 1}, which gurobi needs set before the "
+        'solve to compute the certificate at all',
+        'xpress': "re-solve with solver_options={'presolve': 0}: xpress has a ray only where the simplex "
+        'found the infeasibility, and none where presolve found it first',
+    }
+    ask = asks.get(solver_name)
+    return f'the model is infeasible, and the {solver_name} sink returned no dual ray to certify it. ' + (
+        f'{ask}.' if ask else 'A ray comes from the simplex, so a run that never reached it has none to give.'
+    )
 
 
 def _no_duals_message(

@@ -272,6 +272,7 @@ result.kept  # how much of the session this solve kept: 'nothing', 'solver' or '
 result.primal('p')  # tidy table (dims…, value) in label order — the native shape
 result.dual('power_balance')  # shadow prices, same shape, same join
 result.activity('power_balance')  # each row's left-hand side at the solution
+result.dual_ray('power_balance')  # why an infeasible model has no solution at all
 result.evaluate('co2')  # a named expression at the solution, over its own dims
 result.evaluate('sum(p * rate)')  # a quantity the file never named, same shape
 
@@ -296,6 +297,8 @@ xarray, from the `[linopy]` extra.
 |---|---|
 | **`is_ok` is not `has_primal`** | `is_ok` rolls up the termination condition. `has_primal` adds the solver's verdict on whether an incumbent exists, and every reader gates on it. A MIP that hits `time_limit` before a feasible point is `ok` with nothing to read |
 | **reading with no primal raises** | `NoSolutionError`; `objective` is `nan`. `save` is the exception: it writes the record and no frames, an infeasible run being an answer a set of saved cases needs on disk |
+| **`dual_ray` is the one reader an infeasible solve answers** | a weight per row, `dual`'s shape, certifying that the rows cannot all hold: weight each row by its value and the combination demands more than the columns can deliver inside their bounds. It is what a Benders feasibility cut is built from ([decomposition](../about/decomposition.md#when-the-subproblem-is-infeasible)). **The sign is the row's own**, one convention across the sinks, so a driver never asks who solved. A solve that found an answer has nothing to certify and says so |
+| **a certificate is computed only where it was asked for** | `highs` always produces one. `gurobi` needs `solver_options={'InfUnbdInfo': 1}` and `xpress` needs `solver_options={'presolve': 0}`, both set before the solve; without them the model is still refused as infeasible, and `dual_ray` raises naming the option. A ray is live-only: `save` does not write one, and no sweep spills one |
 | **`evaluate` takes what an `expressions:` entry takes** | a name the file declares, an expression string, or the mapping that carries `cases:`. A declared name is the value of that [named expression](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions) at the solution, aggregated to its own dimensions, served by the reader already holding it and compiled at the read, so unread expressions cost nothing. Anything else lowers the model again, which costs what `check` costs. It may use every name the solved model declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read |
 | **an undeclared expression names nothing** | so it is not a *kind*: `save` does not write it and a sweep does not spill it. A declared expression is: `save` writes it under `expression/`, and it rides every bridge as `kind='expression'`. To keep a quantity, declare it under `expressions:` and read it by name |
 | **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `LpspecError`. Any integer or binary variable makes duals undefined |

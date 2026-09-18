@@ -186,7 +186,9 @@ class Xpress(Solver):
         self._p.optimize()
         status = _status_of(self._p)
         if not status.is_readable:
-            return SolveAnswer.unreadable(status)
+            return SolveAnswer.unreadable(
+                status, self.dual_ray() if status.termination_condition == 'infeasible' else None
+            )
         return SolveAnswer(
             status,
             float(self._p.attributes.objval),
@@ -194,6 +196,17 @@ class Xpress(Solver):
             _duals(self._p),
             _activity(self._p),
         )
+
+    def dual_ray(self) -> pl.Series | None:
+        """``getDualRay``, which Xpress signs the way the contract wants.
+
+        Xpress has a ray only where the simplex found the infeasibility, and
+        hands back ``None`` where presolve found it first — which is the
+        default, so a caller who wants a ray passes
+        ``solver_options={'presolve': 0}``.
+        """
+        values = self._p.getDualRay()
+        return None if values is None else solver_vector(values)
 
     def forget(self) -> None:
         """``keepbasis = 0``: the next solve ignores the basis this one left.
