@@ -4,9 +4,10 @@ This page shows that the language can express a Benders decomposition and reach
 the right answer, for anyone decomposing a model in specsolve or asking for a
 driver that does it.
 
-**specsolve ships no decomposition driver.** Whether it should is
-[#596](https://github.com/fluxopt/specsolve/issues/596). Every block below is
-validated against
+**specsolve ships no decomposition driver, and
+[#596](https://github.com/fluxopt/specsolve/issues/596) settled that it will not
+own one.** The loop is the caller's, and so are its failure modes. Every block
+below is validated against
 [`examples/benders/`](https://github.com/fluxopt/specsolve/blob/main/examples/benders/run.py).
 
 ## Why anyone wants it
@@ -156,79 +157,87 @@ two `pl.concat` calls onto the parameter tables the master already declares.
 ## When the subproblem is infeasible
 
 Below some capacity there is no dispatch at all, and the subproblem is
-infeasible. specsolve hands back **no Farkas ray**. An infeasible solve has no
-readable status, so `dual()` raises rather than returning a vector of zeros
-that looks like an answer.
+infeasible. There is nothing to price: `dual()` raises rather than returning a
+vector of zeros that looks like an answer, and correctly so.
 
-The cut comes instead from a fourth model, the subproblem with a slack and an
-objective that asks *how far from dispatchable* this capacity is:
+What such a solve does have is a **certificate that no dispatch exists**, and
+`dual_ray` is it. It weights the subproblem's rows so that together they
+demand more than the generators can deliver:
 
-```yaml
-dimensions:
-  snapshot: {dtype: int}
-  generator: {dtype: str}
-parameters:
-  load: {dims: [snapshot]}
-  avail: {dims: [snapshot, generator]}
-  cap_hat: {dims: [generator]}
-variables:
-  p:
-    dims: [snapshot, generator]
-    bounds: {lower: 0}
-  short:
-    dims: [snapshot]
-    bounds: {lower: 0}
-constraints:
-  capacity:
-    dims: [snapshot, generator]
-    expression: p <= cap_hat * avail
-  balance:
-    dims: [snapshot]
-    expression: sum(p, over=generator) + short >= load
-objective:
-  sense: minimize
-  expression: sum(short)
+```python
+with sps.build(sub_spec, dispatch) as sub_model:
+    answer = sub_model.update({'cap_hat': capacity}).solve()
+    if not answer.has_primal:
+        u = answer.dual_ray('capacity')  # one weight per (snapshot, generator)
+        v = answer.dual_ray('balance')  # one weight per snapshot
 ```
 
-Its optimum is zero exactly when the subproblem is feasible, and its capacity
-duals are the slope the feasibility cut needs. It is a separate file because a
-model declares one objective.
+Weighting each row by its own weight and adding them gives
+`Σ u·cap_hat·avail + Σ v·load > 0`, and that is the proof. Every term in it is
+linear in capacity, so **asking the master for a capacity where the same
+combination is not positive is exactly one row** — slope `Σₛ u·avail` per
+generator, against `−Σₛ v·load`, which is the `fcut_slope` and `fcut_const`
+the master already declares.
+
+Three properties make this the cut to use rather than a fallback:
+
+- **It needs no second model.** Until specsolve read a ray, this page carried a
+  fourth YAML file — the subproblem with a slack variable and an objective
+  asking *how far from dispatchable* a capacity was — and a second solve for
+  every capacity that failed.
+- **It is a stronger cut.** The example converges in **2 steps with one
+  feasibility cut** where the elastic model took 4 and three of them.
+- **The sign is the row's own**, one convention across every sink, so the
+  arithmetic above does not ask which solver ran.
+
+A sink computes a certificate only if it was asked to: HiGHS always does,
+Gurobi needs `solver_options={'InfUnbdInfo': 1}` and Xpress
+`solver_options={'presolve': 0}`. Reading a ray without them raises, and the
+message names the option.
 
 ## The loop
 
 ```python
-sub_model, feasibility_model, master_model = (to_spec(path) for path in paths)
+sub_spec, master_spec = (to_spec(path) for path in paths)
 
-for step in range(25):
-    with sps.solve(sub_model, {**dispatch, 'cap_hat': capacity}) as sub:
+with (
+    sps.build(sub_spec, {**dispatch, 'cap_hat': capacity}) as sub_model,
+    sps.build(master_spec, {**master_sources, **empty}) as master,
+):
+    for step in range(25):
+        sub = sub_model.update({'cap_hat': capacity}).solve()
         dispatchable = sub.has_primal
         if dispatchable:
             slope, here_value = slope_at(sub, capacity)
             upper = min(upper, spent(capacity) + sub.objective)
             appended(tables, 'cut', sub.objective - here_value, slope)
+        else:
+            slope, against = cut_from_ray(sub)
+            appended(tables, 'fcut', against, slope)
 
-    if not dispatchable:
-        with sps.solve(feasibility_model, {**dispatch, 'cap_hat': capacity}) as short:
-            slope, here_value = slope_at(short, capacity)
-            appended(tables, 'fcut', here_value - short.objective, slope)
+        answer = master.update({**tables, **coordinates}).solve()
+        lower = answer.objective
+        capacity = answer.primal('cap').select('generator', 'value')
 
-    with sps.solve(master_model, {**master_sources, **coordinates}) as master:
-        lower = master.objective
-        capacity = master.primal('cap').select('generator', 'value')
-
-    if upper < float('inf') and upper - lower <= 1e-6 * abs(upper):
-        break
+        if upper < float('inf') and upper - lower <= 1e-6 * abs(upper):
+            break
 ```
 
-Twenty lines, three `sps.solve` calls, and a growing pair of tables. **A reader
-could write this**, which is the observation that matters most for
-[#596](https://github.com/fluxopt/specsolve/issues/596).
+Twenty lines, two built models and a growing pair of tables. **A reader could
+write this**, which is what [#596](https://github.com/fluxopt/specsolve/issues/596)
+settled on.
 
-The models are read once above the loop, because a cut is a row in a
-parameter table rather than an edit to a file. `sps.solve` takes a `Spec`
-([glossary](../reference/glossary.md#the-chain)) anywhere it takes a path, so
-parsing and validation are paid once per run rather than three times an
-iteration.
+Each spec is read once above the loop **and built once**, because a cut is a row
+in a parameter table rather than an edit to a file. `sps.build` binds the data
+and `update` puts the next iteration's numbers on the model that is already
+there ([glossary](../reference/glossary.md#the-chain)), so parsing, validation
+and the build are paid once per run rather than three times an iteration. The
+subproblem's `cap_hat` reaches its rows as a right-hand side, so the solver keeps
+the model it holds and re-solves from the last basis. The master gains a row a
+step, so it is loaded again — which is what the last two lines below count.
+
+Both cut families now come out of the *same* subproblem, its prices for one and
+its ray for the other, which is why there are two models here and not three.
 
 ## Running it
 
@@ -239,19 +248,22 @@ pixi run python examples/benders/run.py
 ```text
 the whole problem, in one plan: 9600.00
 
-  step 0  feasibility  lower  2025.00   upper none yet
-  step 1  feasibility  lower  2625.00   upper none yet
-  step 2  feasibility  lower  2850.00   upper none yet
-  step 3  optimality   lower  9600.00   upper 9600.00
+  step 0  feasibility  lower  2850.00   upper none yet
+  step 1  optimality   lower  9600.00   upper 9600.00
 
-decomposed: 9600.00 in 4 steps
+decomposed: 9600.00 in 2 steps
 monolithic: 9600.00
 difference: 0.0e+00
-cuts: 1 optimality, 3 feasibility
+cuts: 1 optimality, 1 feasibility
+the subproblem loaded the solver 1 time(s) in 2 solves
+the master loaded the solver 2 time(s) in 2 solves
 ```
 
-Three capacities are excluded as undispatchable before one proves feasible, and
-the first optimality cut then closes the gap exactly.
+One capacity is excluded as undispatchable, and the first optimality cut then
+closes the gap exactly. The elastic model this page used to carry took four
+steps over the same data, which is the difference between a cut that says *how
+far from dispatchable* a capacity was and one that says *why no dispatch
+exists*.
 
 ## The check is the algorithm's own
 
@@ -266,5 +278,8 @@ undecomposed form is another file over the same data.
 Missing is everything that makes a decomposition survive a real model: cut
 management as the master grows, stabilisation, multi-cut, tolerances that hold
 when duals are degenerate, and an answer for when convergence does not happen.
-That is the surface [#596](https://github.com/fluxopt/specsolve/issues/596) asks
-whether to own. This page settles only that the *language* is not the obstacle.
+[#596](https://github.com/fluxopt/specsolve/issues/596) asked whether specsolve
+should own that surface and answered no, so all of it stays the caller's. What a
+caller still lacks *from specsolve* is collected in
+[#1677](https://github.com/fluxopt/specsolve/issues/1677). This page settles only
+that the *language* is not the obstacle.

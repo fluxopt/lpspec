@@ -19,8 +19,8 @@ dimensions:
 relations:
   origin:
     description: the depot a connection leaves
-    columns: [connection, depot]
     key: connection
+    value: depot
 
 parameters:
   stock:

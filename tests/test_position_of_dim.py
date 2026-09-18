@@ -237,7 +237,7 @@ dimensions:
   period: {dtype: int}
 
 relations:
-  period_of: {columns: [snapshot, period], key: snapshot}
+  period_of: {key: snapshot, value: period}
 
 parameters:
   price: {dims: [snapshot]}
@@ -379,8 +379,8 @@ def test_a_relation_over_another_dimension_carries_no_position():
         MASK.replace('WHERE', 'position(snapshot, by=plant_period) == 0')
         .replace('  period: {dtype: int}', '  period: {dtype: int}\n  plant: {dtype: str}')
         .replace(
-            '  period_of: {columns: [snapshot, period], key: snapshot}',
-            '  period_of: {columns: [snapshot, period], key: snapshot}\n  plant_period: {columns: [plant, period], key: plant}',
+            '  period_of: {key: snapshot, value: period}',
+            '  period_of: {key: snapshot, value: period}\n  plant_period: {key: plant, value: period}',
         )
     )
     with pytest.raises(LanguageError, match=r"'plant_period' has no key column over 'snapshot'"):
@@ -441,7 +441,7 @@ dimensions:
   season: {dtype: str}
 
 relations:
-  season_of: {columns: [snapshot, season], key: snapshot}
+  season_of: {key: snapshot, value: season}
 
 parameters:
   inflow: {dims: [snapshot]}
@@ -550,7 +550,7 @@ def test_a_relation_over_another_dimension_cannot_partition_a_translation():
         _partitioned("edge='wrap', by=plant_season")
         .replace(
             'relations:\n  season_of:',
-            'relations:\n  plant_season: {columns: [plant, season], key: plant}\n  season_of:',
+            'relations:\n  plant_season: {key: plant, value: season}\n  season_of:',
         )
         .replace('  season: {dtype: str}', '  season: {dtype: str}\n  plant: {dtype: str}')
     )

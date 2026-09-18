@@ -134,7 +134,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dtype: str
 
     relations:
-      period_of: {columns: [snapshot, period], key: snapshot}
+      period_of: {key: snapshot, value: period}
 
     parameters:
       load:

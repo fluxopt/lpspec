@@ -144,8 +144,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     relations:
       converter_of:
         description: which converter a flow belongs to
-        columns: [flow, converter]
         key: flow
+        value: converter
 
     parameters:
       bp_rate:

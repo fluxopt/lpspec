@@ -117,8 +117,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     relations:
       period_of:
         description: the investment period a snapshot falls in
-        columns: [snapshot, period]
         key: snapshot
+        value: period
 
     parameters:
       load:

@@ -105,8 +105,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     relations:
       call_of:
         description: the city pair a path serves, end to end
-        columns: [path, call]
         key: path
+        value: call
 
     parameters:
       capacity:

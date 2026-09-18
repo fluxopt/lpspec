@@ -509,8 +509,8 @@ class TestWhatBindRefusesAndWhatItTakes:
 TWO_BAD_COORDS_SPEC = {
     'dimensions': {'bus': {'dtype': 'str'}, 'line': {}},
     'relations': {
-        'from': {'columns': ['line', 'bus'], 'key': 'line'},
-        'to': {'columns': ['line', 'bus'], 'key': 'line'},
+        'from': {'key': 'line', 'value': 'bus'},
+        'to': {'key': 'line', 'value': 'bus'},
     },
     'parameters': {'cap': {'dims': ['line']}},
     'variables': {'f': {'dims': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
@@ -877,8 +877,8 @@ def _network(ends: tuple[str, str]) -> tuple[dict, dict]:
             'line': {},
         },
         'relations': {
-            'from': {'columns': ['line', 'bus'], 'key': 'line'},
-            'to': {'columns': ['line', 'bus'], 'key': 'line'},
+            'from': {'key': 'line', 'value': 'bus'},
+            'to': {'key': 'line', 'value': 'bus'},
         },
         'parameters': {'cap': {'dims': ['line']}, 'load': {'dims': ['snapshot', 'bus']}},
         'variables': {'f': {'dims': ['snapshot', 'line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
@@ -1277,7 +1277,7 @@ class TestThePositionalHandoff:
         with sps.build(spec, sources) as model:
             primal = pl.Series('value', np.arange(model._engine._model.tables.column_count, dtype=np.float64))
             dual = pl.Series('value', np.arange(model._engine._model.tables.row_count, dtype=np.float64))
-            primals, duals, activities = model._engine._read_back(primal, dual, dual)
+            primals, duals, activities, _ = model._engine._read_back(primal, dual, dual, None)
             assert 'SORT' not in primals['p'].explain(optimized=False), 'the labeller already ordered this'
             assert primals['p'].collect()['value'].to_list() == list(range(len(primal))), 'primal not in label order'
             assert duals['meet'].collect()['value'].to_list() == list(range(len(dual))), 'dual not in label order'
@@ -1555,7 +1555,7 @@ def _constant_beside_a_term(expression: str, *, over_the_dim: bool = False) -> d
         parameters['d'] = {'dims': ['t']}
     if 'r_of' in expression:
         spec['dimensions'] = {**spec['dimensions'], 'r': {'dtype': 'str'}}
-        spec['relations'] = {'r_of': {'columns': ['t', 'r'], 'key': 't'}}
+        spec['relations'] = {'r_of': {'key': 't', 'value': 'r'}}
     return {
         **spec,
         'parameters': parameters,
@@ -1595,7 +1595,7 @@ ABSENT_SLOT_SOURCES = {
 def _absent_slot_spec(expression: str) -> dict:
     return {
         'dimensions': {'t': {'dtype': 'int'}, 'r': {'dtype': 'str'}},
-        'relations': {'r_of': {'columns': ['t', 'r'], 'key': 't'}},
+        'relations': {'r_of': {'key': 't', 'value': 'r'}},
         'parameters': {'k': {'dims': ['t']}, 'd': {'dims': ['t']}, 'load': {'dims': []}},
         'variables': {'x': {'dims': ['t'], 'where': 't != 2', 'bounds': {'lower': 0}}},
         'constraints': {'bal': {'dims': [], 'expression': expression}},

@@ -20,16 +20,16 @@ dimensions:
 relations:
   gen_bus:
     description: the bus a generator sits on
-    columns: [generator, bus]
     key: generator
+    value: bus
   line_from:
     description: the bus a line leaves
-    columns: [line, bus]
     key: line
+    value: bus
   line_to:
     description: the bus a line arrives at
-    columns: [line, bus]
     key: line
+    value: bus
 
 parameters:
   p_max:

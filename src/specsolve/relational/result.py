@@ -431,6 +431,14 @@ class Result:
     #: Why there are no duals, when a solve that left values still has none.
     #: ``None`` whenever :attr:`_duals` holds them.
     _no_duals: str | None = None
+    #: One ``(dims…, value)`` frame per constraint, laid out exactly as
+    #: :attr:`_duals`, carrying the certificate an infeasible solve left.
+    #: Empty on every solve that was not infeasible, and released by
+    #: :meth:`close` with the rest.
+    _dual_rays: Mapping[str, pl.LazyFrame] | None = None
+    #: Why there is no certificate — the status, or the solver setting that
+    #: would have produced one. ``None`` whenever :attr:`_dual_rays` holds it.
+    _no_dual_ray: str | None = None
     #: Which spec this answered, as :func:`~specsolve.relational.parquet.digest_of`
     #: names it. Attached by the model that solved, so a solve run off a
     #: lowered program — which has no document — leaves it ``None``.
@@ -559,6 +567,48 @@ class Result:
         if self._no_duals is not None:
             raise SpecsolveError(self._no_duals)
         return _named(frames, name, 'constraint').collect(engine=polars_engine())
+
+    def dual_ray(self, name: str) -> pl.DataFrame:
+        """Constraint *name*'s share of the certificate that this model has no solution — ``(dims…, value)``.
+
+        The one thing an infeasible solve has to say, and the only reader that
+        answers on one: :meth:`primal`, :meth:`dual` and :meth:`activity` all
+        raise there, because there is no solution behind them. Weight every
+        row by its value here and add them together, and the combined row
+        demands more than the columns can deliver inside their bounds — which
+        is the proof that nothing satisfies all of them at once. That is what
+        a Benders feasibility cut is built from, and it is why a driver no
+        longer needs a second model to ask *how far from feasible* a
+        subproblem was.
+
+        :meth:`dual`'s shape and order. **The sign is the row's own**, one
+        convention across every sink, so a driver never asks who solved — a
+        sink whose solver signs the other way negates what it reads. Where
+        every column is held only by a lower bound of zero, as a dispatch
+        variable is, the bounds deliver nothing and the proof is the simpler
+        ``Σ weight * right-hand side > 0``.
+
+        Raises:
+            SpecsolveError: This result was closed; or the solve was not
+                infeasible, so there is nothing to certify; or the sink
+                produced no ray, in which case the message names the solver
+                option that would have.
+            KeyError: No constraint is called *name*.
+
+        Example:
+            >>> answer.dual_ray('balance')  # doctest: +SKIP
+            shape: (4, 2)
+            ┌──────────┬───────┐
+            │ snapshot ┆ value │
+            ╞══════════╪═══════╡
+            │ 0        ┆ 1.0   │
+            └──────────┴───────┘
+        """
+        self._unclosed(f"the dual ray of '{name}'")
+        if self._no_dual_ray is not None:
+            raise SpecsolveError(self._no_dual_ray)
+        assert self._dual_rays is not None, 'a ray is released with the primals, which _unclosed just checked'
+        return _named(self._dual_rays, name, 'constraint').collect(engine=polars_engine())
 
     def activity(self, name: str) -> pl.DataFrame:
         """The left-hand side of constraint *name* at the solution — ``(dims…, value)``.
@@ -745,6 +795,7 @@ class Result:
         :class:`~specsolve.api.Model`'s to close.
         """
         self._primals = self._duals = self._activities = self._expressions = None
+        self._dual_rays = None
         self._evaluate = None
 
     def __enter__(self) -> Result:

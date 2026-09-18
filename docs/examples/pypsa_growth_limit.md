@@ -150,16 +150,16 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     relations:
       gen_carrier:
         description: the carrier a generator burns
-        columns: [generator, carrier]
         key: generator
+        value: carrier
       build_period:
         description: the period a generator is first built in, and so counted as new in
-        columns: [generator, period]
         key: generator
+        value: period
       period_of:
         description: the investment period a snapshot falls in
-        columns: [snapshot, period]
         key: snapshot
+        value: period
 
     parameters:
       load:

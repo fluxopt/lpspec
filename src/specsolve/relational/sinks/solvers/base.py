@@ -70,6 +70,10 @@ class SolveAnswer:
     side at that point, travels with it — while no ``dual`` is narrower: a
     mixed-integer model has none at all, and neither does a run stopped short
     of a simplex basis.
+
+    ``dual_ray`` is the one vector an *unreadable* answer can carry, and the
+    only one: an infeasible solve has no solution to report and may still
+    report why there is none.
     """
 
     status: SolveStatus
@@ -77,14 +81,18 @@ class SolveAnswer:
     primal: pl.Series | None
     dual: pl.Series | None
     activity: pl.Series | None
+    #: A weight per row certifying that the constraints cannot all hold, in
+    #: the sign convention of :meth:`Solver.dual_ray`, or ``None`` where the
+    #: solve was not infeasible or the solver produced none.
+    dual_ray: pl.Series | None = None
 
     @classmethod
-    def unreadable(cls, status: SolveStatus) -> SolveAnswer:
+    def unreadable(cls, status: SolveStatus, dual_ray: pl.Series | None = None) -> SolveAnswer:
         """The answer for a solve that left nothing worth reading.
 
-        An unreadable status carries a NaN objective and no vector at all.
+        An unreadable status carries a NaN objective and no vector but the ray.
         """
-        return cls(status, float('nan'), None, None, None)
+        return cls(status, float('nan'), None, None, None, dual_ray)
 
 
 class Solver(ABC):
@@ -267,6 +275,7 @@ class Solver(ABC):
         self._check_span('primal', answer.primal, tables.column_count)
         self._check_span('dual', answer.dual, tables.row_count)
         self._check_span('activity', answer.activity, tables.row_count)
+        self._check_span('dual ray', answer.dual_ray, tables.row_count)
         return answer
 
     def _check_span(self, quantity: str, values: pl.Series | None, expected: int) -> None:
@@ -293,8 +302,29 @@ class Solver(ABC):
 
         *tables* is asked only for what has no column and so was never loaded —
         the objective's constant. When either vector may be ``None`` is
-        :class:`SolveAnswer`'s docstring.
+        :class:`SolveAnswer`'s docstring. An infeasible solve calls
+        :meth:`dual_ray` and returns what it gives.
         """
+
+    def dual_ray(self) -> pl.Series | None:
+        """A weight per row certifying that this infeasible model has no solution.
+
+        Called only after an infeasible solve. The weights combine the rows
+        into one that demands more than the columns can deliver inside their
+        bounds — Farkas' lemma, and the cut a Benders master needs when a
+        subproblem cannot be dispatched at all.
+
+        **One convention across the sinks**, since a caller reading a ray
+        cannot be asked which solver signed it: a row's weight carries the
+        sign the row is written with, which is HiGHS's and Xpress's. A sink
+        whose solver signs the other way negates what it reads.
+
+        Returns:
+            The weights in row order, or ``None`` where this solver produced
+            none — which is a solver setting rather than a property of the
+            model, so the engine's message names the setting.
+        """
+        return None
 
     @abstractmethod
     def forget(self) -> None:

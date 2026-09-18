@@ -172,20 +172,20 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     relations:
       gen_bus:
         description: the bus a generator sits on
-        columns: [generator, bus]
         key: generator
+        value: bus
       link_from:
         description: the bus a link leaves
-        columns: [link, bus]
         key: link
+        value: bus
       link_to:
         description: the bus a link arrives at
-        columns: [link, bus]
         key: link
+        value: bus
       storage_bus:
         description: the bus a storage unit sits on
-        columns: [storage, bus]
         key: storage
+        value: bus
 
     parameters:
       p_nom:
