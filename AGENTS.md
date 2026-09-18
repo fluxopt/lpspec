@@ -74,9 +74,9 @@ story. **A test asserting the old behaviour is not a blocker**; say in the PR
 what coverage moved where.
 
 The one place this costs something: a breaking marker (`!`, or a
-`BREAKING CHANGE:` footer) in the PR title is **refused** by the
-`Conventional commit subject` check, because it would move the base version
-rather than the alpha counter. Describe the break in the PR body instead.
+`BREAKING CHANGE:` footer) in the PR title **moves the minor**, so the stream
+goes from `0.0.1aN` to `0.1.0aN`. Use one where a consumer has to change
+something, and say what broke in the PR body.
 
 ## A claim carries its evidence
 

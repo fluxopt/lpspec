@@ -162,11 +162,10 @@ plus `chore` `test` `ci` `build` `style` `revert`, which are hidden. A subject
 that will not parse fails the required check rather than silently dropping the
 entry. Fixing it is an edit to the PR, not a branch rewrite.
 
-**No `!`, and no `BREAKING CHANGE:` footer.** The same check refuses both while
-the version is pinned to the alpha stream, because a breaking marker moves the
-*base* version rather than the alpha counter — the accident is written up in
-[RELEASING.md](RELEASING.md). Describe the break in the PR body instead; the
-next section is why there is nothing for the version to announce.
+**A `!`, or a `BREAKING CHANGE:` footer, moves the minor.** The alpha stream
+goes from `0.0.1-alpha.N` to `0.1.0-alpha.N`, which is the one compatibility
+signal it carries — see [RELEASING.md](RELEASING.md). Use one where a consumer
+has to change something, and say what broke in the PR body.
 
 `main` is protected: no force-push, no deletion, squash-only through a PR, and
 the two required checks above. Approvals are not required, but the PR is.

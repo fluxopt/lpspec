@@ -27,6 +27,7 @@ version is held there until the first official release.
 | --- | --- | --- |
 | day-to-day development | nothing | `0.0.1.dev22+ged5056087` — hatch-vcs numbers every commit |
 | a build someone can pin | merge the release PR | `0.0.1a14`, `0.0.1a15`, … |
+| the minor to move | land a breaking marker | `0.1.0a16` |
 | a cut from another branch | run **Prerelease** | `0.0.1a16`, or a named stream like `0.2.0rc1` |
 | to leave alpha | edit the config on purpose (below) | `0.1.0` |
 
@@ -64,21 +65,24 @@ a `feat:` down the *patch* row while major is 0, and `bump-minor-pre-major` send
 a breaking change down the *minor* row rather than reaching for 1.0.0. Both are
 load-bearing on this stream; neither is decoration.
 
-On `0.0.1-alpha.N` that leaves exactly one leak. `fix:`, `feat:` and every hidden
-type take the patch row and land on the counter, but a **breaking marker** takes
-the minor row, and `patch` is 1 — so it bumps for real. That is the whole of the
-accident at #251: `0.0.0-alpha.1 … 0.0.0-alpha.33` were immune because both
-digits were zero, and on `0.0.1-alpha.12` a `feat!:` produced `0.1.0-alpha.12`.
+On `0.0.1-alpha.N` that gives the stream its one semantic signal. `fix:`,
+`feat:` and every hidden type take the patch row and land on the counter, but a
+**breaking marker** takes the minor row, and `patch` is 1 — so it bumps for
+real: a `feat!:` on `0.0.1-alpha.12` produces `0.1.0-alpha.12`, base moved and
+counter carried. So the minor says a consumer has to change something, and the
+counter says nothing at all.
 
-No release-please setting closes that leak — `bump-minor-pre-major: false` sends
-the same commit to 1.0.0 instead, which is worse. So the pin is held by
-[`pr-title.yaml`](.github/workflows/pr-title.yaml), which refuses a `!` or a
-`BREAKING CHANGE:` footer while the manifest sits on a `0.x` version. That check
-is required (below), so refusing is the same as blocking.
+That was once an accident rather than a signal. #251 found it the hard way —
+`0.0.0-alpha.1 … 0.0.0-alpha.33` were immune because both digits below the
+minor were zero, and the first release on `0.0.1-alpha.N` moved the base with
+nobody expecting it — so
+[`pr-title.yaml`](.github/workflows/pr-title.yaml) refused the marker while the
+base was meant to stay put. The base is meant to move now, so the check no
+longer looks for it.
 
-Staying on `0.0.1-alpha.N` until the first official release is the intent, not an
-accident of history. A `0.x.0` stream would absorb breaking markers arithmetically
-and retire the check — it is not worth a version that sorts backwards to get it.
+A release is still an alpha, and that is deliberate: `0.1.0a16` promises no more
+than `0.0.1a15` did. `pip`/`uv` will not resolve either without
+`--prerelease`.
 
 **The subject that lands on main.** `main` takes squash merges only, so one PR
 is one commit and its subject is what release-please parses — the rule a
