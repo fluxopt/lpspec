@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.343](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.342...v0.0.1-alpha.343) (2026-09-18)
+
+
+### Features
+
+* **language:** a call through a relation names the columns it walks, so a relation may gain a value column without changing what the call means ([#1691](https://github.com/fluxopt/lpspec/issues/1691)) ([451b7c7](https://github.com/fluxopt/lpspec/commit/451b7c73982b474b57a0c45abe990329bc42082f))
+
 ## [0.0.1-alpha.342](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.341...v0.0.1-alpha.342) (2026-09-18)
 
 
