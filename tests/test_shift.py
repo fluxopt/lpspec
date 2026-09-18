@@ -201,13 +201,15 @@ BY_PARAMETER = {
     },
 }
 
-IN_GROUPS = masked_operand_spec('link', 'take <= shift(level, along=t, offset=1, edge=0, by=season_of)', grouped=True)
+IN_GROUPS = masked_operand_spec(
+    'link', 'take <= shift(level, along=t, offset=1, edge=0, by=season_of, within=season)', grouped=True
+)
 
 #: The same, with nothing masked at all: `level` carries no `where`, so the
 #: operand reaches the shift with no presence frame of its own. Which of the
 #: two group-less readings the lane takes used to depend on that (#1061).
 IN_GROUPS_UNMASKED = masked_operand_spec(
-    'link', 'take <= shift(level, along=t, offset=1, edge=0, by=season_of)', grouped=True, masked=False
+    'link', 'take <= shift(level, along=t, offset=1, edge=0, by=season_of, within=season)', grouped=True, masked=False
 )
 
 #: A fourth snapshot the relation sends nowhere, for both models above.
@@ -327,11 +329,14 @@ def test_a_per_entity_offset_writes_a_nonzero_edge_where_that_entity_vacates():
 #: A period's own construction lead time, on a flat snapshot axis (#1161).
 PER_GROUP_OFFSET = {
     'dimensions': {'t': {'dtype': 'int'}, 'period': {'dtype': 'int'}},
-    'relations': {'period_of': {'key': 't', 'value': 'period'}},
+    'relations': {'period_of': {'key': 't', 'values': 'period'}},
     'parameters': {'lead': {'dims': ['period'], 'dtype': 'int'}, 'v': {'dims': ['t']}},
     'variables': {'p': {'dims': ['t'], 'bounds': {'lower': -100, 'upper': 100}}},
     'constraints': {
-        'reads': {'dims': ['t'], 'expression': 'p == shift(v, along=t, offset=lead, by=period_of, edge=0)'}
+        'reads': {
+            'dims': ['t'],
+            'expression': 'p == shift(v, along=t, offset=lead, by=period_of, within=period, edge=0)',
+        }
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
 }
@@ -341,14 +346,17 @@ PER_GROUP_OFFSET = {
 #: sends nowhere, which no lag reaches and no edge speaks for.
 PER_GROUP_OFFSET_TERMS = {
     'dimensions': {'t': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-    'relations': {'season_of': {'key': 't', 'value': 'season'}},
+    'relations': {'season_of': {'key': 't', 'values': 'season'}},
     'parameters': {'lead': {'dims': ['season'], 'dtype': 'int'}, 'cap': {'dims': ['t']}},
     'variables': {
         'level': {'dims': ['t'], 'bounds': {'lower': 'cap', 'upper': 'cap'}},
         'take': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 100}},
     },
     'constraints': {
-        'link': {'dims': ['t'], 'expression': 'take <= shift(level, along=t, offset=lead, by=season_of, edge=0)'}
+        'link': {
+            'dims': ['t'],
+            'expression': 'take <= shift(level, along=t, offset=lead, by=season_of, within=season, edge=0)',
+        }
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(take, over=t)'},
 }
@@ -357,11 +365,14 @@ PER_GROUP_OFFSET_TERMS = {
 #: reaches through the relation, in the same join.
 PER_ENTITY_AND_PER_GROUP = {
     'dimensions': {'g': {'dtype': 'str'}, 't': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-    'relations': {'season_of': {'key': 't', 'value': 'season'}},
+    'relations': {'season_of': {'key': 't', 'values': 'season'}},
     'parameters': {'lead': {'dims': ['g', 'season'], 'dtype': 'int'}, 'v': {'dims': ['g', 't']}},
     'variables': {'p': {'dims': ['g', 't'], 'bounds': {'lower': -100, 'upper': 100}}},
     'constraints': {
-        'reads': {'dims': ['g', 't'], 'expression': 'p == shift(v, along=t, offset=lead, by=season_of, edge=0)'}
+        'reads': {
+            'dims': ['g', 't'],
+            'expression': 'p == shift(v, along=t, offset=lead, by=season_of, within=season, edge=0)',
+        }
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
 }

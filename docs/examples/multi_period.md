@@ -23,7 +23,7 @@ nothing: a relation is a per-row column, and four snapshots in 2030 beside two i
 ## Both directions of one mapping
 
 Grouping reads the relation one way:
-`sum(p, by=period_of)` is a per-period CO₂ budget, and
+`sum(p, by=period_of, over=snapshot, into=period)` is a per-period CO₂ budget, and
 [monthly_budget](monthly_budget.md) is the same construct on a different
 relation.
 
@@ -33,7 +33,7 @@ each `snapshot`, so a coarse quantity is pulled onto a fine one:
 ```yaml
 within_cap:
   dims: [snapshot, generator]
-  expression: p <= at(p_nom, by=period_of)
+  expression: p <= at(p_nom, by=period_of, over=period, into=snapshot)
 ```
 
 `at` and `sum(by=)` take the same argument: the relation names one table, and
@@ -134,7 +134,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dtype: str
 
     relations:
-      period_of: {key: snapshot, value: period}
+      period_of: {key: snapshot, values: period}
 
     parameters:
       load:
@@ -170,7 +170,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       within_cap:
         description: output in a snapshot is capped by the capacity of the period it falls in
         dims: [snapshot, generator]
-        expression: p <= at(p_nom, by=period_of)
+        expression: p <= at(p_nom, by=period_of, over=period, into=snapshot)
       balance:
         dims: [snapshot]
         expression: sum(p, over=generator) == load

@@ -21,15 +21,15 @@ relations:
   gen_bus:
     description: the bus a generator sits on
     key: generator
-    value: bus
+    values: bus
   line_from:
     description: the bus a line leaves
     key: line
-    value: bus
+    values: bus
   line_to:
     description: the bus a line arrives at
     key: line
-    value: bus
+    values: bus
 
 parameters:
   p_max:
@@ -64,10 +64,10 @@ variables:
 
 expressions:
   gen_at_bus:
-    expression: sum(p, by=gen_bus)
+    expression: sum(p, by=gen_bus, over=generator, into=bus)
     description: what the generators sitting on a bus produce there
   net_inflow:
-    expression: sum(f, by=line_to) - sum(f, by=line_from)
+    expression: sum(f, by=line_to, over=line, into=bus) - sum(f, by=line_from, over=line, into=bus)
     description: flow arriving at a bus minus flow leaving it, so a negative value is a net export
 
 constraints:

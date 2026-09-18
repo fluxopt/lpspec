@@ -1,17 +1,18 @@
-"""``sum(x, by=[l, m])`` — one grouping through several maps at once.
+"""``sum(x, by=r, over=c, into=[l, m])`` — one grouping onto a pair of dimensions.
 
-The single-relation form lands terms on one dimension; this lands them on a
-product of dimensions, which is what a capacity limit per *location and
-technology* asks for. PyPSA ships exactly that as a constraint type
-(`tech_capacity_expansion_limit`, carrier and bus together), so the shape has
-an outside consumer rather than only a symmetry argument.
+A walk to one column lands terms on one dimension; this walks to two columns of
+one relation and lands them on a product of dimensions, which is what a
+capacity limit per *location and technology* asks for. PyPSA ships exactly that
+as a constraint type (`tech_capacity_expansion_limit`, carrier and bus
+together), so the shape has an outside consumer rather than only a symmetry
+argument.
 
 What needs two lanes to see:
 
 **The grouping is one join, not two.** Relationally the coordinates ride the
-same dim table, so a list costs one extra column and no extra join — held by
-the lowering test, which asserts a single ``GroupSum`` carrying both names
-rather than a composition.
+same dim table, so a second column costs one extra column and no extra join —
+held by the lowering test, which asserts a single ``GroupSum`` carrying both
+columns rather than a composition.
 
 **The empty combination.** A (bus, technology) pair no generator sits on is a
 group with no members, and the two lanes reach it by different routes: the
@@ -32,8 +33,8 @@ import pytest
 from math_spec import to_program
 from math_spec.program import GroupSum, Variable
 
-from lpspec.errors import DimensionError
-from tests.conftest import by_coord, override, raw_of, relation, schema_of
+from lpspec.errors import SchemaError
+from tests.conftest import by_coord, override, raw_of, schema_of
 from tests.differential import RTOL, differential
 from tests.oracle import operators, pd, xr
 
@@ -46,8 +47,10 @@ dimensions:
   technology: {dtype: str, description: what a generator is built from}
 
 relations:
-  gen_bus: {key: generator, value: bus, description: the bus a generator sits on}
-  gen_tech: {key: generator, value: technology, description: the technology it is}
+  gen_placement:
+    key: generator
+    values: [bus, technology]
+    description: the bus a generator sits on and the technology it is
 
 parameters:
   cost: {dims: [generator], description: marginal cost of a unit of output}
@@ -63,7 +66,7 @@ variables:
 constraints:
   technology_at_bus:
     dims: [bus, technology]
-    expression: sum(p, by=[gen_bus, gen_tech]) <= limit
+    expression: sum(p, by=gen_placement, over=generator, into=[bus, technology]) <= limit
     description: output of one technology at one bus stays under its limit
   meet_demand:
     dims: []
@@ -97,8 +100,7 @@ def _inputs():
         'limit': limits,
         'demand': 20.0,
         'generator': index,
-        'gen_bus': relation('generator', 'bus', GENERATORS, OF_BUS),
-        'gen_tech': relation('generator', 'technology', GENERATORS, OF_TECH),
+        'gen_placement': pd.DataFrame({'generator': GENERATORS, 'bus': OF_BUS, 'technology': OF_TECH}),
         'bus': pd.Index(['a', 'b'], name='bus'),
         'technology': pd.Index(['wind', 'sun'], name='technology'),
     }
@@ -109,7 +111,7 @@ def _inputs():
 # ---------------------------------------------------------------------------
 
 
-def test_grouping_through_two_relations_agrees_across_the_lanes():
+def test_grouping_onto_two_dimensions_agrees_across_the_lanes():
     """The optimum, hand-derived, and the same on both lanes and the LP file.
 
     (a, wind) caps `g1` at 10 and (a, sun) caps `g2` at 5, which is 15 of the
@@ -168,7 +170,9 @@ def test_an_empty_combination_does_not_take_its_row_with_it():
                 'bounds': {'lower': 0, 'upper': 100},
                 'description': 'capacity left unused at one bus in one technology',
             },
-            'constraints.technology_at_bus.expression': 'sum(p, by=[gen_bus, gen_tech]) + headroom <= limit',
+            'constraints.technology_at_bus.expression': (
+                'sum(p, by=gen_placement, over=generator, into=[bus, technology]) + headroom <= limit'
+            ),
             'objective.expression': 'sum(p * cost, over=generator) - sum(sum(headroom, over=bus), over=technology)',
         },
     )
@@ -231,7 +235,7 @@ def test_a_grouped_parameter_reads_zero_where_no_member_lands():
 # ---------------------------------------------------------------------------
 
 
-def test_two_relations_lower_to_one_node_and_not_to_a_composition():
+def test_two_columns_lower_to_one_node_and_not_to_a_composition():
     """One grouping, so one plan node: the coordinates ride one join.
 
     A composition would consume `generator` twice, and the second pass would
@@ -240,11 +244,11 @@ def test_two_relations_lower_to_one_node_and_not_to_a_composition():
     (limit, _demand) = to_program(schema_of(SPEC)).constraints.values()
     assert isinstance(limit.lhs, GroupSum)
     assert limit.lhs.operand == Variable('p')
-    assert (limit.lhs.over, limit.lhs.coordinate, limit.lhs.into) == (
+    assert (limit.lhs.over, limit.lhs.relation, limit.lhs.into) == (
         ('generator',),
-        ('gen_bus', 'gen_tech'),
+        'gen_placement',
         ('bus', 'technology'),
-    ), 'one node carrying both maps, each paired with the dimension it lands on'
+    ), 'one node carrying one walk, each column walked to paired with the dimension it lands on'
 
 
 # ---------------------------------------------------------------------------
@@ -252,18 +256,19 @@ def test_two_relations_lower_to_one_node_and_not_to_a_composition():
 # ---------------------------------------------------------------------------
 
 
-def test_a_partition_is_one_relation_and_says_so():
-    """`shift(by=...)` takes a relation in the other position, so a list means nothing.
+def test_a_call_walks_one_table_and_says_so():
+    """A pair of dimensions comes from one relation's two columns, not from two relations.
 
-    `sum` and `at` consume the dim their relations are over and *produce* the
-    targets, which is what a list is: one grouping into a product. A partition
-    produces nothing — it says which rows are neighbours — so several of them
-    name no shape the operator could walk, and the refusal is at load rather
-    than a lane quietly walking the first.
+    Two tables would be two joins and two claims about which keys exist; one
+    table states the pair as a fact of the data, so the language takes the
+    grouping only in that spelling and names the rewrite at load rather than
+    letting a lane quietly walk the first.
     """
     patch = {
-        'constraints.technology_at_bus.dims': ['generator'],
-        'constraints.technology_at_bus.expression': 'shift(p, along=generator, offset=1, by=[gen_bus, gen_tech]) <= 1',
+        'relations.gen_bus': {'key': 'generator', 'values': 'bus'},
+        'constraints.technology_at_bus.expression': (
+            'sum(p, by=[gen_placement, gen_bus], over=generator, into=[bus, technology]) <= limit'
+        ),
     }
-    with pytest.raises(DimensionError, match=r'by=\[gen_bus, gen_tech\]\) partitions by several relations'):
+    with pytest.raises(SchemaError, match=r'names 2 relations, and one call walks one table'):
         schema_of(SPEC, **patch)

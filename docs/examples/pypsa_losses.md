@@ -156,15 +156,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       gen_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       from:
         description: the bus a line leaves
         key: line
-        value: bus
+        values: bus
       to:
         description: the bus a line arrives at
         key: line
-        value: bus
+        values: bus
 
     parameters:
       p_nom:
@@ -236,9 +236,9 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           a branch dissipates half at either end
         dims: [snapshot, bus]
         expression: >-
-          sum(p, by=gen_bus)
-          + sum(f, by=to) - sum(f, by=from)
-          - 0.5 * sum(loss, by=from) - 0.5 * sum(loss, by=to)
+          sum(p, by=gen_bus, over=generator, into=bus)
+          + sum(f, by=to, over=line, into=bus) - sum(f, by=from, over=line, into=bus)
+          - 0.5 * sum(loss, by=from, over=line, into=bus) - 0.5 * sum(loss, by=to, over=line, into=bus)
           == load
 
       within_rating_forward:

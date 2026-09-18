@@ -108,7 +108,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       origin:
         description: the depot a connection leaves
         key: connection
-        value: depot
+        values: depot
 
     parameters:
       stock:
@@ -140,7 +140,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     constraints:
       within_stock:
         dims: [depot]
-        expression: sum(moved, by=origin) <= stock
+        expression: sum(moved, by=origin, over=connection, into=depot) <= stock
 
       move_the_lot:
         dims: []

@@ -23,7 +23,7 @@ would have emitted is four ordinary declarations:**
 | the weights | a variable over `[converter, time, bp]`, masked by `where: bp_present` |
 | on one segment | [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) `type: 2` over that variable |
 | one operating point | `sum(weight, over=bp) == 1` |
-| the tie | one row per **flow**, reading its converter's weights through `at(…, by=converter_of)` |
+| the tie | one row per **flow**, reading its converter's weights through `at(…, by=converter_of, over=converter, into=flow)` |
 
 <!-- math:begin -->
 <details markdown="1">
@@ -145,7 +145,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       converter_of:
         description: which converter a flow belongs to
         key: flow
-        value: converter
+        values: converter
 
     parameters:
       bp_rate:
@@ -210,7 +210,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       on_the_curve:
         description: every flow reads its own value off its converter's weights
         dims: [flow, time]
-        expression: rate == sum(at(weight, by=converter_of) * bp_rate, over=bp)
+        expression: rate == sum(at(weight, by=converter_of, over=converter, into=flow) * bp_rate, over=bp)
       heat_balance:
         description: heat delivered meets the demand
         dims: [time]

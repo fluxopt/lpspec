@@ -15,7 +15,7 @@ relations:
   season_of:
     description: the season a snapshot falls in
     key: snapshot
-    value: season
+    values: season
 
 parameters:
   inflow:
@@ -45,7 +45,7 @@ constraints:
       season's first snapshot carries from that season's own last — so each
       season ends where it began and hands the next one nothing
     dims: [snapshot]
-    expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
+    expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap', by=season_of, within=season) + inflow - release
 
 objective:
   sense: maximize

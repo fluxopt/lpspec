@@ -366,8 +366,8 @@ absence has to be pushed into the operand before the rewrite consumes it
 | `Divide` | `x / p` | one-to-one | a **left** join, so a divisor with no value leaves a null to report |
 | `Power` | `p ** q` | one-to-one | an inner join and `pow` |
 | `Sum` | `sum(x)`, `sum(x, over=d)` | many-to-one | the summed dims projected away — no aggregate |
-| `GroupSum` | `sum(x, by=r)` | many-to-one | one inner join with the relation's table on the columns the walk consumes and joins on, the consumed dims traded for the produced ones; a bare relation fans a member out to every target |
-| `At` | `at(x, by=lk)` | one-to-one | the same table joined the other way, fanning out |
+| `GroupSum` | `sum(x, by=r, over=c, into=d)` | many-to-one | one inner join with the relation's table on the columns the walk consumes and joins on, the consumed dims traded for the produced ones; a bare relation fans a member out to every target |
+| `At` | `at(x, by=r, over=d, into=c)` | one-to-one | the same table joined the other way, fanning out |
 | `Translate` | `shift(x, along=d, offset=n)` | one-to-one | a remap through the dimension's `ord`, modulo its size under `wrap` |
 | `Window` | `sum_back(x, along=d, window=w)` | one-to-many | a row lands at every position whose window reaches it — no aggregate |
 | `Cases` | a named expression's `cases:` block | one-to-one | each region's value cut to its own mask and the fragment lists concatenated |

@@ -879,8 +879,8 @@ def test_every_shape_operator_declares_its_fan_in():
         type(node).__name__: program.fan_in(node)
         for node in (
             program.Sum(x, ('t',)),
-            program.GroupSum(x, (_gen_bus_walk(program),)),
-            program.At(x, (_gen_bus_walk(program),)),
+            program.GroupSum(x, _gen_bus_walk(program)),
+            program.At(x, _gen_bus_walk(program)),
             program.Translate(x, 't', 1, wrap=False),
             program.Window(x, 't', 3, wrap=False),
         )

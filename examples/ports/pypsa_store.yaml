@@ -23,11 +23,11 @@ relations:
   gen_bus:
     description: the bus a generator sits on
     key: generator
-    value: bus
+    values: bus
   store_bus:
     description: the bus a store sits on
     key: store
-    value: bus
+    values: bus
 
 parameters:
   p_nom:
@@ -80,7 +80,7 @@ constraints:
   nodal_balance:
     description: what is generated at a bus, plus what the stores supply, meets the load there
     dims: [snapshot, bus]
-    expression: sum(p, by=gen_bus) + sum(store_p, by=store_bus) == load
+    expression: sum(p, by=gen_bus, over=generator, into=bus) + sum(store_p, by=store_bus, over=store, into=bus) == load
 
   within_capacity:
     description: a store holds no more energy than the capacity built for it

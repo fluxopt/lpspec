@@ -28,12 +28,12 @@ dimensions:
     dtype: str
 
 relations:
-  gen_bus: {key: generator, value: bus, description: "the bus a generator sits on"}
-  line_from: {key: line, value: bus, description: "the bus a line leaves, null where the end is open"}
-  line_to: {key: line, value: bus, description: "the bus a line arrives at, null where the end is open"}
-  gen_of: {key: offer, value: generator, description: "the generator behind an offer"}
-  market_of: {key: offer, value: market, description: "the market an offer is made into"}
-  tranche_of: {key: offer, value: tranche, description: "the tranche an offer is made at"}
+  gen_bus: {key: generator, values: bus, description: "the bus a generator sits on"}
+  line_from: {key: line, values: bus, description: "the bus a line leaves, null where the end is open"}
+  line_to: {key: line, values: bus, description: "the bus a line arrives at, null where the end is open"}
+  gen_of: {key: offer, values: generator, description: "the generator behind an offer"}
+  market_of: {key: offer, values: market, description: "the market an offer is made into"}
+  tranche_of: {key: offer, values: tranche, description: "the tranche an offer is made at"}
 
 parameters:
   p_max:
@@ -94,7 +94,7 @@ variables:
 
 expressions:
   reserve_of:
-    expression: sum(r, by=gen_of)
+    expression: sum(r, by=gen_of, over=offer, into=generator)
     description: all the reserve a generator holds, across every offer it made
 
 constraints:
@@ -102,18 +102,18 @@ constraints:
     description: what is generated at a bus plus what arrives over the lines meets the load there
     dims: [bus]
     expression: >-
-      sum(p, by=gen_bus)
-      + sum(f, by=line_to)
-      - sum(f, by=line_from)
+      sum(p, by=gen_bus, over=generator, into=bus)
+      + sum(f, by=line_to, over=line, into=bus)
+      - sum(f, by=line_from, over=line, into=bus)
       == load
   export_cap:
     description: a line carries no more than the bus it leaves is allowed to export
     dims: [line]
-    expression: f <= at(bus_cap, by=line_from)
+    expression: f <= at(bus_cap, by=line_from, over=bus, into=line)
   requirement:
     description: the offers made into a market fill its requirement
     dims: [market]
-    expression: sum(r, by=market_of) >= req
+    expression: sum(r, by=market_of, over=offer, into=market) >= req
   headroom:
     description: a generator's output plus the reserve it holds stays inside its capacity
     dims: [generator]
@@ -124,7 +124,7 @@ constraints:
       two other dimensions' parameters pulled back through two legs of one edge
       set
     dims: [offer]
-    expression: r <= at(tranche_frac, by=tranche_of) * at(p_max, by=gen_of)
+    expression: r <= at(tranche_frac, by=tranche_of, over=tranche, into=offer) * at(p_max, by=gen_of, over=generator, into=offer)
   zone_cover:
     description: the weighted reserve of the generators backing a zone covers its requirement
     dims: [zone]

@@ -26,6 +26,7 @@ from lpspec.lanes import LANES
 from lpspec.linopy import absence
 from lpspec.linopy._notes import note
 from lpspec.linopy.coverage import check_constant_side_covers, check_divisors_cover, gaps_under
+from lpspec.linopy.loader import read_column
 from lpspec.linopy.operators import operator_at, operator_grouped_sum, operator_shift, operator_sum, operator_sum_back
 from lpspec.linopy.where import EvaluationContext, as_linopy_mask, bound_relation, evaluate_where
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
@@ -43,7 +44,7 @@ def build_model(
     program: program.Program,
     dataset: xr.Dataset,
     master_coords: dict[str, pd.Index],
-    relations: dict[str, xr.DataArray],
+    relations: dict[tuple[str, str], xr.DataArray],
 ) -> None:
     """Populate a linopy Model from a lowered program and loaded parameters.
 
@@ -288,14 +289,14 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
     if isinstance(node, program.GroupSum):
         return operator_grouped_sum(
             _eval(node.operand, ctx),
-            _relation_arrays(node.coordinate, ctx),
+            _walked_arrays(node, ctx),
             into=node.into,
             joined=node.joined,
             labels=ctx.master_coords,
         )
 
     if isinstance(node, program.At):
-        return operator_at(_eval(node.operand, ctx), _relation_arrays(node.coordinate, ctx), into=node.into)
+        return operator_at(_eval(node.operand, ctx), _walked_arrays(node, ctx), into=node.into)
 
     if isinstance(node, program.Translate):
         return operator_shift(
@@ -382,6 +383,11 @@ def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
     return absence.coefficient(ctx.dataset[amount]) if isinstance(amount, str) else amount
 
 
+def _walked_arrays(node: program.GroupSum | program.At, ctx: EvaluationContext) -> tuple[Any, ...]:
+    """The relation's walked columns as arrays over the dimensions its key names, in the order ``into`` writes them."""
+    return tuple(bound_relation(node.relation, column, ctx.relations) for column in read_column(node))
+
+
 def _partition(node: program.Translate | program.Window, ctx: EvaluationContext) -> Any:
     """The relation a windowed operator may not reach across, as its values.
 
@@ -392,10 +398,6 @@ def _partition(node: program.Translate | program.Window, ctx: EvaluationContext)
     """
     if node.partition is None:
         return None
-    array = bound_relation(node.partition.name, ctx.relations)
+    (column,) = node.partition.produced
+    array = bound_relation(node.partition.name, column, ctx.relations)
     return array.rename(node.partition.produced_dims[0])
-
-
-def _relation_arrays(names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The declared maps *names* as arrays over the dimensions their keys name, in the order the plan wrote them."""
-    return tuple(bound_relation(name, ctx.relations) for name in names)

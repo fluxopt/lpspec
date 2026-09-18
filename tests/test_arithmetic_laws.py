@@ -294,7 +294,7 @@ def _wide_objective_of(expression: str, *, dims: list[str]) -> float:
     dimensions = {'g': {}, 'f': {}, 't': {'dtype': 'int'}} if grouped else {'f': {}, 't': {'dtype': 'int'}}
     spec = {
         'dimensions': dimensions,
-        **({'relations': {'grp': {'key': 'f', 'value': 'g'}}} if grouped else {}),
+        **({'relations': {'grp': {'key': 'f', 'values': 'g'}}} if grouped else {}),
         'parameters': {
             'gate': {'dims': ['f'], 'dtype': 'bool'},
             'gate2': {'dims': ['f'], 'dtype': 'bool'},
@@ -320,8 +320,10 @@ def test_sum_does_not_distribute_over_addition_either():
     change was made on: the two spellings separate, and both lanes agree about
     where they land.
     """
-    together = _wide_objective_of('sum(x + y, by=grp) <= 120', dims=['g', 't'])
-    apart = _wide_objective_of('sum(x, by=grp) + sum(y, by=grp) <= 120', dims=['g', 't'])
+    together = _wide_objective_of('sum(x + y, by=grp, over=f, into=g) <= 120', dims=['g', 't'])
+    apart = _wide_objective_of(
+        'sum(x, by=grp, over=f, into=g) + sum(y, by=grp, over=f, into=g) <= 120', dims=['g', 't']
+    )
 
     assert together == pytest.approx(640.0, rel=RTOL)
     assert apart == pytest.approx(480.0, rel=RTOL)

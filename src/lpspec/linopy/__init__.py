@@ -83,8 +83,8 @@ def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
             lowering pass, so neither lane accepts a file the other refuses.
         DataError: A source that is missing, unreadable, or the wrong shape.
         LaneError: A relation shape this lane does not build — a bare
-            relation, one whose key determines several columns, or a partition
-            grouped by a map keyed on more than the dimension it walks.
+            relation, or a partition grouped by a map keyed on more than the
+            dimension it walks or by more than one column.
     """
     with note(f'while loading {_named(spec)}'):
         program = lowered(spec)

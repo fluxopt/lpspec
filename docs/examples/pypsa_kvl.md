@@ -123,15 +123,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       gen_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       line_from:
         description: the bus a line leaves
         key: line
-        value: bus
+        values: bus
       line_to:
         description: the bus a line arrives at
         key: line
-        value: bus
+        values: bus
 
     parameters:
       p_nom:
@@ -177,9 +177,9 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: what is generated at a bus plus what arrives over the lines meets the load there
         dims: [snapshot, bus]
         expression: >-
-          sum(p, by=gen_bus)
-          + sum(f, by=line_to)
-          - sum(f, by=line_from)
+          sum(p, by=gen_bus, over=generator, into=bus)
+          + sum(f, by=line_to, over=line, into=bus)
+          - sum(f, by=line_from, over=line, into=bus)
           == load
 
       kirchhoff_voltage_law:

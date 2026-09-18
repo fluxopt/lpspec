@@ -187,12 +187,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dtype: str
 
     relations:
-      gen_bus: {key: generator, value: bus, description: "the bus a generator sits on"}
-      line_from: {key: line, value: bus, description: "the bus a line leaves, null where the end is open"}
-      line_to: {key: line, value: bus, description: "the bus a line arrives at, null where the end is open"}
-      gen_of: {key: offer, value: generator, description: "the generator behind an offer"}
-      market_of: {key: offer, value: market, description: "the market an offer is made into"}
-      tranche_of: {key: offer, value: tranche, description: "the tranche an offer is made at"}
+      gen_bus: {key: generator, values: bus, description: "the bus a generator sits on"}
+      line_from: {key: line, values: bus, description: "the bus a line leaves, null where the end is open"}
+      line_to: {key: line, values: bus, description: "the bus a line arrives at, null where the end is open"}
+      gen_of: {key: offer, values: generator, description: "the generator behind an offer"}
+      market_of: {key: offer, values: market, description: "the market an offer is made into"}
+      tranche_of: {key: offer, values: tranche, description: "the tranche an offer is made at"}
 
     parameters:
       p_max:
@@ -253,7 +253,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     expressions:
       reserve_of:
-        expression: sum(r, by=gen_of)
+        expression: sum(r, by=gen_of, over=offer, into=generator)
         description: all the reserve a generator holds, across every offer it made
 
     constraints:
@@ -261,18 +261,18 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: what is generated at a bus plus what arrives over the lines meets the load there
         dims: [bus]
         expression: >-
-          sum(p, by=gen_bus)
-          + sum(f, by=line_to)
-          - sum(f, by=line_from)
+          sum(p, by=gen_bus, over=generator, into=bus)
+          + sum(f, by=line_to, over=line, into=bus)
+          - sum(f, by=line_from, over=line, into=bus)
           == load
       export_cap:
         description: a line carries no more than the bus it leaves is allowed to export
         dims: [line]
-        expression: f <= at(bus_cap, by=line_from)
+        expression: f <= at(bus_cap, by=line_from, over=bus, into=line)
       requirement:
         description: the offers made into a market fill its requirement
         dims: [market]
-        expression: sum(r, by=market_of) >= req
+        expression: sum(r, by=market_of, over=offer, into=market) >= req
       headroom:
         description: a generator's output plus the reserve it holds stays inside its capacity
         dims: [generator]
@@ -283,7 +283,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           two other dimensions' parameters pulled back through two legs of one edge
           set
         dims: [offer]
-        expression: r <= at(tranche_frac, by=tranche_of) * at(p_max, by=gen_of)
+        expression: r <= at(tranche_frac, by=tranche_of, over=tranche, into=offer) * at(p_max, by=gen_of, over=generator, into=offer)
       zone_cover:
         description: the weighted reserve of the generators backing a zone covers its requirement
         dims: [zone]
@@ -382,7 +382,7 @@ reference above, and checks the balance duals too.
 | self-relation, used in both directions | lines bus→bus, balance sums through `line_from` and `line_to` | edge dimension + leg relations | — (the balance is every other row's feasibility) |
 | parallel edges | `l1`, `l2` both b2→b1 | member identity is the label, not the endpoint pair | drop `l2` → dearer |
 | dangling member | `l4`'s `line_to` is null | a partial relation: the open end aggregates nowhere | point `l4` at b1 → cheaper |
-| pullback through a leg | `f ≤ at(bus_cap, by=line_from)` | `at()` | uncap the exporting bus → cheaper |
+| pullback through a leg | `f ≤ at(bus_cap, by=line_from, over=bus, into=line)` | `at()` | uncap the exporting bus → cheaper |
 | k-ary edge set | offers carry `gen_of`, `market_of`, `tranche_of` | three legs, one edge dimension | — (structure, pinned by test) |
 | duplicate pair | `o1`, `o2` share all three legs | multiplicity is real capacity | drop `o2` → dearer |
 | two pullbacks through two legs | the offer cap above | `at() * at()` | `o4` sits exactly at its cap |

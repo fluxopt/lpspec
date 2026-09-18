@@ -1,6 +1,6 @@
 """A relation whose two columns sit over one dimension — a representative snapshot.
 
-`rep_of: {key: snapshot, value: {rep: snapshot}}` maps each
+`rep_of: {key: snapshot, values: {rep: snapshot}}` maps each
 snapshot to the one that stands for it. The language's own example of the form,
 and two columns keyed by one, so `lanes.lowered` takes it.
 
@@ -28,7 +28,7 @@ dimensions:
 relations:
   rep_of:
     key: snapshot
-    value: {rep: snapshot}
+    values: {rep: snapshot}
     description: the snapshot that stands for this one
 
 parameters:
@@ -43,7 +43,7 @@ variables:
 constraints:
   capped:
     dims: [snapshot]
-    expression: p <= at(price, by=rep_of, over=rep)
+    expression: p <= at(price, by=rep_of, over=rep, into=snapshot)
     description: output stays under the price of the snapshot that represents this one
 
 objective:
@@ -67,7 +67,7 @@ def _inputs() -> dict[str, object]:
 
 
 def test_a_pullback_through_a_self_map_reads_the_representative():
-    """`at(price, by=rep_of, over=rep)` is the price at the snapshot that stands for this one.
+    """`at(price, by=rep_of, over=rep, into=snapshot)` is the price at the snapshot that stands for this one.
 
     Was: the walk named its value column after the dimension it lands on, which
     for a self-map is the name the key column already holds, so the relational
@@ -89,7 +89,7 @@ def test_a_pullback_through_a_self_map_reads_the_representative():
 
 
 def test_a_group_through_a_self_map_sums_the_snapshots_it_represents():
-    """`sum(p, by=rep_of)` adds each snapshot's output into its representative's row.
+    """`sum(p, by=rep_of, over=snapshot, into=rep)` adds each snapshot's output into its representative's row.
 
     The adjoint of the pullback above, and the direction the two lanes
     disagreed on before the fix (#1652): the relational one raised where the
