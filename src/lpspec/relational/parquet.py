@@ -25,7 +25,7 @@ from lpspec.errors import LayoutError, LpspecError
 from lpspec.relational.status import SolveStatus, status_of
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Mapping
     from pathlib import Path
     from typing import Any
 
@@ -101,20 +101,6 @@ def digest_of(yaml: str) -> str:
     :func:`digest_of_file` over each member of ``sources/``.
     """
     return digest_of_bytes(yaml.encode())
-
-
-def other_specs(mine: str, answered: Sequence[str | None]) -> list[str]:
-    """Which of *answered* are not *mine* — how a pairing is decided, once.
-
-    An answer carries the digest of the spec it answered, and nothing else
-    says the two belong together, so every caller pairing one with a document
-    asks here. What each does about a mismatch is its own: the rewrite differs
-    between an archive that holds both and a caller that supplied them.
-
-    A ``None`` digest is an answer solved off a lowered program, which has no
-    document to have answered, and is not compared.
-    """
-    return sorted({other for other in answered if other is not None and other != mine})
 
 
 class Record(NamedTuple):

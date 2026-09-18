@@ -21,9 +21,9 @@ import yaml as pyyaml
 from math_spec import to_program, to_spec
 
 import lpspec as lps
-from lpspec.api import read_against
+from lpspec.api import attach_readers
 from lpspec.layout import ANSWER_DIR, _staging_for
-from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of, digest_of_file
+from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of_file
 from lpspec.sources import attachable, tidy_sources
 from tests.conftest import (
     DISPATCH_COST,
@@ -32,12 +32,10 @@ from tests.conftest import (
     DISPATCH_SNAPSHOTS,
     PORT_REFERENCES,
     _dispatch_load,
-    dispatch_spec_path,
     override,
     port_sources,
     port_spec,
     raw_of,
-    schema_of,
 )
 
 if TYPE_CHECKING:
@@ -915,7 +913,7 @@ def test_a_written_archive_leaves_no_staging_beside_it(dispatch_yaml: Path, disp
 
 
 # ---------------------------------------------------------------------------
-# spec= / sources= on the loaders: an answer that travelled without its question
+# the model digest: which data an answer came back from
 # ---------------------------------------------------------------------------
 
 
@@ -923,116 +921,11 @@ def test_a_written_archive_leaves_no_staging_beside_it(dispatch_yaml: Path, disp
 _UNDECLARED = 'sum(p * cost, over=generator)'
 
 
-def _saved_alone(spec: Path, sources: Mapping[str, object], out: Path) -> float:
-    """A solve saved the way a dispatched one comes home, and what it made of `_UNDECLARED`."""
-    with lps.solve(spec, sources) as solved:
-        want = solved.evaluate(_UNDECLARED)['value'].sum()
-        solved.save(out)
-    return want
-
-
-@pytest.mark.parametrize('reader', [lps.load_result, lps.scan_result], ids=['load', 'scan'])
-def test_an_answer_given_its_question_at_the_load_reads_an_undeclared_expression(
-    reader, dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """The remote-solve round trip: the question goes out, only the answer comes back.
-
-    A saved answer holds the values without the model they belong to, so a
-    quantity the file never named has nothing to lower against. Handing the
-    loader the spec and the data puts the model back.
-    """
-    want = _saved_alone(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'answer')
-
-    alone = reader(tmp_path / 'answer')
-    with pytest.raises(lps.LpspecError, match='no model behind it'):
-        alone.evaluate(_UNDECLARED)
-
-    paired = reader(tmp_path / 'answer', spec=dispatch_yaml, sources=dispatch_frame_inputs)
-    assert paired.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
-        'an answer read against the spec it answered evaluates what the live result evaluated'
-    )
-    assert paired.primal('p').equals(alone.primal('p')), 'and the readers a save wrote are untouched'
-
-
-def test_an_answer_loaded_against_a_spec_it_did_not_answer_is_refused(
-    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """The one guard the archive route never needed: there the pair travels together.
-
-    A dispatched solve sends the spec out and brings only the answer home, so
-    nothing but the digest says the two belong together. Read against another
-    document the saved values would be laid out in that model's label order,
-    and an undeclared expression would hand back numbers rather than raise.
-    """
-    _saved_alone(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'answer')
-    other = schema_of(dispatch_yaml, **{'objective.expression': 'sum(p * cost * 2)'})
-
-    with pytest.raises(lps.LpspecError, match='came back from another model') as refused:
-        lps.load_result(tmp_path / 'answer', spec=other, sources=dispatch_frame_inputs)
-    carried = lps.load_result(tmp_path / 'answer').spec_digest
-    assert carried in str(refused.value), 'the refusal names the digest the answer carries'
-    assert digest_of(other.to_yaml()) in str(refused.value), 'and the one the spec it was handed digests to'
-
-
-def test_the_pairing_is_checked_before_the_answer_is_asked_for_values(
-    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """An answer with no values is still an answer to one document rather than another.
-
-    Nothing is read against the model until an undeclared expression asks, so
-    the check has to be at the load, or an infeasible answer pairs with any
-    spec at all.
-    """
-    infeasible = dispatch_spec_path(tmp_path, **{'variables.p.bounds.upper': 0})
-    with lps.solve(infeasible, dispatch_frame_inputs) as solved:
-        assert not solved.has_primal, 'the fixture has to be an answer that left no values'
-        solved.save(tmp_path / 'answer')
-
-    with pytest.raises(lps.LpspecError, match='came back from another model'):
-        lps.load_result(tmp_path / 'answer', spec=dispatch_yaml, sources=dispatch_frame_inputs)
-
-
-@pytest.mark.parametrize(
-    ('half', 'says'),
-    [
-        pytest.param({'spec': 'model.yaml'}, 'given a spec and no sources', id='spec alone'),
-        pytest.param({'sources': {}}, 'given sources and no spec', id='sources alone'),
-    ],
-)
-def test_half_a_question_is_refused_at_the_load(
-    half: dict, says: str, dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """The rebuild is a build, and a build takes the document and its data together."""
-    _saved_alone(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'answer')
-
-    with pytest.raises(lps.LpspecError, match=says):
-        lps.load_result(tmp_path / 'answer', **half)
-
-
-def test_an_answer_that_names_no_document_is_taken_as_given(
-    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
-) -> None:
-    """A solve off a lowered program has no document to have answered, so there is nothing to compare."""
-    want = _saved_alone(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'answer')
-    anonymous = replace(lps.load_result(tmp_path / 'answer'), _spec_digest=None)
-
-    attached = read_against(anonymous, dispatch_yaml, dispatch_frame_inputs)
-    assert attached.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
-        'an answer carrying no digest reads against the spec it is handed'
-    )
-
-
-# ---------------------------------------------------------------------------
-# the model digest: which data an answer came back from
-# ---------------------------------------------------------------------------
-
-
 def test_a_solve_that_never_saves_hashes_nothing(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
     """The digest is what a `save` costs, not what a solve costs.
 
-    It is held as the callable the engine handed over until something asks,
-    so the common case — solve, read the values, drop the result — pays for
-    none of it.
+    It is held as the callable the engine handed over until something asks, so
+    the common case — solve, read the values, drop the result — pays none of it.
     """
     with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
         solved.primal('p')
@@ -1041,48 +934,44 @@ def test_a_solve_that_never_saves_hashes_nothing(dispatch_yaml: Path, dispatch_f
         assert isinstance(solved._model_digest, str), 'which is then kept rather than hashed again'
 
 
-def test_two_builds_of_one_model_digest_the_same(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
+def test_two_builds_of_one_model_digest_the_same(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
     """The digest names a model, so building the same one twice cannot name two.
 
     The objective frame is genuinely sparse and carries no order contract: two
-    builds lay its rows out differently, and reading it in place would refuse
-    an answer against the very data it came back from.
+    builds lay its rows out differently, and reading it in place would refuse an
+    answer against the very data it came back from.
     """
     with lps.build(dispatch_yaml, dispatch_frame_inputs) as one, lps.build(dispatch_yaml, dispatch_frame_inputs) as two:
         assert one._contents() == two._contents(), 'one model, one digest, however its sparse frames are laid out'
 
-    halved = dispatch_frame_inputs | {
-        'cost': dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 0.5),
-    }
+    halved = dispatch_frame_inputs | {'cost': dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 0.5)}
     with lps.build(dispatch_yaml, dispatch_frame_inputs) as base, lps.build(dispatch_yaml, halved) as other:
         assert base._contents() != other._contents(), 'and data that moved a cost is a different model'
 
 
-def test_an_answer_read_against_other_data_is_refused_at_the_rebuild(
+def test_an_archive_whose_data_was_replaced_is_refused_at_the_rebuild(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    """The half the spec digest cannot see: the same document over different numbers.
+    """What the spec digest cannot see: one document over two sets of numbers.
 
-    Refused where a rebuilt model first exists, which is also the first moment
-    a value could be handed back — so nothing is ever read against the wrong
-    model.
+    An archive holds the pair it was solved as, so this catches a member
+    replaced since it was written. Refused where a rebuilt model first exists,
+    which is also the first moment a value could be handed back.
     """
-    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
-        want = solved.evaluate(_UNDECLARED)['value'].sum()
-        solved.save(tmp_path / 'answer')
+    _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'case')
+    intact = lps.load_archive(tmp_path / 'case')
+    want = intact.answer.evaluate(_UNDECLARED)['value'].sum()
 
-    right = lps.load_result(tmp_path / 'answer', spec=dispatch_yaml, sources=dispatch_frame_inputs)
-    assert right.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
-        'the data it came back from reads what the live result read'
-    )
+    moved = dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 99)
+    moved.write_parquet(tmp_path / 'case' / 'sources' / 'cost.parquet')
 
-    moved = dispatch_frame_inputs | {
-        'cost': dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 99),
-    }
-    against = lps.load_result(tmp_path / 'answer', spec=dispatch_yaml, sources=moved)
+    tampered = lps.load_archive(tmp_path / 'case')
     with pytest.raises(lps.LpspecError, match='came back from another model') as refused:
-        against.evaluate(_UNDECLARED)
+        tampered.answer.evaluate(_UNDECLARED)
     assert 'what differs is the data' in str(refused.value), 'and the refusal says which half moved'
+    assert want == pytest.approx(intact.answer.evaluate(_UNDECLARED)['value'].sum(), rel=1e-9), (
+        'while the archive as written still reads'
+    )
 
 
 def test_an_answer_naming_no_model_is_taken_as_given(
@@ -1093,9 +982,8 @@ def test_an_answer_naming_no_model_is_taken_as_given(
         want = solved.evaluate(_UNDECLARED)['value'].sum()
         solved.save(tmp_path / 'answer')
 
-    answer = lps.load_result(tmp_path / 'answer')
-    older = replace(answer, _model_digest=None)
-    read = read_against(older, dispatch_yaml, dispatch_frame_inputs)
+    older = replace(lps.load_result(tmp_path / 'answer'), _model_digest=None)
+    read = attach_readers(older, dispatch_yaml, dispatch_frame_inputs)
     assert read.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
         'an answer carrying no model digest reads against the data it is handed'
     )

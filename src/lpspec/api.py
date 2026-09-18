@@ -43,8 +43,6 @@ from lpspec.errors import (
     LpspecError,
     LpspecWarning,
     another_model_behind_this_answer_message,
-    another_spec_behind_this_answer_message,
-    half_a_question_message,
 )
 from lpspec.lanes import LANES, Buildable, Label, Source, declared, lowered
 from lpspec.layout import beside, check_the_target, write_archive
@@ -57,7 +55,6 @@ from lpspec.relational.parquet import (
     Record,
     check_format,
     digest_of,
-    other_specs,
     read_reasons,
     write_whole,
 )
@@ -598,12 +595,7 @@ def _absent(reason: str) -> Callable[[], pl.DataFrame]:
     return read
 
 
-def load_result(
-    directory: str | Path,
-    *,
-    spec: Buildable | None = None,
-    sources: Mapping[str, Source] | None = None,
-) -> Result:
+def load_result(directory: str | Path) -> Result:
     """Read back an answer :meth:`Result.save` wrote — a solve, off disk.
 
     Every reader answers what it answered in the session that solved: the
@@ -625,12 +617,6 @@ def load_result(
         directory: Where :meth:`~lpspec.relational.result.Result.save` wrote
             it. One that came out of an archive is
             :func:`~lpspec.archive.load_archive`'s to find.
-        spec: The model this answer came back from, as :func:`build` takes it.
-            Given with *sources*, it makes
-            :meth:`~lpspec.relational.result.Result.evaluate` read a quantity
-            the file never named — which no saved frame carries, the model as
-            written being what an undeclared expression lowers against.
-        sources: What it was solved with, as :func:`build` takes them.
 
     Returns:
         The result, read whole: the frames are in memory when this returns, so
@@ -641,18 +627,11 @@ def load_result(
         LayoutError: A directory holding no ``objective.parquet``, which is
             what every answer written there carries, or one whose layout has
             moved since it was written.
-        LpspecError: One of *spec* and *sources* without the other, or an
-            answer that came back from another spec.
     """
-    return _answer_under(Path(directory), _whole, spec, sources)
+    return _answer_under(Path(directory), _whole)
 
 
-def scan_result(
-    directory: str | Path,
-    *,
-    spec: Buildable | None = None,
-    sources: Mapping[str, Source] | None = None,
-) -> Result:
+def scan_result(directory: str | Path) -> Result:
     """The answer under *directory*, read as its readers are called rather than now.
 
     :func:`load_result`'s other half, and the same value: every reader answers
@@ -666,30 +645,19 @@ def scan_result(
 
     Args:
         directory: As :func:`load_result` takes it.
-        spec: As :func:`load_result` takes it.
-        sources: As :func:`load_result` takes them.
 
     Raises:
         LayoutError: As :func:`load_result` raises it.
-        LpspecError: As :func:`load_result` raises it.
     """
-    return _answer_under(Path(directory), pl.scan_parquet, spec, sources)
+    return _answer_under(Path(directory), pl.scan_parquet)
 
 
-def _answer_under(
-    out: Path,
-    read: Reading,
-    spec: Buildable | None,
-    sources: Mapping[str, Source] | None,
-) -> Result:
+def _answer_under(out: Path, read: Reading) -> Result:
     """The saved answer under *out*, its frames read *read*'s way.
 
     Shared body of :func:`load_result` and :func:`scan_result`; only the
-    reading differs. *spec* and *sources* travel together or not at all: the
-    rebuild an undeclared expression needs is a build, and a build takes both.
+    reading differs.
     """
-    if (spec is None) != (sources is None):
-        raise LpspecError(half_a_question_message(spec is None))
     record_file = out / RECORD_FILE
     if not record_file.is_file():
         raise LayoutError(
@@ -706,15 +674,14 @@ def _answer_under(
         '_model_digest': record.model_digest,
     }
     if not status.is_readable:
-        answer = Result(status, objective, {}, {}, {}, 'nothing', **carried)
-        return answer if spec is None else read_against(answer, spec, sources or {})
+        return Result(status, objective, {}, {}, {}, 'nothing', **carried)
 
     no_duals, no_expressions = read_reasons(out)
     expressions: dict[str, Callable[[], pl.DataFrame]] = {
         name: (lambda frame=frame: frame.collect()) for name, frame in _saved_frames(out / 'expression', read).items()
     }
     expressions.update({name: _absent(why) for name, why in no_expressions.items()})
-    answer = Result(
+    return Result(
         status,
         objective,
         _saved_frames(out / 'primal', read),
@@ -725,17 +692,16 @@ def _answer_under(
         _no_duals=no_duals,
         **carried,
     )
-    return answer if spec is None else read_against(answer, spec, sources or {})
 
 
 def _refuse_another_model(answer: Result, model: Model) -> None:
     """Refuse a saved answer against a model that is not the one it answered.
 
-    The spec is compared at the load; this is the half only a build can answer,
-    the data reaching the model through it. It runs here rather than at the load
-    because a rebuild is what produces a digest to compare, and the rebuild is
-    also the first moment a wrong number could be handed back — so nothing is
-    read against the wrong model before this.
+    The spec is compared where the pair is read — ``_check_the_pairing`` for an
+    archive — off a digest of the document. This is the half only a build can
+    answer, the data reaching the model through it, so it runs at the rebuild
+    rather than earlier. That is also the first moment a value could be handed
+    back, so nothing is ever read against the wrong model.
 
     An answer written before the column, or one whose solve never held a digest,
     carries ``None`` and is taken as given.
@@ -748,47 +714,26 @@ def _refuse_another_model(answer: Result, model: Model) -> None:
         raise LpspecError(another_model_behind_this_answer_message(answered, rebuilt))
 
 
-def read_against(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
+def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
     """*answer* with an undeclared expression readable through :meth:`~lpspec.relational.result.Result.evaluate`, over *spec* and *sources* rebuilt.
 
     Reading a quantity the file never named lowers the model as written, so the
     model is rebuilt (a build, never a solve) and the saved primal and dual put
-    back in order against it. The declared readers a save wrote are untouched;
+    back in order against it. **The rebuild is checked against the answer**: one
+    built from other data than the solve ran on is refused rather than read
+    (:func:`_refuse_another_model`). The declared readers a save wrote are untouched;
     only an expression outside them reaches the rebuilt evaluator. *answer* is
     returned unchanged where the solve left no values.
 
     The rebuild is deferred to the first undeclared ``answer.evaluate`` call
     and cached.
 
-    What :func:`load_result` and :func:`scan_result` do with the ``spec=`` and
-    ``sources=`` they are given, and what :func:`~lpspec.archive.load_archive`
-    does with the pair an archive holds. Not a verb of its own: an answer is
-    read against its model at the load, there being nowhere else to get one.
-
-    The answer and the spec travel separately — a solve dispatched elsewhere
-    sends the question out and brings only the answer home — so the pairing is
-    checked here before anything is read against it.
-
-    **Both halves are checked, at the two moments each can be.** The document is
-    compared here, off its digest. The data is compared at the first undeclared
-    ``evaluate``, where a rebuilt model first exists to digest
-    (:func:`_refuse_another_model`) — and that is also the first moment a value
-    could be handed back, so nothing is ever read against the wrong model.
-
     Args:
         answer: A saved solve, as :func:`load_result` or :func:`scan_result`
             read it back.
         spec: The model the answer solved, as :func:`build` takes it.
         sources: What it was solved with, as :func:`build` takes them.
-
-    Raises:
-        LpspecError: An answer that came back from another spec. One solved
-            off a lowered program carries no digest and is taken as given.
     """
-    document = declared(spec)
-    mine = digest_of(document.to_yaml())
-    if others := other_specs(mine, [answer.spec_digest]):
-        raise LpspecError(another_spec_behind_this_answer_message(others, mine))
     if not answer._primals:
         return answer
     frames = answer._primals
@@ -804,7 +749,7 @@ def read_against(answer: Result, spec: Buildable, sources: Mapping[str, Source])
                 if no_duals is None and dual_frames
                 else None
             )
-            model = build(document, sources)
+            model = build(spec, sources)
             _refuse_another_model(answer, model)
             built.append(model.evaluator(primals, duals, no_duals))
         return built[0](written)

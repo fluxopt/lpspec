@@ -18,10 +18,10 @@ from typing import TYPE_CHECKING
 import polars as pl
 from math_spec import to_spec
 
-from lpspec.api import load_result, read_against, scan_result
+from lpspec.api import attach_readers, load_result, scan_result
 from lpspec.errors import LpspecError
 from lpspec.layout import ANSWER_DIR, AXIS_MEMBER, DIGESTS_MEMBER, MODEL_MEMBER, SOURCES_DIR, opened
-from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of, other_specs, row_of
+from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of, row_of
 from lpspec.strategy import (
     EachCoordinate,
     EachWindow,
@@ -146,9 +146,8 @@ def _read(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
     saved = under / ANSWER_DIR
     axis_member = under / AXIS_MEMBER
     if not axis_member.is_file():
-        saved_answer = (load_result if whole else scan_result)(saved)
-        _check_the_pairing(spec, [saved_answer.spec_digest])
-        answer = read_against(saved_answer, spec, sources)
+        answer = attach_readers((load_result if whole else scan_result)(saved), spec, sources)
+        _check_the_pairing(spec, [answer.spec_digest])
         metrics = row_of(Metrics, pl.read_parquet(saved / METRICS_FILE).row(0, named=True), saved / METRICS_FILE)
         return SolveArchive(spec, sources, answer, digests, metrics)
     manifest = json.loads(axis_member.read_text())
@@ -166,7 +165,7 @@ def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
     compared.
     """
     mine = digest_of(spec.to_yaml())
-    if others := other_specs(mine, answered):
+    if others := sorted({other for other in answered if other is not None and other != mine}):
         raise LpspecError(
             f'this archive holds an answer that came back from a different model: the answer carries '
             f'{others} and the model.yaml beside it digests to {mine}, so re-solving it would give another answer.'
