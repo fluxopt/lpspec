@@ -27,6 +27,8 @@ from lpspec.relational.status import SolveStatus
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    import polars as pl
+
     from lpspec.relational.sinks.tables import RowVectors, Tables
 
 
@@ -316,7 +318,9 @@ class Highs(Solver):
             )
         status = _status_of(self._handle)
         if not status.is_readable:
-            return SolveAnswer.unreadable(status)
+            return SolveAnswer.unreadable(
+                status, self.dual_ray() if status.termination_condition == 'infeasible' else None
+            )
 
         objective = self._handle.getInfo().objective_function_value + tables.objective_constant
         solution = self._handle.getSolution()
@@ -324,6 +328,15 @@ class Highs(Solver):
         dual = solver_vector(solution.row_dual) if solution.dual_valid else None
         activity = solver_vector(solution.row_value)
         return SolveAnswer(status, objective, primal, dual, activity)
+
+    def dual_ray(self) -> pl.Series | None:
+        """``getDualRay``, which HiGHS signs the way the contract wants.
+
+        HiGHS needs nothing asked of it, and produces a ray whether or not
+        presolve is the pass that found the infeasibility.
+        """
+        _, has_ray, values = self._handle.getDualRay()
+        return solver_vector(values) if has_ray else None
 
     def forget(self) -> None:
         """``clearSolver``: the basis and the solution go, the model stays.

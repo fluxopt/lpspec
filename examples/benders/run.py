@@ -6,12 +6,16 @@
 that the answer is right; lpspec ships no decomposition driver, and
 https://github.com/fluxopt/lpspec/issues/596 settled that it will not own one.
 
-Four files, and the split is the whole idea:
+Three files, and the split is the whole idea:
 
 - ``monolith.yaml``  the problem in one plan — the answer everything else must reach
 - ``master.yaml``    capacity, plus a placeholder for what operating it will cost
 - ``sub.yaml``       dispatch at a capacity someone else chose; infeasible if it is too small
-- ``feasibility.yaml``  how far from dispatchable a capacity is, when it is too small
+
+Both cut families come out of the *same* subproblem. An optimality cut is read
+off its prices, and a feasibility cut off ``dual_ray`` — the certificate an
+infeasible solve leaves, which says which combination of rows cannot hold. A
+fourth model standing in for the ray is what this example used to carry.
 
 The master's cuts are **data**. It declares ``cut`` and ``fcut`` with members
 from data (the data-binding rules) and never changes; an iteration appends rows to their
@@ -43,7 +47,6 @@ SNAPSHOTS = [0, 1, 2, 3]
 GENERATORS = ['wind', 'gas']
 
 SUB = to_spec(HERE / 'sub.yaml')
-FEASIBILITY = to_spec(HERE / 'feasibility.yaml')
 MASTER = to_spec(HERE / 'master.yaml')
 
 SOURCES = {
@@ -65,11 +68,11 @@ SOURCES = {
 def slice_for(spec, **extra):
     """The part of ``SOURCES`` *spec* declares, plus what this call adds.
 
-    One bag of data and four models, each taking its own slice — `sub` reads a
-    `cost` that `feasibility` does not, and the two are otherwise the same
-    call. Binding refuses a name a spec does not declare, so a driver over
-    several models says which slice it means; that refusal is what turns a
-    misspelled key into an error instead of a table nobody read.
+    One bag of data and three models, each taking its own slice — the master
+    reads an `invest` that `sub` does not, and `sub` reads a `load` the master
+    has never heard of. Binding refuses a name a spec does not declare, so a
+    driver over several models says which slice it means; that refusal is what
+    turns a misspelled key into an error instead of a table nobody read.
     """
     known = {**spec.parameters, **spec.dimensions}
     return {name: frame for name, frame in {**SOURCES, **extra}.items() if name in known}
@@ -101,6 +104,36 @@ def slope_at(solution: lps.Result, capacity: pl.DataFrame) -> tuple[pl.DataFrame
     return slope, here
 
 
+def cut_from_ray(solution: lps.Result) -> tuple[pl.DataFrame, float]:
+    """The feasibility cut carried by a certificate that this capacity cannot be dispatched.
+
+    ``dual_ray`` weights the subproblem's rows so that together they
+    contradict: weight each capacity row by its u and each balance row by its
+    v, and ``Σ u·cap_hat·avail + Σ v·load`` comes out positive, which is the
+    proof. Every term is linear in capacity, so asking the master for a
+    capacity where that same combination is *not* positive is one row —
+    slope ``Σ_s u·avail`` per generator, against ``minus Σ_s v·load``.
+
+    This is what the fourth model used to be for. An infeasible solve has no
+    duals to read, correctly, since its values would be indistinguishable from
+    an answer — but it does have this.
+    """
+    slope = (
+        solution.dual_ray('capacity')
+        .join(SOURCES['avail'], on=['snapshot', 'generator'], suffix='_avail')
+        .with_columns((pl.col('value') * pl.col('value_avail')).alias('term'))
+        .group_by('generator')
+        .agg(pl.col('term').sum().alias('slope'))
+    )
+    against = (
+        solution.dual_ray('balance')
+        .join(SOURCES['load'], on='snapshot', suffix='_load')
+        .select((pl.col('value') * pl.col('value_load')).sum())
+        .item()
+    )
+    return slope, -against
+
+
 def appended(tables: dict[str, pl.DataFrame], family: str, constant: float, slope: pl.DataFrame) -> None:
     """One more cut in *family*, in place. This is the whole of "a cut is data"."""
     index = tables[f'{family}_const'].height
@@ -119,9 +152,9 @@ def main() -> None:
     """The decomposition loop, against the same problem solved in one plan.
 
     An infeasible subproblem has no duals to read — correctly, since its values
-    would be a vector of zeros indistinguishable from an answer — so the
-    violation is minimised instead and *its* duals say which way capacity has
-    to move.
+    would be a vector of zeros indistinguishable from an answer — so the cut
+    comes from its ``dual_ray`` instead, which is the one thing an infeasible
+    solve does have to say.
 
     The gap is only checked once some capacity has proved dispatchable: every
     feasibility cut leaves the upper bound at infinity.
@@ -137,7 +170,6 @@ def main() -> None:
 
     with (
         lps.build(SUB, slice_for(SUB, cap_hat=capacity)) as sub_model,
-        lps.build(FEASIBILITY, slice_for(FEASIBILITY, cap_hat=capacity)) as short_model,
         lps.build(MASTER, {'invest': SOURCES['invest'], **tables, **empty}) as master,
     ):
         for step in range(25):
@@ -149,9 +181,8 @@ def main() -> None:
                 upper = min(upper, spent.select((pl.col('value') * pl.col('value_rate')).sum()).item() + sub.objective)
                 appended(tables, 'cut', sub.objective - here, slope)
             else:
-                short = short_model.update({'cap_hat': capacity}).solve()
-                slope, here = slope_at(short, capacity)
-                appended(tables, 'fcut', here - short.objective, slope)
+                slope, against = cut_from_ray(sub)
+                appended(tables, 'fcut', against, slope)
 
             coordinates = {'cut': tables['cut_const']['cut'].to_list(), 'fcut': tables['fcut_const']['fcut'].to_list()}
             answer = master.update({**tables, **coordinates}).solve()
