@@ -82,7 +82,10 @@ def write_archive(
     """Write a spec, its data and its answer to *out*: a directory, or one zip where the suffix is ``.zip``.
 
     Args:
-        out: Where to write. Its parent is made if it does not exist.
+        out: Where to write. Its parent is made if it does not exist. A
+            directory named ``run=<name>`` is stamped ``<name>``, so a
+            reader taking the run from the path and one taking it from the
+            column read one name.
         spec: The spec as written, held as ``model.yaml``.
         sources: What was attached, keyed as the file declares. A parquet path
             is copied as its own bytes; anything else is written as *tables*
@@ -99,7 +102,7 @@ def write_archive(
         and renamed into place.
     """
     zipped = out.suffix == '.zip'
-    run = out.name.removesuffix('.zip')
+    run = out.name.removesuffix('.zip').removeprefix('run=')
     staging = _staging_for(out)
     part = staging / out.name
     tree = staging / 'tree' if zipped else part
