@@ -942,11 +942,13 @@ def test_two_builds_of_one_model_digest_the_same(dispatch_yaml: Path, dispatch_f
     answer against the very data it came back from.
     """
     with lps.build(dispatch_yaml, dispatch_frame_inputs) as one, lps.build(dispatch_yaml, dispatch_frame_inputs) as two:
-        assert one._contents() == two._contents(), 'one model, one digest, however its sparse frames are laid out'
+        assert one._model_digest() == two._model_digest(), (
+            'one model, one digest, however its sparse frames are laid out'
+        )
 
     halved = dispatch_frame_inputs | {'cost': dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 0.5)}
     with lps.build(dispatch_yaml, dispatch_frame_inputs) as base, lps.build(dispatch_yaml, halved) as other:
-        assert base._contents() != other._contents(), 'and data that moved a cost is a different model'
+        assert base._model_digest() != other._model_digest(), 'and data that moved a cost is a different model'
 
 
 def test_an_archive_whose_data_was_replaced_is_refused_at_the_rebuild(

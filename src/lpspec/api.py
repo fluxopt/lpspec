@@ -222,9 +222,9 @@ class Model:
     def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
         self._spec = declared(spec)
         self._program = lowered(self._spec)
-        #: What every answer of this model carries, so two of them can be told
-        #: to have answered the same document.
-        self._digest = digest_of(self._spec.to_yaml())
+        #: Which *document* this answers, so two answers can be told to have
+        #: answered the same one. The data is :meth:`_model_digest`.
+        self._spec_digest = digest_of(self._spec.to_yaml())
         self._sources = dict(sources)
         self._engine = PolarsEngine()
         self._fill()
@@ -342,7 +342,7 @@ class Model:
                 keep=keep,
                 lower=self._lower,
             ),
-            _spec_digest=self._digest,
+            _spec_digest=self._spec_digest,
             _solved_at=datetime.now(UTC),
         )
         if out is not None:
@@ -432,8 +432,16 @@ class Model:
         assert evaluate is not None, 'a model built from a spec as written lowers an ad-hoc expression'
         return evaluate
 
-    def _contents(self) -> str:
-        """This build's digest — the document and the data attached to it now."""
+    def _model_digest(self) -> str:
+        """Which model this build *is* — the document and the data attached to it now.
+
+        What a saved answer carries as
+        :attr:`~lpspec.relational.parquet.Record.model_digest`, and what one read
+        back is checked against. Over the built tables, so it is an identity for
+        the pair rather than an invariant of the mathematics: the same program
+        over a differently ordered dimension builds a different label order and
+        digests differently.
+        """
         return self._engine.contents()
 
     def diagnostics(self) -> Diagnostics:
@@ -710,7 +718,7 @@ def _refuse_another_model(answer: Result, model: Model) -> None:
         LpspecError: Sources that build a model other than the answered one.
     """
     answered = answer.model_digest()
-    if answered is not None and answered != (rebuilt := model._contents()):
+    if answered is not None and answered != (rebuilt := model._model_digest()):
         raise LpspecError(another_model_behind_this_answer_message(answered, rebuilt))
 
 
