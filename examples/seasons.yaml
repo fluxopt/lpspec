@@ -14,8 +14,8 @@ dimensions:
 relations:
   season_of:
     description: the season a snapshot falls in
-    columns: [snapshot, season]
     key: snapshot
+    value: season
 
 parameters:
   inflow:

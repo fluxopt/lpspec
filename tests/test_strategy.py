@@ -1744,7 +1744,7 @@ def test_a_reach_a_relation_decides_is_refused_with_the_relation_named():
         day_cap={'dims': ['day']},
     )
     spec['dimensions'] = {**spec['dimensions'], 'day': {'dtype': 'int'}}
-    spec['relations'] = {'day_of': {'columns': ['t', 'day'], 'key': 't'}}
+    spec['relations'] = {'day_of': {'key': 't', 'value': 'day'}}
     with pytest.raises(sps.SpecsolveError, match=r"constraint 'extra': through the relation 'day_of'"):
         sps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
 

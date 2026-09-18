@@ -70,7 +70,7 @@ GEN_BT = pl.DataFrame(
 def _two_value_spec(constraint: str, demand: float, headroom: bool = False) -> dict[str, Any]:
     spec: dict[str, Any] = {
         'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}, 'technology': {'dtype': 'str'}},
-        'relations': {'gen_bt': {'columns': ['generator', 'bus', 'technology'], 'key': 'generator'}},
+        'relations': {'gen_bt': {'key': 'generator', 'value': ['bus', 'technology']}},
         'parameters': {
             'cost': {'dims': ['generator']},
             'limit': {'dims': ['bus', 'technology']},
@@ -159,7 +159,7 @@ def test_a_produced_dimension_the_operand_already_carries_is_a_masked_sum(tmp_pa
     """
     spec = {
         'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-        'relations': {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
+        'relations': {'gen_bus': {'key': 'generator', 'value': 'bus'}},
         'parameters': {'load': {'dims': ['bus']}, 'cap': {'dims': ['bus']}},
         'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 10}}},
         'constraints': {'capped': {'dims': ['bus'], 'expression': 'sum(load * p, by=gen_bus) <= cap'}},
@@ -188,7 +188,7 @@ CONNECTION = pl.DataFrame({'generator': ['g1', 'g1', 'g2'], 'bus': ['a', 'b', 'b
 def _bare_spec() -> dict[str, Any]:
     return {
         'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-        'relations': {'connection': {'columns': ['generator', 'bus']}},
+        'relations': {'connection': {'key': ['generator', 'bus']}},
         'parameters': {'limit': {'dims': ['bus']}, 'w': {'dims': ['generator']}},
         'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 10}}},
         'constraints': {
@@ -273,7 +273,7 @@ SEASON_OF = pl.DataFrame(
 def _conditioned_partition_spec(constraint: dict[str, Any]) -> dict[str, Any]:
     return {
         'dimensions': {'generator': {'dtype': 'str'}, 'period': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-        'relations': {'season_of': {'columns': ['generator', 'period', 'season'], 'key': ['generator', 'period']}},
+        'relations': {'season_of': {'key': ['generator', 'period'], 'value': 'season'}},
         'parameters': {},
         'variables': {'p': {'dims': ['generator', 'period'], 'bounds': {'lower': 0, 'upper': 5}}},
         'constraints': {'rule': constraint},
@@ -369,7 +369,7 @@ REP_OF = pl.DataFrame({'snapshot': SNAPSHOTS, 'rep': [0, 0, 2]})
 def _self_map_spec(constraints: dict[str, Any]) -> dict[str, Any]:
     return {
         'dimensions': {'snapshot': {'dtype': 'int'}},
-        'relations': {'rep_of': {'columns': {'snapshot': 'snapshot', 'rep': 'snapshot'}, 'key': 'snapshot'}},
+        'relations': {'rep_of': {'key': 'snapshot', 'value': {'rep': 'snapshot'}}},
         'parameters': {'price': {'dims': ['snapshot']}},
         'variables': {'p': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 5}}},
         'constraints': constraints,
@@ -410,7 +410,7 @@ ENDS = pl.DataFrame({'line': ['l1', 'l2', 'l3'], 'bus0': ['a', 'b', 'c'], 'bus1'
 def _ends_spec() -> dict[str, Any]:
     return {
         'dimensions': {'line': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-        'relations': {'ends': {'columns': {'line': 'line', 'bus0': 'bus', 'bus1': 'bus'}, 'key': 'line'}},
+        'relations': {'ends': {'key': 'line', 'value': {'bus0': 'bus', 'bus1': 'bus'}}},
         'parameters': {'load': {'dims': ['bus']}, 'cost': {'dims': ['bus']}},
         'variables': {
             'f': {'dims': ['line'], 'where': 'ends.bus0 != ends.bus1', 'bounds': {'lower': 0, 'upper': 10}},

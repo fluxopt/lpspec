@@ -131,8 +131,8 @@ dimensions:
     dtype: str
 
 relations:
-  as_from: {columns: [city, from_city], key: city}
-  as_to: {columns: [city, to_city], key: city}
+  as_from: {key: city, value: from_city}
+  as_to: {key: city, value: to_city}
 
 parameters:
   distance:
@@ -197,8 +197,8 @@ It does not. Declare the identity map from `city` onto each end of the pair:
 
 ```yaml
 relations:
-  as_from: {columns: [city, from_city], key: city}
-  as_to: {columns: [city, to_city], key: city}
+  as_from: {key: city, value: from_city}
+  as_to: {key: city, value: to_city}
 ```
 
 and `sum(u, by=as_from)` becomes a **relabel** rather than a reduction. Each

@@ -166,12 +166,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     relations:
       gen_bus:
         description: the bus a generator sits on
-        columns: [generator, bus]
         key: generator
+        value: bus
       storage_bus:
         description: the bus a storage unit sits on
-        columns: [storage, bus]
         key: storage
+        value: bus
 
     parameters:
       cyclic:

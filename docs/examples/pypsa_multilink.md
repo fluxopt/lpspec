@@ -118,7 +118,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dtype: str
 
     relations:
-      gen_bus: {columns: [generator, bus], key: generator, description: "the bus a generator sits on"}
+      gen_bus: {key: generator, value: bus, description: "the bus a generator sits on"}
 
     parameters:
       gen_p_nom:

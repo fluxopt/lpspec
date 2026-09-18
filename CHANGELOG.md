@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.0.1-alpha.340](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.339...v0.0.1-alpha.340) (2026-09-18)
+
+
+### Features
+
+* **api:** an infeasible solve says why there is no solution, so a feasibility cut needs no second model ([#1682](https://github.com/fluxopt/lpspec/issues/1682)) ([7cc52eb](https://github.com/fluxopt/lpspec/commit/7cc52ebf61539d2ada415b3752808e8dfe1d3c25))
+
+## [0.0.1-alpha.339](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.338...v0.0.1-alpha.339) (2026-09-18)
+
+
+### Features
+
+* **language:** a relation declares key columns and value columns ([#1681](https://github.com/fluxopt/lpspec/issues/1681)) ([df67ebc](https://github.com/fluxopt/lpspec/commit/df67ebc1b15e463e6fab147967412ba0c39a6708))
+
+## [0.0.1-alpha.338](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.337...v0.0.1-alpha.338) (2026-09-18)
+
+
+### Documentation
+
+* the decomposition page shows the loop the example runs, and says lpspec owns no driver ([#1678](https://github.com/fluxopt/lpspec/issues/1678)) ([f1d33b3](https://github.com/fluxopt/lpspec/commit/f1d33b345d838cb59bce50ab66ec9f6e2a859981))
+
 ## [0.0.1-alpha.337](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.336...v0.0.1-alpha.337) (2026-09-16)
 
 

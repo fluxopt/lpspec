@@ -15,8 +15,8 @@ dimensions:
     dtype: str
 
 relations:
-  as_from: {columns: [city, from_city], key: city}
-  as_to: {columns: [city, to_city], key: city}
+  as_from: {key: city, value: from_city}
+  as_to: {key: city, value: to_city}
 
 parameters:
   distance:

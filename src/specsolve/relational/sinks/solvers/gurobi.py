@@ -152,6 +152,31 @@ class Gurobi(Solver):
         self._m, self._x, self._blocks, self._qrows, self._env = _built(tables, batch_rows, self._options)
         self._release = weakref.finalize(self, _released, self._m, self._env)
 
+    def dual_ray(self) -> pl.Series | None:
+        """``FarkasDual``, negated, and only where the caller asked for it.
+
+        Gurobi computes the certificate only under ``InfUnbdInfo``, which is
+        off by default and has to be set *before* the solve, so a caller who
+        wants a ray passes ``solver_options={'InfUnbdInfo': 1}``; without it
+        the attribute is refused, and that refusal *is* the answer. The sign
+        is Gurobi's own, which is the opposite of the contract's, so what is
+        read here is negated.
+
+        A quadratic row carries no ``FarkasDual`` at all, so a model holding
+        one yields no ray rather than a vector that does not span it.
+        """
+        import numpy as np
+
+        gurobipy = _gurobipy()
+        if self._qrows:
+            return None
+        try:
+            slices = [block.FarkasDual for block in self._blocks]
+        except (AttributeError, gurobipy.GurobiError):
+            return None
+        values = np.concatenate(slices) if slices else np.empty(0, dtype=np.float64)
+        return solver_vector(-values)
+
     @property
     def handle(self) -> Any:
         return self._m
@@ -253,7 +278,9 @@ class Gurobi(Solver):
             ) from None
         status = _status_of(self._m)
         if not status.is_readable:
-            return SolveAnswer.unreadable(status)
+            return SolveAnswer.unreadable(
+                status, self.dual_ray() if status.termination_condition == 'infeasible' else None
+            )
         return SolveAnswer(
             status,
             self._m.ObjVal,

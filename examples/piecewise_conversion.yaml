@@ -20,8 +20,8 @@ dimensions:
 relations:
   converter_of:
     description: which converter a flow belongs to
-    columns: [flow, converter]
     key: flow
+    value: converter
 
 parameters:
   bp_rate:

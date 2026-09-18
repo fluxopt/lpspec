@@ -187,12 +187,12 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dtype: str
 
     relations:
-      gen_bus: {columns: [generator, bus], key: generator, description: "the bus a generator sits on"}
-      line_from: {columns: [line, bus], key: line, description: "the bus a line leaves, null where the end is open"}
-      line_to: {columns: [line, bus], key: line, description: "the bus a line arrives at, null where the end is open"}
-      gen_of: {columns: [offer, generator], key: offer, description: "the generator behind an offer"}
-      market_of: {columns: [offer, market], key: offer, description: "the market an offer is made into"}
-      tranche_of: {columns: [offer, tranche], key: offer, description: "the tranche an offer is made at"}
+      gen_bus: {key: generator, value: bus, description: "the bus a generator sits on"}
+      line_from: {key: line, value: bus, description: "the bus a line leaves, null where the end is open"}
+      line_to: {key: line, value: bus, description: "the bus a line arrives at, null where the end is open"}
+      gen_of: {key: offer, value: generator, description: "the generator behind an offer"}
+      market_of: {key: offer, value: market, description: "the market an offer is made into"}
+      tranche_of: {key: offer, value: tranche, description: "the tranche an offer is made at"}
 
     parameters:
       p_max:

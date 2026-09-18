@@ -46,8 +46,8 @@ dimensions:
   technology: {dtype: str, description: what a generator is built from}
 
 relations:
-  gen_bus: {columns: [generator, bus], key: generator, description: the bus a generator sits on}
-  gen_tech: {columns: [generator, technology], key: generator, description: the technology it is}
+  gen_bus: {key: generator, value: bus, description: the bus a generator sits on}
+  gen_tech: {key: generator, value: technology, description: the technology it is}
 
 parameters:
   cost: {dims: [generator], description: marginal cost of a unit of output}
