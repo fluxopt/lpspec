@@ -604,6 +604,27 @@ def test_an_archive_stamps_its_own_name_and_when_the_solve_returned(
     assert before <= record['solved_at'].item() <= datetime.now(UTC), 'which is a real clock, not a placeholder'
 
 
+def test_a_run_named_directory_stamps_the_name_and_not_the_segment(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A value frame carries no `run`, so a directory of archives can put it in the path instead.
+
+    `run=<name>` is what a query engine reads that column off, and the archive
+    is still named `<name>`. Without the prefix dropped the record would say
+    `run=nightly-2026-09-10` where the path says `nightly-2026-09-10`, which is
+    one name spelled two ways across tables a warehouse joins.
+    """
+    out = tmp_path / 'runs' / 'run=nightly-2026-09-10'
+    with lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out):
+        pass
+
+    record = pl.read_parquet(out / ANSWER_DIR / 'objective.parquet')
+    values = pl.read_parquet(str(tmp_path / 'runs' / '*' / ANSWER_DIR / 'primal' / 'p.parquet'), hive_partitioning=True)
+
+    assert record['run'].to_list() == ['nightly-2026-09-10'], 'the name the directory holds, not the whole segment'
+    assert values['run'].unique().to_list() == ['nightly-2026-09-10'], 'which is the name the path hands a reader too'
+
+
 def test_a_saved_answer_that_was_never_archived_names_no_run(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:

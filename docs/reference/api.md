@@ -526,7 +526,7 @@ thirteen attributes and they are every column of `answer/metrics.parquet`:
 | `handoff_seconds` | the built model into a solver |
 | `solve_seconds` | the solver's own run |
 | `write_seconds` | `model.write(path)`'s stream to an LP or MPS file. Zero on an archive whose caller asked for no file, which is most of them |
-| `run` | the archive's own name, null until one is written |
+| `run` | the archive's own name, null until one is written. A directory named `run=<name>` is stamped `<name>`, so the column and the path agree ([reading a directory of runs](../howto/warehouse.md#the-run-on-a-value-frame)) |
 
 **Every clock names its unit**, and every one is cumulative over the `solves`
 the row covers. A phase that never ran writes zero rather than no column, so
