@@ -4,9 +4,10 @@ This page shows that the language can express a Benders decomposition and reach
 the right answer, for anyone decomposing a model in lpspec or asking for a
 driver that does it.
 
-**lpspec ships no decomposition driver.** Whether it should is
-[#596](https://github.com/fluxopt/lpspec/issues/596). Every block below is
-validated against
+**lpspec ships no decomposition driver, and
+[#596](https://github.com/fluxopt/lpspec/issues/596) settled that it will not
+own one.** The loop is the caller's, and so are its failure modes. Every block
+below is validated against
 [`examples/benders/`](https://github.com/fluxopt/lpspec/blob/main/examples/benders/run.py).
 
 ## Why anyone wants it
@@ -197,38 +198,45 @@ model declares one objective.
 ## The loop
 
 ```python
-sub_model, feasibility_model, master_model = (to_spec(path) for path in paths)
+sub_spec, feasibility_spec, master_spec = (to_spec(path) for path in paths)
 
-for step in range(25):
-    with lps.solve(sub_model, {**dispatch, 'cap_hat': capacity}) as sub:
+with (
+    lps.build(sub_spec, {**dispatch, 'cap_hat': capacity}) as sub_model,
+    lps.build(feasibility_spec, {**dispatch, 'cap_hat': capacity}) as short_model,
+    lps.build(master_spec, {**master_sources, **empty}) as master,
+):
+    for step in range(25):
+        sub = sub_model.update({'cap_hat': capacity}).solve()
         dispatchable = sub.has_primal
         if dispatchable:
             slope, here_value = slope_at(sub, capacity)
             upper = min(upper, spent(capacity) + sub.objective)
             appended(tables, 'cut', sub.objective - here_value, slope)
-
-    if not dispatchable:
-        with lps.solve(feasibility_model, {**dispatch, 'cap_hat': capacity}) as short:
+        else:
+            short = short_model.update({'cap_hat': capacity}).solve()
             slope, here_value = slope_at(short, capacity)
             appended(tables, 'fcut', here_value - short.objective, slope)
 
-    with lps.solve(master_model, {**master_sources, **coordinates}) as master:
-        lower = master.objective
-        capacity = master.primal('cap').select('generator', 'value')
+        answer = master.update({**tables, **coordinates}).solve()
+        lower = answer.objective
+        capacity = answer.primal('cap').select('generator', 'value')
 
-    if upper < float('inf') and upper - lower <= 1e-6 * abs(upper):
-        break
+        if upper < float('inf') and upper - lower <= 1e-6 * abs(upper):
+            break
 ```
 
-Twenty lines, three `lps.solve` calls, and a growing pair of tables. **A reader
-could write this**, which is the observation that matters most for
-[#596](https://github.com/fluxopt/lpspec/issues/596).
+Twenty lines, three built models and a growing pair of tables. **A reader could
+write this**, which is what [#596](https://github.com/fluxopt/lpspec/issues/596)
+settled on.
 
-The models are read once above the loop, because a cut is a row in a
-parameter table rather than an edit to a file. `lps.solve` takes a `Spec`
-([glossary](../reference/glossary.md#the-chain)) anywhere it takes a path, so
-parsing and validation are paid once per run rather than three times an
-iteration.
+Each spec is read once above the loop **and built once**, because a cut is a row
+in a parameter table rather than an edit to a file. `lps.build` binds the data
+and `update` puts the next iteration's numbers on the model that is already
+there ([glossary](../reference/glossary.md#the-chain)), so parsing, validation
+and the build are paid once per run rather than three times an iteration. The
+subproblem's `cap_hat` reaches its rows as a right-hand side, so the solver keeps
+the model it holds and re-solves from the last basis. The master gains a row a
+step, so it is loaded again — which is what the last two lines below count.
 
 ## Running it
 
@@ -248,6 +256,8 @@ decomposed: 9600.00 in 4 steps
 monolithic: 9600.00
 difference: 0.0e+00
 cuts: 1 optimality, 3 feasibility
+the subproblem loaded the solver 1 time(s) in 4 solves
+the master loaded the solver 4 time(s) in 4 solves
 ```
 
 Three capacities are excluded as undispatchable before one proves feasible, and
@@ -266,5 +276,9 @@ undecomposed form is another file over the same data.
 Missing is everything that makes a decomposition survive a real model: cut
 management as the master grows, stabilisation, multi-cut, tolerances that hold
 when duals are degenerate, and an answer for when convergence does not happen.
-That is the surface [#596](https://github.com/fluxopt/lpspec/issues/596) asks
-whether to own. This page settles only that the *language* is not the obstacle.
+[#596](https://github.com/fluxopt/lpspec/issues/596) asked whether lpspec
+should own that surface and answered no, so all of it stays the caller's. What a
+caller still lacks *from lpspec* — a dual ray above all, which is why the
+feasibility model on this page exists — is collected in
+[#1677](https://github.com/fluxopt/lpspec/issues/1677). This page settles only
+that the *language* is not the obstacle.
