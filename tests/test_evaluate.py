@@ -33,7 +33,7 @@ SPEC = {
         'dispatch': {'dims': ['snapshot', 'generator']},
         'cost': {'dims': ['generator']},
     },
-    'relations': {'bus': {'columns': ['generator', 'node'], 'key': 'generator'}},
+    'relations': {'bus': {'key': 'generator', 'value': 'node'}},
     'expressions': {
         'cost_by_gen': 'dispatch * cost',
         'total_cost': 'sum(dispatch * cost)',

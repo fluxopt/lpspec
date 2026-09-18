@@ -1,6 +1,6 @@
 """A relation whose two columns sit over one dimension — a representative snapshot.
 
-`rep_of: {columns: {snapshot: snapshot, rep: snapshot}, key: snapshot}` maps each
+`rep_of: {key: snapshot, value: {rep: snapshot}}` maps each
 snapshot to the one that stands for it. The language's own example of the form,
 and two columns keyed by one, so `lanes.lowered` takes it.
 
@@ -27,8 +27,8 @@ dimensions:
 
 relations:
   rep_of:
-    columns: {snapshot: snapshot, rep: snapshot}
     key: snapshot
+    value: {rep: snapshot}
     description: the snapshot that stands for this one
 
 parameters:

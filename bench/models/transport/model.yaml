@@ -12,9 +12,9 @@ dimensions:
     dtype: str
 
 relations:
-  gen_bus: {columns: [generator, bus], key: generator}  # every generator sits on a bus
-  line_from: {columns: [line, bus], key: line}  # both endpoints are buses
-  line_to: {columns: [line, bus], key: line}
+  gen_bus: {key: generator, value: bus}  # every generator sits on a bus
+  line_from: {key: line, value: bus}  # both endpoints are buses
+  line_to: {key: line, value: bus}
 
 parameters:
   p_max:
