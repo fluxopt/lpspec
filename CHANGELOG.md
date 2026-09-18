@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.339](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.338...v0.0.1-alpha.339) (2026-09-18)
+
+
+### Features
+
+* **language:** a relation declares key columns and value columns ([#1681](https://github.com/fluxopt/lpspec/issues/1681)) ([df67ebc](https://github.com/fluxopt/lpspec/commit/df67ebc1b15e463e6fab147967412ba0c39a6708))
+
 ## [0.0.1-alpha.338](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.337...v0.0.1-alpha.338) (2026-09-18)
 
 
