@@ -202,16 +202,27 @@ Every tagged build also attaches its wheel and sdist to the GitHub release.
 - **Release app** — a GitHub App with `contents: write` + `pull-requests: write`,
   credentials in secrets `APP_CLIENT_ID` / `APP_PRIVATE_KEY`. Needed so release
   PRs run CI and prerelease tags trigger publish. Without it, `release.yaml`
-  degrades to `GITHUB_TOKEN` and warns; `prerelease.yaml` refuses to run.
+  degrades to `GITHUB_TOKEN` and warns; `prerelease.yaml` refuses to run. In
+  place: release PRs are authored by `fluxopt-release-bot[bot]`.
 - **PyPI** — currently off. The `pypi` job is skipped unless the repo variable
   `PUBLISH_TO_PYPI` is `true`. To go live: register a
   [trusted publisher](https://docs.pypi.org/trusted-publishers/) for
   `specsolve` (workflow `publish.yaml`, environment `pypi`), create the `pypi`
   environment, then set the variable.
 
-  **PyPI refuses a direct reference**, and the `linopy` extra is one —
-  `linopy @ git+…@master`, because the arithmetic
-  convention that lane requires is in no linopy release. So the upload fails
-  until upstream ships v1 and the extra becomes an ordinary floor
-  ([#463](https://github.com/fluxopt/specsolve/issues/463)). Everything else —
-  the tag, the wheel, the GitHub release — works today.
+  **PyPI refuses a direct reference, and this package declares two.** Both have
+  to go before one upload succeeds, and they clear in a fixed order.
+
+  The `linopy` extra is `linopy @ git+…@master`, because the arithmetic
+  convention that lane requires is in no linopy release. It becomes an ordinary
+  floor when upstream ships the release that carries it
+  ([#463](https://github.com/fluxopt/specsolve/issues/463)); `pyproject.toml`
+  says why no floor stands in for it meanwhile.
+
+  The runtime dependency `math-spec @ git+…` waits on nothing but order.
+  math-spec publishes, and the pin becomes a floor on the version it published.
+  It cannot become a floor sooner: the `floors` environment resolves the
+  declared dependencies from PyPI, so `test-floors` fails on a version that is
+  not there yet.
+
+  Everything else — the tag, the wheel, the GitHub release — works today.
