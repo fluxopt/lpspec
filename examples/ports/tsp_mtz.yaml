@@ -15,8 +15,8 @@ dimensions:
     dtype: str
 
 relations:
-  as_from: {key: city, value: from_city}
-  as_to: {key: city, value: to_city}
+  as_from: {key: city, values: from_city}
+  as_to: {key: city, values: to_city}
 
 parameters:
   distance:
@@ -61,8 +61,8 @@ constraints:
     dims: [from_city, to_city]
     where: "from_city != c01 AND to_city != c01"
     expression: >-
-      sum(u, by=as_from)
-      - sum(u, by=as_to)
+      sum(u, by=as_from, over=city, into=from_city)
+      - sum(u, by=as_to, over=city, into=to_city)
       + n * travel
       <= n - 1
 

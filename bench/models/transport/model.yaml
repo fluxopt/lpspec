@@ -12,9 +12,9 @@ dimensions:
     dtype: str
 
 relations:
-  gen_bus: {key: generator, value: bus}  # every generator sits on a bus
-  line_from: {key: line, value: bus}  # both endpoints are buses
-  line_to: {key: line, value: bus}
+  gen_bus: {key: generator, values: bus}  # every generator sits on a bus
+  line_from: {key: line, values: bus}  # both endpoints are buses
+  line_to: {key: line, values: bus}
 
 parameters:
   p_max:
@@ -43,7 +43,7 @@ variables:
 constraints:
   balance:
     dims: [snapshot, bus]
-    expression: sum(p, by=gen_bus) + sum(f, by=line_to) - sum(f, by=line_from) == load
+    expression: sum(p, by=gen_bus, over=generator, into=bus) + sum(f, by=line_to, over=line, into=bus) - sum(f, by=line_from, over=line, into=bus) == load
 
 objective:
   sense: minimize

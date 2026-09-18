@@ -151,15 +151,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       gen_carrier:
         description: the carrier a generator burns
         key: generator
-        value: carrier
+        values: carrier
       build_period:
         description: the period a generator is first built in, and so counted as new in
         key: generator
-        value: period
+        values: period
       period_of:
         description: the investment period a snapshot falls in
         key: snapshot
-        value: period
+        values: period
 
     parameters:
       load:
@@ -199,7 +199,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           capacity of the capped carrier first standing in a period: each generator's
           capacity counted once, in the period it is built, and never again
-        expression: sum(p_nom * at(capped_carrier, by=gen_carrier), by=build_period)
+        expression: sum(p_nom * at(capped_carrier, by=gen_carrier, over=carrier, into=generator), by=build_period, over=generator, into=period)
 
     variables:
       p:
@@ -220,7 +220,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           a generator produces no more than the capacity built for it, and nothing in
           a period it does not stand in
         dims: [snapshot, generator]
-        expression: p <= p_nom * at(activity, by=period_of)
+        expression: p <= p_nom * at(activity, by=period_of, over=period, into=snapshot)
 
       power_balance:
         dims: [snapshot]
@@ -243,7 +243,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         operating and capacity cost, each discounted by the weight of the period it
         falls in — capacity once per period the generator stands in
       expression: >-
-        sum(p * opex * at(period_weight, by=period_of))
+        sum(p * opex * at(period_weight, by=period_of, over=period, into=snapshot))
         + sum(p_nom * capex * activity * period_weight)
     ```
 

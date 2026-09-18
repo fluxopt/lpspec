@@ -194,10 +194,12 @@ def test_a_window_whose_every_width_is_zero_builds_no_row():
 #: snapshot carries no width at all.
 UNMAPPED_WIDTH = {
     'dimensions': {'t': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-    'relations': {'season_of': {'key': 't', 'value': 'season'}},
+    'relations': {'season_of': {'key': 't', 'values': 'season'}},
     'parameters': {'w': {'dims': ['season'], 'dtype': 'int'}, 'price': {'dims': ['t']}},
     'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 5}}},
-    'constraints': {'rolling': {'dims': ['t'], 'expression': 'sum_back(x, along=t, window=w, by=season_of) <= 4'}},
+    'constraints': {
+        'rolling': {'dims': ['t'], 'expression': 'sum_back(x, along=t, window=w, by=season_of, within=season) <= 4'}
+    },
     'objective': {'sense': 'maximize', 'expression': 'sum(x * price, over=t)'},
 }
 
@@ -286,7 +288,7 @@ def test_a_per_entity_window_reaching_nothing_is_that_entitys_row_alone():
 DAY_WINDOW = {
     'description': 'A minimum up time that stops at each representative day.',
     'dimensions': {'t': {'dtype': 'int'}, 'day': {'dtype': 'str'}},
-    'relations': {'day_of': {'key': 't', 'value': 'day'}},
+    'relations': {'day_of': {'key': 't', 'values': 'day'}},
     'parameters': {'must_start': {'dims': ['t']}},
     'variables': {
         'started': {'dims': ['t'], 'domain': 'binary'},
@@ -329,7 +331,7 @@ def test_a_window_stops_at_the_edge_of_the_group_it_is_partitioned_by():
     its own group the window reaches back over positions that are its
     neighbours, and only that hour is held.
     """
-    spec, sources = day_window('sum_back(started, along=t, window=3, by=day_of)', starts=[0, 0, 1, 0, 0, 0])
+    spec, sources = day_window('sum_back(started, along=t, window=3, by=day_of, within=day)', starts=[0, 0, 1, 0, 0, 0])
     with differential(spec, sources) as run:
         assert _on(run.result) == [0.0, 0.0, 1.0, 0.0, 0.0, 0.0], (
             'the start holds its own hour on, and no hour of the day after it'
@@ -346,7 +348,7 @@ def test_a_partitioned_window_wraps_inside_its_own_group():
     contrast with the acyclic run above visible in one number.
     """
     spec, sources = day_window(
-        "sum_back(started, along=t, window=3, by=day_of, edge='wrap')", starts=[0, 0, 1, 0, 0, 0]
+        "sum_back(started, along=t, window=3, by=day_of, within=day, edge='wrap')", starts=[0, 0, 1, 0, 0, 0]
     )
     with differential(spec, sources) as run:
         assert _on(run.result) == [1.0, 1.0, 1.0, 0.0, 0.0, 0.0], (
@@ -363,7 +365,9 @@ def test_a_window_width_may_be_read_per_group():
     group is reached by its own. The two days differ, which is what a single
     width cannot reproduce.
     """
-    spec, sources = day_window('sum_back(started, along=t, window=up, by=day_of)', starts=[0, 1, 0, 1, 0, 0])
+    spec, sources = day_window(
+        'sum_back(started, along=t, window=up, by=day_of, within=day)', starts=[0, 1, 0, 1, 0, 0]
+    )
     spec['parameters']['up'] = {'dims': ['day'], 'dtype': 'int'}
     sources['up'] = pd.Series([1, 3], index=pd.Index(['early', 'late'], name='day'))
     with differential(spec, sources) as run:
@@ -383,7 +387,7 @@ def test_an_hour_the_relation_places_in_no_day_reaches_nothing():
     else.
     """
     spec, sources = day_window(
-        'sum_back(started, along=t, window=3, by=day_of)',
+        'sum_back(started, along=t, window=3, by=day_of, within=day)',
         starts=[0, 0, 1, 0, 0, 0],
         days=[*DAYS[:5], None],
     )

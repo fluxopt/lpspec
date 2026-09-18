@@ -21,7 +21,7 @@ is *higher*.
 The cycle a multi-period model means is per period, and `by=` says which:
 
 ```yaml
-soc == shift(soc, along=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
+soc == shift(soc, along=snapshot, offset=1, edge='wrap', by=season_of, within=season) + inflow - release
 ```
 
 $$\mathit{soc}_{t} = \mathit{soc}_{t \ominus_{\mathrm{season\_of}(t)} 1} + \mathit{inflow}_{t} - \mathit{release}_{t}$$
@@ -118,7 +118,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       season_of:
         description: the season a snapshot falls in
         key: snapshot
-        value: season
+        values: season
 
     parameters:
       inflow:
@@ -148,7 +148,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           season's first snapshot carries from that season's own last — so each
           season ends where it began and hands the next one nothing
         dims: [snapshot]
-        expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap', by=season_of) + inflow - release
+        expression: soc == shift(soc, along=snapshot, offset=1, edge='wrap', by=season_of, within=season) + inflow - release
 
     objective:
       sense: maximize

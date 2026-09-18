@@ -106,7 +106,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       call_of:
         description: the city pair a path serves, end to end
         key: path
-        value: call
+        values: call
 
     parameters:
       capacity:
@@ -136,7 +136,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       within_demand:
         description: a pair cannot be carried more than it asked for, however many paths serve it
         dims: [call]
-        expression: sum(flow, by=call_of) <= demand
+        expression: sum(flow, by=call_of, over=path, into=call) <= demand
 
       within_capacity:
         description: >-

@@ -131,8 +131,8 @@ dimensions:
     dtype: str
 
 relations:
-  as_from: {key: city, value: from_city}
-  as_to: {key: city, value: to_city}
+  as_from: {key: city, values: from_city}
+  as_to: {key: city, values: to_city}
 
 parameters:
   distance:
@@ -177,8 +177,8 @@ constraints:
     dims: [from_city, to_city]
     where: "from_city != c01 AND to_city != c01"
     expression: >-
-      sum(u, by=as_from)
-      - sum(u, by=as_to)
+      sum(u, by=as_from, over=city, into=from_city)
+      - sum(u, by=as_to, over=city, into=to_city)
       + n * travel
       <= n - 1
 
@@ -197,11 +197,11 @@ It does not. Declare the identity map from `city` onto each end of the pair:
 
 ```yaml
 relations:
-  as_from: {key: city, value: from_city}
-  as_to: {key: city, value: to_city}
+  as_from: {key: city, values: from_city}
+  as_to: {key: city, values: to_city}
 ```
 
-and `sum(u, by=as_from)` becomes a **relabel** rather than a reduction. Each
+and `sum(u, by=as_from, over=city, into=from_city)` becomes a **relabel** rather than a reduction. Each
 city keys one row and each `from_city` is named once, so nothing is added up:
 `u` moves from the `city` axis onto the `from_city` axis. Doing it twice with
 different relations puts the same variable at both ends of one row. A relation

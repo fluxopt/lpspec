@@ -116,15 +116,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       gen_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       link_from:
         description: the bus a link leaves
         key: link
-        value: bus
+        values: bus
       link_to:
         description: the bus a link arrives at
         key: link
-        value: bus
+        values: bus
 
     parameters:
       p_nom:
@@ -171,9 +171,9 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           snapshot to have taken anything in.
         dims: [snapshot, bus]
         expression: >-
-          sum(p, by=gen_bus)
-          + sum(shift(g, along=snapshot, offset=delay, edge=0) * efficiency, by=link_to)
-          - sum(g, by=link_from)
+          sum(p, by=gen_bus, over=generator, into=bus)
+          + sum(shift(g, along=snapshot, offset=delay, edge=0) * efficiency, by=link_to, over=link, into=bus)
+          - sum(g, by=link_from, over=link, into=bus)
           == load
 
     objective:

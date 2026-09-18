@@ -118,7 +118,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       period_of:
         description: the investment period a snapshot falls in
         key: snapshot
-        value: period
+        values: period
 
     parameters:
       load:
@@ -167,7 +167,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           all in a period it does not exist in — the activity is read down onto the
           snapshot through the period relation
         dims: [snapshot, generator]
-        expression: p <= p_nom * at(activity, by=period_of)
+        expression: p <= p_nom * at(activity, by=period_of, over=period, into=snapshot)
 
       power_balance:
         description: what exists in this snapshot meets the load
@@ -181,7 +181,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         period it falls in — capacity once per period the asset stands in, which is
         why an asset alive in both is paid for twice
       expression: >-
-        sum(p * opex * at(period_weight, by=period_of))
+        sum(p * opex * at(period_weight, by=period_of, over=period, into=snapshot))
         + sum(p_nom * capex * activity * period_weight)
     ```
 
@@ -257,7 +257,7 @@ relation, so `p <= p_nom * 0` holds it at zero. Same optimum and same duals, sin
 a variable pinned to `[0, 0]` contributes nothing, but not the same model on
 paper.
 
-Writing the absence exactly would need `where: at(activity, by=period_of)` on
+Writing the absence exactly would need `where: at(activity, by=period_of, over=period, into=snapshot)` on
 the variable, and a `where:` cannot call `at()`: its grammar compares a name
 against a literal. A second table keyed by `(snapshot, generator)` would state
 one fact twice. [#982](https://github.com/fluxopt/lpspec/issues/982) asks

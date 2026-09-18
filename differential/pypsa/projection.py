@@ -27,9 +27,9 @@ def _relation_dims(relation: dict[str, Any]) -> set[str]:
     This module shapes YAML before the language reads it, so every spelling of
     a side is read here rather than off a loaded declaration: a bare name, a
     list naming each column after its dimension, or a mapping naming the
-    dimension per column. A bare relation has a key and no ``value:``.
+    dimension per column. A bare relation has a key and no ``values:``.
     """
-    sides = (relation['key'], relation.get('value', ()))
+    sides = (relation['key'], relation.get('values', ()))
     return {d for side in sides for d in _side_dims(side)}
 
 

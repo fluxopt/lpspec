@@ -118,7 +118,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         dtype: str
 
     relations:
-      gen_bus: {key: generator, value: bus, description: "the bus a generator sits on"}
+      gen_bus: {key: generator, values: bus, description: "the bus a generator sits on"}
 
     parameters:
       gen_p_nom:
@@ -165,7 +165,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           rows name — three ends or two, the expression never says.
         dims: [bus]
         expression: >-
-          sum(gen, by=gen_bus)
+          sum(gen, by=gen_bus, over=generator, into=bus)
           + sum(incidence * p, over=link)
           == load
 

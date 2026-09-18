@@ -179,7 +179,7 @@ CONSTANT_BESIDE_A_TERM = {
 #: reaches from the file *as written* — which is the number the rewrite owes.
 CONSTANT_BESIDE_A_TERM_CASES = [
     ('sum(x * k + d, over=t) >= load', 8.0, 'sum-over'),
-    ('sum(sum(x * k + d, by=r_of), over=r) >= load', 8.0, 'sum-by'),
+    ('sum(sum(x * k + d, by=r_of, over=t, into=r), over=r) >= load', 8.0, 'sum-by'),
     ('sum(shift(x * k + d, along=t, offset=1, edge=0), over=t) >= load', 8.0, 'shift'),
     ('sum(sum_back(x * k + d, along=t, window=2), over=t) >= load', 3.0, 'sum-back'),
 ]
@@ -221,10 +221,10 @@ def _onto_bus(relation: RelationDeclaration) -> Walk:
 def transport_program() -> Program:
     injection = Add(
         Add(
-            GroupSum(Variable('p'), (_onto_bus(GEN_BUS),)),
-            GroupSum(Variable('f'), (_onto_bus(LINE_TO),)),
+            GroupSum(Variable('p'), _onto_bus(GEN_BUS)),
+            GroupSum(Variable('f'), _onto_bus(LINE_TO)),
         ),
-        Negate(GroupSum(Variable('f'), (_onto_bus(LINE_FROM),))),
+        Negate(GroupSum(Variable('f'), _onto_bus(LINE_FROM))),
     )
     return Program(
         parameters={
@@ -509,8 +509,8 @@ class TestWhatBindRefusesAndWhatItTakes:
 TWO_BAD_COORDS_SPEC = {
     'dimensions': {'bus': {'dtype': 'str'}, 'line': {}},
     'relations': {
-        'from': {'key': 'line', 'value': 'bus'},
-        'to': {'key': 'line', 'value': 'bus'},
+        'from': {'key': 'line', 'values': 'bus'},
+        'to': {'key': 'line', 'values': 'bus'},
     },
     'parameters': {'cap': {'dims': ['line']}},
     'variables': {'f': {'dims': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
@@ -877,15 +877,15 @@ def _network(ends: tuple[str, str]) -> tuple[dict, dict]:
             'line': {},
         },
         'relations': {
-            'from': {'key': 'line', 'value': 'bus'},
-            'to': {'key': 'line', 'value': 'bus'},
+            'from': {'key': 'line', 'values': 'bus'},
+            'to': {'key': 'line', 'values': 'bus'},
         },
         'parameters': {'cap': {'dims': ['line']}, 'load': {'dims': ['snapshot', 'bus']}},
         'variables': {'f': {'dims': ['snapshot', 'line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {
             'balance': {
                 'dims': ['snapshot', 'bus'],
-                'expression': 'sum(f, by=to) - sum(f, by=from) == load',
+                'expression': 'sum(f, by=to, over=line, into=bus) - sum(f, by=from, over=line, into=bus) == load',
             }
         },
         'objective': {'sense': 'minimize', 'expression': 'sum(sum(f, over=line), over=snapshot)'},
@@ -1555,7 +1555,7 @@ def _constant_beside_a_term(expression: str, *, over_the_dim: bool = False) -> d
         parameters['d'] = {'dims': ['t']}
     if 'r_of' in expression:
         spec['dimensions'] = {**spec['dimensions'], 'r': {'dtype': 'str'}}
-        spec['relations'] = {'r_of': {'key': 't', 'value': 'r'}}
+        spec['relations'] = {'r_of': {'key': 't', 'values': 'r'}}
     return {
         **spec,
         'parameters': parameters,
@@ -1573,11 +1573,11 @@ def _constant_beside_a_term(expression: str, *, over_the_dim: bool = False) -> d
 #: label makes two wrong slots look like one right one.
 ABSENT_SLOT_CASES = [
     pytest.param('sum(x * k + d, over=t) >= load', id='sum-over'),
-    pytest.param('sum(sum(x * k + d, by=r_of), over=r) >= load', id='sum-by'),
+    pytest.param('sum(sum(x * k + d, by=r_of, over=t, into=r), over=r) >= load', id='sum-by'),
     pytest.param('sum(shift(x * k + d, along=t, offset=1, edge=0), over=t) >= load', id='shift-forward'),
     pytest.param('sum(shift(x * k + d, along=t, offset=-1, edge=0), over=t) >= load', id='shift-back'),
     pytest.param("sum(shift(x * k + d, along=t, offset=1, edge='wrap'), over=t) >= load", id='shift-wrap'),
-    pytest.param('sum(at(sum(x * k + d, by=r_of), by=r_of), over=t) >= load', id='at'),
+    pytest.param('sum(at(sum(x * k + d, by=r_of, over=t, into=r), by=r_of, over=r, into=t), over=t) >= load', id='at'),
     pytest.param('sum(sum_back(x * k + d, along=t, window=2), over=t) >= load', id='sum-back'),
 ]
 
@@ -1595,7 +1595,7 @@ ABSENT_SLOT_SOURCES = {
 def _absent_slot_spec(expression: str) -> dict:
     return {
         'dimensions': {'t': {'dtype': 'int'}, 'r': {'dtype': 'str'}},
-        'relations': {'r_of': {'key': 't', 'value': 'r'}},
+        'relations': {'r_of': {'key': 't', 'values': 'r'}},
         'parameters': {'k': {'dims': ['t']}, 'd': {'dims': ['t']}, 'load': {'dims': []}},
         'variables': {'x': {'dims': ['t'], 'where': 't != 2', 'bounds': {'lower': 0}}},
         'constraints': {'bal': {'dims': [], 'expression': expression}},

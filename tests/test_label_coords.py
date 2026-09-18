@@ -28,7 +28,7 @@ def _spec(objective: str = 'sum(x, over=snapshot)') -> dict:
             'snapshot': {'dtype': 'int'},
             'period': {'dtype': 'int'},
         },
-        'relations': {'period_of': {'key': 'snapshot', 'value': 'period'}},
+        'relations': {'period_of': {'key': 'snapshot', 'values': 'period'}},
         'parameters': {'load': {'dims': ['snapshot']}},
         'variables': {'x': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
         'constraints': {'c': {'dims': ['snapshot'], 'expression': 'x >= load'}},
@@ -57,11 +57,11 @@ def test_a_relation_names_the_columns_a_row_is_keyed_by_and_the_ones_they_determ
     schema = to_spec(
         {
             'dimensions': {'bus': {}, 'generator': {}},
-            'relations': {'gen_bus': {'key': 'generator', 'value': 'bus'}},
+            'relations': {'gen_bus': {'key': 'generator', 'values': 'bus'}},
         }
     )
     (declared,) = schema.relations_of('generator').values()
-    assert (declared.keys, declared.values) == (('generator',), ('bus',)), (
+    assert (declared.key_roles, declared.value_roles) == (('generator',), ('bus',)), (
         'the declaration fixes which columns identify a row and which they determine, and no direction'
     )
 
@@ -75,7 +75,7 @@ def test_a_relation_joins_the_flat_namespace():
 
 def test_a_relation_cannot_take_a_dimensions_name():
     spec = _spec()
-    spec['relations']['period'] = {'key': 'snapshot', 'value': 'period'}
+    spec['relations']['period'] = {'key': 'snapshot', 'values': 'period'}
     with pytest.raises(LpspecError, match="Relation 'period' collides with the dimension"):
         to_spec(spec)
 
@@ -84,8 +84,8 @@ def test_a_by_typo_is_offered_the_relations_it_could_have_meant():
     """A misspelt ``by=`` names the relations on offer rather than only refusing."""
     spec = _spec()
     spec['dimensions']['bus'] = {'dtype': 'str'}
-    spec['relations']['bus_of'] = {'key': 'snapshot', 'value': 'bus'}
-    spec['constraints']['c'] = {'dims': ['bus'], 'expression': 'sum(x, by=bus_ov) >= load'}
+    spec['relations']['bus_of'] = {'key': 'snapshot', 'values': 'bus'}
+    spec['constraints']['c'] = {'dims': ['bus'], 'expression': 'sum(x, by=bus_ov, over=snapshot, into=bus) >= load'}
     with pytest.raises(LpspecError, match=r'by=bus_ov\) does not name a relation') as caught:
         lps.check(spec)
     assert "'bus_of'" in str(caught.value), 'a typo is answered with the relations that were declared'
@@ -111,13 +111,13 @@ def test_a_dimension_grouped_into_draws_no_advice():
     sums, and no warning fires."""
     spec = {
         'dimensions': {'bus': {}, 'generator': {}},
-        'relations': {'gen_bus': {'key': 'generator', 'value': 'bus'}},
+        'relations': {'gen_bus': {'key': 'generator', 'values': 'bus'}},
         'parameters': {'cost': {'dims': ['generator']}},
         'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 1}}},
         'constraints': {'c': {'dims': ['generator'], 'expression': 'p <= 1'}},
         'objective': {
             'sense': 'minimize',
-            'expression': 'sum(sum(p * cost, by=gen_bus), over=bus)',
+            'expression': 'sum(sum(p * cost, by=gen_bus, over=generator, into=bus), over=bus)',
         },
     }
     with warnings.catch_warnings():
@@ -154,12 +154,14 @@ def _unused_target_spec(month: dict) -> dict:
             'month': month,
         },
         'relations': {
-            'period_of': {'key': 'snapshot', 'value': 'period'},
-            'month_of': {'key': 'snapshot', 'value': 'month'},
+            'period_of': {'key': 'snapshot', 'values': 'period'},
+            'month_of': {'key': 'snapshot', 'values': 'month'},
         },
         'parameters': {'cap': {'dims': ['period']}},
         'variables': {'p': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
-        'constraints': {'budget': {'dims': ['period'], 'expression': 'sum(p, by=period_of) <= cap'}},
+        'constraints': {
+            'budget': {'dims': ['period'], 'expression': 'sum(p, by=period_of, over=snapshot, into=period) <= cap'}
+        },
         'objective': {'sense': 'maximize', 'expression': 'sum(p, over=snapshot)'},
     }
 
@@ -247,9 +249,9 @@ def test_both_lanes_read_the_same_index():
 NETWORK = {
     'dimensions': {'bus': {'dtype': 'str'}, 'line': {'dtype': 'str'}, 'kv': {'dtype': 'int'}},
     'relations': {
-        'send': {'key': 'line', 'value': 'bus'},
-        'recv': {'key': 'line', 'value': 'bus'},
-        'voltage': {'key': 'line', 'value': 'kv'},
+        'send': {'key': 'line', 'values': 'bus'},
+        'recv': {'key': 'line', 'values': 'bus'},
+        'voltage': {'key': 'line', 'values': 'kv'},
     },
     'parameters': {'cap': {'dims': ['line']}, 'price': {'dims': ['line']}},
     'variables': {'f': {'dims': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
@@ -354,7 +356,11 @@ def test_a_where_on_a_relation_outside_the_frame_is_refused():
         **NETWORK,
         'variables': {'f': {'dims': ['line'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
         'constraints': {
-            'ceiling': {'dims': ['bus'], 'where': 'voltage == 220', 'expression': 'sum(f, by=send) <= 100'}
+            'ceiling': {
+                'dims': ['bus'],
+                'where': 'voltage == 220',
+                'expression': 'sum(f, by=send, over=line, into=bus) <= 100',
+            }
         },
     }
     with pytest.raises(LpspecError, match=r"where-relation 'voltage' reads dims \['line'\] outside the frame"):
@@ -371,7 +377,7 @@ def test_two_relations_over_different_dims_cannot_be_compared():
     spec = {
         **NETWORK,
         'dimensions': {**NETWORK['dimensions'], 'zone': {'dtype': 'str'}},
-        'relations': {**NETWORK['relations'], 'zone_of': {'key': 'bus', 'value': 'zone'}},
+        'relations': {**NETWORK['relations'], 'zone_of': {'key': 'bus', 'values': 'zone'}},
         'variables': {'f': {**NETWORK['variables']['f'], 'where': 'send != zone_of'}},
     }
     with pytest.raises(LpspecError, match='over different dimensions'):
@@ -381,7 +387,7 @@ def test_two_relations_over_different_dims_cannot_be_compared():
 @pytest.mark.parametrize(
     ('extra', 'where'),
     [
-        pytest.param({'area': {'key': 'line', 'value': 'zone'}}, 'send != area', id='two-targets-of-the-same-dtype'),
+        pytest.param({'area': {'key': 'line', 'values': 'zone'}}, 'send != area', id='two-targets-of-the-same-dtype'),
         pytest.param({}, 'send != voltage', id='two-targets-of-different-dtypes'),
     ],
 )
@@ -459,10 +465,10 @@ LOAD = [5.0, 4.0]
 
 BASE = {
     'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-    'relations': {'gen_bus': {'key': 'generator', 'value': 'bus'}},
+    'relations': {'gen_bus': {'key': 'generator', 'values': 'bus'}},
     'parameters': {'cost': {'dims': ['generator']}, 'load': {'dims': ['bus']}},
     'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 10}}},
-    'constraints': {'balance': {'dims': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
+    'constraints': {'balance': {'dims': ['bus'], 'expression': 'sum(p, by=gen_bus, over=generator, into=bus) >= load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p * cost)'},
 }
 
@@ -655,12 +661,12 @@ def test_a_supplied_relation_is_refused_the_same_way_on_both_lanes(lane):
 TWO_MAPS = {
     'dimensions': {'line': {}, 'bus': {'dtype': 'str'}},
     'relations': {
-        'line_from': {'key': 'line', 'value': 'bus'},
-        'line_to': {'key': 'line', 'value': 'bus'},
+        'line_from': {'key': 'line', 'values': 'bus'},
+        'line_to': {'key': 'line', 'values': 'bus'},
     },
     'parameters': {'flow_max': {'dims': ['line']}, 'load': {'dims': ['bus']}},
     'variables': {'f': {'dims': ['line'], 'bounds': {'lower': 0, 'upper': 'flow_max'}}},
-    'constraints': {'served': {'dims': ['bus'], 'expression': 'sum(f, by=line_to) >= load'}},
+    'constraints': {'served': {'dims': ['bus'], 'expression': 'sum(f, by=line_to, over=line, into=bus) >= load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(f, over=line)'},
 }
 
@@ -697,7 +703,7 @@ def test_the_second_map_is_checked_as_hard_as_the_first():
 #: pins the solution to `t = 0` alone, so the objective *is* that label's cost.
 POSITIONAL = {
     'dimensions': {'t': {'dtype': 'int'}, 'g': {'dtype': 'str'}},
-    'relations': {'g_of': {'key': 't', 'value': 'g'}},
+    'relations': {'g_of': {'key': 't', 'values': 'g'}},
     'parameters': {'cost': {'dims': ['t']}, 'cap': {'dims': ['t']}},
     'variables': {'x': {'dims': ['t'], 'bounds': {'lower': 0, 'upper': 'cap'}}},
     'constraints': {'c': {'dims': ['t'], 'expression': 'x >= cap'}},
@@ -747,8 +753,8 @@ def _walked(relations: dict, expression: str) -> dict:
     ('relations', 'expression'),
     [
         pytest.param(
-            {'gen_bus': {'key': 'generator', 'value': 'bus'}},
-            'sum(p, by=gen_bus) >= load',
+            {'gen_bus': {'key': 'generator', 'values': 'bus'}},
+            'sum(p, by=gen_bus, over=generator, into=bus) >= load',
             id='a-map-keyed-by-one-column',
         ),
         pytest.param(
@@ -757,7 +763,7 @@ def _walked(relations: dict, expression: str) -> dict:
             id='a-bare-relation',
         ),
         pytest.param(
-            {'zone_of': {'key': ['generator', 'period'], 'value': 'bus'}},
+            {'zone_of': {'key': ['generator', 'period'], 'values': 'bus'}},
             'sum(p, by=zone_of, over=generator, into=bus) >= load',
             id='a-map-keyed-by-two-columns',
         ),

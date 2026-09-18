@@ -125,15 +125,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       gen_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       link_from:
         description: the bus a link leaves
         key: link
-        value: bus
+        values: bus
       link_to:
         description: the bus a link arrives at
         key: link
-        value: bus
+        values: bus
 
     parameters:
       p_nom:
@@ -177,9 +177,9 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: what is generated at a bus plus what arrives over the links meets the load there
         dims: [snapshot, bus]
         expression: >-
-          sum(p, by=gen_bus)
-          + sum(f, by=link_to)
-          - sum(f, by=link_from)
+          sum(p, by=gen_bus, over=generator, into=bus)
+          + sum(f, by=link_to, over=link, into=bus)
+          - sum(f, by=link_from, over=link, into=bus)
           == load
 
       ramp_up:

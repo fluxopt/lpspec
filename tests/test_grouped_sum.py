@@ -88,11 +88,11 @@ def test_sum_lowers_to_one_node_per_injection_term():
     (c,) = program.constraints.values()
     assert c.dims == ('snapshot', 'bus')
     terms = _flatten(c.lhs)
-    grouped = {(t.operand, t.over, t.coordinate, t.into) for t in terms if isinstance(t, GroupSum)}
-    assert (Variable('p'), ('generator',), ('gen_bus',), ('bus',)) in grouped, (
+    grouped = {(t.operand, t.over, t.relation, t.into) for t in terms if isinstance(t, GroupSum)}
+    assert (Variable('p'), ('generator',), 'gen_bus', ('bus',)) in grouped, (
         'generation is grouped out of generator onto bus, through gen_bus and nothing else'
     )
-    assert (Variable('f'), ('line',), ('line_to',), ('bus',)) in grouped, (
+    assert (Variable('f'), ('line',), 'line_to', ('bus',)) in grouped, (
         'inflow is grouped out of line onto bus, through line_to and nothing else'
     )
 
@@ -177,7 +177,7 @@ dimensions:
   g: {dtype: str}
   item: {dtype: str}
 relations:
-  grp: {key: item, value: g}
+  grp: {key: item, values: g}
 parameters:
   cap: {dims: [item]}
   target: {dims: [g]}
@@ -188,7 +188,7 @@ variables:
 constraints:
   meet:
     dims: [g]
-    expression: sum(x, by=grp) >= target
+    expression: sum(x, by=grp, over=item, into=g) >= target
 objective:
   sense: minimize
   expression: sum(x, over=item)
@@ -244,10 +244,10 @@ def test_a_partial_coordinate_places_its_orphans_nowhere(tmp_path):
 
 GROUPED_ONTO_BUS = {
     'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-    'relations': {'gen_bus': {'key': 'generator', 'value': 'bus'}},
+    'relations': {'gen_bus': {'key': 'generator', 'values': 'bus'}},
     'parameters': {'p_max': {'dims': ['generator']}, 'load': {'dims': ['bus']}},
     'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
-    'constraints': {'balance': {'dims': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
+    'constraints': {'balance': {'dims': ['bus'], 'expression': 'sum(p, by=gen_bus, over=generator, into=bus) >= load'}},
     'objective': {'sense': 'minimize', 'expression': 'sum(p, over=generator)'},
 }
 
@@ -294,13 +294,13 @@ BROADCAST_GROUP_SUM = {
         'generator': {'dtype': 'str'},
         'bus': {'dtype': 'str'},
     },
-    'relations': {'gen_bus': {'key': 'generator', 'value': 'bus'}},
+    'relations': {'gen_bus': {'key': 'generator', 'values': 'bus'}},
     'parameters': {'w': {'dims': ['generator']}, 'limit': {'dims': ['snapshot', 'bus']}},
     'variables': {'x': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
     'constraints': {
         'cap': {
             'dims': ['snapshot', 'bus'],
-            'expression': 'sum(x * w, by=gen_bus) <= limit',
+            'expression': 'sum(x * w, by=gen_bus, over=generator, into=bus) <= limit',
         }
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(x)'},
@@ -322,7 +322,7 @@ BROADCAST_SOURCES = {
 def test_sum_over_a_broadcast_dim_still_collapses_its_terms():
     """The variable does not carry the grouped dim, so a group holds it twice.
 
-    `sum(x * w, by=bus)` with `x` indexed by snapshot
+    `sum(x * w, by=gen_bus, over=generator, into=bus)` with `x` indexed by snapshot
     alone: `generator` reaches the fragment by broadcast from `w`, so two
     generators on one bus put the *same* `var_label` on one row. Nothing after
     this point can tell them apart — a solver handed a row with a column twice
@@ -346,7 +346,7 @@ def test_sum_over_a_declared_dim_needs_no_such_collapse():
         BROADCAST_GROUP_SUM,
         **{
             'variables.x.dims': ['snapshot', 'generator'],
-            'constraints.cap.expression': 'sum(x * w, by=gen_bus) <= limit',
+            'constraints.cap.expression': 'sum(x * w, by=gen_bus, over=generator, into=bus) <= limit',
         },
     )
     with lps.build(spec, BROADCAST_SOURCES) as model:

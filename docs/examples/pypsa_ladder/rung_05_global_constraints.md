@@ -380,15 +380,15 @@ q_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
       store: {description: 'pure energy stores, each on one bus'}
       global_constraint: {description: 'PyPSA''s `GlobalConstraint` rows, one label per declared limit'}
     relations:
-      Generator_bus: {description: the bus a generator sits on, key: generator, value: bus}
-      Link_bus0: {description: the bus a link leaves, key: link, value: bus}
-      Link_output_link: {description: the link an output port belongs to, key: link_output, value: link}
+      Generator_bus: {description: the bus a generator sits on, key: generator, values: bus}
+      Link_bus0: {description: the bus a link leaves, key: link, values: bus}
+      Link_output_link: {description: the link an output port belongs to, key: link_output, values: link}
       Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
           A link of three output ports is three labels here rather than a third relation, so the file states
-          any number of them', key: link_output, value: bus}
-      Load_bus: {description: the bus a load sits on, key: load, value: bus}
-      StorageUnit_bus: {description: the bus a storage unit sits on, key: storage_unit, value: bus}
-      Store_bus: {description: the bus a store sits on, key: store, value: bus}
+          any number of them', key: link_output, values: bus}
+      Load_bus: {description: the bus a load sits on, key: load, values: bus}
+      StorageUnit_bus: {description: the bus a storage unit sits on, key: storage_unit, values: bus}
+      Store_bus: {description: the bus a store sits on, key: store, values: bus}
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -695,9 +695,9 @@ q_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
         dims: [snapshot, bus]
-        expression: sum(Generator_p, by=Generator_bus) + sum(StorageUnit_p_dispatch - StorageUnit_p_store,
-          by=StorageUnit_bus) + sum(Store_p, by=Store_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
-          by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
+        expression: sum(Generator_p, by=Generator_bus, over=generator, into=bus) + sum(StorageUnit_p_dispatch - StorageUnit_p_store,
+          by=StorageUnit_bus, over=storage_unit, into=bus) + sum(Store_p, by=Store_bus, over=store, into=bus) - sum(Link_p, by=Link_bus0, over=link, into=bus) + sum(Link_output_arrival,
+          by=Link_output_bus, over=link_output, into=bus) == sum(Load_p_set, by=Load_bus, over=load, into=bus)
     expressions:
       StorageUnit_charge_carried_in:
         description: the charge a unit opens a snapshot with — its last snapshot's less standing loss where
@@ -726,9 +726,9 @@ q_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
         dims: [snapshot, link_output]
         cases:
-          wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
+          wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link, over=link, into=link_output) *
               Link_efficiency, along=snapshot, offset=Link_output_delay, edge=''wrap'')'}
-        otherwise: shift(at(Link_p, by=Link_output_link) * Link_efficiency, along=snapshot, offset=Link_output_delay,
+        otherwise: shift(at(Link_p, by=Link_output_link, over=link, into=link_output) * Link_efficiency, along=snapshot, offset=Link_output_delay,
           edge=0)
       primary_energy: {description: 'what a `primary_energy` row totals — weighted generator energy, less
           the charge left in weighted storage at the horizon''s end; the initial charge it is compared against

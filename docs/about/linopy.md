@@ -102,8 +102,8 @@ in `linopy/builder.py`, one section per group below.
 | `p` — a parameter | its `xr.DataArray`, `.fillna(0.0)` where it stands as a coefficient |
 | `+` `-` `*` `/` | the Python operators linopy overloads |
 | `sum(x, over=t)` | `.sum('t')` |
-| `sum(x, by=r)` | the relation attached as a coordinate, then `.groupby()`, reindexed onto the value dimension's declared labels; `by=[r1, r2]` groups by both at once, and a key of several columns groups by the value and the rest of the key |
-| `at(p, by=r)` | `.sel({into: relation})`, xarray's vectorised selection; one entry per relation reads a tuple of labels at once |
+| `sum(x, by=r, over=c, into=d)` | the column walked to attached as a coordinate, then `.groupby()`, reindexed onto its dimension's declared labels; a walk to two columns groups onto both at once, and a key of several columns groups by the value and the rest of the key |
+| `at(p, by=r, over=c, into=d)` | `.sel({into: relation})`, xarray's vectorised selection; a read of two columns reads a tuple of labels at once |
 | `shift(x, along=t, offset=n)` | `.shift({t: n})`; `.roll({t: n})` under `edge: wrap`; a `.sel()` gather where the offset differs per entity or `by=` groups it |
 | `sum_back(x, along=t, window=w)` | a sum of `w` scalar gathers, each unreachable position contributing zero; under `by=` each gather reads inside the group, so the window stops at its edge |
 | `dual(c)` | `Model.constraints['c'].dual`, at a read only; the language keeps a dual out of the math, and a solve that stored none refuses the read |
@@ -146,12 +146,12 @@ and the lane that does build the model. `tests/test_corpus_parity.py` carries
 the strict xfail ([#894](https://github.com/fluxopt/lpspec/issues/894)).
 
 **The second is this lane's too: a relation that is not the single-valued
-map.** The lane holds a relation as one dense array over the dimensions its key
-names, carrying its one value column, so a walk is an `assign_coords` and a
-`groupby`, or a vectorised `sel`. A bare relation, a key that determines
-several columns, and a partition grouped by a map keyed on more than the
-dimension it walks have no such array, and `linopy/loader.py` refuses each at
-the lane's door. The relational lane builds every shape the language admits.
+map.** The lane holds each value column as one dense array over the dimensions
+the relation's key names, so a walk is an `assign_coords` and a `groupby`, or a
+vectorised `sel`. A bare relation, and a partition grouped by a map keyed on
+more than the dimension it walks or by more than one column, have no such
+array, and `linopy/loader.py` refuses each at the lane's door. The relational
+lane builds every shape the language admits.
 
 **The third is the relational lane's wall, and it is the mirror: an operator
 acting along a dimension that a constant part does not carry**, beside a term

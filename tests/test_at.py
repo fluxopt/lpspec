@@ -101,14 +101,17 @@ COMPONENT_GATE = {
         'component': {'dtype': 'str'},
         't': {'dtype': 'int'},
     },
-    'relations': {'component_of': {'key': 'flow', 'value': 'component'}},
+    'relations': {'component_of': {'key': 'flow', 'values': 'component'}},
     'parameters': {'cost': {'dims': ['flow']}, 'oncost': {'dims': ['component']}},
     'variables': {
         'rate': {'dims': ['flow', 't'], 'bounds': {'lower': 0, 'upper': 10}},
         'on': {'dims': ['component', 't'], 'domain': 'binary'},
     },
     'constraints': {
-        'gate': {'dims': ['flow', 't'], 'expression': 'rate <= at(on, by=component_of) * 10'},
+        'gate': {
+            'dims': ['flow', 't'],
+            'expression': 'rate <= at(on, by=component_of, over=component, into=flow) * 10',
+        },
         'need': {'dims': ['t'], 'expression': 'sum(rate, over=flow) >= 12'},
     },
     'objective': {'sense': 'minimize', 'expression': 'sum(rate * cost) + sum(on * oncost)'},
@@ -169,7 +172,7 @@ def test_at_agrees_with_the_oracle_through_a_reduction():
             'flow': {'dtype': 'str'},
             'component': {'dtype': 'str'},
         },
-        'relations': {'component_of': {'key': 'flow', 'value': 'component'}},
+        'relations': {'component_of': {'key': 'flow', 'values': 'component'}},
         'parameters': {'cost': {'dims': ['flow']}, 'share': {'dims': ['flow']}},
         'variables': {
             'level': {'dims': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -177,8 +180,11 @@ def test_at_agrees_with_the_oracle_through_a_reduction():
         },
         'constraints': {
             # summed, so one `level` label lands in this row once per flow of its component
-            'draw': {'dims': [], 'expression': 'sum(at(level, by=component_of) * share, over=flow) >= 9'},
-            'link': {'dims': ['flow'], 'expression': 'take <= at(level, by=component_of)'},
+            'draw': {
+                'dims': [],
+                'expression': 'sum(at(level, by=component_of, over=component, into=flow) * share, over=flow) >= 9',
+            },
+            'link': {'dims': ['flow'], 'expression': 'take <= at(level, by=component_of, over=component, into=flow)'},
         },
         'objective': {'sense': 'minimize', 'expression': 'sum(level * 1.0) + sum(take * cost)'},
     }
@@ -230,7 +236,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
     spec = {
         'dimensions': {'unit': {'dtype': 'str'}, 't': {'dtype': 'int'}, 'tf': {'dtype': 'int'}},
         # every `tf` is the same moment as one `t` — single-valued, so a relation
-        'relations': {'same_moment': {'key': 'tf', 'value': 't'}},
+        'relations': {'same_moment': {'key': 'tf', 'values': 't'}},
         'parameters': {
             'window': {'dims': ['unit', 't', 'tf']},
             'load': {'dims': ['t']},
@@ -248,7 +254,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
             'a_start_turns_it_on': {
                 'dims': ['unit', 'tf'],
                 'expression': (
-                    'started >= at(on, by=same_moment) - shift(at(on, by=same_moment), along=tf, offset=1, edge=0)'
+                    'started >= at(on, by=same_moment, over=t, into=tf) - shift(at(on, by=same_moment, over=t, into=tf), along=tf, offset=1, edge=0)'
                 ),
             },
             'stays_up_its_own_time': {
@@ -297,12 +303,14 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
 #: the row built, its right-hand side is zero and it cannot move at all.
 DANGLING = {
     'dimensions': {'flow': {'dtype': 'str'}, 'component': {'dtype': 'str'}},
-    'relations': {'component_of': {'key': 'flow', 'value': 'component'}},
+    'relations': {'component_of': {'key': 'flow', 'values': 'component'}},
     'variables': {
         'level': {'dims': ['component'], 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'dims': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'link': {'dims': ['flow'], 'expression': 'take <= at(level, by=component_of)'}},
+    'constraints': {
+        'link': {'dims': ['flow'], 'expression': 'take <= at(level, by=component_of, over=component, into=flow)'}
+    },
     'objective': {'sense': 'maximize', 'expression': 'sum(take, over=flow) - 1000 * sum(level, over=component)'},
 }
 DANGLING_MAP = ['c1', 'c1', None]
@@ -365,20 +373,19 @@ def test_at_through_a_null_relation_agrees_between_lanes():
         assert run.engine.diagnostics().rows == 2, 'the two flows that map somewhere have a row, and f3 has none'
 
 
-#: Two coordinates read at once, one of them partial. `f3` maps to a component
-#: but to no kind, so the *tuple* it would read does not exist — and the null is
-#: in the second of the pair, where checking the first alone would miss it.
+#: Two columns read at once, through a relation that leaves `f3` out. The tuple
+#: `f3` would read does not exist, and the pair is what makes the case: a lane
+#: that joined one column at a time could still find a slot for it.
 DANGLING_PAIR = {
     'dimensions': {'flow': {'dtype': 'str'}, 'component': {'dtype': 'str'}, 'kind': {'dtype': 'str'}},
-    'relations': {
-        'component_of': {'key': 'flow', 'value': 'component'},
-        'kind_of': {'key': 'flow', 'value': 'kind'},
-    },
+    'relations': {'placed': {'key': 'flow', 'values': ['component', 'kind']}},
     'variables': {
         'level': {'dims': ['component', 'kind'], 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'dims': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
     },
-    'constraints': {'link': {'dims': ['flow'], 'expression': 'take <= at(level, by=[component_of, kind_of])'}},
+    'constraints': {
+        'link': {'dims': ['flow'], 'expression': 'take <= at(level, by=placed, over=[component, kind], into=flow)'}
+    },
     'objective': {
         'sense': 'maximize',
         'expression': 'sum(take, over=flow) - 1000 * sum(sum(level, over=component), over=kind)',
@@ -386,13 +393,13 @@ DANGLING_PAIR = {
 }
 
 
-def test_at_through_one_null_of_a_pair_takes_the_row_with_it():
+def test_at_through_a_pair_the_relation_leaves_out_takes_the_row_with_it():
     """A pullback reads a *tuple* of labels, so one null anywhere leaves nothing.
 
-    The single-relation case above says a label mapping nowhere has no value to
-    read. Reading through two at once, `f3` still maps to a component — so a
-    lane that checked the first coordinate and stopped would find a slot, build
-    `take[f3] <= 0`, and pin a flow the model never spoke about.
+    The single-column case above says a label mapping nowhere has no value to
+    read. Reading two columns at once, a lane that joined `component` and
+    stopped would find `c1` for every flow, build `take[f3] <= 0`, and pin a
+    flow the model never spoke about.
     """
     from tests.differential import differential
     from tests.oracle import pd
@@ -402,8 +409,7 @@ def test_at_through_one_null_of_a_pair_takes_the_row_with_it():
         DANGLING_PAIR,
         {
             'flow': pd.DataFrame({'flow': flows}),
-            'component_of': relation('flow', 'component', flows, ['c1', 'c1', 'c1']),
-            'kind_of': relation('flow', 'kind', flows, ['k1', 'k1', None]),
+            'placed': pd.DataFrame({'flow': flows[:2], 'component': ['c1', 'c1'], 'kind': ['k1', 'k1']}),
             'component': pd.Index(['c1', 'c2'], name='component'),
             'kind': pd.Index(['k1'], name='kind'),
         },
@@ -451,7 +457,7 @@ DANGLING_SHIFTED = {
         't': {'dtype': 'int'},
         'u': {'dtype': 'str'},
     },
-    'relations': {'component_of': {'key': 'flow', 'value': 'component'}},
+    'relations': {'component_of': {'key': 'flow', 'values': 'component'}},
     'variables': {
         'level': {'dims': ['component', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},
         'take': {'dims': ['flow', 't', 'u'], 'bounds': {'lower': 0, 'upper': 10}},
@@ -459,7 +465,7 @@ DANGLING_SHIFTED = {
     'constraints': {
         'link': {
             'dims': ['flow', 't', 'u'],
-            'expression': 'take <= shift(at(level, by=component_of), along=t, offset=1, edge=0)',
+            'expression': 'take <= shift(at(level, by=component_of, over=component, into=flow), along=t, offset=1, edge=0)',
         }
     },
     'objective': {
