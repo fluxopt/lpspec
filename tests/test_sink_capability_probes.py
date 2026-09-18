@@ -5,7 +5,7 @@ stale on their release rather than ours — and silently, since nothing in this
 package calls `passHessian` yet. Each assertion names the table it holds up: a
 failure here is a capability that moved, not a regression.
 
-Nothing here builds an lpspec model. These are the solver libraries at their
+Nothing here builds an specsolve model. These are the solver libraries at their
 own API, which is what "what a sink *could* be given" means.
 """
 
@@ -17,7 +17,7 @@ import highspy
 import numpy as np
 import pytest
 
-from lpspec.relational.sinks import SOLVERS
+from specsolve.relational.sinks import SOLVERS
 
 if TYPE_CHECKING:
     from pathlib import Path

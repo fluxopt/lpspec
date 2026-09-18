@@ -71,7 +71,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{nutrient\_p
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -119,7 +119,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/stigler_diet.yaml', sources) as solution:
+    with sps.solve('examples/ports/stigler_diet.yaml', sources) as solution:
         solution.objective  # 0.10866227820675685
         solution.dual('meet_requirement')
     ```
@@ -132,7 +132,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> linopy.Model:
         """The port's tables as a linopy model, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
         ``per_dollar`` is the sparse table filled back out: a missing
         (food, nutrient) pair means that food supplies none of that nutrient.
         """

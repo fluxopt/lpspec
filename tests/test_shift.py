@@ -12,8 +12,8 @@ import numpy as np
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LanguageError
+import specsolve as sps
+from specsolve.errors import LanguageError
 from tests.conftest import (
     DISPATCH_SPEC,
     EXAMPLES_DIR,
@@ -573,7 +573,7 @@ def test_an_edge_policy_is_quoted_or_a_number(edge):
     dimension — so the one closed keyword `edge=` takes has to say it is a
     literal. Numbers need no quotes because a number is never a name.
     """
-    lps.check(_with(f'x - shift(x, along=t, offset=1, {edge}) <= 1'))
+    sps.check(_with(f'x - shift(x, along=t, offset=1, {edge}) <= 1'))
 
 
 def test_a_bare_wrap_names_a_dimension_and_is_refused():
@@ -584,7 +584,7 @@ def test_a_bare_wrap_names_a_dimension_and_is_refused():
     the two positions differently and a reader could not.
     """
     with pytest.raises(ValueError) as exc:
-        lps.check(_with('x - shift(x, along=t, offset=1, edge=wrap) <= 1'))
+        sps.check(_with('x - shift(x, along=t, offset=1, edge=wrap) <= 1'))
 
     assert 'bare name where a keyword belongs' in str(exc.value)
     assert "edge='wrap'" in str(exc.value), 'the refusal has to name the rewrite'
@@ -599,7 +599,7 @@ def test_a_quoted_keyword_outside_a_kwarg_does_not_parse():
     a branch for the shape anyway, reachable only from a hand-built AST.
     """
     with pytest.raises(ValueError) as exc:
-        lps.check(_with("x - 'wrap' <= 1"))
+        sps.check(_with("x - 'wrap' <= 1"))
 
     assert 'Failed to parse expression' in str(exc.value)
 
@@ -632,9 +632,9 @@ def test_the_bare_shift_refusal_names_the_pair_that_actually_omits_the_row():
     solves and is wrong.
     """
     with pytest.raises(LanguageError, match='vacated positions') as bare:
-        lps.check(_shift_over_data())
+        sps.check(_shift_over_data())
     with pytest.raises(LanguageError, match='vacated positions') as masked:
-        lps.check(_shift_over_data(where='t > 0'))
+        sps.check(_shift_over_data(where='t > 0'))
     assert str(bare.value) == str(masked.value), 'a mask lifts the refusal, so it is an alternative after all'
 
     message = str(bare.value)
@@ -650,8 +650,8 @@ def test_edge_zero_alone_binds_the_vacated_row_and_a_where_frees_it():
     answer is wrong in the direction that looks like a tight model.
     """
     sources = {'t': [0, 1, 2], 'dt': pl.DataFrame({'t': [0, 1, 2], 'value': [1.0, 1.0, 1.0]})}
-    pinned = lps.solve(_shift_over_data(edge='0'), sources)
-    omitted = lps.solve(_shift_over_data(edge='0', where='t > 0'), sources)
+    pinned = sps.solve(_shift_over_data(edge='0'), sources)
+    omitted = sps.solve(_shift_over_data(edge='0', where='t > 0'), sources)
 
     assert pinned.primal('x')['value'].to_list()[0] == 0.0, 'edge=0 alone should pin the vacated row'
     assert omitted.primal('x')['value'].to_list()[0] == 5.0, 'the where should omit it entirely'
@@ -767,7 +767,7 @@ def test_a_named_offset_must_say_what_the_vacated_positions_contribute():
         'objective': {'sense': 'minimize', 'expression': 'sum(x * 1.0)'},
     }
     with pytest.raises(LanguageError, match='vacated positions absent'):
-        lps.check(spec)
+        sps.check(spec)
 
 
 def _reindexed_parameter_spec(op: str) -> dict:
@@ -823,11 +823,11 @@ def test_a_bare_shift_over_data_is_refused_rather_than_filled():
     and refuses,
     at load time, naming the three things the author might have meant.
 
-    Decidable without data, so ``lps.check()`` catches it: the operand is
+    Decidable without data, so ``sps.check()`` catches it: the operand is
     variable-free by declaration, not by what arrives in ``sources``.
     """
     spec = _reindexed_parameter_spec('shift(dt, along=t, offset=1)')
     with pytest.raises(LanguageError) as exc:
-        lps.check(spec)
+        sps.check(spec)
     assert 'edge=0' in str(exc.value), 'the refusal must name the escape hatch'
     assert "edge='wrap'" in str(exc.value), 'and the policy for a genuinely cyclic horizon'

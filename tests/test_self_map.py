@@ -14,7 +14,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-import lpspec as lps
+import specsolve as sps
 from tests.conftest import by_coord, override, raw_of
 from tests.differential import RTOL, differential
 from tests.oracle import pd
@@ -136,5 +136,5 @@ def test_a_self_map_supplied_twice_for_one_key_is_refused():
     """Both columns are over one dimension; the key is still the one the file named."""
     sources = _inputs()
     sources['rep_of'] = pl.concat([REP_OF, REP_OF.head(1)])
-    with pytest.raises(lps.DataError, match=r'maps 1 key\(s\) more than once: snapshot=0'):
-        lps.solve(SPEC, sources)
+    with pytest.raises(sps.DataError, match=r'maps 1 key\(s\) more than once: snapshot=0'):
+        sps.solve(SPEC, sources)

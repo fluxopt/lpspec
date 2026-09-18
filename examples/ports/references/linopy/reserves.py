@@ -16,7 +16,7 @@ relation or a weighted table — generator/line incidence onto buses, the
 three-legged offer set onto generators, markets and tranches, and the
 overlapping zone weights — as dense matrices multiplied through by hand. The
 YAML says each one as a relation; this says the identical algebra with no
-lpspec construct anywhere near it, which is what makes the agreement evidence
+specsolve construct anywhere near it, which is what makes the agreement evidence
 rather than an echo.
 """
 
@@ -50,7 +50,7 @@ def indicator(rows: pd.Index, table: pd.DataFrame, member: str, leg: str) -> xr.
 def build(tables: dict[str, pd.DataFrame]) -> linopy.Model:
     """The instance's tables as a linopy model, row for row.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
     """
     series = {
         k: tables[k].set_index(tables[k].columns[0])['value']

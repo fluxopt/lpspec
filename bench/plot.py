@@ -30,10 +30,10 @@ from typing import Any
 
 from bench import results as bench_results
 
-#: What the page calls each library. Only lpspec is renamed — the page is about
+#: What the page calls each library. Only specsolve is renamed — the page is about
 #: our engine and `polars` is what the reader sees named in the architecture —
 #: and anything unlisted keeps the name the harness measured it under.
-NAME = {'lpspec': 'polars'}
+NAME = {'specsolve': 'polars'}
 
 #: The rungs the page plots, per ladder and in order. The two are **not** mixed
 #: into one curve: `w10` and `s` are the same size through different shapes, so

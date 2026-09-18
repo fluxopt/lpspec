@@ -12,7 +12,7 @@ resolution-markers = [
 
 [manifest]
 requirements = [
-    { name = "lpspec", extras = ["gurobi", "linopy"], git = "https://github.com/fluxopt/lpspec?rev=8d27e88b79" },
+    { name = "specsolve", extras = ["gurobi", "linopy"], git = "https://github.com/fluxopt/specsolve?rev=8d27e88b79" },
     { name = "pyarrow", specifier = ">=16" },
     { name = "pyomo", specifier = ">=6.7" },
     { name = "pytest", specifier = "==9.1.1" },
@@ -277,9 +277,9 @@ wheels = [
 ]
 
 [[package]]
-name = "lpspec"
+name = "specsolve"
 version = "0.0.1a327.dev1+g8d27e88b7"
-source = { git = "https://github.com/fluxopt/lpspec?rev=8d27e88b79#8d27e88b791335c20412faab45a7727a1b6a7a6c" }
+source = { git = "https://github.com/fluxopt/specsolve?rev=8d27e88b79#8d27e88b791335c20412faab45a7727a1b6a7a6c" }
 dependencies = [
     { name = "highspy" },
     { name = "math-spec" },

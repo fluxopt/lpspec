@@ -179,7 +179,7 @@ def records(path: Path) -> Iterator[dict[str, Any]]:
         'cores': (machine.get('cpu') or {}).get('count'),
         'python': machine.get('python_version'),
         'versions': machine.get('versions', {}),
-        'commits': {'lpspec': _commit(commit)},
+        'commits': {'specsolve': _commit(commit)},
     }
 
     for b in doc.get('benchmarks', []):

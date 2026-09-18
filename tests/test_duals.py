@@ -18,8 +18,8 @@ import re
 import numpy as np
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LpspecError, NoSolutionError
+import specsolve as sps
+from specsolve.errors import NoSolutionError, SpecsolveError
 from tests.differential import differential
 from tests.oracle import pd  # through the guard: a bare import would beat it
 from tests.test_milp import COMMITMENT_YAML
@@ -80,7 +80,7 @@ def test_milp_refuses_duals_and_names_the_variable(commitment_inputs):
     data = commitment_inputs
 
     with differential(COMMITMENT_YAML, data) as run:
-        with pytest.raises(LpspecError) as excinfo:
+        with pytest.raises(SpecsolveError) as excinfo:
             run.result.dual('balance')
 
         message = str(excinfo.value)
@@ -99,7 +99,7 @@ def test_infeasible_solve_refuses_duals(dispatch_yaml, dispatch_inputs):
     data = dispatch_inputs
     data = dict(data, load=pd.Series(1e6, index=data['snapshot']))  # more than every generator together
 
-    with lps.solve(dispatch_yaml, data) as result:
+    with sps.solve(dispatch_yaml, data) as result:
         assert not result.has_primal
         assert result.termination_condition == 'infeasible'
 
@@ -148,5 +148,5 @@ def test_reading_back_an_unknown_name_says_what_was_built(asked, expected):
     import polars as pl
 
     sources = {'t': [0, 1, 2], 'lim': pl.DataFrame({'t': [0, 1, 2], 'value': [10.0, 10.0, 10.0]})}
-    with lps.solve(RAMP_BLOCK, sources) as sol, pytest.raises(KeyError, match=re.escape(expected)):
+    with sps.solve(RAMP_BLOCK, sources) as sol, pytest.raises(KeyError, match=re.escape(expected)):
         sol.dual(asked)

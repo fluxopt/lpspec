@@ -117,7 +117,7 @@ p_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -214,7 +214,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_committable_extendable.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_committable_extendable.yaml', sources) as solution:
         solution.objective  # 21700.0
     ```
 
@@ -226,7 +226,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         ``flex`` is the one asset that is **both** ``committable`` and
         ``p_nom_extendable`` — the intersection this model is about. ``peak`` is
@@ -271,7 +271,7 @@ gap is what the integrality is worth here.
 and its *presence* marks a unit as committed. The `status` variable and the two
 commitment rows carry `where: big_m`. Nothing checks that the number is large
 enough. Too small an *M* silently cuts the feasible set, as it would in PyPSA.
-[#220](https://github.com/fluxopt/lpspec/issues/220) asks for a big-M derived
+[#220](https://github.com/fluxopt/specsolve/issues/220) asks for a big-M derived
 from the declared `p_nom_max` rather than supplied beside it.
 
 ## PyPSA's own relaxation of this model is not a relaxation
@@ -288,7 +288,7 @@ Generator-com-partly-start-up: +1 Generator-p[2, flex] - 1 Generator-p[1, flex] 
 The tightening block PyPSA adds where start-up and shut-down costs match is
 built from the `p_nom` **column**, which is 0 for a unit not yet built. Every
 coefficient collapses and the rows read `p <= 0`. Filed as
-[#989](https://github.com/fluxopt/lpspec/issues/989) to report upstream. That
+[#989](https://github.com/fluxopt/specsolve/issues/989) to report upstream. That
 is why the relaxation above is taken on the port's own model instead.
 
 ## What it exercises

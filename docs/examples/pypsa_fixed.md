@@ -99,7 +99,7 @@ p_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -197,7 +197,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_fixed.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_fixed.yaml', sources) as solution:
         solution.objective  # 49900.0
         solution.dual('nodal_balance')
     ```
@@ -210,7 +210,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         Both fixings arrive as short frames and are widened to the shape PyPSA
         reads, with ``NaN`` where the port simply has no row: ``p_nom_set``

@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 #: page and a comparison arm is what it is measured against, so the division is
 #: always ours ÷ theirs and below 1.00 is always a win for us — whichever arms
 #: a run happened to carry.
-BASELINE = 'lpspec'
+BASELINE = 'specsolve'
 
 #: Ceilings from every results file read, in the order they were read. A cell
 #: with no measurement is looked up here before it renders as absent: a library
@@ -190,7 +190,7 @@ def suspect(row: Row | None) -> bool:
     minimum landed within 1% of a clean re-take, so stddev would have marked a
     sound number. Interference sustained across *every* round is what `min`
     cannot survive, and it spreads the whole distribution instead:
-    `transport-m-lpspec-highs` read iqr/median 54% on a minimum inflated 2.33x
+    `transport-m-specsolve-highs` read iqr/median 54% on a minimum inflated 2.33x
     against a clean re-take. pytest-benchmark's own outlier counters miss that
     cell (`2;0`, `iqr_outliers 0`) for the reason that makes it dangerous —
     when every round is slow, none of them is an outlier.
@@ -371,13 +371,13 @@ _SEAM = {
     'lp': 'Each arm has written the LP file, through whichever writer it has.',
     'highs': (
         'Each arm ends holding a populated `highspy.Highs` with `run()` never '
-        'called — lpspec through `build_highs`. The simplex is the same work '
+        'called — specsolve through `build_highs`. The simplex is the same work '
         'whoever filled the model, so timing it would say nothing about the '
         'lane that filled it.'
     ),
     'gurobi': (
         'Each arm ends holding a populated `gurobipy.Model` with `optimize()` '
-        'never called — lpspec through `build_gurobi`, and gurobipy through '
+        'never called — specsolve through `build_gurobi`, and gurobipy through '
         '`update()`, which is where its own deferred writes land. Opt-in: it '
         'needs the `[gurobi]` extra.'
     ),
@@ -490,7 +490,7 @@ def marginal(loop_rows: list[Row]) -> str:
     def order(key: tuple[str, str]) -> tuple[float, str, str]:
         """Widest model last, then by name — a *total* order, off whichever arm ran.
 
-        Both halves are load-bearing. Reading the width off `lpspec` alone
+        Both halves are load-bearing. Reading the width off `specsolve` alone
         raised `KeyError` on a file measured with `--arms linopy`; widths also
         tie by construction — `_ladder` grows every case by the same factors,
         so `fleet`, `nodal` and `profiled` share all six — and a set's

@@ -154,7 +154,7 @@ r_{o} \ge 0 \qquad \forall\, o \in \mathcal{O}
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -297,7 +297,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/reserves.yaml', sources) as solution:
+    with sps.solve('examples/reserves.yaml', sources) as solution:
         solution.objective  # 915.0
         solution.dual('balance')
     ```
@@ -307,13 +307,13 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     The model-building half of `examples/ports/references/linopy/reserves.py`,
     which states every mapping as a dense incidence matrix (its `indicator`
     helper) and multiplies through by hand — the identical algebra with no
-    lpspec construct anywhere near it:
+    specsolve construct anywhere near it:
 
     ```python
     def build(tables: dict[str, pd.DataFrame]) -> linopy.Model:
         """The instance's tables as a linopy model, row for row.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
         """
         series = {
             k: tables[k].set_index(tables[k].columns[0])['value']

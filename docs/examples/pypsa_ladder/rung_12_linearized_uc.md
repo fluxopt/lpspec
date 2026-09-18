@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **7775.0** on both sides; structure ✔ 21 constraints · 5 variables, name for name; size ✔ 128 rows · ✔ 44 columns · ✔ 288 nonzeros; duals ≠ 128 rows, 1 negated, `Generator-com-status-min_up_time_must_stay_up` off by 490.0 — degenerate with PyPSA's duplicated cap — a unit held on has status pinned at 1 by this row from below and by the variable bound and the cap row from above, and HiGHS may put the dual on any of them; `Generator-status-p-fixed-upper` off by 1447.5 — PyPSA bounds the status at 1 on the variable and writes the cap row as well, so a binding cap's dual may sit on the bound and leave the row at zero; the file states the row alone (rung 12, the linearized relaxation); **model for model**: 24 blocks equal, 0 documented splits, 3 recorded deviations.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 8 | 8 |
 | `Generator-com-down-time` | 6 | 6 |
@@ -33,7 +33,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `Link-fix-p-lower` | 4 | 4 |
 | `Link-fix-p-upper` | 4 | 4 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Generator-p` | 16 | 16 |
 | `Generator-shut_down` | 8 | 8 |
@@ -291,7 +291,7 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_12_linearized_uc.yaml` — the file projected onto what this rung builds:
 
@@ -704,7 +704,7 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
             **loss_fan(n, segments),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_12_linearized_uc.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_12_linearized_uc.yaml', sources) as solution:
         solution.objective  # 7775.0
     ```
 

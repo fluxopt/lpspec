@@ -15,7 +15,7 @@ alignment and broadcasting decide which coefficient lands in which row. pandas
 is only a floor: it holds the instance's tables and reshapes the recorded duals.
 
 It reads the same instance the port binds and builds the network with PyPSA's
-own objects. Nothing here imports lpspec.
+own objects. Nothing here imports specsolve.
 
 **The risk preference is three variables and two rows.**
 ``set_risk_preference(alpha, omega)`` turns on ``define_cvar_variables``
@@ -56,7 +56,7 @@ def load_tables() -> dict[str, pd.DataFrame | float]:
 def build(tables: dict[str, pd.DataFrame | float]) -> pypsa.Network:
     """The port's tables as a PyPSA network, column for column.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
     The scenario half is ``pypsa_stochastic``'s: ``probability`` is
     ``scenario_weightings`` and ``load`` over ``(scenario, snapshot)`` is a

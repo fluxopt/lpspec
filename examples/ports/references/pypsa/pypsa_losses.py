@@ -15,7 +15,7 @@ alignment and broadcasting decide which coefficient lands in which row. pandas
 is only a floor: it holds the instance's tables and reshapes the recorded duals.
 
 It reads the same instance the port binds and builds the network with PyPSA's
-own objects. Nothing here imports lpspec.
+own objects. Nothing here imports specsolve.
 
 **A quadratic loss, underestimated by its own tangents.** Loss on a passive
 branch is ``r * s**2``. PyPSA approximates it from below with a fan of tangent
@@ -87,7 +87,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
 def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
     """The port's tables as a PyPSA network, column for column.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
     PyPSA is given ``r``, ``x`` and ``s_nom`` and derives the tangents itself.
     The port is given the tangents, because a slope of ``2 * r * p_k`` is

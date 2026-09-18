@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **4456.659315422355** on both sides; structure ✔ 18 constraints · 8 variables, name for name; size ✔ 103 rows · ✔ 48 columns · ✔ 166 nonzeros; duals ✔ 103 rows, 2 negated; **model for model**: 27 blocks equal, 0 documented splits.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 8 | 8 |
 | `Generator-fix-p-lower` | 8 | 8 |
@@ -30,7 +30,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `Store-fix-e-lower` | 4 | 4 |
 | `Store-fix-e-upper` | 4 | 4 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Generator-p` | 8 | 8 |
 | `Link-p` | 4 | 4 |
@@ -326,7 +326,7 @@ q_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_02_storage.yaml` — the file projected onto what this rung builds:
 
@@ -796,7 +796,7 @@ q_{t,v} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ v \in \mathcal{V}
         'Store_e_set': varying(n, 'Store', 'e_set').dropna(),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_02_storage.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_02_storage.yaml', sources) as solution:
         solution.objective  # 4456.659315422355
     ```
 

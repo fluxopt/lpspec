@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **10805.29588** on both sides; structure ≠ `objective_constant` 1 vs 0 — PyPSA carries a nonzero objective constant as a fixed variable of that name; the file states no constant, and the objective is compared net of it; size ✔ 150 rows · ≠ 46 vs 45 columns · ✔ 290 nonzeros; duals ✔ 150 rows; **model for model**: 22 blocks equal, 0 documented splits, 1 recorded deviations.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 20 | 20 |
 | `Generator-fix-p-lower` | 16 | 16 |
@@ -29,7 +29,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `Link-fix-p-lower` | 4 | 4 |
 | `Link-fix-p-upper` | 4 | 4 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Generator-p` | 16 | 16 |
 | `Line-loss` | 12 | 12 |
@@ -229,7 +229,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_13_losses.yaml` — the file projected onto what this rung builds:
 
@@ -547,7 +547,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
         'Load_p_set': varying(n, 'Load', 'p_set'),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_13_losses.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_13_losses.yaml', sources) as solution:
         solution.objective  # 10805.29588
     ```
 

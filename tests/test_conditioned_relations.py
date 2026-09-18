@@ -24,11 +24,11 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import DataError, LaneError
+import specsolve as sps
+from specsolve.errors import DataError, LaneError
 from tests.conftest import by_coord, override, raw_of
 from tests.differential import RTOL, differential
-from tests.oracle import lpspec_linopy, pd
+from tests.oracle import pd, specsolve_linopy
 
 SPEC = """
 description: a zonal limit where a generator's zone changes by period
@@ -246,10 +246,10 @@ def test_the_eager_lane_refuses_a_shape_it_does_not_build_and_names_the_lane_tha
     one dimension and the lane builds it (`test_self_map.py`).
     """
     spec = _shaped(relations, expression, dims)
-    lps.check(spec)
+    sps.check(spec)
     with pytest.raises(LaneError, match=match) as caught:
-        lpspec_linopy.build(spec, {})
-    assert 'lps.build()/lps.solve()' in str(caught.value), 'the refusal names the route around it'
+        specsolve_linopy.build(spec, {})
+    assert 'sps.build()/sps.solve()' in str(caught.value), 'the refusal names the route around it'
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +262,7 @@ def test_a_pair_supplied_twice_is_refused():
     sources = _inputs()
     sources['zone_of'] = pl.concat([ZONE_OF, ZONE_OF.head(1)])
     with pytest.raises(DataError, match=r"maps 1 key\(s\) more than once: generator='g1', period=1"):
-        lps.solve(SPEC, sources)
+        sps.solve(SPEC, sources)
 
 
 def test_a_conditioned_map_short_of_a_key_column_is_refused():
@@ -272,7 +272,7 @@ def test_a_conditioned_map_short_of_a_key_column_is_refused():
     with pytest.raises(
         DataError, match=r"must carry a column per column it declares, \['generator', 'period', 'zone'\]"
     ):
-        lps.solve(SPEC, sources)
+        sps.solve(SPEC, sources)
 
 
 def test_a_key_column_naming_no_label_is_refused():
@@ -283,4 +283,4 @@ def test_a_key_column_naming_no_label_is_refused():
     with pytest.raises(
         DataError, match=r"relation 'zone_of' has value\(s\) in 'period' that are not 'period' labels: 9"
     ):
-        lps.solve(SPEC, sources)
+        sps.solve(SPEC, sources)

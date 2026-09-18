@@ -2,7 +2,7 @@
 
 docs/about/architecture.md describes the pipeline; this script *executes* it one stage at
 a time and prints the artifact each stage produces. Nothing here is a
-reimplementation: every call is the same public entry point ``lps.solve`` takes
+reimplementation: every call is the same public entry point ``sps.solve`` takes
 internally, so what you see is what actually runs.
 
     pixi run python examples/walkthrough.py
@@ -28,9 +28,9 @@ from typing import Any
 import polars as pl
 from math_spec import Spec, to_program, to_spec
 
-import lpspec as lps
-from lpspec.relational.engines.polars.engine import PolarsEngine
-from lpspec.sources import tidy_sources
+import specsolve as sps
+from specsolve.relational.engines.polars.engine import PolarsEngine
+from specsolve.sources import tidy_sources
 
 HERE = Path(__file__).parent
 SPEC = HERE / 'walkthrough.yaml'
@@ -130,7 +130,7 @@ def relational_ir(schema: Spec) -> Any:
 
     This is where the language's boundary is *decided*, by attempting the
     lowering, so eligibility can never drift from what the backend supports. It
-    needs no data, which is what makes ``lps.check()`` a CI verb for spec
+    needs no data, which is what makes ``sps.check()`` a CI verb for spec
     repositories: compile the math, bind nothing.
     """
     banner(3, 'a spec -> the program both lanes build from', 'math_spec.to_program')
@@ -220,7 +220,7 @@ def refusals() -> None:
     its rewrite. Never a silent fallback, never a redirect to the other lane —
     both lanes accept exactly the same language (hard rule 3).
 
-    Each spec is run through ``lps.check()`` — stages 1-3, no data bound — and
+    Each spec is run through ``sps.check()`` — stages 1-3, no data bound — and
     then, only if that passes, through a build. Both are caught by ``check()``,
     which is what makes it a CI verb: a spec repository can compile-check its
     math with no data in the runner. The build arm stays because which stage
@@ -234,12 +234,12 @@ def refusals() -> None:
         print(f'\n    {label}:')
         spec = {**_raw(SPEC), **patch}
         try:
-            lps.check(spec)
+            sps.check(spec)
         except ValueError as exc:
             _refusal('check()', exc)
             continue
         try:
-            lps.build(spec, SOURCES).close()
+            sps.build(spec, SOURCES).close()
         except ValueError as exc:
             _refusal('build()', exc)
 

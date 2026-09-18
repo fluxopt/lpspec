@@ -6,11 +6,11 @@ contain is
 [the language](https://math-spec.readthedocs.io/en/latest/reference/language/).
 
 ```python
-import lpspec as lps
+import specsolve as sps
 
-lps.check('spec.yaml')  # compiles? no data needed
+sps.check('spec.yaml')  # compiles? no data needed
 
-result = lps.solve('spec.yaml', sources)
+result = sps.solve('spec.yaml', sources)
 result.objective
 result.primal('p')  # a polars.DataFrame
 result.dual('power_balance')
@@ -24,25 +24,25 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 
 | | |
 |---|---|
-| `lps.check(spec, sink=None)` | parse, expand, validate and lower; attach no data. With a `sink`, also say whether that sink takes it. Returns the lowered `Program`, for reading the plan — no verb takes one back |
+| `sps.check(spec, sink=None)` | parse, expand, validate and lower; attach no data. With a `sink`, also say whether that sink takes it. Returns the lowered `Program`, for reading the plan — no verb takes one back |
 | `math_spec.to_spec(spec)` | the file as written, for editing and typesetting; the language's own verb |
-| `lps.build(spec, sources)` | attach data and build; returns a `Model` |
-| `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
-| `lps.evaluate(spec, sources, expression)` | a spec of parameters and expressions, no variables: one expression read as arithmetic, with no solver; returns its frame |
-| `lps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
-| `lps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
-| `archive=` on `lps.solve`, `model.solve`, `lps.solve_over` | write the spec, its data and this answer as one zip: [Archiving a model](#archiving-a-model) |
-| `lps.load_archive(path, into=None)` | an archive back whole as a `SolveArchive`, or a `SweepArchive` where its sources were cut |
-| `lps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
-| `lps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Runs` |
-| `lps.scan_archive` / `scan_result` / `scan_runs` | the same three left on disk and read as they are asked for: [loading or scanning](#loading-or-scanning) |
+| `sps.build(spec, sources)` | attach data and build; returns a `Model` |
+| `sps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
+| `sps.evaluate(spec, sources, expression)` | a spec of parameters and expressions, no variables: one expression read as arithmetic, with no solver; returns its frame |
+| `sps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
+| `sps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
+| `archive=` on `sps.solve`, `model.solve`, `sps.solve_over` | write the spec, its data and this answer as one zip: [Archiving a model](#archiving-a-model) |
+| `sps.load_archive(path, into=None)` | an archive back whole as a `SolveArchive`, or a `SweepArchive` where its sources were cut |
+| `sps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
+| `sps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Runs` |
+| `sps.scan_archive` / `scan_result` / `scan_runs` | the same three left on disk and read as they are asked for: [loading or scanning](#loading-or-scanning) |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
-| `lps.Model` / `lps.Result` / `lps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` |
+| `sps.Model` / `sps.Result` / `sps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` |
 
 ## Errors and warnings
 
-**Every error is one tree, rooted at `LpspecError`.** `LanguageError` (with
+**Every error is one tree, rooted at `SpecsolveError`.** `LanguageError` (with
 `SchemaError`, `DimensionError`, `PiecewiseExpansionError`) is a fault in the
 spec. `DataError` is a fault in the data attached to it. `LayoutError` is a
 directory or an archive that is not a layout this package reads. `LaneError`
@@ -51,8 +51,8 @@ nothing to read.
 Which one you get:
 [errors](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
 
-**`LpspecWarning` is the one warning category**, and carries `check`'s advice.
-`warnings.simplefilter('error', lps.LpspecWarning)` makes a spec repository
+**`SpecsolveWarning` is the one warning category**, and carries `check`'s advice.
+`warnings.simplefilter('error', sps.SpecsolveWarning)` makes a spec repository
 fail CI on it.
 
 ## The spec argument
@@ -64,14 +64,14 @@ framework that emits declarations never writes a temporary file to run them:
 ```python
 spec = {'dimensions': ..., 'variables': ..., 'constraints': ..., 'objective': ...}
 
-lps.solve(spec, sources)  # a dict runs like a file
+sps.solve(spec, sources)  # a dict runs like a file
 kept = to_spec(spec)  # ...or read once and keep the document
-lps.solve(kept, sources)  # a Spec is not read again
+sps.solve(kept, sources)  # a Spec is not read again
 
 to_spec(spec).to_yaml()  # the review copy — a dict-built spec still gets a file
 ```
 
-**Keep the `Spec`, not the `Program`.** `lps.check` hands back a lowered
+**Keep the `Spec`, not the `Program`.** `sps.check` hands back a lowered
 `Program` for reading the plan, and no verb takes one. A `Spec` handed back
 to a verb is not read again.
 
@@ -86,11 +86,11 @@ language's, and what they write is
 
 `sources` maps each declared name to its data, and a dimension's own key
 supplies its labels. What each value may be, and what attaching refuses, is
-[the data contract](data.md); the type is `lpspec.lanes.Source`, which every
+[the data contract](data.md); the type is `specsolve.lanes.Source`, which every
 verb annotates `sources` with.
 
 ```python
-result = lps.solve(
+result = sps.solve(
     'dispatch.yaml',
     {'load': 'load.parquet', 'cost': cost_frame, 'p_max': p_max_frame},
 )
@@ -134,15 +134,15 @@ is
 and `sink=` asks it:
 
 ```python
-lps.check('spec.yaml')  # sayable?
-lps.check('spec.yaml', sink='highs')  # ...and will HiGHS take it?
-lps.check('spec.yaml', sink='.lp')  # ...will the LP writer?
+sps.check('spec.yaml')  # sayable?
+sps.check('spec.yaml', sink='highs')  # ...and will HiGHS take it?
+sps.check('spec.yaml', sink='.lp')  # ...will the LP writer?
 ```
 
 `sink` is a solver name (`highs`, `gurobi`) or an output suffix (`.lp`). **It
 is optional and silent by default.** With a sink named, you get back one of:
 
-- **A refusal (`LpspecError`)** if the sink has no such concept, or refuses the
+- **A refusal (`SpecsolveError`)** if the sink has no such concept, or refuses the
   combination. The message names the construct, the sink, and the sinks that
   do take it. Only Gurobi and the LP writer take a quadratic row, and HiGHS
   refuses a quadratic objective *beside* integrality while taking either
@@ -156,7 +156,7 @@ solver.** `check(m, sink='gurobi')` answers on a machine that has never had
 gurobipy.
 
 **`solve` and `write` read the same table**, so a refusal comes whether or not
-you asked. `lps.write(m, sources, 'model.mps')` on a model carrying a
+you asked. `sps.write(m, sources, 'model.mps')` on a model carrying a
 quadratic term is refused by name rather than written with its quadratic rows
 missing.
 
@@ -188,11 +188,11 @@ back, are probed against the shipped solvers by
 
 ## Building a model
 
-`lps.build` returns a `Model`: the math with your data on it. Build once when
+`sps.build` returns a `Model`: the math with your data on it. Build once when
 one model feeds more than one sink, or is solved more than once:
 
 ```python
-model = lps.build('spec.yaml', sources)
+model = sps.build('spec.yaml', sources)
 model.write('model.lp')
 result = model.solve()
 model.diagnostics()  # what the build and its solves did that the answer does not show
@@ -284,8 +284,8 @@ result.to_dataset(kind='dual')  # every dual; one kind per dataset
 result.save(
     directory
 )  # the whole answer to disk: objective.parquet, primal/ dual/ activity/ expression/, reasons.parquet
-lps.load_result(directory)  # and back whole, every reader answering what it answered
-lps.scan_result(directory)  # the same, read off the directory as you ask for it
+sps.load_result(directory)  # and back whole, every reader answering what it answered
+sps.scan_result(directory)  # the same, read off the directory as you ask for it
 ```
 
 **`primal` returns a `polars.DataFrame`**, one row per coordinate: a *frame*.
@@ -301,7 +301,7 @@ xarray, from the `[linopy]` extra.
 | **a certificate is computed only where it was asked for** | `highs` always produces one. `gurobi` needs `solver_options={'InfUnbdInfo': 1}` and `xpress` needs `solver_options={'presolve': 0}`, both set before the solve; without them the model is still refused as infeasible, and `dual_ray` raises naming the option. A ray is live-only: `save` does not write one, and no sweep spills one |
 | **`evaluate` takes what an `expressions:` entry takes** | a name the file declares, an expression string, or the mapping that carries `cases:`. A declared name is the value of that [named expression](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions) at the solution, aggregated to its own dimensions, served by the reader already holding it and compiled at the read, so unread expressions cost nothing. Anything else lowers the model again, which costs what `check` costs. It may use every name the solved model declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read |
 | **an undeclared expression names nothing** | so it is not a *kind*: `save` does not write it and a sweep does not spill it. A declared expression is: `save` writes it under `expression/`, and it rides every bridge as `kind='expression'`. To keep a quantity, declare it under `expressions:` and read it by name |
-| **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `LpspecError`. Any integer or binary variable makes duals undefined |
+| **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `SpecsolveError`. Any integer or binary variable makes duals undefined |
 | **a solver can make a model mixed-integer** | an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set reaches a solver with no SOS concept as binaries, so an otherwise continuous model solved on `highs` has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
 | **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `save` |
@@ -317,7 +317,7 @@ large model back early.
 ## Writing a file instead of solving
 
 ```python
-lps.write('spec.yaml', sources, 'model.lp')
+sps.write('spec.yaml', sources, 'model.lp')
 ```
 
 **The suffix picks the writer**: `.lp` or `.mps`. Anything else is a
@@ -333,7 +333,7 @@ accepts.
 same math pays for the YAML, the plan and the build once:
 
 ```python
-model = lps.build('sub.yaml', sources)
+model = sps.build('sub.yaml', sources)
 for capacity in search:
     result = model.update({'cap_hat': capacity}).solve()
     price = result.dual('capacity')
@@ -379,7 +379,7 @@ baseline.kept  # 'nothing'
 
 **`keep='progress'` can lose by an order of magnitude and win by a factor of
 two.** Over six updates on HiGHS
-([#815](https://github.com/fluxopt/lpspec/pull/815)), carrying the solver's
+([#815](https://github.com/fluxopt/specsolve/pull/815)), carrying the solver's
 work cost **76.6 s against 4.3 s** on a dispatch model whose presolve cracks
 the problem outright, an 18× loss, and **111.2 s against 213.9 s** on a
 storage model whose cyclic recurrence presolve cannot crack, a 1.9× win.
@@ -397,20 +397,20 @@ being rebuilt away.
 **What progress is made of stays the solver's business.** `kept` says how much
 was kept, not what it was. No solver option reaches the same thing; on both
 solvers that ship, an option asking for it did not produce it
-([#815](https://github.com/fluxopt/lpspec/pull/815)).
+([#815](https://github.com/fluxopt/specsolve/pull/815)).
 
 **A rebuild carries no progress.** A cutting-plane master re-solved after
 gaining a cut has gained a *row*, and a basis spans the model it was read
-from. [#382](https://github.com/fluxopt/lpspec/issues/382) tracks that case.
+from. [#382](https://github.com/fluxopt/specsolve/issues/382) tracks that case.
 
 ## Archiving a model
 
 ```python
-lps.solve('spec.yaml', sources, archive='case.zip')
+sps.solve('spec.yaml', sources, archive='case.zip')
 
-case = lps.load_archive('case.zip', 'case/')
+case = sps.load_archive('case.zip', 'case/')
 case.answer.primal('p')  # what came back
-lps.solve(case.spec, case.sources)  # the same question, asked again
+sps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
 **An archive is the spec, its data and its answer**: `model.yaml`,
@@ -418,16 +418,16 @@ lps.solve(case.spec, case.sources)  # the same question, asked again
 digesting those members, `answer/` holding what `result.save` or `runs.save`
 writes plus `answer/metrics.parquet`, and `axis.json` for a sweep.
 
-**The suffix decides the container**, as `lps.write`'s does. `.zip` packs the
+**The suffix decides the container**, as `sps.write`'s does. `.zip` packs the
 members into one file; anything else lays them out in a directory, which is
 read where it lies:
 
 ```python
-lps.solve('spec.yaml', sources, archive='case/')  # a directory
-lps.load_archive('case/')  # read where it lies — no into=
+sps.solve('spec.yaml', sources, archive='case/')  # a directory
+sps.load_archive('case/')  # read where it lies — no into=
 ```
 
-**`lps.solve`, `model.solve` and `lps.solve_over` take `archive=`, and nothing
+**`sps.solve`, `model.solve` and `sps.solve_over` take `archive=`, and nothing
 else writes one.** Each writes the spec, the data and the answer it holds at
 that moment, so the three cannot be paired up wrongly.
 
@@ -465,8 +465,8 @@ each at the call that asks for it, so the files have to outlive the value. A
 load reads every name; a scan reads only the ones asked for.
 
 ```python
-case = lps.load_archive('case.zip')  # whole, and nowhere to unpack
-case = lps.scan_archive('case.zip', 'case/')  # read as asked for, off 'case/'
+case = sps.load_archive('case.zip')  # whole, and nowhere to unpack
+case = sps.scan_archive('case.zip', 'case/')  # read as asked for, off 'case/'
 ```
 
 | | `load_` | `scan_` |
@@ -519,7 +519,7 @@ thirteen attributes and they are every column of `answer/metrics.parquet`:
 |---|---|
 | `columns`, `rows`, `nonzeros` | the shape the build produced |
 | `added_columns`, `added_rows` | what the last solve's sink added on top of that shape, and zero where it added nothing. The difference, not the sink's totals |
-| `solves` | how many solves this row covers. `1` for the archive `lps.solve` writes, that verb building the model it solves |
+| `solves` | how many solves this row covers. `1` for the archive `sps.solve` writes, that verb building the model it solves |
 | `loads` | how many of those handed the solver the model from scratch |
 | `attach_seconds` | the caller's sources onto the plan |
 | `build_seconds` | the declarations into the model frames |
@@ -544,9 +544,9 @@ an error listing them, never a quiet fallback.
 A time limit is three different words:
 
 ```python
-lps.solve('spec.yaml', sources, solver_options={'time_limit': 60})
-lps.solve('spec.yaml', sources, solver_name='gurobi', solver_options={'TimeLimit': 60})
-lps.solve('spec.yaml', sources, solver_name='xpress', solver_options={'timelimit': 60})
+sps.solve('spec.yaml', sources, solver_options={'time_limit': 60})
+sps.solve('spec.yaml', sources, solver_name='gurobi', solver_options={'TimeLimit': 60})
+sps.solve('spec.yaml', sources, solver_name='xpress', solver_options={'timelimit': 60})
 ```
 
 **Gurobi's remote and licensing options travel the same way**, so Compute
@@ -554,7 +554,7 @@ Server, Instant Cloud and WLS need nothing from this package:
 
 ```python
 options = {'ComputeServer': 'srv:61000', 'ServerPassword': '…'}
-lps.solve('spec.yaml', sources, solver_name='gurobi', solver_options=options)
+sps.solve('spec.yaml', sources, solver_name='gurobi', solver_options=options)
 ```
 
 The options are applied when Gurobi's environment is created, which
@@ -563,7 +563,7 @@ The options are applied when Gurobi's environment is created, which
 ## The linopy lane
 
 A *lane* is one of the two ways a spec is executed; the verbs above are the
-relational lane. `lpspec.linopy.build` and `lpspec.linopy.evaluate` (the
+relational lane. `specsolve.linopy.build` and `specsolve.linopy.evaluate` (the
 `[linopy]` extra) build the same YAML as a `linopy.Model`, and read an
 expression back off a solved one.
 [Relationship to linopy](../about/linopy.md#3-it-is-a-lane) documents them.

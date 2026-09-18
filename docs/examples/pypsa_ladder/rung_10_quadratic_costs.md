@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **12587.437500000098** on both sides; structure ✔ 5 constraints · 2 variables, name for name; size ✔ 60 rows · ✔ 24 columns · ✔ 80 nonzeros; duals ✔ 60 rows; **model for model**: 8 blocks equal, 0 documented splits.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 12 | 12 |
 | `Generator-fix-p-lower` | 16 | 16 |
@@ -17,7 +17,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `Link-fix-p-lower` | 8 | 8 |
 | `Link-fix-p-upper` | 8 | 8 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Generator-p` | 16 | 16 |
 | `Link-p` | 8 | 8 |
@@ -121,7 +121,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_10_quadratic_costs.yaml` — the file projected onto what this rung builds:
 
@@ -308,7 +308,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
         'Load_p_set': varying(n, 'Load', 'p_set'),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_10_quadratic_costs.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_10_quadratic_costs.yaml', sources) as solution:
         solution.objective  # 12587.437500000098
     ```
 

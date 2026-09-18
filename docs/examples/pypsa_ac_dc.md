@@ -165,7 +165,7 @@ g_{t,i} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ i \in \mathcal{I}
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -359,7 +359,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_ac_dc.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_ac_dc.yaml', sources) as solution:
         solution.objective  # 18441021.477729216
         solution.dual('nodal_balance')
     ```
@@ -372,7 +372,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         The port carries its cycle basis as ``cycle_incidence`` because computing
         one is a graph algorithm and so data preparation; PyPSA derives its own

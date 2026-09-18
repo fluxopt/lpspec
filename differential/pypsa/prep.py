@@ -5,10 +5,10 @@
 """The prep layer: a PyPSA network as the tables the example specs declare.
 
 Every parameter the files mark "data prep" is computed here, beside the plain
-renames — the prep half of how lpspec builds the corpus's specs, shown on
+renames — the prep half of how specsolve builds the corpus's specs, shown on
 the ladder page beside the tables it produces. `parity.py` is the caller and
 cuts the tables to what each spec declares; nothing here imports math_spec
-or lpspec — the mapping is pure PyPSA-and-pandas, handed over as polars frames.
+or specsolve — the mapping is pure PyPSA-and-pandas, handed over as polars frames.
 
 Sparseness is meaning: a table row left out is an absent value on the other
 side, so the sparse tables here (`*_set` pins, ramp limits, weights) drop

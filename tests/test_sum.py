@@ -18,7 +18,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-import lpspec as lps
+import specsolve as sps
 from tests.differential import differential
 
 SNAPSHOTS = [0, 1]
@@ -76,9 +76,9 @@ def test_a_bare_sum_builds_what_the_nest_builds(spelling, tmp_path):
         assert run.result.objective == pytest.approx(45.0), 'the budget binds once for the model, not once per row'
 
     written = tmp_path / f'{spelling}.lp'
-    lps.write(spec, sources, written)
+    sps.write(spec, sources, written)
     reference = tmp_path / 'reference.lp'
-    lps.write(_spec(SPELLINGS['nested']), sources, reference)
+    sps.write(_spec(SPELLINGS['nested']), sources, reference)
     assert written.read_text() == reference.read_text(), 'a bare sum wrote a different model than the nest'
 
 

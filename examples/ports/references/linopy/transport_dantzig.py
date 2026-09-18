@@ -21,7 +21,7 @@ reasons:
 
 Run out of band with the pinned versions above, like every reference here:
 linopy is not a runtime dependency of this project. Nothing here imports
-lpspec.
+specsolve.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
 def build(tables: dict[str, pd.DataFrame]) -> linopy.Model:
     """The port's tables as a linopy model, term for term.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
     """
     capacity: pd.Series = tables['capacity'].set_index('plant')['value']
     demand: pd.Series = tables['demand'].set_index('market')['value']

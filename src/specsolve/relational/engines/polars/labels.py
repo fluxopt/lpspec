@@ -1,0 +1,222 @@
+"""Dense solver indices for a masked coordinate product.
+
+**Labels are the one place order is load-bearing.** ``var_label`` *is* the
+solver's column index and ``row`` its row index, so a label is the model's
+identity: two builds of one model must agree on it integer for integer
+(docs/about/architecture.md, "The relational lane").
+
+Variables and constraint rows are the same operation over different frames, so
+:func:`frame` is written once — one rule, sort the survivors into declaration
+order and number them from *start*. A mask, a restriction or neither produce
+the same shape down to the schema.
+
+The one split kept is *how much product is materialised*. A mask that cannot
+see the leading dims removes the same coordinates under every one of their
+values, so the survivors are a rectangle and only the masked suffix needs rows
+(:func:`_factored`).
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+import polars as pl
+
+from specsolve.relational.collect import polars_engine
+from specsolve.relational.engines.polars.predicates import masked
+from specsolve.relational.engines.polars.scope import UNIT, ordinal
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from math_spec import program
+
+    from specsolve.relational.engines.polars.fragments import Presence
+    from specsolve.relational.engines.polars.scope import Scope
+
+
+@dataclass(frozen=True)
+class Labelled:
+    """One declaration's labelled frame, and the contiguous run of labels it owns.
+
+    The frame and its run move together — a dropped row renumbers both.
+    :func:`frame` numbers a declaration's survivors contiguously from
+    ``start``, which is what makes its share of a solver vector a slice.
+    """
+
+    frame: pl.LazyFrame
+    start: int
+    height: int
+
+    def share(self, values: pl.Series) -> pl.Series:
+        """This declaration's share of a solver vector — a slice, never a join."""
+        return values.slice(self.start, self.height)
+
+
+def frame(
+    scope: Scope,
+    dims: tuple[str, ...],
+    where: program.Mask | None,
+    label: str,
+    start: int,
+    restrictions: Sequence[Presence] = (),
+) -> pl.DataFrame:
+    """The masked coord product of *dims* with a dense *label* from *start*.
+
+    A label follows declaration order — row-major over the dims' declared
+    ordinals — which is what lets it *be* the solver's own index with no
+    remapping.
+
+    *restrictions* are variable-presence frames a constraint row must be
+    contained in (the absence rules). They are semi-joins, so they
+    only remove rows, and nothing deduplicates them — a key occurring twice
+    still occurs. Which rows they remove is unknown until data is read, so a
+    restriction takes the counted path whatever the mask looks like.
+
+    No dims means the carrier is :data:`UNIT`, selected because selecting
+    nothing would drop the one row of the empty coordinate product.
+
+    **Nothing sorts unless the data says it must.** The product is *produced*
+    in declaration order, a filter keeps it and a semi-join usually does, so
+    :func:`in_position_order` verifies linearly and sorts only when the engine
+    emitted another order.
+
+    **Nothing renumbers unless a row was dropped**, either. With neither mask
+    nor restriction, ``start + position`` *is* the label and the row-index pass
+    never runs. Nothing projects there either: the query selected the dims and the
+    label in that order, so the projection the renumbered path ends on would
+    copy every column to itself, and what is left to do is set the sorted flag
+    the scan established.
+
+    Returns:
+        ``(dims…, label)`` in that column order and in label order; the next
+        free label is ``start`` plus its height.
+    """
+    if where is not None and not restrictions:
+        free = _free_prefix(dims, where.dims)
+        if free:
+            factored = _factored(scope, dims, free, where, label, start)
+            if factored is not None:
+                return factored
+
+    surviving = masked(scope, dims, where)
+    for restriction in restrictions:
+        surviving = restriction.restrict(surviving, restriction.keyed_by or ())
+
+    dropped = where is not None or bool(restrictions)
+    numbering = _row_major(scope, dims)
+    if not dropped:
+        numbering = pl.lit(start, dtype=pl.Int64) + numbering
+    position = '#position' if dropped else label
+    materialised = in_position_order(
+        surviving.select(*(dims or (UNIT,)), numbering.alias(position)).collect(engine=polars_engine()),
+        position,
+    )
+    if not dropped and dims:
+        materialised.replace_column(materialised.get_column_index(label), materialised.get_column(label).set_sorted())
+        return materialised
+    if dropped:
+        materialised = materialised.with_row_index(label, offset=start).with_columns(pl.col(label).cast(pl.Int64))
+    return materialised.select(*dims, pl.col(label).set_sorted())
+
+
+def declared_height(scope: Scope, dims: tuple[str, ...], where: program.Mask | None) -> int:
+    """How many rows a declaration *asks* for: its coord product under its own mask.
+
+    The count :func:`frame` would return if no variable's absence restricted it,
+    so the difference between the two is the rows a propagated absence removed —
+    which nothing else records, a restricted row never existing to be counted.
+
+    **Unmasked, it is arithmetic** over the cardinalities attaching cached.
+    With a mask it costs a pass over the masked product, and is therefore asked
+    only where there is a restriction to attribute rows to.
+    """
+    if where is None:
+        return math.prod(scope.data.cardinality[d] for d in dims)
+    return int(masked(scope, dims, where).select(pl.len()).collect(engine=polars_engine()).item())
+
+
+def _factored(
+    scope: Scope,
+    dims: tuple[str, ...],
+    free: int,
+    where: program.Mask,
+    label: str,
+    start: int,
+) -> pl.DataFrame | None:
+    """Labels for a mask that reads none of the first *free* dims.
+
+    The survivors are a rectangle — the full product of the leading dims
+    against one surviving suffix set — so only the suffix is materialised and
+    ranked. The label is then arithmetic, row-major
+    over the leading dims times the surviving set's width plus a survivor's
+    rank, which is the number the counted path would have counted since each
+    leading coordinate sees the same survivors in the same order.
+
+    The prefix must be *leading* rather than merely unread by the mask: only a
+    prefix leaves the surviving set contiguous within declaration order.
+    ``None`` when nothing survives, the counted path already answering the
+    empty case with the right columns and dtypes.
+
+    **The survivors go on the left of the cross join**, so survivors turning
+    over within each head coordinate is label order and
+    :func:`in_position_order` permutes nothing. Which side cycles is polars'
+    own business, asserted nowhere: the verify is what makes it safe to exploit.
+    """
+    head, kept = dims[:free], dims[free:]
+    rank = '#rank'
+    survivors = (
+        masked(scope, kept, where)
+        .sort([ordinal(d) for d in kept])
+        .select(*kept)
+        .with_row_index(rank)
+        .collect(engine=polars_engine())
+    )
+    width = survivors.height
+    if width == 0:
+        return None
+
+    position = '#position'
+    labelled = (
+        survivors.lazy()
+        .join(masked(scope, head, None).select(*head, _row_major(scope, head).alias(position)), how='cross')
+        .select(
+            *dims,
+            (pl.lit(start, dtype=pl.Int64) + pl.col(position) * width + pl.col(rank)).alias(label),
+        )
+        .collect(engine=polars_engine())
+    )
+    return in_position_order(labelled, label).with_columns(pl.col(label).set_sorted())
+
+
+def _free_prefix(dims: tuple[str, ...], touched: frozenset[str]) -> int:
+    """How many leading dims the mask does not read.
+
+    Leading, not merely absent: a label follows declaration order, so only a
+    prefix leaves the surviving set contiguous under each of its coordinates.
+    Returns 0 when the mask reads the first dim, and 0 again when *no* dim is
+    read.
+    """
+    free = 0
+    while free < len(dims) and dims[free] not in touched:
+        free += 1
+    return free if free < len(dims) else 0
+
+
+def _row_major(scope: Scope, dims: tuple[str, ...]) -> pl.Expr:
+    """:meth:`Scope.row_major` over a product frame, which carries its ordinals."""
+    return scope.row_major(dims, lambda d: pl.col(ordinal(d)))
+
+
+def in_position_order(materialised: pl.DataFrame, position: str) -> pl.DataFrame:
+    """The frame ordered by *position*, verified rather than re-established.
+
+    One linear ``is_sorted`` against a single column, and a single-key sort
+    only when the engine emitted another order. The witness column stays for a
+    caller to project away. All three orderings in the lane go through here.
+    """
+    if materialised.get_column(position).is_sorted():
+        return materialised
+    return materialised.sort(position)

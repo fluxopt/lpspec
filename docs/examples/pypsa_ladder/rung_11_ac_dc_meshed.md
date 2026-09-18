@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **18441021.477729** on both sides; structure ≠ `objective_constant` 1 vs 0 — PyPSA carries a nonzero objective constant as a fixed variable of that name; the file states no constant, and the objective is compared net of it; size ✔ 468 rows · ≠ 188 vs 187 columns · ✔ 1007 nonzeros; duals ✔ 468 rows; **model for model**: 17 blocks equal, 1 documented splits, 1 recorded deviations.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 90 | 90 |
 | `Generator-ext-p-lower` | 60 | 60 |
@@ -24,7 +24,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `Link-ext-p_nom-lower` | 4 | 4 |
 | `primary_energy` | 1 | 1 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Generator-p` | 60 | 60 |
 | `Generator-p_nom` | 6 | 6 |
@@ -246,7 +246,7 @@ F_{l} \in \mathbb{R} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_11_ac_dc_meshed.yaml` — the file projected onto what this rung builds:
 
@@ -669,7 +669,7 @@ F_{l} \in \mathbb{R} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{
             ),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_11_ac_dc_meshed.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_11_ac_dc_meshed.yaml', sources) as solution:
         solution.objective  # 18441021.477729
     ```
 

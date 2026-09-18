@@ -147,7 +147,7 @@
             "l2_cache_associativity": 6
         },
         "versions": {
-            "lpspec": "0.0.1.dev1+g8d27e88b7",
+            "specsolve": "0.0.1.dev1+g8d27e88b7",
             "highspy": "1.15.1",
             "gurobipy": "13.0.3",
             "scipy": "1.18.1",
@@ -168,21 +168,21 @@
         "time": "2026-09-14T09:34:11+02:00",
         "author_time": "2026-09-14T09:34:11+02:00",
         "dirty": true,
-        "project": "lpspec",
+        "project": "specsolve",
         "branch": "main"
     },
     "benchmarks": [
         {
             "group": null,
-            "name": "test_emit[dispatch-xs-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[dispatch-xs-lpspec-gurobi]",
+            "name": "test_emit[dispatch-xs-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[dispatch-xs-specsolve-gurobi]",
             "params": {
                 "case_name": "dispatch",
                 "size": "xs",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "dispatch-xs-lpspec-gurobi",
+            "param": "dispatch-xs-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -539,15 +539,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[dispatch-s-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[dispatch-s-lpspec-gurobi]",
+            "name": "test_emit[dispatch-s-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[dispatch-s-specsolve-gurobi]",
             "params": {
                 "case_name": "dispatch",
                 "size": "s",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "dispatch-s-lpspec-gurobi",
+            "param": "dispatch-s-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -904,15 +904,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[dispatch-m-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[dispatch-m-lpspec-gurobi]",
+            "name": "test_emit[dispatch-m-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[dispatch-m-specsolve-gurobi]",
             "params": {
                 "case_name": "dispatch",
                 "size": "m",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "dispatch-m-lpspec-gurobi",
+            "param": "dispatch-m-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [
@@ -1269,15 +1269,15 @@
         },
         {
             "group": null,
-            "name": "test_emit[dispatch-l-lpspec-gurobi]",
-            "fullname": "bench/test_ladder.py::test_emit[dispatch-l-lpspec-gurobi]",
+            "name": "test_emit[dispatch-l-specsolve-gurobi]",
+            "fullname": "bench/test_ladder.py::test_emit[dispatch-l-specsolve-gurobi]",
             "params": {
                 "case_name": "dispatch",
                 "size": "l",
-                "arm": "lpspec",
+                "arm": "specsolve",
                 "sink": "gurobi"
             },
-            "param": "dispatch-l-lpspec-gurobi",
+            "param": "dispatch-l-specsolve-gurobi",
             "extra_info": {
                 "benchmem": {
                     "peak_bytes": [

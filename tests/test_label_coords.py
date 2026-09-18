@@ -17,8 +17,8 @@ import polars as pl
 import pytest
 from math_spec import to_spec
 
-import lpspec as lps
-from lpspec.errors import DataError, LpspecError, LpspecWarning
+import specsolve as sps
+from specsolve.errors import DataError, SpecsolveError, SpecsolveWarning
 from tests.conftest import by_coord
 
 
@@ -69,14 +69,14 @@ def test_a_relation_names_the_columns_a_row_is_keyed_by_and_the_ones_they_determ
 def test_a_relation_joins_the_flat_namespace():
     spec = _spec()
     spec['parameters']['period_of'] = {'dims': ['snapshot']}
-    with pytest.raises(LpspecError, match="Parameter 'period_of' collides with the relation"):
+    with pytest.raises(SpecsolveError, match="Parameter 'period_of' collides with the relation"):
         to_spec(spec)
 
 
 def test_a_relation_cannot_take_a_dimensions_name():
     spec = _spec()
     spec['relations']['period'] = {'key': 'snapshot', 'value': 'period'}
-    with pytest.raises(LpspecError, match="Relation 'period' collides with the dimension"):
+    with pytest.raises(SpecsolveError, match="Relation 'period' collides with the dimension"):
         to_spec(spec)
 
 
@@ -86,8 +86,8 @@ def test_a_by_typo_is_offered_the_relations_it_could_have_meant():
     spec['dimensions']['bus'] = {'dtype': 'str'}
     spec['relations']['bus_of'] = {'key': 'snapshot', 'value': 'bus'}
     spec['constraints']['c'] = {'dims': ['bus'], 'expression': 'sum(x, by=bus_ov) >= load'}
-    with pytest.raises(LpspecError, match=r'by=bus_ov\) does not name a relation') as caught:
-        lps.check(spec)
+    with pytest.raises(SpecsolveError, match=r'by=bus_ov\) does not name a relation') as caught:
+        sps.check(spec)
     assert "'bus_of'" in str(caught.value), 'a typo is answered with the relations that were declared'
 
 
@@ -95,14 +95,14 @@ def test_a_dimension_only_a_relation_targets_draws_no_advice():
     """A relation's target is reached: its members are the labels the map is checked against."""
     with warnings.catch_warnings():
         warnings.simplefilter('error')
-        lps.check(_spec())
+        sps.check(_spec())
 
 
 def test_check_advises_an_unused_dimension():
     spec = _spec()
     spec['dimensions']['scenario'] = {'dtype': 'str'}
-    with pytest.warns(LpspecWarning, match="'scenario' is never used"):
-        lps.check(spec)
+    with pytest.warns(SpecsolveWarning, match="'scenario' is never used"):
+        sps.check(spec)
 
 
 def test_a_dimension_grouped_into_draws_no_advice():
@@ -122,23 +122,23 @@ def test_a_dimension_grouped_into_draws_no_advice():
     }
     with warnings.catch_warnings():
         warnings.simplefilter('error')
-        lps.check(spec)
+        sps.check(spec)
 
 
 def test_a_map_arrives_under_its_own_name():
     sources = {'load': _load(), 'snapshot': _index(), 'period': _periods(), 'period_of': _period_of()}
-    with lps.solve(_spec(), sources) as solution:
+    with sps.solve(_spec(), sources) as solution:
         assert solution.objective == pytest.approx(6.0)
 
     with pytest.raises(DataError, match="no data provided for relation 'period_of'"):
-        lps.build(_spec(), {'load': _load(), 'snapshot': _index(), 'period': _periods()})
+        sps.build(_spec(), {'load': _load(), 'snapshot': _index(), 'period': _periods()})
 
 
 def test_a_relation_is_single_valued_per_label():
     doubled = pl.DataFrame({'snapshot': [0, 0, 1, 2], 'period': [1, 2, 1, 2]})
     sources = {'load': _load(), 'snapshot': _index(), 'period': _periods(), 'period_of': doubled}
     with pytest.raises(DataError, match='more than once'):
-        lps.build(_spec(), sources)
+        sps.build(_spec(), sources)
 
 
 def _unused_target_spec(month: dict) -> dict:
@@ -183,7 +183,7 @@ def _unused_target_sources() -> dict:
 )
 def test_a_relation_may_target_a_dimension_nothing_spans_yet(month, extra):
     """#488: the first build after declaring a relation, before its constraint exists."""
-    with lps.solve(_unused_target_spec(month), _unused_target_sources() | extra) as solution:
+    with sps.solve(_unused_target_spec(month), _unused_target_sources() | extra) as solution:
         assert solution.objective == pytest.approx(10.0), 'each period caps its snapshots at 5, so the model builds'
 
 
@@ -195,9 +195,9 @@ def test_an_unused_target_still_checks_containment(lane):
     where each engine holds one — the eager lane never spans `month` either,
     and used to reach this only through its own copy.
     """
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import specsolve_linopy
 
-    build = lps.build if lane == 'relational' else lpspec_linopy.build
+    build = sps.build if lane == 'relational' else specsolve_linopy.build
     short = {'month': pl.DataFrame({'month': ['jan']})}
     with pytest.raises(DataError, match="not 'month' labels"):
         build(_unused_target_spec({'dtype': 'str'}), _unused_target_sources() | short)
@@ -206,9 +206,9 @@ def test_an_unused_target_still_checks_containment(lane):
 @pytest.mark.parametrize('lane', ['relational', 'eager'])
 def test_an_unused_target_without_an_index_is_refused_with_the_true_reason(lane):
     """The old message blamed missing data the caller may well have supplied (#488)."""
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import specsolve_linopy
 
-    build = lps.build if lane == 'relational' else lpspec_linopy.build
+    build = sps.build if lane == 'relational' else specsolve_linopy.build
     with pytest.raises(DataError, match='no index of its own') as caught:
         build(_unused_target_spec({'dtype': 'str'}), _unused_target_sources())
     assert "Pass an index for 'month'" in str(caught.value), 'the refusal has to say what would satisfy it'
@@ -300,7 +300,7 @@ def test_a_where_reads_a_relation(where, kept):
     false, so the bare name keeps exactly the lines that map.
     """
     spec = {**NETWORK, 'variables': {'f': {**NETWORK['variables']['f'], 'where': where}}}
-    with lps.solve(spec, NETWORK_SOURCES) as result:
+    with sps.solve(spec, NETWORK_SOURCES) as result:
         built = sorted(row['line'] for row in result.primal('f').to_dicts())
     assert built == sorted(kept), f'where: {where!r} built the wrong set of variables'
 
@@ -357,7 +357,7 @@ def test_a_where_on_a_relation_outside_the_frame_is_refused():
             'ceiling': {'dims': ['bus'], 'where': 'voltage == 220', 'expression': 'sum(f, by=send) <= 100'}
         },
     }
-    with pytest.raises(LpspecError, match=r"where-relation 'voltage' reads dims \['line'\] outside the frame"):
+    with pytest.raises(SpecsolveError, match=r"where-relation 'voltage' reads dims \['line'\] outside the frame"):
         to_spec(spec)
 
 
@@ -374,7 +374,7 @@ def test_two_relations_over_different_dims_cannot_be_compared():
         'relations': {**NETWORK['relations'], 'zone_of': {'key': 'bus', 'value': 'zone'}},
         'variables': {'f': {**NETWORK['variables']['f'], 'where': 'send != zone_of'}},
     }
-    with pytest.raises(LpspecError, match='over different dimensions'):
+    with pytest.raises(SpecsolveError, match='over different dimensions'):
         to_spec(spec)
 
 
@@ -399,7 +399,7 @@ def test_two_relations_into_different_label_sets_cannot_be_compared(extra, where
         'relations': {**NETWORK['relations'], **extra},
         'variables': {'f': {**NETWORK['variables']['f'], 'where': where}},
     }
-    with pytest.raises(LpspecError, match='over the same dimension'):
+    with pytest.raises(SpecsolveError, match='over the same dimension'):
         to_spec(spec)
 
 
@@ -411,7 +411,7 @@ def test_a_relation_comparison_is_checked_against_its_dtype():
     erroring at run time.
     """
     spec = {**NETWORK, 'variables': {'f': {**NETWORK['variables']['f'], 'where': "voltage == 'high'"}}}
-    with pytest.raises(LpspecError, match=r"has dtype 'int'"):
+    with pytest.raises(SpecsolveError, match=r"has dtype 'int'"):
         to_spec(spec)
 
 
@@ -425,7 +425,7 @@ def test_a_relation_compares_against_a_label_the_target_lacks():
     the cast back this is a polars error rather than an empty mask.
     """
     spec = {**NETWORK, 'variables': {'f': {**NETWORK['variables']['f'], 'where': "send == 'atlantis'"}}}
-    with lps.build(spec, NETWORK_SOURCES) as model:
+    with sps.build(spec, NETWORK_SOURCES) as model:
         surviving = model._engine._model.variables['f'].frame.select(pl.len()).collect().item()
     assert surviving == 0, "a label no bus carries matches nothing, so no 'f' is built"
 
@@ -440,7 +440,7 @@ def test_a_relation_orders_bytewise_not_by_declaration():
     """
     sources = {**NETWORK_SOURCES, 'bus': pl.DataFrame({'bus': ['south', 'north']})}
     spec = {**NETWORK, 'variables': {'f': {**NETWORK['variables']['f'], 'where': "send >= 'south'"}}}
-    with lps.solve(spec, sources) as result:
+    with sps.solve(spec, sources) as result:
         built = sorted(row['line'] for row in result.primal('f').to_dicts())
     assert built == ['ring_b'], "only ring_b sends from 'south'; declaration order would keep the 'north' lines too"
 
@@ -485,7 +485,7 @@ def test_a_map_is_not_a_column_of_the_index_it_runs_over():
     would build the model they did not write.
     """
     with pytest.raises(DataError, match=re.escape("index for dimension 'generator' carries a 'gen_bus' column")):
-        lps.solve(BASE, {**BASE_SOURCES, 'gen_bus': _RELATION, 'generator': _LABELS_AND_MAP})
+        sps.solve(BASE, {**BASE_SOURCES, 'gen_bus': _RELATION, 'generator': _LABELS_AND_MAP})
 
 
 def test_a_map_alone_does_not_say_which_labels_exist():
@@ -498,7 +498,7 @@ def test_a_map_alone_does_not_say_which_labels_exist():
     dimension without an index, and both lanes say so.
     """
     with pytest.raises(DataError, match=re.escape("has its maps (sources['gen_bus'])")):
-        lps.solve(BASE, {**BASE_SOURCES, 'gen_bus': _RELATION})
+        sps.solve(BASE, {**BASE_SOURCES, 'gen_bus': _RELATION})
 
 
 # ---------------------------------------------------------------------------
@@ -522,7 +522,7 @@ def test_a_supplied_relation_reaches_the_declared_map_without_touching_the_index
     unmapped label means. The index goes in as a bare label list, so nothing
     here rewrites a table someone else generated.
     """
-    with lps.solve(SUPPLIED, _SUPPLIED_SOURCES) as result:
+    with sps.solve(SUPPLIED, _SUPPLIED_SOURCES) as result:
         built = by_coord(result, 'p', 'generator')
         assert result.objective == pytest.approx(13.0)
     assert built['g3'] == pytest.approx(0.0), 'a generator in no row of the map is a generator on no bus'
@@ -554,7 +554,7 @@ def test_a_partial_map_is_supplied_as_the_rows_it_has():
     """
     holed = pl.DataFrame({'generator': ['g1', 'g2', 'g3'], 'bus': ['north', 'south', None]})
     with pytest.raises(DataError, match=r"relation 'gen_bus' carries 1 row\(s\) with a null in 'bus'"):
-        lps.solve(SUPPLIED, {**_SUPPLIED_SOURCES, 'gen_bus': holed})
+        sps.solve(SUPPLIED, {**_SUPPLIED_SOURCES, 'gen_bus': holed})
 
 
 def test_a_where_reads_a_map_that_leaves_a_label_out():
@@ -571,7 +571,7 @@ def test_a_where_reads_a_map_that_leaves_a_label_out():
         'load': _load(),
         'period_of': pl.DataFrame({'snapshot': [0, 1], 'period': [1, 1]}),
     }
-    with lps.solve(spec, sources) as result:
+    with sps.solve(spec, sources) as result:
         built = sorted(row['snapshot'] for row in result.primal('x').to_dicts())
     assert built == [0, 1, 2], 'the variable is unmasked; only the constraint reads the map'
     assert result.objective == pytest.approx(3.0), 'snapshot 2 is in no row of the map, so nothing constrains it'
@@ -610,7 +610,7 @@ def test_a_supplied_relation_is_held_to_what_a_map_is(relation, match):
     would place that generator's terms nowhere while the model built and solved.
     """
     with pytest.raises(DataError, match=match):
-        lps.solve(SUPPLIED, {**_SUPPLIED_SOURCES, 'gen_bus': relation})
+        sps.solve(SUPPLIED, {**_SUPPLIED_SOURCES, 'gen_bus': relation})
 
 
 def test_a_map_with_no_author_at_all_is_refused():
@@ -621,7 +621,7 @@ def test_a_map_with_no_author_at_all_is_refused():
     single-valued by construction, so the transport cannot be short of it.
     """
     with pytest.raises(DataError, match="no data provided for relation 'gen_bus'"):
-        lps.solve(SUPPLIED, {**BASE_SOURCES, 'generator': GENERATORS})
+        sps.solve(SUPPLIED, {**BASE_SOURCES, 'generator': GENERATORS})
 
 
 def test_a_supplied_map_does_not_say_which_labels_exist():
@@ -632,15 +632,15 @@ def test_a_supplied_map_does_not_say_which_labels_exist():
     row that would vanish.
     """
     with pytest.raises(DataError, match=re.escape("has its maps (sources['gen_bus'])")):
-        lps.solve(SUPPLIED, {**BASE_SOURCES, 'gen_bus': _RELATION})
+        sps.solve(SUPPLIED, {**BASE_SOURCES, 'gen_bus': _RELATION})
 
 
 @pytest.mark.parametrize('lane', ['relational', 'eager'])
 def test_a_supplied_relation_is_refused_the_same_way_on_both_lanes(lane):
     """One defect, one sentence: the checks live in the door both lanes enter."""
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import specsolve_linopy
 
-    build = lps.solve if lane == 'relational' else lpspec_linopy.build
+    build = sps.solve if lane == 'relational' else specsolve_linopy.build
     with pytest.raises(DataError, match=r'maps 1 key\(s\) more than once'):
         build(
             SUPPLIED,
@@ -680,7 +680,7 @@ def test_two_maps_into_one_target_each_take_their_own_key():
     The alternative — one table per ``(over, into)`` pair — has nowhere to put
     the second, which is why the key is the relation and not the pair.
     """
-    with lps.solve(TWO_MAPS, _TWO_MAP_SOURCES) as result:
+    with sps.solve(TWO_MAPS, _TWO_MAP_SOURCES) as result:
         assert result.objective == pytest.approx(3.0), 'each line serves the bus line_to sends it to'
 
 
@@ -688,7 +688,7 @@ def test_the_second_map_is_checked_as_hard_as_the_first():
     """Per-map, not per-dimension: the check runs for `line_from` as for `line_to`."""
     index = pl.DataFrame({'line': ['l1', 'l2'], 'line_from': ['south', 'north']})
     with pytest.raises(DataError, match=re.escape("carries a 'line_from' column")):
-        lps.solve(TWO_MAPS, {**_TWO_MAP_SOURCES, 'line': index})
+        sps.solve(TWO_MAPS, {**_TWO_MAP_SOURCES, 'line': index})
 
 
 #: A parameter written positionally over a dimension that carries a supplied
@@ -722,7 +722,7 @@ def test_a_supplied_map_does_not_reorder_the_index_it_joins_onto():
         'cost': [1.0, 10.0, 100.0],
         'cap': pl.DataFrame({'t': [0, 1, 2], 'value': [1.0, 0.0, 0.0]}),
     }
-    with lps.solve(POSITIONAL, sources) as result:
+    with sps.solve(POSITIONAL, sources) as result:
         assert result.objective == pytest.approx(1.0), "the first number is the first label's, whatever the join did"
 
 
@@ -770,5 +770,5 @@ def test_every_relation_shape_the_language_admits_passes_check(relations: dict, 
     holds the door open, so a shape cannot be turned away before either lane
     sees it.
     """
-    program = lps.check(_walked(relations, expression))
+    program = sps.check(_walked(relations, expression))
     assert set(program.relations) == set(relations), 'every relation the model declares, under its own name'

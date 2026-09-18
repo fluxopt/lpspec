@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **7633.908502024291** on both sides; structure ≠ `tech_capacity_expansion_limit` 5 vs 1+2+2 — one block per sense — ==, <=, >= — where PyPSA writes one row per labelled constraint whatever its sense; `transmission_expansion_cost_limit` 2 vs 1+1 — one block per sense — ==, <=, >= — where PyPSA writes one row per labelled constraint whatever its sense; size ✔ 184 rows · ✔ 73 columns · ✔ 328 nonzeros; duals ✔ 184 rows, 4 negated; **model for model**: 57 blocks equal, 3 documented splits.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 12 | 12 |
 | `Generator-e_sum_max` | 1 | 1 |
@@ -60,7 +60,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `transmission_expansion_cost_limit` | 2 | ≠ 1+1 |
 | `transmission_volume_expansion_limit` | 1 | 1 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Generator-p` | 20 | 20 |
 | `Generator-p_nom` | 2 | 2 |
@@ -679,7 +679,7 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_03_expansion.yaml` — the file projected onto what this rung builds:
 
@@ -1645,7 +1645,7 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
             ),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_03_expansion.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_03_expansion.yaml', sources) as solution:
         solution.objective  # 7633.908502024291
     ```
 

@@ -29,7 +29,7 @@ data-dependent *row count* is not itself a refusal, since the
 [cycle basis](pypsa_kvl.md) has one and is ordinary. What rules DFJ out at scale
 is the size of the data, not the shape of the language.
 
-**Lazy generation is what every serious TSP code does.** lpspec can express TSP.
+**Lazy generation is what every serious TSP code does.** specsolve can express TSP.
 It is not a good way to solve a large one.
 
 ## What that leaves

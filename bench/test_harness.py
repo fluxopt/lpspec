@@ -29,7 +29,7 @@ from bench import conftest as harness
 from bench import floor, plot, profile_build, profile_phases, report, results, tidy, warm_payoff
 from bench import results as bench_results
 from bench.arms import ARMS, solved, unmeasurable
-from bench.arms.lpspec import _tables, checked_sources
+from bench.arms.specsolve import _tables, checked_sources
 from bench.cases import CASES, Shape, _declaration_sweep, _declarations_spec
 from bench.conftest import (
     MIN_ROUNDS,
@@ -39,8 +39,8 @@ from bench.conftest import (
     refuse_unless_idle,
     take_lock,
 )
-from lpspec.relational.engines.polars.labels import Labelled
-from lpspec.relational.sinks.solvers.base import WarmStart
+from specsolve.relational.engines.polars.labels import Labelled
+from specsolve.relational.sinks.solvers.base import WarmStart
 
 # ---------------------------------------------------------------------------
 # the machine interlock (#705)
@@ -95,7 +95,7 @@ def test_the_interlock_is_wired_into_session_start(tmp_path) -> None:
     lock check runs before the load check, so the refusal asserted here is
     deterministic on a busy machine too.
     """
-    (tmp_path / 'lpspec-bench.lock').write_text(f'pid {os.getpid()}, started 03:14')
+    (tmp_path / 'specsolve-bench.lock').write_text(f'pid {os.getpid()}, started 03:14')
     env = {k: v for k, v in os.environ.items() if k != 'CI'}
     env['TMPDIR'] = str(tmp_path)
     child = subprocess.run(
@@ -162,7 +162,7 @@ def _ceiling_record(ladder: str, size: str, **over: Any) -> dict[str, Any]:
 
 
 def _rendered(**over: Any) -> str:
-    return report.table('dispatch', report.best([_timing('lpspec', **over), _timing('linopy')]), 'lp')
+    return report.table('dispatch', report.best([_timing('specsolve', **over), _timing('linopy')]), 'lp')
 
 
 def _loop(case: str, arm: str, width: int) -> dict[str, Any]:
@@ -467,7 +467,7 @@ def test_the_lock_pins_every_library_an_arm_needs() -> None:
     """`bench/reproduce.py.lock` is what makes a published number reproducible,
     and the way it stops being that is quietly: an arm is added, the harness
     measures it, and the environment somebody else installs has no idea it
-    exists. Two of these resolve from git — lpspec itself, and linopy from a
+    exists. Two of these resolve from git — specsolve itself, and linopy from a
     branch that moves — so the lock is the only place their commits are written
     down at all.
     """
@@ -635,8 +635,8 @@ def test_a_measurement_over_the_memory_budget_stops_without_projecting() -> None
 
 def test_a_rung_inside_both_budgets_lets_the_ladder_continue() -> None:
     ceiling = _ceiling(120.0, memory=16.0)
-    ceiling.record('lpspec', 'dispatch', 'xs', 'lp', 0.5, 0.2e9)
-    assert ceiling.reached('lpspec', 'dispatch', 'xs', 'lp') is None
+    ceiling.record('specsolve', 'dispatch', 'xs', 'lp', 0.5, 0.2e9)
+    assert ceiling.reached('specsolve', 'dispatch', 'xs', 'lp') is None
 
 
 def test_no_memory_budget_measures_everything() -> None:
@@ -662,8 +662,8 @@ def test_a_rung_that_projects_over_budget_stops_the_ladder() -> None:
 
 def test_a_rung_inside_budget_lets_the_ladder_continue() -> None:
     ceiling = _ceiling(120.0)
-    ceiling.record('lpspec', 'dispatch', 'xs', 'lp', 0.5)
-    assert ceiling.reached('lpspec', 'dispatch', 'xs', 'lp') is None, '0.5 s projects to 5 s, well inside 120 s'
+    ceiling.record('specsolve', 'dispatch', 'xs', 'lp', 0.5)
+    assert ceiling.reached('specsolve', 'dispatch', 'xs', 'lp') is None, '0.5 s projects to 5 s, well inside 120 s'
 
 
 def test_a_measurement_over_budget_stops_the_ladder_without_projecting() -> None:
@@ -684,8 +684,8 @@ def test_the_top_of_the_run_never_projects() -> None:
     never going to happen. On the first published run it did exactly that.
     """
     ceiling = _ceiling(120.0, selected=('xs', 's', 'm', 'l'))
-    ceiling.record('lpspec', 'dispatch', 'l', 'lp', 100.0)
-    assert ceiling.reached('lpspec', 'dispatch', 'l', 'lp') is None, (
+    ceiling.record('specsolve', 'dispatch', 'l', 'lp', 100.0)
+    assert ceiling.reached('specsolve', 'dispatch', 'l', 'lp') is None, (
         '`l` is the top of this run; `xl` is not being measured and cannot stop it'
     )
 
@@ -754,7 +754,7 @@ def test_both_renderers_read_the_same_bound() -> None:
     report.CEILINGS[:] = [ceiling]
     taken = {
         ('transport', 'highs', 'linopy'): {r: _plotted() for r in ('xs', 's')},
-        ('transport', 'highs', 'lpspec'): {r: _plotted() for r in ('xs', 's', 'm', 'l')},
+        ('transport', 'highs', 'specsolve'): {r: _plotted() for r in ('xs', 's', 'm', 'l')},
     }
 
     charted = plot.panels(taken, [ceiling])['transport — highs — length']['series']['linopy']['bound']
@@ -785,11 +785,11 @@ def test_no_budget_measures_everything() -> None:
 
 
 @pytest.mark.parametrize('case_name', ['dispatch', 'transport', 'storage', 'fleet', 'nodal'])
-@pytest.mark.parametrize('dialect', [a for a in sorted(ARMS) if a != 'lpspec'])
+@pytest.mark.parametrize('dialect', [a for a in sorted(ARMS) if a != 'specsolve'])
 def test_a_hand_written_arm_builds_the_same_model(case_name: str, dialect: str) -> None:
-    """Every arm but `lpspec` is a model somebody typed twice.
+    """Every arm but `specsolve` is a model somebody typed twice.
 
-    `lpspec.linopy` could never be a different model — it read the same YAML
+    `specsolve.linopy` could never be a different model — it read the same YAML
     (hard rule 3), which is what made it an oracle. A hand-written dialect has
     no such protection: a transposed index or a load vector read in the wrong
     order builds a *different model* that benchmarks perfectly, and the faster
@@ -809,10 +809,10 @@ def test_a_hand_written_arm_builds_the_same_model(case_name: str, dialect: str) 
     case = CASES[case_name]
     smallest = case.ladder[0].label
     paths = case.data(case.shape(smallest))
-    ours = solved('lpspec', case_name, smallest, paths, {})
+    ours = solved('specsolve', case_name, smallest, paths, {})
     theirs = solved(dialect, case_name, smallest, paths, {})
     assert theirs == pytest.approx(ours, rel=1e-9), (
-        f'{dialect} solves {case_name}/{smallest} to {theirs}, lpspec to {ours} — not the same model'
+        f'{dialect} solves {case_name}/{smallest} to {theirs}, specsolve to {ours} — not the same model'
     )
 
 
@@ -848,7 +848,7 @@ def test_the_profilers_wrap_the_class_that_actually_builds() -> None:
     a day before anyone looked."""
     import importlib
 
-    from lpspec.relational.engines.polars.assembly import Assembly
+    from specsolve.relational.engines.polars.assembly import Assembly
 
     for module_path, class_name, method in profile_build.STEPS:
         module = importlib.import_module(module_path)
@@ -869,7 +869,7 @@ def _long(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def test_a_timing_record_fans_into_one_row_per_metric() -> None:
-    rows = _long([_timing('lpspec')])
+    rows = _long([_timing('specsolve')])
     assert [r['metric'] for r in rows] == [
         'wall_seconds',
         'peak_rss_bytes',
@@ -882,21 +882,21 @@ def test_a_timing_record_fans_into_one_row_per_metric() -> None:
         'nonzeros',
     ], 'every number the record carries becomes a row, counts last, memray absent because it was not measured'
     assert {r['case'] for r in rows} == {'dispatch'}, 'the dims repeat down the rows — that is what long form is'
-    assert {r['arm'] for r in rows} == {'lpspec'}
+    assert {r['arm'] for r in rows} == {'specsolve'}
 
 
 def test_a_number_the_run_did_not_produce_is_an_absent_row() -> None:
     """A hole is refused here for the same reason the language refuses one in a
     value column: a null would have to mean *something*, and nothing it could
     mean is true of a measurement that was never taken."""
-    rows = _long([_timing('lpspec', peak_rss_bytes=None, counts={'columns': 10, 'rows': 1, 'nonzeros': None})])
+    rows = _long([_timing('specsolve', peak_rss_bytes=None, counts={'columns': 10, 'rows': 1, 'nonzeros': None})])
     assert [r['metric'] for r in rows].count('peak_rss_bytes') == 0, 'no isolate=True, so no rss row at all'
     assert [r['metric'] for r in rows].count('nonzeros') == 0, 'an arm that cannot count nonzeros writes none'
     assert all(r['value'] is not None for r in rows), 'every value column is complete'
 
 
 def test_the_rebuild_loop_becomes_two_phases() -> None:
-    rows = [r for r in _long([_loop('dispatch', 'lpspec', 1200)]) if r['metric'] == 'wall_seconds']
+    rows = [r for r in _long([_loop('dispatch', 'specsolve', 1200)]) if r['metric'] == 'wall_seconds']
     assert [(r['phase'], r['value']) for r in rows] == [('first', 0.1), ('steady', 0.05)], (
         'first and steady answer different questions, so they are two rows and never one'
     )
@@ -906,7 +906,7 @@ def test_the_rebuild_loop_becomes_two_phases() -> None:
 def test_the_long_table_and_the_published_table_agree_on_a_cell() -> None:
     """The two renderings read one extraction. If they could disagree, the long
     form would be a second source of truth rather than a second view."""
-    record = _timing('lpspec', wall_seconds=0.5)
+    record = _timing('specsolve', wall_seconds=0.5)
     wall = next(r['value'] for r in _long([record]) if r['metric'] == 'wall_seconds')
     assert f'{wall:.2f}' in report.table('dispatch', report.best([record]), 'lp')
 
@@ -985,7 +985,7 @@ rows = [
     dict(record='loop', case=c, size='m', arm=a, nominal_variables=1200,
          first_build_seconds=0.1, steady_build_seconds=0.05,
          counts={'columns': 1200, 'rows': 10, 'nonzeros': 1200})
-    for c in ('fleet', 'nodal', 'profiled') for a in ('lpspec', 'linopy')
+    for c in ('fleet', 'nodal', 'profiled') for a in ('specsolve', 'linopy')
 ]
 print(report.marginal(rows))
 """
@@ -1022,11 +1022,11 @@ def test_the_marginal_table_does_not_reshuffle_between_processes() -> None:
     )
 
 
-def test_the_marginal_table_survives_a_file_that_never_measured_lpspec() -> None:
+def test_the_marginal_table_survives_a_file_that_never_measured_specsolve() -> None:
     """`--arms linopy` is a legitimate run, and reporting one used to raise.
 
-    The width was read off `best[(case, size, 'lpspec')]` directly, so a file
-    with no lpspec arm in it died with a `KeyError` inside a sort key — before
+    The width was read off `best[(case, size, 'specsolve')]` directly, so a file
+    with no specsolve arm in it died with a `KeyError` inside a sort key — before
     printing any of the tables that did carry both arms.
     """
     assert report.marginal([_loop('dispatch', 'linopy', 1200)]) is not None
@@ -1069,7 +1069,7 @@ def test_marking_leaves_the_published_number_alone() -> None:
 def test_the_ratio_beside_a_marked_cell_is_marked_too() -> None:
     """A ratio is only as quotable as the two minima it divides, and #797 is a
     ratio that would have flipped from 0.73x to 1.23x on one contaminated arm."""
-    marked = report.density(report.best([_timing('lpspec', size='d100', iqr=1.9), _timing('linopy', size='d100')]))
+    marked = report.density(report.best([_timing('specsolve', size='d100', iqr=1.9), _timing('linopy', size='d100')]))
     assert '| 1.00x~ |' in marked, 'a ratio drawn from a marked minimum carries the doubt'
 
 
@@ -1077,11 +1077,11 @@ def test_a_cell_with_no_number_in_it_is_never_marked() -> None:
     """A ratio needs both arms. One noisy arm and nothing to divide it by leaves
     an em dash, and a mark on that claims doubt about a measurement nobody took.
 
-    The rung below is measured on `lpspec` only while the run as a whole
+    The rung below is measured on `specsolve` only while the run as a whole
     carries a second arm, which is what leaves an empty cell in the table at
     all now that the columns are whichever arms the run measured.
     """
-    rows = report.best([_timing('lpspec', iqr=1.9), _timing('linopy', size='l')])
+    rows = report.best([_timing('specsolve', iqr=1.9), _timing('linopy', size='l')])
     table = report.table('dispatch', rows, 'lp')
     assert '| \u2014 |' in table, 'the arm that did not run this rung still renders as absent'
     assert f'\u2014{report.MARK}' not in table, 'an absent measurement cannot be noisy'
@@ -1154,12 +1154,12 @@ def test_the_marginal_table_carries_no_ratio_between_libraries() -> None:
 
     One that defers materialising its coefficients to its writer spends almost
     nothing in the build and pays at the seam: on `dispatch` at 1M columns
-    linopy built in 18.6 ms against lpspec's 33.7 ms and then emitted in 0.64 s
+    linopy built in 18.6 ms against specsolve's 33.7 ms and then emitted in 0.64 s
     against 0.44 s, so a ratio drawn here says the opposite of the run it came
     from. The tables that measure to a common artifact carry the ratios.
     """
-    table = report.marginal([_loop('dispatch', 'lpspec', 1200), _loop('dispatch', 'linopy', 1200)])
-    assert 'lpspec: steady' in table and 'linopy: steady' in table, 'both libraries still get their columns'
+    table = report.marginal([_loop('dispatch', 'specsolve', 1200), _loop('dispatch', 'linopy', 1200)])
+    assert 'specsolve: steady' in table and 'linopy: steady' in table, 'both libraries still get their columns'
     assert '\u00f7' not in table, 'no ratio column here — the build is not the same work in each'
     assert 'not across the row' in table, 'and the table says so where it is read'
 
@@ -1170,17 +1170,17 @@ def test_a_model_table_shows_the_numbers_and_leaves_the_dividing_to_the_reader()
     eye from the two numbers beside it. The sweeps keep theirs: they compare at
     one size, with no column of absolutes to read a ratio off.
     """
-    rows = report.best([_timing('lpspec'), _timing('linopy')])
+    rows = report.best([_timing('specsolve'), _timing('linopy')])
     table = report.table('dispatch', rows, 'lp')
-    assert 'wall: lpspec' in table and 'wall: linopy' in table, 'every library measured is still a column'
+    assert 'wall: specsolve' in table and 'wall: linopy' in table, 'every library measured is still a column'
     assert '\u00f7' not in table, 'the per-model table carries no ratio'
 
 
 def test_a_run_of_one_arm_has_no_ratio_column() -> None:
     """A number divided by itself is not a comparison, and a column of 1.00x
     reads like one."""
-    table = report.table('dispatch', report.best([_timing('lpspec')]), 'lp')
-    assert 'wall: lpspec' in table, 'the arm that ran is still a column'
+    table = report.table('dispatch', report.best([_timing('specsolve')]), 'lp')
+    assert 'wall: specsolve' in table, 'the arm that ran is still a column'
     assert '\u00f7' not in table, 'nothing to divide against, so no ratio column at all'
 
 
@@ -1189,14 +1189,14 @@ def test_a_measurement_without_a_peak_is_skipped_rather_than_divided(tmp_path: P
     and the figures divide it — unguarded that is a `TypeError` halfway through
     a render, where a missing point is what it actually is."""
     path = tmp_path / 'results.jsonl'
-    records = [_timing('lpspec'), _timing('linopy', size='l', peak_rss_bytes=None)]
+    records = [_timing('specsolve'), _timing('linopy', size='l', peak_rss_bytes=None)]
     path.write_text('\n'.join(json.dumps(r) for r in records))
 
     taken = plot.series(path)
     assert 'l' not in taken.get(('dispatch', 'lp', 'linopy'), {}), (
         'a record with no peak cannot be plotted, so it is dropped'
     )
-    assert 'm' in taken[('dispatch', 'lp', 'lpspec')], 'and the records around it still are'
+    assert 'm' in taken[('dispatch', 'lp', 'specsolve')], 'and the records around it still are'
 
 
 def test_a_ceiling_from_the_width_ladder_does_not_bound_the_size_panel() -> None:
@@ -1220,7 +1220,7 @@ def test_a_ceiling_from_the_width_ladder_does_not_bound_the_size_panel() -> None
     `test_a_width_panel_is_bounded_by_its_own_ladders_ceiling`.
     """
     taken = {
-        ('transport', 'highs', 'lpspec'): {r: _plotted() for r in ('xs', 's', 'm', 'l')},
+        ('transport', 'highs', 'specsolve'): {r: _plotted() for r in ('xs', 's', 'm', 'l')},
         ('transport', 'highs', 'linopy'): {r: _plotted() for r in ('xs', 's', 'm')},
     }
     ceilings = [_ceiling_record('size', 'm'), _ceiling_record('width', 'w100')]
@@ -1240,7 +1240,7 @@ def test_a_width_panel_is_bounded_by_its_own_ladders_ceiling() -> None:
     middle of a render. This holds the quiet direction.
     """
     taken = {
-        ('transport', 'highs', 'lpspec'): {r: _plotted() for r in ('w1', 'w10', 'w100', 'w1000')},
+        ('transport', 'highs', 'specsolve'): {r: _plotted() for r in ('w1', 'w10', 'w100', 'w1000')},
         ('transport', 'highs', 'linopy'): {r: _plotted() for r in ('w1', 'w10')},
     }
     panels = plot.panels(taken, [_ceiling_record('width', 'w10')])
@@ -1326,13 +1326,13 @@ def test_the_generated_declaration_model_builds(tmp_path: Path) -> None:
     engine (#345). The sweep's own smallest rung is a million variables, so the
     build gate runs on a tiny shape of the same generated model instead.
     """
-    import lpspec as lps
+    import specsolve as sps
 
     case = CASES['declarations']
     shape = Shape('tiny', {'declaration': 2, 'unit': 8, 'snapshot': 20}, 20 * 16)
     paths = case.write(shape, tmp_path)
     sources = {k: v for k, v in paths.items() if k in ('p_max', 'cost', 'demand', 'unit', 'snapshot')}
-    with lps.build(case.spec_path(shape, cache=tmp_path), sources) as model:
+    with sps.build(case.spec_path(shape, cache=tmp_path), sources) as model:
         assert model is not None
 
 
@@ -1421,7 +1421,7 @@ def test_a_masked_rung_sorts_after_the_twin_it_ties_with() -> None:
         [
             _timing(arm, case='declarations', size=size, counts={'columns': 1000, 'rows': 100, 'nonzeros': 1000})
             for size in ('n128m', 'n008', 'n128', 'n008m')
-            for arm in ('lpspec', 'linopy')
+            for arm in ('specsolve', 'linopy')
         ]
     )
     order = report.sizes_of('declarations', rows, 'lp', sweep=report._DECLARATION_RUNG)
@@ -1468,21 +1468,21 @@ def test_the_milp_case_lowers_with_both_domains() -> None:
     )
 
 
-def test_the_floor_builds_the_model_lpspec_builds() -> None:
-    """The floor's counts match lpspec's on `transport/xs`, so its headroom claim is about one model.
+def test_the_floor_builds_the_model_specsolve_builds() -> None:
+    """The floor's counts match specsolve's on `transport/xs`, so its headroom claim is about one model.
 
     Columns, rows and nonzeros are the cheap fingerprint; the objectives are
     compared by the test below. A floor that quietly dropped a term would post
     an unbeatable time for a model nobody built.
     """
-    import lpspec as lps
+    import specsolve as sps
 
     case = CASES[floor.CASE]
     paths = case.data(case.ladder[0])
     floor_model = floor.arrays(floor.read(paths))
 
     sources = checked_sources(case, case.ladder[0].label, paths)
-    with lps.build(case.spec, sources) as model:
+    with sps.build(case.spec, sources) as model:
         tables = _tables(model)
         assert floor_model.column_count == tables.column_count, 'the floor holds a different number of variables'
         assert floor_model.row_count == tables.row_count, 'the floor holds a different number of constraints'
@@ -1532,7 +1532,7 @@ def test_the_splice_shifts_a_later_declarations_rows() -> None:
     )
 
 
-def test_the_floor_and_lpspec_agree_on_the_answer() -> None:
+def test_the_floor_and_specsolve_agree_on_the_answer() -> None:
     """`check()` runs, and the two models solve to one objective.
 
     The counts above are a fingerprint, not the answer — they match for a floor
@@ -1541,10 +1541,10 @@ def test_the_floor_and_lpspec_agree_on_the_answer() -> None:
     does, so a signature change there went unnoticed until someone ran the flag
     by hand.
     """
-    ours, lpspec = floor.check()
+    ours, specsolve = floor.check()
 
-    assert ours == pytest.approx(lpspec, rel=1e-9), (
-        f'the floor solves a different model than lpspec: {ours} against {lpspec}'
+    assert ours == pytest.approx(specsolve, rel=1e-9), (
+        f'the floor solves a different model than specsolve: {ours} against {specsolve}'
     )
 
 
@@ -1650,8 +1650,8 @@ def test_a_timing_record_says_which_rung_it_came_off(tmp_path: Path) -> None:
     doc = {
         'benchmarks': [
             {
-                'name': f'{rung}[dispatch-xs-lpspec-highs]',
-                'params': {'case_name': 'dispatch', 'size': 'xs', 'arm': 'lpspec', 'sink': 'highs'},
+                'name': f'{rung}[dispatch-xs-specsolve-highs]',
+                'params': {'case_name': 'dispatch', 'size': 'xs', 'arm': 'specsolve', 'sink': 'highs'},
                 'stats': {'median': 1.0, 'min': 1.0},
                 'extra_info': {},
             }
@@ -1674,17 +1674,17 @@ def test_a_window_measurement_is_not_published_as_a_build(tmp_path: Path) -> Non
     Both published readers take the `emit` phase, so the window number is
     reachable through `bench.tidy` and nowhere else.
     """
-    build = _timing('lpspec', phase='emit', wall_seconds=1.0)
-    window = _timing('lpspec', phase='window', wall_seconds=0.1)
+    build = _timing('specsolve', phase='emit', wall_seconds=1.0)
+    window = _timing('specsolve', phase='window', wall_seconds=0.1)
 
     path = tmp_path / 'latest.jsonl'
     path.write_text('\n'.join(json.dumps(r) for r in (build, window)))
     _run, _gates, timings, _loop = report.load(path)
     published = report.best(timings)
-    assert published[('dispatch', 'm', 'lp', 'lpspec')]['wall_seconds'] == 1.0, (
+    assert published[('dispatch', 'm', 'lp', 'specsolve')]['wall_seconds'] == 1.0, (
         'the table publishes the build, not the faster window measured against it'
     )
-    plotted = plot.series(path)[('dispatch', 'lp', 'lpspec')]['m']
+    plotted = plot.series(path)[('dispatch', 'lp', 'specsolve')]['m']
     assert plotted['wall'] == 1.0, 'and the chart page plots the build, not the window that shares its key'
 
     rows = list(tidy.measurements([build, window], 'run'))

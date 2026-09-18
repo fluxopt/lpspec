@@ -22,10 +22,10 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.relational.sinks.writers import lp_file
-from lpspec.relational.sinks.writers.base import number
-from lpspec.relational.sinks.writers.lp_file import _signed
+import specsolve as sps
+from specsolve.relational.sinks.writers import lp_file
+from specsolve.relational.sinks.writers.base import number
+from specsolve.relational.sinks.writers.lp_file import _signed
 from tests.conftest import DISPATCH_SPEC, override
 
 if TYPE_CHECKING:
@@ -121,7 +121,7 @@ def test_written_bounds_are_bit_exact(tmp_path: Path) -> None:
         'load': pl.DataFrame({'snapshot': [0], 'value': [0.0]}),
     }
     lp = tmp_path / 'model.lp'
-    with lps.build(DISPATCH_SPEC, data) as model:
+    with sps.build(DISPATCH_SPEC, data) as model:
         model.write(lp)
     text = lp.read_text()
 
@@ -178,7 +178,7 @@ def test_the_direction_keyword_is_the_files_own(sense: str | None, keyword: str,
         schema = override(schema, **{'objective.sense': sense})
 
     lp = tmp_path / 'model.lp'
-    with lps.build(schema, data) as model:
+    with sps.build(schema, data) as model:
         model.write(lp)
     assert lp.read_text().splitlines()[0] == keyword, 'the opening keyword is the direction the file asked for'
 
@@ -196,7 +196,7 @@ def test_one_model_writes_the_same_bytes_every_time(tmp_path: Path) -> None:
     schema, data = _scaled_dispatch(n_generators=20, n_snapshots=200)
 
     written = []
-    with lps.build(schema, data) as model:
+    with sps.build(schema, data) as model:
         for attempt in range(3):
             lp = tmp_path / f'{attempt}.lp'
             model.write(lp)
@@ -217,7 +217,7 @@ def test_chunking_the_constraint_section_leaves_the_bytes_alone(
     """
     schema, data = _scaled_dispatch(n_generators=5, n_snapshots=40)
 
-    with lps.build(schema, data) as model:
+    with sps.build(schema, data) as model:
         model.write(tmp_path / 'one.lp')
         monkeypatch.setattr(lp_file, 'EMIT_BUDGET', 3)
         model.write(tmp_path / 'many.lp')
@@ -239,7 +239,7 @@ def test_section_keywords_survive_sections_far_larger_than_a_buffer(tmp_path: Pa
     schema, data = _scaled_dispatch(n_generators, n_snapshots)
 
     lp = tmp_path / 'model.lp'
-    with lps.build(schema, data) as model:
+    with sps.build(schema, data) as model:
         model.write(lp)
     lines = lp.read_text().splitlines()
 

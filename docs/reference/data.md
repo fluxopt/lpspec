@@ -5,9 +5,9 @@ for anyone putting data on a [spec](glossary.md). `sources` supplies the
 numbers, keyed by the names the spec declares:
 
 ```python
-import lpspec as lps
+import specsolve as sps
 
-result = lps.solve(
+result = sps.solve(
     'dispatch.yaml',
     {'load': 'load.parquet', 'cost': cost_frame, 'p_max': p_max_frame},
 )

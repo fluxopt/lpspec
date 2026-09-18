@@ -118,7 +118,7 @@ $`\mathrm{pos}(t)`$ denotes where index $`t`$ sits along its dimension's own ord
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -249,7 +249,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_spill.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_spill.yaml', sources) as solution:
         solution.objective  # 3200.0
         solution.dual('nodal_balance')
     ```
@@ -262,7 +262,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         ``inflow`` is a time-varying attribute, so it arrives pivoted to snapshots
         by names. PyPSA declares the spill variable only for units whose inflow is

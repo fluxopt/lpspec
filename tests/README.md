@@ -40,7 +40,7 @@ answer, and both are asked — `test_ports` of the relational lane,
 `test_corpus_parity` of the eager one, which linopy-free `test_ports` cannot
 reach.
 
-[#992]: https://github.com/fluxopt/lpspec/pull/992
+[#992]: https://github.com/fluxopt/specsolve/pull/992
 
 ## Rules
 
@@ -51,7 +51,7 @@ reach.
   failure.
 - **A probe moves to `conftest.py` on its second importer.** Not before.
 - **A claim decided at `to_spec` lives in math-spec's own suite** (#1150),
-  and nothing there imports a consumer — including `lpspec` itself, whose
+  and nothing there imports a consumer — including `specsolve` itself, whose
   top-level namespace is the runner. The door the claim is *decided at* is the test, not
   the subject it is about: "a stray dim is refused" is the language's, while
   "`check` reaches that refusal with no sources bound" is `check`'s and belongs
