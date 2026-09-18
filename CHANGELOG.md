@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.342](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.341...v0.0.1-alpha.342) (2026-09-18)
+
+
+### Bug Fixes
+
+* **api:** an archive in a run=&lt;name&gt; directory stamps the name the path gives ([#1689](https://github.com/fluxopt/lpspec/issues/1689)) ([7fc0251](https://github.com/fluxopt/lpspec/commit/7fc02510f62ba6eafdf5d3d4a4318f0b36d524d5))
+
 ## [0.0.1-alpha.341](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.340...v0.0.1-alpha.341) (2026-09-18)
 
 
