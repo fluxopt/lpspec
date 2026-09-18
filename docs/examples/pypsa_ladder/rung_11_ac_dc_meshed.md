@@ -273,33 +273,33 @@ F_{l} \in \mathbb{R} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{
       Generator_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       Link_bus0:
         description: the bus a link leaves
         key: link
-        value: bus
+        values: bus
       Link_output_link:
         description: the link an output port belongs to
         key: link_output
-        value: link
+        values: link
       Link_output_bus:
         description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
           output ports is three labels here rather than a third relation, so the file states any number of
           them
         key: link_output
-        value: bus
+        values: bus
       Load_bus:
         description: the bus a load sits on
         key: load
-        value: bus
+        values: bus
       Line_bus0:
         description: the bus a line's flow is measured at
         key: line
-        value: bus
+        values: bus
       Line_bus1:
         description: the bus at a line's other end
         key: line
-        value: bus
+        values: bus
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -497,8 +497,8 @@ F_{l} \in \mathbb{R} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
         dims: [snapshot, bus]
-        expression: sum(Generator_p, by=Generator_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
-          by=Link_output_bus) - sum(Line_s, by=Line_bus0) + sum(Line_s, by=Line_bus1) == sum(Load_p_set, by=Load_bus)
+        expression: sum(Generator_p, by=Generator_bus, over=generator, into=bus) - sum(Link_p, by=Link_bus0, over=link, into=bus) + sum(Link_output_arrival,
+          by=Link_output_bus, over=link_output, into=bus) - sum(Line_s, by=Line_bus0, over=line, into=bus) + sum(Line_s, by=Line_bus1, over=line, into=bus) == sum(Load_p_set, by=Load_bus, over=load, into=bus)
     expressions:
       Link_output_arrival:
         description: what a link delivers to an output port at a snapshot — its flow after the port's efficiency,
@@ -507,9 +507,9 @@ F_{l} \in \mathbb{R} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
         dims: [snapshot, link_output]
         cases:
-          wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
+          wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link, over=link, into=link_output) *
               Link_efficiency, along=snapshot, offset=Link_output_delay, edge=''wrap'')'}
-        otherwise: shift(at(Link_p, by=Link_output_link) * Link_efficiency, along=snapshot, offset=Link_output_delay,
+        otherwise: shift(at(Link_p, by=Link_output_link, over=link, into=link_output) * Link_efficiency, along=snapshot, offset=Link_output_delay,
           edge=0)
       primary_energy: {description: 'what a `primary_energy` row totals — weighted generator energy, less
           the charge left in weighted storage at the horizon''s end; the initial charge it is compared against

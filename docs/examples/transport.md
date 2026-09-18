@@ -127,15 +127,15 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       gen_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       line_from:
         description: the bus a line leaves
         key: line
-        value: bus
+        values: bus
       line_to:
         description: the bus a line arrives at
         key: line
-        value: bus
+        values: bus
 
     parameters:
       p_max:
@@ -170,10 +170,10 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     expressions:
       gen_at_bus:
-        expression: sum(p, by=gen_bus)
+        expression: sum(p, by=gen_bus, over=generator, into=bus)
         description: what the generators sitting on a bus produce there
       net_inflow:
-        expression: sum(f, by=line_to) - sum(f, by=line_from)
+        expression: sum(f, by=line_to, over=line, into=bus) - sum(f, by=line_from, over=line, into=bus)
         description: flow arriving at a bus minus flow leaving it, so a negative value is a net export
 
     constraints:
@@ -237,7 +237,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 Three `sum(by=)` calls are what a network *is* in this language. The model
 declares three **relations**: `gen_bus` maps `generator` onto `bus`, and
-`line_from` and `line_to` map `line` onto `bus`. `sum(f, by=line_to)` sums
+`line_from` and `line_to` map `line` onto `bus`. `sum(f, by=line_to, over=line, into=bus)` sums
 each line's flow onto its `line_to` bus, so the result lands on `bus`. The
 same `f` is summed twice through two relations, once as an inflow and once as an
 outflow.

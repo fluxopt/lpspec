@@ -1739,12 +1739,12 @@ def test_a_reach_a_relation_decides_is_refused_with_the_relation_named():
     spec = _horizon(
         {
             'dims': ['t', 'generator'],
-            'expression': 'p >= shift(p, along=t, offset=1, by=day_of, edge=0) - at(day_cap, by=day_of)',
+            'expression': 'p >= shift(p, along=t, offset=1, by=day_of, edge=0) - at(day_cap, by=day_of, over=day, into=t)',
         },
         day_cap={'dims': ['day']},
     )
     spec['dimensions'] = {**spec['dimensions'], 'day': {'dtype': 'int'}}
-    spec['relations'] = {'day_of': {'key': 't', 'value': 'day'}}
+    spec['relations'] = {'day_of': {'key': 't', 'values': 'day'}}
     with pytest.raises(lps.LpspecError, match=r"constraint 'extra': through the relation 'day_of'"):
         lps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
 

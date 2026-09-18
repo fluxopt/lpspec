@@ -286,16 +286,18 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
         return summed
 
     if isinstance(node, program.GroupSum):
+        (into,) = node.into
         return operator_grouped_sum(
             _eval(node.operand, ctx),
-            _relation_arrays(node.coordinate, ctx),
-            into=node.into,
+            bound_relation(node.relation, ctx.relations),
+            into=into,
             joined=node.joined,
             labels=ctx.master_coords,
         )
 
     if isinstance(node, program.At):
-        return operator_at(_eval(node.operand, ctx), _relation_arrays(node.coordinate, ctx), into=node.into)
+        (into,) = node.into
+        return operator_at(_eval(node.operand, ctx), bound_relation(node.relation, ctx.relations), into=into)
 
     if isinstance(node, program.Translate):
         return operator_shift(
@@ -394,8 +396,3 @@ def _partition(node: program.Translate | program.Window, ctx: EvaluationContext)
         return None
     array = bound_relation(node.partition.name, ctx.relations)
     return array.rename(node.partition.produced_dims[0])
-
-
-def _relation_arrays(names: tuple[str, ...], ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The declared maps *names* as arrays over the dimensions their keys name, in the order the plan wrote them."""
-    return tuple(bound_relation(name, ctx.relations) for name in names)

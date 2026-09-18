@@ -188,10 +188,15 @@ def test_a_sparse_coefficient_beside_a_constant_piece_is_still_a_zero():
 #: behind `south`'s constant side has no members at all.
 GROUPED_CONSTANT_SPEC = {
     'dimensions': {'generator': {}, 'bus': {'dtype': 'str'}},
-    'relations': {'gen_bus': {'key': 'generator', 'value': 'bus'}},
+    'relations': {'gen_bus': {'key': 'generator', 'values': 'bus'}},
     'parameters': {'capacity': {'dims': ['generator']}},
     'variables': {'imports': {'dims': ['bus'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {'import_limit': {'dims': ['bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}},
+    'constraints': {
+        'import_limit': {
+            'dims': ['bus'],
+            'expression': 'imports <= sum(capacity, by=gen_bus, over=generator, into=bus)',
+        }
+    },
     'objective': {'sense': 'maximize', 'expression': 'sum(imports, over=bus)'},
 }
 
@@ -233,7 +238,10 @@ SPANNED_GROUPED_CONSTANT_SPEC = {
     'parameters': {'capacity': {'dims': ['snapshot', 'generator']}},
     'variables': {'imports': {'dims': ['snapshot', 'bus'], 'bounds': {'lower': 0, 'upper': 100}}},
     'constraints': {
-        'import_limit': {'dims': ['snapshot', 'bus'], 'expression': 'imports <= sum(capacity, by=gen_bus)'}
+        'import_limit': {
+            'dims': ['snapshot', 'bus'],
+            'expression': 'imports <= sum(capacity, by=gen_bus, over=generator, into=bus)',
+        }
     },
     'objective': {'sense': 'maximize', 'expression': 'sum(sum(imports, over=bus), over=snapshot)'},
 }
@@ -262,52 +270,6 @@ def test_an_empty_group_spanning_another_dim_is_zero_at_every_coordinate():
 
     assert built[(0, 'south')] == pytest.approx(0.0), 'the empty group is zero at every snapshot'
     assert built[(1, 'south')] == pytest.approx(0.0), 'the empty group is zero at every snapshot'
-
-
-#: Two coordinates at once, so what the reached set is subtracted from is the
-#: *product* of the targets: `south` reaches neither technology, and `north`
-#: reaches both, so two of the four combinations have no members.
-PLURAL_GROUPED_CONSTANT_SPEC = {
-    **GROUPED_CONSTANT_SPEC,
-    'dimensions': {**GROUPED_CONSTANT_SPEC['dimensions'], 'technology': {'dtype': 'str'}},
-    'relations': {
-        'gen_bus': {'key': 'generator', 'value': 'bus'},
-        'gen_tech': {'key': 'generator', 'value': 'technology'},
-    },
-    'variables': {'imports': {'dims': ['bus', 'technology'], 'bounds': {'lower': 0, 'upper': 100}}},
-    'constraints': {
-        'import_limit': {
-            'dims': ['bus', 'technology'],
-            'expression': 'imports <= sum(capacity, by=[gen_bus, gen_tech])',
-        }
-    },
-    'objective': {'sense': 'maximize', 'expression': 'sum(sum(imports, over=bus), over=technology)'},
-}
-
-
-def test_an_empty_combination_of_two_groups_is_a_zero_and_not_a_gap():
-    """A combination no member sits at is empty for the reason one label is.
-
-    Grouping through two coordinates lands on a product of targets, and the
-    unreached part of that product is what holds the empty sum — so subtracting
-    the reached labels of each dim in turn would leave `(north, solar)` looking
-    reached when nothing sits there.
-    """
-    sources = {
-        'bus': ['north', 'south'],
-        'technology': ['wind', 'solar'],
-        'generator': pl.DataFrame({'generator': ['g1', 'g2']}),
-        'gen_bus': pl.DataFrame({'generator': ['g1', 'g2'], 'bus': ['north', 'north']}),
-        'gen_tech': pl.DataFrame({'generator': ['g1', 'g2'], 'technology': ['wind', 'solar']}),
-        'capacity': pl.DataFrame({'generator': ['g1', 'g2'], 'value': [3.0, 4.0]}),
-    }
-    with differential(PLURAL_GROUPED_CONSTANT_SPEC, sources, lp=True) as run:
-        assert run.result.objective == pytest.approx(3.0 + 4.0, rel=RTOL), 'south holds nothing at either technology'
-        built = by_coord(run.result, 'imports', 'bus', 'technology')
-
-    assert built[('south', 'wind')] == pytest.approx(0.0), 'no generator sits at (south, wind)'
-    assert built[('south', 'solar')] == pytest.approx(0.0), 'no generator sits at (south, solar)'
-    assert built[('north', 'solar')] == pytest.approx(4.0), 'one generator sits at (north, solar), and it is g2'
 
 
 def test_a_member_with_no_value_is_still_refused_through_a_group():

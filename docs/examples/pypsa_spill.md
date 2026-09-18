@@ -145,11 +145,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       gen_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       storage_bus:
         description: the bus a storage unit sits on
         key: storage
-        value: bus
+        values: bus
 
     parameters:
       p_nom:
@@ -221,9 +221,9 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           goes into them, meets the load there
         dims: [snapshot, bus]
         expression: >-
-          sum(p, by=gen_bus)
-          + sum(p_dispatch, by=storage_bus)
-          - sum(p_store, by=storage_bus)
+          sum(p, by=gen_bus, over=generator, into=bus)
+          + sum(p_dispatch, by=storage_bus, over=storage, into=bus)
+          - sum(p_store, by=storage_bus, over=storage, into=bus)
           == load
 
       energy_balance_initial:

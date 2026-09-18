@@ -118,7 +118,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       season_of:
         description: the season a snapshot falls in
         key: snapshot
-        value: season
+        values: season
 
     parameters:
       inflow:

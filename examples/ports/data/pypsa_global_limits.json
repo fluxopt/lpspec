@@ -33,20 +33,6 @@
     ]
   },
   "expansion_cost_cap": 10500.0,
-  "gen_bus": {
-    "generator": [
-      "wind_north",
-      "wind_east",
-      "gas_south",
-      "oil_east"
-    ],
-    "bus": [
-      "north",
-      "east",
-      "south",
-      "east"
-    ]
-  },
   "gen_capital_cost": {
     "generator": [
       "wind_north",
@@ -59,20 +45,6 @@
       450.0,
       400.0,
       300.0
-    ]
-  },
-  "gen_carrier": {
-    "generator": [
-      "wind_north",
-      "wind_east",
-      "gas_south",
-      "oil_east"
-    ],
-    "carrier": [
-      "wind",
-      "wind",
-      "gas",
-      "oil"
     ]
   },
   "generator": {
@@ -251,5 +223,25 @@
       3
     ]
   },
-  "volume_cap": 3400.0
+  "volume_cap": 3400.0,
+  "gen_placing": {
+    "generator": [
+      "wind_north",
+      "wind_east",
+      "gas_south",
+      "oil_east"
+    ],
+    "bus": [
+      "north",
+      "east",
+      "south",
+      "east"
+    ],
+    "carrier": [
+      "wind",
+      "wind",
+      "gas",
+      "oil"
+    ]
+  }
 }

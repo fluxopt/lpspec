@@ -70,7 +70,7 @@ GEN_BT = pl.DataFrame(
 def _two_value_spec(constraint: str, demand: float, headroom: bool = False) -> dict[str, Any]:
     spec: dict[str, Any] = {
         'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}, 'technology': {'dtype': 'str'}},
-        'relations': {'gen_bt': {'key': 'generator', 'value': ['bus', 'technology']}},
+        'relations': {'gen_bt': {'key': 'generator', 'values': ['bus', 'technology']}},
         'parameters': {
             'cost': {'dims': ['generator']},
             'limit': {'dims': ['bus', 'technology']},
@@ -106,13 +106,13 @@ def _two_value_sources(demand: float) -> dict[str, Any]:
 
 
 def test_a_sum_through_one_relation_lands_on_a_product_of_dimensions(tmp_path):
-    """`sum(p, by=gen_bt, into=[bus, technology])` is one walk onto both value columns.
+    """`sum(p, by=gen_bt, over=generator, into=[bus, technology])` is one walk onto both value columns.
 
     (a, wind) caps `g1` at 10 and (a, sun) caps `g2` at 5, which is 15 of the
     20 demanded. The rest comes from (b, wind), shared by `g3` and `g4`, so
     the cheaper `g3` takes it: 10 + 10 + 15.
     """
-    spec = _two_value_spec('sum(p, by=gen_bt, into=[bus, technology]) <= limit', demand=20)
+    spec = _two_value_spec('sum(p, by=gen_bt, over=generator, into=[bus, technology]) <= limit', demand=20)
     objective, primals = _solved(spec, _two_value_sources(20), tmp_path)
     assert objective == pytest.approx(35.0, rel=RTOL), '10 at cost 1, 5 at cost 2, and 5 of the shared pair at cost 3'
     assert primals['p'] == pytest.approx({'g1': 10.0, 'g2': 5.0, 'g3': 5.0, 'g4': 0.0}), (
@@ -121,18 +121,53 @@ def test_a_sum_through_one_relation_lands_on_a_product_of_dimensions(tmp_path):
 
 
 def test_a_pullback_reads_a_two_column_slot_at_each_generator(tmp_path):
-    """`at(limit, by=gen_bt, over=[bus, technology])` is the adjoint: each generator's own limit.
+    """`at(limit, by=gen_bt, over=[bus, technology], into=generator)` is the adjoint: each generator's own limit.
 
     Bounded one by one rather than as a group, `g3` and `g4` each take (b,
     wind)'s 7, so 24 is reachable: 10 + 5 + 7 + 2.
     """
-    spec = _two_value_spec('p <= at(limit, by=gen_bt, over=[bus, technology])', demand=24)
+    spec = _two_value_spec('p <= at(limit, by=gen_bt, over=[bus, technology], into=generator)', demand=24)
     spec['constraints']['capped']['dims'] = ['generator']
     objective, primals = _solved(spec, _two_value_sources(24), tmp_path)
     assert objective == pytest.approx(10 * 1.0 + 5 * 2.0 + 7 * 3.0 + 2 * 4.0, rel=RTOL), (
         'each generator fills its own limit, cheapest first'
     )
     assert primals['p']['g4'] == pytest.approx(2.0), 'the dearest generator serves what the others cannot'
+
+
+#: `f3` has no row, so neither column of the tuple it would read exists.
+READING_OF = pl.DataFrame({'flow': ['f1', 'f2'], 'component': ['c1', 'c1'], 'kind': ['k1', 'k1']})
+
+DANGLING_PAIR: dict[str, Any] = {
+    'dimensions': {'flow': {'dtype': 'str'}, 'component': {'dtype': 'str'}, 'kind': {'dtype': 'str'}},
+    'relations': {'reading_of': {'key': 'flow', 'values': ['component', 'kind']}},
+    'variables': {
+        'level': {'dims': ['component', 'kind'], 'bounds': {'lower': 0, 'upper': 10}},
+        'take': {'dims': ['flow'], 'bounds': {'lower': 0, 'upper': 10}},
+    },
+    'constraints': {
+        'link': {'dims': ['flow'], 'expression': 'take <= at(level, by=reading_of, over=[component, kind], into=flow)'}
+    },
+    'objective': {
+        'sense': 'maximize',
+        'expression': 'sum(take, over=flow) - 1000 * sum(sum(level, over=component), over=kind)',
+    },
+}
+
+
+def test_a_pullback_reading_a_two_column_slot_that_does_not_exist_takes_its_row_with_it():
+    """A key the relation leaves out reads nothing, so its row is not built.
+
+    A lane that reported neither the relation's own gap nor the operand's would
+    build `take[f3] <= 0` and pin a flow the model never spoke about.
+    """
+    sources = {'flow': ['f1', 'f2', 'f3'], 'component': ['c1', 'c2'], 'kind': ['k1'], 'reading_of': READING_OF}
+    with lps.build(DANGLING_PAIR, sources) as model:
+        result = model.solve()
+        assert result.objective == pytest.approx(10.0, rel=RTOL), (
+            'take[f3] is held by its own bound, not by a row reading nothing'
+        )
+        assert model.diagnostics().rows == 2, 'the two flows whose tuple maps have a row, and f3 has none'
 
 
 def test_a_combination_no_member_lands_on_is_an_empty_sum_on_a_constant_side(tmp_path):
@@ -142,39 +177,14 @@ def test_a_combination_no_member_lands_on_is_an_empty_sum_on_a_constant_side(tmp
     limit less an empty sum of bonuses — 1. A hole there would refuse the
     model for a constant side with no value where the row is built.
     """
-    spec = _two_value_spec('headroom <= limit - sum(bonus, by=gen_bt, into=[bus, technology])', demand=0, headroom=True)
+    spec = _two_value_spec(
+        'headroom <= limit - sum(bonus, by=gen_bt, over=generator, into=[bus, technology])', demand=0, headroom=True
+    )
     objective, primals = _solved(spec, _two_value_sources(0), tmp_path)
     assert primals['headroom'][('b', 'sun')] == pytest.approx(1.0), 'the empty combination is worth its whole limit'
     assert objective == pytest.approx(-(9.0 + 4.0 + 5.0 + 1.0), rel=RTOL), (
         'every other pair loses one bonus per generator sitting on it'
     )
-
-
-def test_a_produced_dimension_the_operand_already_carries_is_a_masked_sum(tmp_path):
-    """`sum(load * p, by=gen_bus)` with `load[bus]` keeps each term where the generator's bus is the row's bus.
-
-    The product spans every (generator, bus) pair, and the walk lands a term
-    only where the pair agrees with the map: bus a holds `load_a * p1` and bus
-    b holds `load_b * p2`, under caps of 4 — so 4 and 2.
-    """
-    spec = {
-        'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-        'relations': {'gen_bus': {'key': 'generator', 'value': 'bus'}},
-        'parameters': {'load': {'dims': ['bus']}, 'cap': {'dims': ['bus']}},
-        'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 10}}},
-        'constraints': {'capped': {'dims': ['bus'], 'expression': 'sum(load * p, by=gen_bus) <= cap'}},
-        'objective': {'sense': 'maximize', 'expression': 'sum(p)'},
-    }
-    sources = {
-        'generator': ['g1', 'g2'],
-        'bus': ['a', 'b'],
-        'gen_bus': pl.DataFrame({'generator': ['g1', 'g2'], 'bus': ['a', 'b']}),
-        'load': pl.DataFrame({'bus': ['a', 'b'], 'value': [1.0, 2.0]}),
-        'cap': pl.DataFrame({'bus': ['a', 'b'], 'value': [4.0, 4.0]}),
-    }
-    objective, primals = _solved(spec, sources, tmp_path)
-    assert primals['p'] == pytest.approx({'g1': 4.0, 'g2': 2.0}), "each generator weighed by its own bus's load"
-    assert objective == pytest.approx(6.0, rel=RTOL), '4 under a load of 1, and 2 under a load of 2'
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +283,7 @@ SEASON_OF = pl.DataFrame(
 def _conditioned_partition_spec(constraint: dict[str, Any]) -> dict[str, Any]:
     return {
         'dimensions': {'generator': {'dtype': 'str'}, 'period': {'dtype': 'int'}, 'season': {'dtype': 'str'}},
-        'relations': {'season_of': {'key': ['generator', 'period'], 'value': 'season'}},
+        'relations': {'season_of': {'key': ['generator', 'period'], 'values': 'season'}},
         'parameters': {},
         'variables': {'p': {'dims': ['generator', 'period'], 'bounds': {'lower': 0, 'upper': 5}}},
         'constraints': {'rule': constraint},
@@ -369,7 +379,7 @@ REP_OF = pl.DataFrame({'snapshot': SNAPSHOTS, 'rep': [0, 0, 2]})
 def _self_map_spec(constraints: dict[str, Any]) -> dict[str, Any]:
     return {
         'dimensions': {'snapshot': {'dtype': 'int'}},
-        'relations': {'rep_of': {'key': 'snapshot', 'value': {'rep': 'snapshot'}}},
+        'relations': {'rep_of': {'key': 'snapshot', 'values': {'rep': 'snapshot'}}},
         'parameters': {'price': {'dims': ['snapshot']}},
         'variables': {'p': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 5}}},
         'constraints': constraints,
@@ -410,7 +420,7 @@ ENDS = pl.DataFrame({'line': ['l1', 'l2', 'l3'], 'bus0': ['a', 'b', 'c'], 'bus1'
 def _ends_spec() -> dict[str, Any]:
     return {
         'dimensions': {'line': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-        'relations': {'ends': {'key': 'line', 'value': {'bus0': 'bus', 'bus1': 'bus'}}},
+        'relations': {'ends': {'key': 'line', 'values': {'bus0': 'bus', 'bus1': 'bus'}}},
         'parameters': {'load': {'dims': ['bus']}, 'cost': {'dims': ['bus']}},
         'variables': {
             'f': {'dims': ['line'], 'where': 'ends.bus0 != ends.bus1', 'bounds': {'lower': 0, 'upper': 10}},

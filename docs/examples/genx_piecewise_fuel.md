@@ -285,11 +285,11 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       commitment:
         description: whether a plant is committed unit by unit or dispatched freely
         key: plant
-        value: commitment_mode
+        values: commitment_mode
       fuel_use:
         description: whether a plant's fuel use is read off the piecewise curve or a flat heat rate
         key: plant
-        value: fuel_use_mode
+        values: fuel_use_mode
 
     parameters:
       unit_size:

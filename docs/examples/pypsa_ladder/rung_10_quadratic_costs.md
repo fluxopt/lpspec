@@ -145,25 +145,25 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
       Generator_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       Link_bus0:
         description: the bus a link leaves
         key: link
-        value: bus
+        values: bus
       Link_output_link:
         description: the link an output port belongs to
         key: link_output
-        value: link
+        values: link
       Link_output_bus:
         description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
           output ports is three labels here rather than a third relation, so the file states any number of
           them
         key: link_output
-        value: bus
+        values: bus
       Load_bus:
         description: the bus a load sits on
         key: load
-        value: bus
+        values: bus
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -234,8 +234,8 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
         description: '`Bus-nodal_balance` — what is generated at a bus, less what the links take away, plus
           what arrives over them after losses, meets the load there'
         dims: [snapshot, bus]
-        expression: sum(Generator_p, by=Generator_bus) - sum(Link_p, by=Link_bus0) + sum(at(Link_p, by=Link_output_link)
-          * Link_efficiency, by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
+        expression: sum(Generator_p, by=Generator_bus, over=generator, into=bus) - sum(Link_p, by=Link_bus0, over=link, into=bus) + sum(at(Link_p, by=Link_output_link, over=link, into=link_output)
+          * Link_efficiency, by=Link_output_bus, over=link_output, into=bus) == sum(Load_p_set, by=Load_bus, over=load, into=bus)
     objective: {sense: minimize, description: 'operating cost, linear and quadratic, each snapshot weighted
         by the hours it stands for', expression: sum(Generator_p * Generator_marginal_cost * snapshot_weightings_objective)
         + sum(Generator_p * Generator_p * Generator_marginal_cost_quadratic * snapshot_weightings_objective)

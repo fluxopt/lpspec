@@ -33,12 +33,12 @@ SPEC = {
         'dispatch': {'dims': ['snapshot', 'generator']},
         'cost': {'dims': ['generator']},
     },
-    'relations': {'bus': {'key': 'generator', 'value': 'node'}},
+    'relations': {'bus': {'key': 'generator', 'values': 'node'}},
     'expressions': {
         'cost_by_gen': 'dispatch * cost',
         'total_cost': 'sum(dispatch * cost)',
         'served': 'sum(dispatch, over=generator)',
-        'by_node': 'sum(dispatch, by=bus)',
+        'by_node': 'sum(dispatch, by=bus, over=generator, into=node)',
     },
 }
 
@@ -81,7 +81,9 @@ def test_a_sum_over_one_of_two_dims_is_the_per_coordinate_total():
 
 def test_a_grouped_sum_relabels_through_a_relation():
     frame = evaluate('by_node').sort('snapshot', 'node')
-    assert frame.columns == ['snapshot', 'node', 'value'], 'sum(by=bus) replaces generator with the node it maps to'
+    assert frame.columns == ['snapshot', 'node', 'value'], (
+        'sum(by=bus, over=generator, into=node) replaces generator with the node it maps to'
+    )
     got = {(s, n): v for s, n, v in frame.iter_rows()}
     assert got == pytest.approx(
         {(0, 'n1'): 10.0, (0, 'n2'): 2.0, (1, 'n1'): 20.0, (1, 'n2'): 3.0, (2, 'n1'): 5.0, (2, 'n2'): 7.0}

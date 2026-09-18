@@ -41,6 +41,8 @@ PORTS_DATA = PORTS_DIR / 'data'
 #: suite goes red, and the entry comes out with the check in the same PR.
 LANE_GAPS: dict[str, str] = {
     'osemosys_utopia': '#894 — linopy has no objective-constant slot',
+    'pypsa_global_limits': "the lane builds a relation of one value column, and this port's "
+    'per-(bus, carrier) cap walks a table of two',
 }
 
 

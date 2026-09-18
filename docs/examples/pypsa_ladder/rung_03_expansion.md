@@ -706,33 +706,33 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
       Generator_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       Link_bus0:
         description: the bus a link leaves
         key: link
-        value: bus
+        values: bus
       Link_output_link:
         description: the link an output port belongs to
         key: link_output
-        value: link
+        values: link
       Link_output_bus:
         description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
           output ports is three labels here rather than a third relation, so the file states any number of
           them
         key: link_output
-        value: bus
+        values: bus
       Load_bus:
         description: the bus a load sits on
         key: load
-        value: bus
+        values: bus
       StorageUnit_bus:
         description: the bus a storage unit sits on
         key: storage_unit
-        value: bus
+        values: bus
       Store_bus:
         description: the bus a store sits on
         key: store
-        value: bus
+        values: bus
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -1325,9 +1325,9 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
         dims: [snapshot, bus]
-        expression: sum(Generator_p, by=Generator_bus) + sum(StorageUnit_p_dispatch - StorageUnit_p_store,
-          by=StorageUnit_bus) + sum(Store_p, by=Store_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
-          by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
+        expression: sum(Generator_p, by=Generator_bus, over=generator, into=bus) + sum(StorageUnit_p_dispatch - StorageUnit_p_store,
+          by=StorageUnit_bus, over=storage_unit, into=bus) + sum(Store_p, by=Store_bus, over=store, into=bus) - sum(Link_p, by=Link_bus0, over=link, into=bus) + sum(Link_output_arrival,
+          by=Link_output_bus, over=link_output, into=bus) == sum(Load_p_set, by=Load_bus, over=load, into=bus)
     expressions:
       Generator_previous_p:
         description: the output a generator carries into a snapshot — nothing at the start of the horizon,
@@ -1388,9 +1388,9 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
         dims: [snapshot, link_output]
         cases:
-          wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
+          wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link, over=link, into=link_output) *
               Link_efficiency, along=snapshot, offset=Link_output_delay, edge=''wrap'')'}
-        otherwise: shift(at(Link_p, by=Link_output_link) * Link_efficiency, along=snapshot, offset=Link_output_delay,
+        otherwise: shift(at(Link_p, by=Link_output_link, over=link, into=link_output) * Link_efficiency, along=snapshot, offset=Link_output_delay,
           edge=0)
       transmission_volume_expansion: {description: what a `transmission_volume_expansion_limit` row totals
           — length times the chosen build of the row's branches, expression: 'sum(Link_p_nom_ext * Link_volume_weight,

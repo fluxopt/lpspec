@@ -96,13 +96,13 @@ def build(
     n.add('Carrier', tables['carrier']['carrier'])
     n.add('Carrier', 'DC')
 
-    generators: pd.DataFrame = tables['generator'].set_index('generator')
+    generators: pd.DataFrame = tables['gen_placing'].set_index('generator')
     p_max_pu: pd.DataFrame = tables['p_max_pu'].pivot(index='snapshot', columns='generator', values='value')
     n.add(
         'Generator',
         generators.index,
-        bus=generators['gen_bus'],
-        carrier=generators['gen_carrier'],
+        bus=generators['bus'],
+        carrier=generators['carrier'],
         p_nom_extendable=True,
         p_max_pu=p_max_pu[generators.index],
         marginal_cost=tables['marginal_cost'].set_index('generator')['value'],

@@ -123,7 +123,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       gen_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
 
     parameters:
       p_nom_max:
@@ -187,7 +187,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       nodal_balance:
         description: what is generated at a bus meets the load there
         dims: [snapshot, bus]
-        expression: sum(p, by=gen_bus) == load
+        expression: sum(p, by=gen_bus, over=generator, into=bus) == load
 
     objective:
       sense: minimize

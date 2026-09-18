@@ -182,25 +182,25 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
       Generator_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       Link_bus0:
         description: the bus a link leaves
         key: link
-        value: bus
+        values: bus
       Link_output_link:
         description: the link an output port belongs to
         key: link_output
-        value: link
+        values: link
       Link_output_bus:
         description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
           output ports is three labels here rather than a third relation, so the file states any number of
           them
         key: link_output
-        value: bus
+        values: bus
       Load_bus:
         description: the bus a load sits on
         key: load
-        value: bus
+        values: bus
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
@@ -311,8 +311,8 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
           they deliver to, meets the load there. A bus nothing is attached to has no row; PyPSA refuses one
           that carries load, and this file does not yet.'
         dims: [snapshot, bus]
-        expression: sum(Generator_p, by=Generator_bus) - sum(Link_p, by=Link_bus0) + sum(Link_output_arrival,
-          by=Link_output_bus) == sum(Load_p_set, by=Load_bus)
+        expression: sum(Generator_p, by=Generator_bus, over=generator, into=bus) - sum(Link_p, by=Link_bus0, over=link, into=bus) + sum(Link_output_arrival,
+          by=Link_output_bus, over=link_output, into=bus) == sum(Load_p_set, by=Load_bus, over=load, into=bus)
     expressions:
       Link_output_arrival:
         description: what a link delivers to an output port at a snapshot — its flow after the port's efficiency,
@@ -321,9 +321,9 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
           that does not delay (`delay` zero) delivers its flow unshifted, cyclic or not
         dims: [snapshot, link_output]
         cases:
-          wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link) *
+          wrapping: {when: Link_output_cyclic_delay, expression: 'shift(at(Link_p, by=Link_output_link, over=link, into=link_output) *
               Link_efficiency, along=snapshot, offset=Link_output_delay, edge=''wrap'')'}
-        otherwise: shift(at(Link_p, by=Link_output_link) * Link_efficiency, along=snapshot, offset=Link_output_delay,
+        otherwise: shift(at(Link_p, by=Link_output_link, over=link, into=link_output) * Link_efficiency, along=snapshot, offset=Link_output_delay,
           edge=0)
     objective: {sense: minimize, description: 'operating cost, each snapshot weighted by the hours it stands
         for', expression: sum(Generator_p * Generator_marginal_cost * snapshot_weightings_objective) + sum(Link_p

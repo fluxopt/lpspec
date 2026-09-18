@@ -15,7 +15,7 @@ relations:
   season_of:
     description: the season a snapshot falls in
     key: snapshot
-    value: season
+    values: season
 
 parameters:
   inflow:

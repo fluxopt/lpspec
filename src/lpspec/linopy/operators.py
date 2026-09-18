@@ -58,26 +58,26 @@ def _empty_sum(array: Any, over: str) -> Any:
 
 def operator_grouped_sum(
     array: Any,
-    mappings: tuple[Any, ...],
+    mapping: Any,
     *,
-    into: tuple[str, ...],
+    into: str,
     joined: tuple[str, ...] = (),
     labels: Mapping[str, pd.Index],
 ) -> Any:
-    """Sum *array* through declared relations, producing dimensions *into*.
+    """Sum *array* through a declared relation, producing dimension *into*.
 
-    YAML: ``sum(p, by=gen_bus)`` or ``sum(p, by=[gen_bus, gen_tech])``.
-    *mappings* are the maps' values as arrays over the dimensions their key
-    names — one dimension for a plain map, and one more per condition where the
-    key is several columns. The walked dimension is summed out and *into* holds
-    the group labels, one dim per relation.
+    YAML: ``sum(p, by=gen_bus, over=generator, into=bus)``. *mapping* is the
+    relation's value column as an array over the dimensions its key names —
+    one dimension for a plain map, and one more per condition where the key is
+    several columns. The walked dimension is summed out and *into* holds the
+    group labels; this lane builds a relation of one value column, so a walk
+    lands on one dimension.
 
     A null value says the key belongs to no group, so its terms contribute
     nowhere. linopy refuses to group by NaN at all, so the operand is masked
     to absent at those keys and a declared label stands in for them — which is
     what lets a key of several columns leave one combination out without
-    dropping a whole label of any one dimension. With several relations a key
-    missing *any* of them belongs to no group.
+    dropping a whole label of any one dimension.
 
     *joined* names the dimensions the key holds beside the one walked: they
     are group keys too, so a group is a (value, condition) pair rather than a
@@ -90,24 +90,24 @@ def operator_grouped_sum(
     order. A map's values are validated against their target's labels when they
     are loaded, so this only ever adds a label, never drops a term.
     """
-    mappings = _renamed(mappings, into)
-    present = _present(mappings)
+    mapping = mapping.rename(into)
+    present = mapping.notnull()
     if not bool(present.all()):
         array = array.where(present)
-        mappings = tuple(m.fillna(labels[t][0]) for m, t in zip(mappings, into, strict=True))
-    attached = array.assign_coords({t: (m.dims, m.to_numpy()) for t, m in zip(into, mappings, strict=True)})
-    groups = (*into, *joined)
+        mapping = mapping.fillna(labels[into][0])
+    attached = array.assign_coords({into: (mapping.dims, mapping.to_numpy())})
+    groups = (into, *joined)
     summed = attached.groupby(list(groups)).sum()
     return _reindexed(summed, into=groups, labels=labels)
 
 
-def operator_at(array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...]) -> Any:
-    """Read *array* through declared relations — the adjoint of a group.
+def operator_at(array: Any, mapping: Any, *, into: str) -> Any:
+    """Read *array* through a declared relation — the adjoint of a group.
 
-    YAML: ``at(on, by=component)``. *mappings* are the same arrays ``sum``
-    takes; grouping sums *along* them, this indexes *through* them, so the
-    operand must carry every dim in ``into`` and the result carries the
-    mappings' own dims. xarray's vectorised selection is the pullback exactly
+    YAML: ``at(on, by=component_of, over=component, into=flow)``. *mapping* is
+    the same array ``sum`` takes; grouping sums *along* it, this indexes
+    *through* it, so the operand must carry *into* and the result carries the
+    mapping's own dims. xarray's vectorised selection is the pullback exactly
     — one ``into`` label read once per fine key pointing at it, pointwise
     along a condition the operand already carries.
 
@@ -125,14 +125,14 @@ def operator_at(array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...])
     ``snapshot``, and the row the value lands at is the one that read it, not
     the one it read.
     """
-    mappings = _renamed(mappings, into)
-    present = _present(mappings)
-    fine = {str(d): mappings[0].coords[d] for d in mappings[0].dims}
+    mapping = mapping.rename(into)
+    present = mapping.notnull()
+    fine = {str(d): mapping.coords[d] for d in mapping.dims}
     if bool(present.all()):
-        return array.sel(dict(zip(into, mappings, strict=True))).assign_coords(fine)
+        return array.sel({into: mapping}).assign_coords(fine)
 
-    stood_in = tuple(m.fillna(array.coords[t].to_numpy()[0]) for m, t in zip(mappings, into, strict=True))
-    picked = array.sel(dict(zip(into, stood_in, strict=True))).assign_coords(fine)
+    stood_in = mapping.fillna(array.coords[into].to_numpy()[0])
+    picked = array.sel({into: stood_in}).assign_coords(fine)
     return picked.where(present)
 
 
@@ -243,19 +243,6 @@ def _merged(terms: list[Any]) -> Any:
     return merge(terms)
 
 
-def _renamed(mappings: tuple[Any, ...], into: tuple[str, ...]) -> tuple[Any, ...]:
-    """*mappings* renamed to the dims they target, so the group's own name is the dim that comes out."""
-    return tuple(mapping.rename(target) for mapping, target in zip(mappings, into, strict=True))
-
-
-def _present(mappings: tuple[Any, ...]) -> Any:
-    """The members every mapping has a value for, as a boolean over their dim."""
-    keep = mappings[0].notnull()
-    for mapping in mappings[1:]:
-        keep = keep & mapping.notnull()
-    return keep
-
-
 def _reindexed(summed: Any, *, into: tuple[str, ...], labels: Mapping[str, pd.Index]) -> Any:
     """*summed* over exactly the declared labels, empty groups filled with an empty sum.
 
@@ -322,7 +309,7 @@ def _per_group(offset: Any, groups: Any) -> Any:
     target = getattr(groups, 'name', None)
     if not isinstance(offset, xr.DataArray) or target not in offset.dims:
         return offset
-    return operator_at(offset, (groups,), into=(str(target),)).drop_vars(str(target))
+    return operator_at(offset, groups, into=str(target)).drop_vars(str(target))
 
 
 @dataclass(frozen=True)

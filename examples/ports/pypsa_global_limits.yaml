@@ -23,22 +23,18 @@ dimensions:
     dtype: str
 
 relations:
-  gen_bus:
-    description: the bus a generator sits on
+  gen_placing:
+    description: the bus a generator sits on and the carrier it burns, in one table
     key: generator
-    value: bus
-  gen_carrier:
-    description: the carrier a generator burns
-    key: generator
-    value: carrier
+    values: [bus, carrier]
   link_from:
     description: the bus a link leaves
     key: link
-    value: bus
+    values: bus
   link_to:
     description: the bus a link arrives at
     key: link
-    value: bus
+    values: bus
 
 parameters:
   load:
@@ -113,8 +109,8 @@ constraints:
     description: what is generated at a bus plus what arrives over the links meets the load there
     dims: [snapshot, bus]
     expression: >-
-      sum(p, by=gen_bus)
-      + sum(g, by=link_to) - sum(g, by=link_from)
+      sum(p, by=gen_placing, over=generator, into=bus)
+      + sum(g, by=link_to, over=link, into=bus) - sum(g, by=link_from, over=link, into=bus)
       == load
 
   carrier_energy:
@@ -124,7 +120,7 @@ constraints:
       selection PyPSA makes by querying its own table
     dims: [carrier]
     where: energy_cap
-    expression: sum(sum(p, by=gen_carrier), over=snapshot) <= energy_cap
+    expression: sum(sum(p, by=gen_placing, over=generator, into=carrier), over=snapshot) <= energy_cap
 
   carrier_capacity_at_bus:
     description: >-
@@ -133,7 +129,7 @@ constraints:
       so no selector column and no mask stand between the two
     dims: [bus, carrier]
     where: bus_capacity_cap
-    expression: sum(p_nom, by=[gen_bus, gen_carrier]) <= bus_capacity_cap
+    expression: sum(p_nom, by=gen_placing, over=generator, into=[bus, carrier]) <= bus_capacity_cap
 
   transmission_volume:
     description: >-

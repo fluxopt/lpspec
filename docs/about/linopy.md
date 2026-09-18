@@ -102,8 +102,8 @@ in `linopy/builder.py`, one section per group below.
 | `p` — a parameter | its `xr.DataArray`, `.fillna(0.0)` where it stands as a coefficient |
 | `+` `-` `*` `/` | the Python operators linopy overloads |
 | `sum(x, over=t)` | `.sum('t')` |
-| `sum(x, by=r)` | the relation attached as a coordinate, then `.groupby()`, reindexed onto the value dimension's declared labels; `by=[r1, r2]` groups by both at once, and a key of several columns groups by the value and the rest of the key |
-| `at(p, by=r)` | `.sel({into: relation})`, xarray's vectorised selection; one entry per relation reads a tuple of labels at once |
+| `sum(x, by=r, over=k, into=v)` | the relation attached as a coordinate, then `.groupby()`, reindexed onto the value dimension's declared labels; a key of several columns groups by the value and the rest of the key |
+| `at(p, by=r, over=v, into=k)` | `.sel({into: relation})`, xarray's vectorised selection |
 | `shift(x, along=t, offset=n)` | `.shift({t: n})`; `.roll({t: n})` under `edge: wrap`; a `.sel()` gather where the offset differs per entity or `by=` groups it |
 | `sum_back(x, along=t, window=w)` | a sum of `w` scalar gathers, each unreachable position contributing zero; under `by=` each gather reads inside the group, so the window stops at its edge |
 | `dual(c)` | `Model.constraints['c'].dual`, at a read only; the language keeps a dual out of the math, and a solve that stored none refuses the read |
@@ -152,6 +152,9 @@ names, carrying its one value column, so a walk is an `assign_coords` and a
 several columns, and a partition grouped by a map keyed on more than the
 dimension it walks have no such array, and `linopy/loader.py` refuses each at
 the lane's door. The relational lane builds every shape the language admits.
+`pypsa_global_limits` is the port that meets this wall — its per-`(bus, carrier)`
+cap walks one table to two of its columns — and `tests/test_corpus_parity.py`
+carries the strict xfail.
 
 **The third is the relational lane's wall, and it is the mirror: an operator
 acting along a dimension that a constant part does not carry**, beside a term

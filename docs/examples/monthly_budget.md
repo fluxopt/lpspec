@@ -105,7 +105,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       month_of:
         description: the month a snapshot falls in
         key: snapshot
-        value: month
+        values: month
 
     parameters:
       p_max:
@@ -136,7 +136,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       monthly_budget:
         description: what a generator produces across a month stays inside that month's budget
         dims: [month, generator]
-        expression: sum(p, by=month_of) <= monthly_cap
+        expression: sum(p, by=month_of, over=snapshot, into=month) <= monthly_cap
 
     objective:
       sense: minimize

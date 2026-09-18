@@ -41,7 +41,7 @@ dimensions:
 relations:
   zone_of:
     key: [generator, period]
-    value: zone
+    values: zone
     description: the zone a generator bids into in one period
 
 parameters:
@@ -58,7 +58,7 @@ variables:
 constraints:
   zonal:
     dims: [period, zone]
-    expression: sum(p, by=zone_of, over=generator) <= zone_cap
+    expression: sum(p, by=zone_of, over=generator, into=zone) <= zone_cap
     description: a zone's output stays under its cap, period by period
   meet_demand:
     dims: [period]
@@ -194,9 +194,14 @@ def test_a_where_reads_a_conditioned_map_at_both_key_dimensions():
 
 
 def _shaped(relations: dict, expression: str, dims: list[str]) -> dict:
-    """A model whose one constraint walks *relations*, both ends named where the declaration leaves a choice."""
-    declared = {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}, 'period': {'dtype': 'int'}}
-    sides = [side for r in relations.values() for side in (r['key'], r.get('value', []))]
+    """A model whose one constraint walks *relations*, both ends of the walk named."""
+    declared = {
+        'generator': {'dtype': 'str'},
+        'bus': {'dtype': 'str'},
+        'period': {'dtype': 'int'},
+        'technology': {'dtype': 'str'},
+    }
+    sides = [side for r in relations.values() for side in (r['key'], r.get('values', []))]
     over = [d for s in sides for d in (s.values() if isinstance(s, dict) else [s] if isinstance(s, str) else s)]
     used = {'generator', 'period', *dims, *over}
     return {
@@ -220,14 +225,14 @@ def _shaped(relations: dict, expression: str, dims: list[str]) -> dict:
             id='a-bare-relation',
         ),
         pytest.param(
-            {'gen_bp': {'key': 'generator', 'value': ['bus', 'period']}},
-            'sum(p, by=gen_bp, over=generator, into=[bus, period]) >= load',
-            ['bus', 'period'],
-            r"relation 'gen_bp' has 2 columns its key does not determine \(\['bus', 'period'\]\)",
+            {'gen_bt': {'key': 'generator', 'values': ['bus', 'technology']}},
+            'sum(p, by=gen_bt, over=generator, into=[bus, technology]) >= load',
+            ['bus', 'technology', 'period'],
+            r"relation 'gen_bt' has 2 columns its key does not determine \(\['bus', 'technology'\]\)",
             id='a-key-determining-two-columns',
         ),
         pytest.param(
-            {'season_of': {'key': ['generator', 'period'], 'value': 'bus'}},
+            {'season_of': {'key': ['generator', 'period'], 'values': 'bus'}},
             'shift(p, along=period, offset=1, edge=0, by=season_of) >= load',
             ['generator', 'period'],
             r"a partition by 'season_of' groups by a map keyed by \['generator', 'period'\]",

@@ -540,7 +540,7 @@ class PolarsCompiler:
         return TermFragment(keep, frame, p.kind, region=region_over(p.region, keep), parameters=p.parameters)
 
     def _group_fragment(self, p: TermFragment, g: program.GroupSum, context: str) -> TermFragment:
-        """Relabel the dims ``over`` to ``into`` through the walks' relations.
+        """Relabel the dims ``over`` to ``into`` through the walk's relation.
 
         No aggregate either: a keyed relation holds one row per key and its
         columns were checked for containment at build time, so the join
@@ -550,8 +550,6 @@ class PolarsCompiler:
         a term in each — which is the many-to-many sum the language reads it
         as. A group is a sum, so it constructs rather than ``replace``s — see
         :meth:`_sum_fragment`.
-
-        Several walks ride the same join.
         """
         missing = [d for d in g.over if d not in p.dims]
         if missing:
@@ -570,11 +568,10 @@ class PolarsCompiler:
         which reads what the fragment produced and cannot see why a label is
         absent, so the value is written down here where the reason is known.
 
-        Several walks, or one walk to several columns, land on a *product* of
-        targets, and a combination no member sits at is empty for the reason
-        one unreached label is — so what the reached set is subtracted from is
-        that product, at each coordinate of the joined dimensions the group is
-        read under.
+        A walk to several columns lands on a *product* of targets, and a
+        combination no member sits at is empty for the reason one unreached
+        label is — so what the reached set is subtracted from is that product,
+        at each coordinate of the joined dimensions the group is read under.
 
         Only for a constant part: an empty group contributes no *term*, and a
         row left with no terms is not built at all.
@@ -586,7 +583,7 @@ class PolarsCompiler:
         spanned = [d for d in p.dims if d not in g.into]
         if spanned:
             universe = p.frame.select(spanned).unique().join(universe, how='cross')
-        reached = landed(mapping(self.scope.data.relations, g.walks), g)
+        reached = landed(mapping(self.scope.data.relations, g.walk), g)
         empty = universe.join(reached, on=[*g.joined, *g.into], how='anti')
         return empty.with_columns(pl.lit(0.0, dtype=pl.Float64).alias('cval')).select(*p.dims, *p.carried)
 
@@ -628,7 +625,7 @@ class PolarsCompiler:
         """
         joined = a.joined
         fine = (*joined, *a.over)
-        table = mapping(self.scope.data.relations, a.walks)
+        table = mapping(self.scope.data.relations, a.walk)
         reachable = landed(table, a).unique()
         if not p.presences:
             total = math.prod(self.scope.data.cardinality[d] for d in fine)
@@ -648,14 +645,14 @@ class PolarsCompiler:
         return tuple(pulled(x) for x in p.presences)
 
     def _remap_fragment(self, p: TermFragment, node: program.GroupSum | program.At) -> TermFragment:
-        """Trade the dims *node*'s walks consume for the ones they produce, through their relations.
+        """Trade the dims *node*'s walk consumes for the ones it produces, through its relation.
 
         One inner equi-join against :func:`mapping`, keyed as :func:`walk_join`
-        says. A group consumes the dims its walks are over
-        (:meth:`_group_fragment`); an ``At`` reads the same tables backwards
+        says. A group consumes the dims its walk is over
+        (:meth:`_group_fragment`); an ``At`` reads the same table backwards
         (:meth:`_at_fragment`).
         """
-        frame, dims = walk_join(p.frame, mapping(self.scope.data.relations, node.walks), node, p.dims, p.carried)
+        frame, dims = walk_join(p.frame, mapping(self.scope.data.relations, node.walk), node, p.dims, p.carried)
         return TermFragment(dims, frame, p.kind, region=region_over(p.region, dims), parameters=p.parameters)
 
 

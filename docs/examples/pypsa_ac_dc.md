@@ -205,27 +205,27 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       gen_bus:
         description: the bus a generator sits on
         key: generator
-        value: bus
+        values: bus
       gen_carrier:
         description: the carrier a generator burns
         key: generator
-        value: carrier
+        values: carrier
       line_from:
         description: the bus a line leaves
         key: line
-        value: bus
+        values: bus
       line_to:
         description: the bus a line arrives at
         key: line
-        value: bus
+        values: bus
       link_from:
         description: the bus a link leaves
         key: link
-        value: bus
+        values: bus
       link_to:
         description: the bus a link arrives at
         key: link
-        value: bus
+        values: bus
 
     parameters:
       load:
@@ -327,9 +327,9 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           meets the load there
         dims: [snapshot, bus]
         expression: >-
-          sum(p, by=gen_bus)
-          + sum(f, by=line_to) - sum(f, by=line_from)
-          + sum(g, by=link_to) - sum(g, by=link_from)
+          sum(p, by=gen_bus, over=generator, into=bus)
+          + sum(f, by=line_to, over=line, into=bus) - sum(f, by=line_from, over=line, into=bus)
+          + sum(g, by=link_to, over=link, into=bus) - sum(g, by=link_from, over=link, into=bus)
           == load
 
       kirchhoff_voltage_law:
@@ -344,7 +344,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           horizon's total stays inside the budget
         dims: []
         expression: >-
-          sum(sum(p * at(co2_per_mwh, by=gen_carrier) / efficiency, over=generator), over=snapshot)
+          sum(sum(p * at(co2_per_mwh, by=gen_carrier, over=carrier, into=generator) / efficiency, over=generator), over=snapshot)
           <= co2_limit
 
     objective:
@@ -454,7 +454,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
 **An emission rate is a property of the carrier, and `at()` is how a generator
 reads it.** `co2_per_mwh` is dimensioned over `carrier` alone: six generators,
-two rates. `at(co2_per_mwh, by=gen_carrier)` walks the map backwards to put
+two rates. `at(co2_per_mwh, by=gen_carrier, over=carrier, into=generator)` walks the map backwards to put
 the right rate beside each generator's output. PyPSA does the same join
 through `n.carriers`.
 
