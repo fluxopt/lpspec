@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.338](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.337...v0.0.1-alpha.338) (2026-09-18)
+
+
+### Documentation
+
+* the decomposition page shows the loop the example runs, and says lpspec owns no driver ([#1678](https://github.com/fluxopt/lpspec/issues/1678)) ([f1d33b3](https://github.com/fluxopt/lpspec/commit/f1d33b345d838cb59bce50ab66ec9f6e2a859981))
+
 ## [0.0.1-alpha.337](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.336...v0.0.1-alpha.337) (2026-09-16)
 
 
