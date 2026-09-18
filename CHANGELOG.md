@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.340](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.339...v0.0.1-alpha.340) (2026-09-18)
+
+
+### Features
+
+* **api:** an infeasible solve says why there is no solution, so a feasibility cut needs no second model ([#1682](https://github.com/fluxopt/lpspec/issues/1682)) ([7cc52eb](https://github.com/fluxopt/lpspec/commit/7cc52ebf61539d2ada415b3752808e8dfe1d3c25))
+
 ## [0.0.1-alpha.339](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.338...v0.0.1-alpha.339) (2026-09-18)
 
 
