@@ -37,7 +37,13 @@ import polars as pl
 from math_spec import advice
 
 from specsolve import expressions
-from specsolve.errors import DataError, LayoutError, SpecsolveError, SpecsolveWarning
+from specsolve.errors import (
+    DataError,
+    LayoutError,
+    SpecsolveError,
+    SpecsolveWarning,
+    another_model_behind_this_answer_message,
+)
 from specsolve.lanes import LANES, Buildable, Label, Source, declared, lowered
 from specsolve.layout import beside, check_the_target, write_archive
 from specsolve.relational import sinks
@@ -216,9 +222,9 @@ class Model:
     def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
         self._spec = declared(spec)
         self._program = lowered(self._spec)
-        #: What every answer of this model carries, so two of them can be told
-        #: to have answered the same document.
-        self._digest = digest_of(self._spec.to_yaml())
+        #: Which *document* this answers, so two answers can be told to have
+        #: answered the same one. The data is :meth:`_model_digest`.
+        self._spec_digest = digest_of(self._spec.to_yaml())
         self._sources = dict(sources)
         self._engine = PolarsEngine()
         self._fill()
@@ -336,7 +342,7 @@ class Model:
                 keep=keep,
                 lower=self._lower,
             ),
-            _spec_digest=self._digest,
+            _spec_digest=self._spec_digest,
             _solved_at=datetime.now(UTC),
         )
         if out is not None:
@@ -425,6 +431,18 @@ class Model:
         evaluate = self._engine.reconstruct(primals, duals, no_duals, self._lower)
         assert evaluate is not None, 'a model built from a spec as written lowers an ad-hoc expression'
         return evaluate
+
+    def _model_digest(self) -> str:
+        """Which model this build *is* — the document and the data attached to it now.
+
+        What a saved answer carries as
+        :attr:`~specsolve.relational.parquet.Record.model_digest`, and what one read
+        back is checked against. Over the built tables, so it is an identity for
+        the pair rather than an invariant of the mathematics: the same program
+        over a differently ordered dimension builds a different label order and
+        digests differently.
+        """
+        return self._engine.contents()
 
     def diagnostics(self) -> Diagnostics:
         """What this build and its solves did that the answer does not show.
@@ -658,7 +676,11 @@ def _answer_under(out: Path, read: Reading) -> Result:
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
     status = record.solve_status
     objective = float('nan') if record.objective is None else record.objective
-    carried = {'_spec_digest': record.spec_digest, '_solved_at': record.solved_at}
+    carried = {
+        '_spec_digest': record.spec_digest,
+        '_solved_at': record.solved_at,
+        '_model_digest': record.model_digest,
+    }
     if not status.is_readable:
         return Result(status, objective, {}, {}, {}, 'nothing', **carried)
 
@@ -680,12 +702,34 @@ def _answer_under(out: Path, read: Reading) -> Result:
     )
 
 
+def _refuse_another_model(answer: Result, model: Model) -> None:
+    """Refuse a saved answer against a model that is not the one it answered.
+
+    The spec is compared where the pair is read — ``_check_the_pairing`` for an
+    archive — off a digest of the document. This is the half only a build can
+    answer, the data reaching the model through it, so it runs at the rebuild
+    rather than earlier. That is also the first moment a value could be handed
+    back, so nothing is ever read against the wrong model.
+
+    An answer written before the column, or one whose solve never held a digest,
+    carries ``None`` and is taken as given.
+
+    Raises:
+        SpecsolveError: Sources that build a model other than the answered one.
+    """
+    answered = answer.model_digest()
+    if answered is not None and answered != (rebuilt := model._model_digest()):
+        raise SpecsolveError(another_model_behind_this_answer_message(answered, rebuilt))
+
+
 def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
     """*answer* with an undeclared expression readable through :meth:`~specsolve.relational.result.Result.evaluate`, over *spec* and *sources* rebuilt.
 
     Reading a quantity the file never named lowers the model as written, so the
     model is rebuilt (a build, never a solve) and the saved primal and dual put
-    back in order against it. The declared readers a save wrote are untouched;
+    back in order against it. **The rebuild is checked against the answer**: one
+    built from other data than the solve ran on is refused rather than read
+    (:func:`_refuse_another_model`). The declared readers a save wrote are untouched;
     only an expression outside them reaches the rebuilt evaluator. *answer* is
     returned unchanged where the solve left no values.
 
@@ -713,7 +757,9 @@ def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source
                 if no_duals is None and dual_frames
                 else None
             )
-            built.append(build(spec, sources).evaluator(primals, duals, no_duals))
+            model = build(spec, sources)
+            _refuse_another_model(answer, model)
+            built.append(model.evaluator(primals, duals, no_duals))
         return built[0](written)
 
     return replace(answer, _evaluate=evaluate)
