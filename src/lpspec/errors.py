@@ -149,6 +149,18 @@ def half_a_question_message(spec_missing: bool) -> str:
     )
 
 
+def another_model_behind_this_answer_message(answered: str, rebuilt: str) -> str:
+    """A saved answer read against a model its sources do not rebuild."""
+    return (
+        f'this answer came back from another model: it answered the model digesting to {answered} '
+        f'and the spec and sources given here build {rebuilt}. The document matched, so what differs '
+        f'is the data — and reading a quantity the file never named against other numbers would '
+        f'value it at an answer nobody solved for.\n'
+        f'  Supply the data the solve ran on, or solve this data to get an answer that belongs to '
+        f'it. lps.load_archive gives back the pair that was solved together.'
+    )
+
+
 def another_spec_behind_this_answer_message(answered: list[str], given: str) -> str:
     """A saved answer attached to a spec that is not the one it came back from."""
     return (

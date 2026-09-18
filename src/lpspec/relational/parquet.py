@@ -151,6 +151,11 @@ class Record(NamedTuple):
     #: halves of its name. Stamped when the archive is written and null until
     #: then.
     run: str | None = None
+    #: :attr:`~lpspec.relational.sinks.tables.Tables.contents` of the model this
+    #: answered — the spec *and* its data, where :attr:`spec_digest` is the
+    #: document alone. ``None`` for an answer written before this column, and
+    #: for one whose result was never asked for it.
+    model_digest: str | None = None
 
     @classmethod
     def of(
@@ -161,6 +166,7 @@ class Record(NamedTuple):
         has_primal: bool,
         spec_digest: str | None,
         solved_at: datetime | None,
+        model_digest: str | None = None,
     ) -> Record:
         """The row a solve that terminated this way writes.
 
@@ -176,6 +182,8 @@ class Record(NamedTuple):
             spec_digest: :func:`digest_of` the spec answered, or ``None``.
             solved_at: When the solver returned, in UTC. ``None`` where the
                 solve carried no clock.
+            model_digest: The built model's digest, or ``None`` where this
+                answer never held one.
         """
         return cls(
             status_of(termination_condition),
@@ -184,6 +192,7 @@ class Record(NamedTuple):
             has_primal,
             spec_digest,
             solved_at,
+            model_digest=model_digest,
         )
 
     @property

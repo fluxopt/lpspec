@@ -42,6 +42,7 @@ from lpspec.errors import (
     LayoutError,
     LpspecError,
     LpspecWarning,
+    another_model_behind_this_answer_message,
     another_spec_behind_this_answer_message,
     half_a_question_message,
 )
@@ -434,6 +435,10 @@ class Model:
         assert evaluate is not None, 'a model built from a spec as written lowers an ad-hoc expression'
         return evaluate
 
+    def _contents(self) -> str:
+        """This build's digest — the document and the data attached to it now."""
+        return self._engine.contents()
+
     def diagnostics(self) -> Diagnostics:
         """What this build and its solves did that the answer does not show.
 
@@ -695,7 +700,11 @@ def _answer_under(
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
     status = record.solve_status
     objective = float('nan') if record.objective is None else record.objective
-    carried = {'_spec_digest': record.spec_digest, '_solved_at': record.solved_at}
+    carried = {
+        '_spec_digest': record.spec_digest,
+        '_solved_at': record.solved_at,
+        '_model_digest': record.model_digest,
+    }
     if not status.is_readable:
         answer = Result(status, objective, {}, {}, {}, 'nothing', **carried)
         return answer if spec is None else read_against(answer, spec, sources or {})
@@ -719,6 +728,26 @@ def _answer_under(
     return answer if spec is None else read_against(answer, spec, sources or {})
 
 
+def _refuse_another_model(answer: Result, model: Model) -> None:
+    """Refuse a saved answer against a model that is not the one it answered.
+
+    The spec is compared at the load; this is the half only a build can answer,
+    the data reaching the model through it. It runs here rather than at the load
+    because a rebuild is what produces a digest to compare, and the rebuild is
+    also the first moment a wrong number could be handed back — so nothing is
+    read against the wrong model before this.
+
+    An answer written before the column, or one whose solve never held a digest,
+    carries ``None`` and is taken as given.
+
+    Raises:
+        LpspecError: Sources that build a model other than the answered one.
+    """
+    answered = answer.model_digest()
+    if answered is not None and answered != (rebuilt := model._contents()):
+        raise LpspecError(another_model_behind_this_answer_message(answered, rebuilt))
+
+
 def read_against(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
     """*answer* with an undeclared expression readable through :meth:`~lpspec.relational.result.Result.evaluate`, over *spec* and *sources* rebuilt.
 
@@ -740,12 +769,11 @@ def read_against(answer: Result, spec: Buildable, sources: Mapping[str, Source])
     sends the question out and brings only the answer home — so the pairing is
     checked here before anything is read against it.
 
-    **The spec is checked and the data is vouched for.** A saved answer records
-    the digest of the document it answered and nothing about its sources
-    (#1673), so *sources* that are not the ones the solve ran on cannot be
-    caught here: what they reach is the rebuilt evaluator, and an expression the
-    file never named then values at numbers nobody solved for. Every reader a
-    save wrote is unaffected, being a frame read off disk.
+    **Both halves are checked, at the two moments each can be.** The document is
+    compared here, off its digest. The data is compared at the first undeclared
+    ``evaluate``, where a rebuilt model first exists to digest
+    (:func:`_refuse_another_model`) — and that is also the first moment a value
+    could be handed back, so nothing is ever read against the wrong model.
 
     Args:
         answer: A saved solve, as :func:`load_result` or :func:`scan_result`
@@ -776,7 +804,9 @@ def read_against(answer: Result, spec: Buildable, sources: Mapping[str, Source])
                 if no_duals is None and dual_frames
                 else None
             )
-            built.append(build(document, sources).evaluator(primals, duals, no_duals))
+            model = build(document, sources)
+            _refuse_another_model(answer, model)
+            built.append(model.evaluator(primals, duals, no_duals))
         return built[0](written)
 
     return replace(answer, _evaluate=evaluate)

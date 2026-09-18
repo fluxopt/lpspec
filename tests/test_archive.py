@@ -1020,3 +1020,82 @@ def test_an_answer_that_names_no_document_is_taken_as_given(
     assert attached.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
         'an answer carrying no digest reads against the spec it is handed'
     )
+
+
+# ---------------------------------------------------------------------------
+# the model digest: which data an answer came back from
+# ---------------------------------------------------------------------------
+
+
+def test_a_solve_that_never_saves_hashes_nothing(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
+    """The digest is what a `save` costs, not what a solve costs.
+
+    It is held as the callable the engine handed over until something asks,
+    so the common case — solve, read the values, drop the result — pays for
+    none of it.
+    """
+    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+        solved.primal('p')
+        assert callable(solved._model_digest), 'reading values must not hash the model'
+        assert isinstance(solved.model_digest(), str), 'and asking for it produces one'
+        assert isinstance(solved._model_digest, str), 'which is then kept rather than hashed again'
+
+
+def test_two_builds_of_one_model_digest_the_same(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
+    """The digest names a model, so building the same one twice cannot name two.
+
+    The objective frame is genuinely sparse and carries no order contract: two
+    builds lay its rows out differently, and reading it in place would refuse
+    an answer against the very data it came back from.
+    """
+    with lps.build(dispatch_yaml, dispatch_frame_inputs) as one, lps.build(dispatch_yaml, dispatch_frame_inputs) as two:
+        assert one._contents() == two._contents(), 'one model, one digest, however its sparse frames are laid out'
+
+    halved = dispatch_frame_inputs | {
+        'cost': dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 0.5),
+    }
+    with lps.build(dispatch_yaml, dispatch_frame_inputs) as base, lps.build(dispatch_yaml, halved) as other:
+        assert base._contents() != other._contents(), 'and data that moved a cost is a different model'
+
+
+def test_an_answer_read_against_other_data_is_refused_at_the_rebuild(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The half the spec digest cannot see: the same document over different numbers.
+
+    Refused where a rebuilt model first exists, which is also the first moment
+    a value could be handed back — so nothing is ever read against the wrong
+    model.
+    """
+    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+        want = solved.evaluate(_UNDECLARED)['value'].sum()
+        solved.save(tmp_path / 'answer')
+
+    right = lps.load_result(tmp_path / 'answer', spec=dispatch_yaml, sources=dispatch_frame_inputs)
+    assert right.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
+        'the data it came back from reads what the live result read'
+    )
+
+    moved = dispatch_frame_inputs | {
+        'cost': dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 99),
+    }
+    against = lps.load_result(tmp_path / 'answer', spec=dispatch_yaml, sources=moved)
+    with pytest.raises(lps.LpspecError, match='came back from another model') as refused:
+        against.evaluate(_UNDECLARED)
+    assert 'what differs is the data' in str(refused.value), 'and the refusal says which half moved'
+
+
+def test_an_answer_naming_no_model_is_taken_as_given(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """An answer written before the column has no digest to compare, and is not refused for it."""
+    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+        want = solved.evaluate(_UNDECLARED)['value'].sum()
+        solved.save(tmp_path / 'answer')
+
+    answer = lps.load_result(tmp_path / 'answer')
+    older = replace(answer, _model_digest=None)
+    read = read_against(older, dispatch_yaml, dispatch_frame_inputs)
+    assert read.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
+        'an answer carrying no model digest reads against the data it is handed'
+    )

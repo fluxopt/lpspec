@@ -532,13 +532,26 @@ hand back numbers rather than raise.
 An answer solved off a lowered `Program` carries no digest, and is taken as
 given.
 
-**The spec is checked and the data is not.** A saved answer records which
-document it answered and nothing about its sources, so `sources=` that are not
-the ones the solve ran on reach the rebuilt evaluator unchallenged, and an
-undeclared expression then values at numbers nobody solved for. Every reader a
-save wrote is unaffected, being a frame read off disk. Where that matters, read
-the answer from an archive: it holds the sources the solve ran on, so none are
-supplied.
+**The data is checked too, at the first undeclared read.** A saved answer also
+records the digest of the model it answered — the document *and* the numbers
+attached to it — and the rebuild is compared against it. That comparison needs a
+rebuilt model to exist, so it happens at the first undeclared `evaluate` rather
+than at the load, which is also the first moment a value could be handed back:
+
+```text
+this answer came back from another model: it answered the model digesting to
+bb7faaa656ac73f8fbfc65a80a4d07ff and the spec and sources given here build
+f400848b0c64139b64a9db75f9a522ad. The document matched, so what differs is the
+data — and reading a quantity the file never named against other numbers would
+value it at an answer nobody solved for.
+  Supply the data the solve ran on, or solve this data to get an answer that
+  belongs to it. lps.load_archive gives back the pair that was solved together.
+```
+
+**A solve that never saves pays nothing for it.** The digest is held as a
+callable until `save` asks, so reading values off a result and dropping it
+hashes nothing. An answer written before the column carries none, and is taken
+as given.
 
 **`load_archive` and `scan_archive` need no pair.** An archive holds the answer
 beside the spec and the data it was solved with, so what those hand back reads
