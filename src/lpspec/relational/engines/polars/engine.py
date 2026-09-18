@@ -236,7 +236,18 @@ class PolarsEngine:
             _no_duals=no_duals,
             _dual_rays=rays,
             _no_dual_ray=None if answer.dual_ray is not None else _no_dual_ray_message(answer.status, solver_name),
+            _model_digest=lambda: built.contents,
         )
+
+    def contents(self) -> str:
+        """This build's digest — what a saved answer is checked against.
+
+        Raises:
+            LpspecError: Asked of an engine holding no built model.
+        """
+        if self._built is None:
+            raise LpspecError(_no_built_model('to digest'))
+        return self._model.tables.contents
 
     def diagnostics(self) -> Diagnostics:
         """What this build and its solves did that the answer does not show.
