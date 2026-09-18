@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.341](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.340...v0.0.1-alpha.341) (2026-09-18)
+
+
+### Features
+
+* **api:** an answer says which data it came back from, not just which spec ([#1672](https://github.com/fluxopt/lpspec/issues/1672)) ([f66fffc](https://github.com/fluxopt/lpspec/commit/f66fffcfe30a118bed891ef9fe899695774657d7))
+
 ## [0.0.1-alpha.340](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.339...v0.0.1-alpha.340) (2026-09-18)
 
 
