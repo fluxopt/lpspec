@@ -339,22 +339,23 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
         description: '`Bus-nodal_balance` — what is generated at a bus, less what the links take away, plus
           what arrives over them after losses, meets the load there'
         dims: [snapshot, bus]
-        expression: sum(Generator_p, by=Generator_bus, over=generator, into=bus) - sum(Link_p, by=Link_bus0, over=link, into=bus) + sum(at(Link_p, by=Link_output_link, over=link, into=link_output)
-          * Link_efficiency, by=Link_output_bus, over=link_output, into=bus) == sum(Load_p_set, by=Load_bus, over=load, into=bus)
+        expression: sum(Generator_p, by=Generator_bus, over=generator, into=bus) - sum(Link_p, by=Link_bus0,
+          over=link, into=bus) + sum(at(Link_p, by=Link_output_link, over=link, into=link_output) * Link_efficiency,
+          by=Link_output_bus, over=link_output, into=bus) == sum(Load_p_set, by=Load_bus, over=load, into=bus)
       Carrier_growth_limit:
         description: '`Carrier-growth_limit` — what a carrier adds in a period, counting each build in the
           first period it stands in, is at most its allowance plus a share of what it added the period before;
           the first period has no predecessor, so `edge=0` leaves it the bare allowance'
         dims: [carrier, period]
         where: Carrier_max_growth
-        expression: sum(Generator_p_nom_ext * Generator_first_active, by=Generator_carrier, over=generator, into=carrier) - shift(sum(Generator_p_nom_ext
-          * Generator_first_active, by=Generator_carrier, over=generator, into=carrier), along=period, offset=1, edge=0) * Carrier_max_relative_growth
-          <= Carrier_max_growth
+        expression: sum(Generator_p_nom_ext * Generator_first_active, by=Generator_carrier, over=generator,
+          into=carrier) - shift(sum(Generator_p_nom_ext * Generator_first_active, by=Generator_carrier, over=generator,
+          into=carrier), along=period, offset=1, edge=0) * Carrier_max_relative_growth <= Carrier_max_growth
     objective: {sense: minimize, description: 'operating cost by weighted snapshot and weighted period, and
         capacity once per period it stands in', expression: 'sum(Generator_p * Generator_marginal_cost * snapshot_weightings_objective
-        * at(period_weight_objective, by=snapshot_period, over=period, into=snapshot)) + sum(Link_p * Link_marginal_cost * snapshot_weightings_objective
-        * at(period_weight_objective, by=snapshot_period, over=period, into=snapshot)) + sum(Generator_p_nom_ext * Generator_capital_cost
-        * Generator_capital_weight)'}
+        * at(period_weight_objective, by=snapshot_period, over=period, into=snapshot)) + sum(Link_p * Link_marginal_cost
+        * snapshot_weightings_objective * at(period_weight_objective, by=snapshot_period, over=period, into=snapshot))
+        + sum(Generator_p_nom_ext * Generator_capital_cost * Generator_capital_weight)'}
     ```
 
     The prep — every table the spec declares, from the network — and the solve:

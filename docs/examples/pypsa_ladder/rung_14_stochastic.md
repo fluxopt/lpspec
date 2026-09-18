@@ -375,8 +375,9 @@ CVaR \in \mathbb{R}
         description: '`Bus-nodal_balance` — what is generated at a bus, less what the links take away, plus
           what arrives over them after losses, meets the load there'
         dims: [scenario, snapshot, bus]
-        expression: sum(Generator_p, by=Generator_bus, over=generator, into=bus) - sum(Link_p, by=Link_bus0, over=link, into=bus) + sum(at(Link_p, by=Link_output_link, over=link, into=link_output)
-          * Link_efficiency, by=Link_output_bus, over=link_output, into=bus) == sum(Load_p_set, by=Load_bus, over=load, into=bus)
+        expression: sum(Generator_p, by=Generator_bus, over=generator, into=bus) - sum(Link_p, by=Link_bus0,
+          over=link, into=bus) + sum(at(Link_p, by=Link_output_link, over=link, into=link_output) * Link_efficiency,
+          by=Link_output_bus, over=link_output, into=bus) == sum(Load_p_set, by=Load_bus, over=load, into=bus)
       CVaR_excess:
         description: '`CVaR-excess-{s}` — a scenario''s operating cost beyond the tail''s start is its excess;
           PyPSA names one row per scenario'
