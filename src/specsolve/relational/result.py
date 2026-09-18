@@ -18,8 +18,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from specsolve.errors import (
-    SpecsolveError,
     NoSolutionError,
+    SpecsolveError,
     no_model_behind_this_answer_message,
     unknown_name_message,
 )
