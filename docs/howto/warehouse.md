@@ -53,6 +53,31 @@ either way.
 give back a spec, its sources and an answer, which is what re-running a case
 needs. A warehouse question is a query over the parquet.
 
+## The run on a value frame
+
+`answer/primal/p.parquet` holds the model's own dimension columns and `value`.
+Nothing in it says which archive it came from, so only the three tables above
+answer that.
+
+**Name the directory `run=<name>` and every frame carries the run.** That is
+the hive layout. A query engine reads it as a column, and no file stores it:
+
+```python
+sps.solve('dispatch.yaml', sources, archive='runs/run=nightly-2026-09-10/')
+
+pl.read_parquet('runs/*/answer/primal/p.parquet', hive_partitioning=True)
+# snapshot  generator  value  run
+# 0         wind       90.5   nightly-2026-09-10
+# 0         solar      0.0    nightly-2026-09-10
+```
+
+**The three tables carry the same name.** The archive is named
+`nightly-2026-09-10`. The stamp drops the `run=`, so a join on `run` matches
+whichever side a column came from.
+
+**A zip cannot use the layout.** No query engine reads inside one, so a
+warehouse queried where it lies is a directory of directories.
+
 ## Compare cases solved apart
 
 `solved_at` is when the solver returned, so runs solved on different machines
@@ -135,15 +160,12 @@ from read_parquet('runs/*/answer/metrics.parquet', union_by_name = true)
 order by build_seconds + solve_seconds desc;
 ```
 
-**Only the three tables above carry `run`.** A value frame such as
-`answer/primal/p.parquet` holds the model's own dimension columns and `value`,
-and nothing in it says which archive it came from. Across a directory, take
-the run from the engine's filename column:
+**A value frame carries `run` where the directory is named for it.** DuckDB
+reads the same hive layout, and the query says nothing about it:
 
 ```sql
 select run, snapshot, generator, value
-from (select *, regexp_extract(filename, 'runs/([^/]+)/', 1) as run
-      from read_parquet('runs/*/answer/primal/p.parquet', filename = true))
+from read_parquet('runs/*/answer/primal/p.parquet', hive_partitioning = true)
 order by run, snapshot;
 ```
 

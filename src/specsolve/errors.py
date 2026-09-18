@@ -137,6 +137,18 @@ def no_model_behind_this_answer_message() -> str:
     )
 
 
+def another_model_behind_this_answer_message(answered: str, rebuilt: str) -> str:
+    """A saved answer read against a model its sources do not rebuild."""
+    return (
+        f'this answer came back from another model: it answered the model digesting to {answered} '
+        f'and the spec and sources beside it build {rebuilt}. The document matched, so what differs '
+        f'is the data — and reading a quantity the file never named against other numbers would '
+        f'value it at an answer nobody solved for.\n'
+        f'  Read the answer against the data the solve ran on. An archive holds that pair, so one '
+        f'refused here has had a source replaced since it was written.'
+    )
+
+
 def position_out_of_range_message(name: str, op: str, position: int, at: int, cardinality: int) -> str:
     """A ``position(dim)`` boundary naming no coordinate of the dimension."""
     return (

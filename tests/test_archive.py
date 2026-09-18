@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import shutil
 import zipfile
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,7 @@ import yaml as pyyaml
 from math_spec import to_program, to_spec
 
 import specsolve as sps
+from specsolve.api import attach_readers
 from specsolve.layout import ANSWER_DIR, _staging_for
 from specsolve.relational.parquet import METRICS_FILE, Metrics, digest_of_file
 from specsolve.sources import attachable, tidy_sources
@@ -602,6 +604,27 @@ def test_an_archive_stamps_its_own_name_and_when_the_solve_returned(
     assert before <= record['solved_at'].item() <= datetime.now(UTC), 'which is a real clock, not a placeholder'
 
 
+def test_a_run_named_directory_stamps_the_name_and_not_the_segment(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """A value frame carries no `run`, so a directory of archives can put it in the path instead.
+
+    `run=<name>` is what a query engine reads that column off, and the archive
+    is still named `<name>`. Without the prefix dropped the record would say
+    `run=nightly-2026-09-10` where the path says `nightly-2026-09-10`, which is
+    one name spelled two ways across tables a warehouse joins.
+    """
+    out = tmp_path / 'runs' / 'run=nightly-2026-09-10'
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out):
+        pass
+
+    record = pl.read_parquet(out / ANSWER_DIR / 'objective.parquet')
+    values = pl.read_parquet(str(tmp_path / 'runs' / '*' / ANSWER_DIR / 'primal' / 'p.parquet'), hive_partitioning=True)
+
+    assert record['run'].to_list() == ['nightly-2026-09-10'], 'the name the directory holds, not the whole segment'
+    assert values['run'].unique().to_list() == ['nightly-2026-09-10'], 'which is the name the path hands a reader too'
+
+
 def test_a_saved_answer_that_was_never_archived_names_no_run(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
@@ -907,4 +930,83 @@ def test_a_written_archive_leaves_no_staging_beside_it(dispatch_yaml: Path, disp
         _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / name)
     assert sorted(path.name for path in tmp_path.iterdir()) == ['case', 'case.zip'], (
         'the staging each write allocated is gone, leaving the two archives alone'
+    )
+
+
+# ---------------------------------------------------------------------------
+# the model digest: which data an answer came back from
+# ---------------------------------------------------------------------------
+
+
+#: A quantity `examples/dispatch.yaml` never names, so no saved frame carries it.
+_UNDECLARED = 'sum(p * cost, over=generator)'
+
+
+def test_a_solve_that_never_saves_hashes_nothing(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
+    """The digest is what a `save` costs, not what a solve costs.
+
+    It is held as the callable the engine handed over until something asks, so
+    the common case — solve, read the values, drop the result — pays none of it.
+    """
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+        solved.primal('p')
+        assert callable(solved._model_digest), 'reading values must not hash the model'
+        assert isinstance(solved.model_digest(), str), 'and asking for it produces one'
+        assert isinstance(solved._model_digest, str), 'which is then kept rather than hashed again'
+
+
+def test_two_builds_of_one_model_digest_the_same(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
+    """The digest names a model, so building the same one twice cannot name two.
+
+    The objective frame is genuinely sparse and carries no order contract: two
+    builds lay its rows out differently, and reading it in place would refuse an
+    answer against the very data it came back from.
+    """
+    with sps.build(dispatch_yaml, dispatch_frame_inputs) as one, sps.build(dispatch_yaml, dispatch_frame_inputs) as two:
+        assert one._model_digest() == two._model_digest(), (
+            'one model, one digest, however its sparse frames are laid out'
+        )
+
+    halved = dispatch_frame_inputs | {'cost': dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 0.5)}
+    with sps.build(dispatch_yaml, dispatch_frame_inputs) as base, sps.build(dispatch_yaml, halved) as other:
+        assert base._model_digest() != other._model_digest(), 'and data that moved a cost is a different model'
+
+
+def test_an_archive_whose_data_was_replaced_is_refused_at_the_rebuild(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """What the spec digest cannot see: one document over two sets of numbers.
+
+    An archive holds the pair it was solved as, so this catches a member
+    replaced since it was written. Refused where a rebuilt model first exists,
+    which is also the first moment a value could be handed back.
+    """
+    _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'case')
+    intact = sps.load_archive(tmp_path / 'case')
+    want = intact.answer.evaluate(_UNDECLARED)['value'].sum()
+
+    moved = dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 99)
+    moved.write_parquet(tmp_path / 'case' / 'sources' / 'cost.parquet')
+
+    tampered = sps.load_archive(tmp_path / 'case')
+    with pytest.raises(sps.SpecsolveError, match='came back from another model') as refused:
+        tampered.answer.evaluate(_UNDECLARED)
+    assert 'what differs is the data' in str(refused.value), 'and the refusal says which half moved'
+    assert want == pytest.approx(intact.answer.evaluate(_UNDECLARED)['value'].sum(), rel=1e-9), (
+        'while the archive as written still reads'
+    )
+
+
+def test_an_answer_naming_no_model_is_taken_as_given(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """An answer written before the column has no digest to compare, and is not refused for it."""
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+        want = solved.evaluate(_UNDECLARED)['value'].sum()
+        solved.save(tmp_path / 'answer')
+
+    older = replace(sps.load_result(tmp_path / 'answer'), _model_digest=None)
+    read = attach_readers(older, dispatch_yaml, dispatch_frame_inputs)
+    assert read.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
+        'an answer carrying no model digest reads against the data it is handed'
     )

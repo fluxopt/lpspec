@@ -116,7 +116,11 @@ class Tables:
     matrix entry's row is where it sits between two starts, which is what a
     solver's matrix API takes. :meth:`matrix_block` spells them back out for the
     one consumer that renders them. ``obj`` keeps its ``col``, being genuinely
-    sparse.
+    sparse, and **carries no order contract at all**: its rows arrive in
+    whatever order collapsing them produced, which differs between two builds
+    of one model. Every consumer reads it scattered over the column index
+    (:meth:`dense_columns`), so nothing downstream can tell — and anything new
+    that reads it must scatter too rather than read it in place.
     """
 
     cols: pl.DataFrame
@@ -265,6 +269,46 @@ class Tables:
         ):
             digest.update(np.ascontiguousarray(vector).data)
         return digest.digest()
+
+    @cached_property
+    def contents(self) -> str:
+        """A digest of the built model **whole** — the numbers included.
+
+        :attr:`structure`'s counterpart, and the one question a saved answer
+        asks of a model rebuilt later: is this the model I answered? So it
+        covers what ``structure`` leaves out on purpose — the bounds, the costs
+        and the right-hand sides a re-solve may push — because a pushed number
+        is a different answer even where it is the same matrix.
+
+        Over the built model rather than over the sources, so two source
+        mappings that a build cannot tell apart agree here, whatever shape or
+        encoding they arrived in. Order is the build's own: a source whose rows
+        moved builds a different label order and so digests differently.
+
+        **The objective is read through the dense cost vector**, not off
+        ``obj``: that frame is genuinely sparse and carries no order contract,
+        so two builds of one model lay its rows out differently and hashing
+        them in place would call one model two.
+
+        Read on first ask and kept, the frames being immutable.
+        """
+        import hashlib
+
+        import numpy as np
+
+        digest = hashlib.blake2b(digest_size=16)
+        digest.update(self.structure)
+        digest.update(f'{self.objective_constant}'.encode())
+        for vector in (
+            self.cols['lb'].to_numpy(),
+            self.cols['ub'].to_numpy(),
+            _scattered(self.column_count, self.obj['col'].to_numpy(), self.obj['coeff'].to_numpy(), 0.0),
+            self.quad['coeff'].to_numpy(),
+            self.rows['row'].to_numpy(),
+            self.rows['rhs'].to_numpy(),
+        ):
+            digest.update(np.ascontiguousarray(vector).data)
+        return digest.hexdigest()
 
     def sets(self) -> Iterator[tuple[int, pl.Series, pl.Series]]:
         """Each special-ordered set: its type, member columns, and weights.

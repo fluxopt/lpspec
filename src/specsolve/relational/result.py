@@ -445,6 +445,23 @@ class Result:
     _spec_digest: str | None = None
     #: When the solver returned, in UTC. Attached by the model that solved.
     _solved_at: datetime | None = None
+    #: The built model's digest — the spec *and* its data — as the value an
+    #: answer read off disk carries, or as the callable a live solve is given
+    #: so that nothing is hashed unless :meth:`model_digest` is asked. ``None``
+    #: where neither: an answer written before the column, or one built by hand.
+    #: Read through :meth:`model_digest`, never here.
+    _model_digest: str | Callable[[], str] | None = None
+
+    def model_digest(self) -> str | None:
+        """Which model this answered — the document and the data it was attached to.
+
+        :attr:`spec_digest` names the document alone, so two scenarios of one
+        spec share that and differ here. Computed on the first ask and kept,
+        which is what keeps a solve that never asks free of it.
+        """
+        if callable(self._model_digest):
+            self._model_digest = self._model_digest()
+        return self._model_digest
 
     @property
     def status(self) -> str:
@@ -765,6 +782,7 @@ class Result:
             has_primal=self.has_primal,
             spec_digest=self._spec_digest,
             solved_at=self._solved_at,
+            model_digest=self.model_digest(),
         )
         write_whole(pl.DataFrame([record._asdict()], schema_overrides=RECORD_SCHEMA), out / RECORD_FILE)
         if not self._status.is_readable:
