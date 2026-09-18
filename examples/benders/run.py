@@ -3,8 +3,8 @@
     pixi run python examples/benders/run.py
 
 **This is evidence, not a feature.** It shows what the language can express and
-that the answer is right; lpspec ships no decomposition driver, and whether it
-should is https://github.com/fluxopt/lpspec/issues/596.
+that the answer is right; lpspec ships no decomposition driver, and
+https://github.com/fluxopt/lpspec/issues/596 settled that it will not own one.
 
 Four files, and the split is the whole idea:
 
