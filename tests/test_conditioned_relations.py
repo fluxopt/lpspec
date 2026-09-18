@@ -40,8 +40,8 @@ dimensions:
 
 relations:
   zone_of:
-    columns: [generator, period, zone]
     key: [generator, period]
+    value: zone
     description: the zone a generator bids into in one period
 
 parameters:
@@ -196,8 +196,8 @@ def test_a_where_reads_a_conditioned_map_at_both_key_dimensions():
 def _shaped(relations: dict, expression: str, dims: list[str]) -> dict:
     """A model whose one constraint walks *relations*, both ends named where the declaration leaves a choice."""
     declared = {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}, 'period': {'dtype': 'int'}}
-    columns = [r['columns'] for r in relations.values()]
-    over = [d for c in columns for d in (c.values() if isinstance(c, dict) else c)]
+    sides = [side for r in relations.values() for side in (r['key'], r.get('value', []))]
+    over = [d for s in sides for d in (s.values() if isinstance(s, dict) else [s] if isinstance(s, str) else s)]
     used = {'generator', 'period', *dims, *over}
     return {
         'dimensions': {name: dtype for name, dtype in declared.items() if name in used},
@@ -213,21 +213,21 @@ def _shaped(relations: dict, expression: str, dims: list[str]) -> dict:
     ('relations', 'expression', 'dims', 'match'),
     [
         pytest.param(
-            {'connection': {'columns': ['generator', 'bus']}},
+            {'connection': {'key': ['generator', 'bus']}},
             'sum(p, by=connection, over=generator, into=bus) >= load',
             ['bus', 'period'],
-            r"relation 'connection' declares no key",
+            r"relation 'connection' is a bare relation, which maps nothing",
             id='a-bare-relation',
         ),
         pytest.param(
-            {'gen_bp': {'columns': ['generator', 'bus', 'period'], 'key': 'generator'}},
+            {'gen_bp': {'key': 'generator', 'value': ['bus', 'period']}},
             'sum(p, by=gen_bp, over=generator, into=[bus, period]) >= load',
             ['bus', 'period'],
             r"relation 'gen_bp' has 2 columns its key does not determine \(\['bus', 'period'\]\)",
             id='a-key-determining-two-columns',
         ),
         pytest.param(
-            {'season_of': {'columns': ['generator', 'period', 'bus'], 'key': ['generator', 'period']}},
+            {'season_of': {'key': ['generator', 'period'], 'value': 'bus'}},
             'shift(p, along=period, offset=1, edge=0, by=season_of) >= load',
             ['generator', 'period'],
             r"a partition by 'season_of' groups by a map keyed by \['generator', 'period'\]",

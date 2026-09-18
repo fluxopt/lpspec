@@ -20,8 +20,8 @@ dimensions:
 relations:
   period_of:
     description: the investment period a snapshot falls in
-    columns: [snapshot, period]
     key: snapshot
+    value: period
 
 parameters:
   load:

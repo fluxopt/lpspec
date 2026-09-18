@@ -37,8 +37,8 @@ def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:
             it walks.
     """
     for name, relation in program.relations.items():
-        if not relation.key:
-            raise LaneError(_relation_shape_message(f"relation '{name}' declares no key"))
+        if not relation.values:
+            raise LaneError(_relation_shape_message(f"relation '{name}' is a bare relation, which maps nothing"))
         if len(relation.values) != 1:
             raise LaneError(
                 _relation_shape_message(

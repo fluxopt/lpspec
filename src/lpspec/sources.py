@@ -239,7 +239,7 @@ def _check_relation_sources(program: Program, data: Mapping[str, Source]) -> Non
 
 def _unsupplied_relation_message(name: str, relation: RelationDeclaration) -> str:
     """A relation nothing gives a table for — the counterpart of a parameter with no data."""
-    rows = f'one row per {list(relation.key)} it maps' if relation.key else 'one row per tuple it relates'
+    rows = f'one row per {list(relation.key)} it maps' if relation.values else 'one row per tuple it relates'
     return (
         f"no data provided for relation '{name}'. Pass it under key '{name}' as a table with "
         f'columns {list(relation.roles)} — {rows}, and no row for one it does not.'
@@ -318,7 +318,11 @@ def _read_relation(source: Source, name: str, relation: RelationDeclaration) -> 
         )
     available = table.collect_schema().names()
     if any(c not in available for c in roles):
-        keyed = f'{list(relation.key)} is the key it is single-valued per' if relation.key else 'it declares no key'
+        keyed = (
+            f'{list(relation.key)} is the key it is single-valued per'
+            if relation.values
+            else 'it is a bare relation, every column in its key'
+        )
         raise DataError(
             f"relation '{name}' must carry a column per column it declares, {roles} (has "
             f'{list(available)}). {keyed}, and every column is over a dimension of its own.'
@@ -337,11 +341,11 @@ def _read_relation(source: Source, name: str, relation: RelationDeclaration) -> 
             f'means by it.'
         )
 
-    key = list(relation.key) or roles
+    key = list(relation.key)
     twice = rows.group_by(key).len().filter(pl.col('len') > 1).sort(key)
     if twice.height:
         shown = coordinates_shown(key, twice.select(key).head(5).rows())
-        if relation.key:
+        if relation.values:
             raise DataError(
                 f"relation '{name}' maps {twice.height} key(s) more than once: {shown}. "
                 f'{key} is the declared key, so each key it maps takes exactly one row.'

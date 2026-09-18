@@ -417,7 +417,7 @@ def masked_operand_spec(constraint: str, expression: str, *, grouped: bool = Fal
     }
     if grouped:
         spec['dimensions']['season'] = {'dtype': 'str'}
-        spec['relations'] = {'season_of': {'columns': ['t', 'season'], 'key': 't'}}
+        spec['relations'] = {'season_of': {'key': 't', 'value': 'season'}}
     if not masked:
         del spec['parameters']
         del spec['variables']['level']['where']

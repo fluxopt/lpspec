@@ -294,7 +294,7 @@ def _wide_objective_of(expression: str, *, dims: list[str]) -> float:
     dimensions = {'g': {}, 'f': {}, 't': {'dtype': 'int'}} if grouped else {'f': {}, 't': {'dtype': 'int'}}
     spec = {
         'dimensions': dimensions,
-        **({'relations': {'grp': {'columns': ['f', 'g'], 'key': 'f'}}} if grouped else {}),
+        **({'relations': {'grp': {'key': 'f', 'value': 'g'}}} if grouped else {}),
         'parameters': {
             'gate': {'dims': ['f'], 'dtype': 'bool'},
             'gate2': {'dims': ['f'], 'dtype': 'bool'},

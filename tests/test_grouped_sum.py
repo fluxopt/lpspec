@@ -177,7 +177,7 @@ dimensions:
   g: {dtype: str}
   item: {dtype: str}
 relations:
-  grp: {columns: [item, g], key: item}
+  grp: {key: item, value: g}
 parameters:
   cap: {dims: [item]}
   target: {dims: [g]}
@@ -244,7 +244,7 @@ def test_a_partial_coordinate_places_its_orphans_nowhere(tmp_path):
 
 GROUPED_ONTO_BUS = {
     'dimensions': {'generator': {'dtype': 'str'}, 'bus': {'dtype': 'str'}},
-    'relations': {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
+    'relations': {'gen_bus': {'key': 'generator', 'value': 'bus'}},
     'parameters': {'p_max': {'dims': ['generator']}, 'load': {'dims': ['bus']}},
     'variables': {'p': {'dims': ['generator'], 'bounds': {'lower': 0, 'upper': 'p_max'}}},
     'constraints': {'balance': {'dims': ['bus'], 'expression': 'sum(p, by=gen_bus) >= load'}},
@@ -294,7 +294,7 @@ BROADCAST_GROUP_SUM = {
         'generator': {'dtype': 'str'},
         'bus': {'dtype': 'str'},
     },
-    'relations': {'gen_bus': {'columns': ['generator', 'bus'], 'key': 'generator'}},
+    'relations': {'gen_bus': {'key': 'generator', 'value': 'bus'}},
     'parameters': {'w': {'dims': ['generator']}, 'limit': {'dims': ['snapshot', 'bus']}},
     'variables': {'x': {'dims': ['snapshot'], 'bounds': {'lower': 0, 'upper': 10}}},
     'constraints': {

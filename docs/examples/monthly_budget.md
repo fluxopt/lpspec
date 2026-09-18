@@ -104,8 +104,8 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     relations:
       month_of:
         description: the month a snapshot falls in
-        columns: [snapshot, month]
         key: snapshot
+        value: month
 
     parameters:
       p_max:
