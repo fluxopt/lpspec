@@ -703,36 +703,15 @@ u_{t,g} \ge 0, u_{t,g} \in \mathbb{Z} \qquad \forall\, t \in \mathcal{T},\ g \in
       store: {description: 'pure energy stores, each on one bus'}
       global_constraint: {description: 'PyPSA''s `GlobalConstraint` rows, one label per declared limit'}
     relations:
-      Generator_bus:
-        description: the bus a generator sits on
-        key: generator
-        value: bus
-      Link_bus0:
-        description: the bus a link leaves
-        key: link
-        value: bus
-      Link_output_link:
-        description: the link an output port belongs to
-        key: link_output
-        value: link
-      Link_output_bus:
-        description: the bus an output port delivers to — PyPSA's `bus1`, `bus2`, … columns. A link of three
-          output ports is three labels here rather than a third relation, so the file states any number of
-          them
-        key: link_output
-        value: bus
-      Load_bus:
-        description: the bus a load sits on
-        key: load
-        value: bus
-      StorageUnit_bus:
-        description: the bus a storage unit sits on
-        key: storage_unit
-        value: bus
-      Store_bus:
-        description: the bus a store sits on
-        key: store
-        value: bus
+      Generator_bus: {description: the bus a generator sits on, key: generator, value: bus}
+      Link_bus0: {description: the bus a link leaves, key: link, value: bus}
+      Link_output_link: {description: the link an output port belongs to, key: link_output, value: link}
+      Link_output_bus: {description: 'the bus an output port delivers to — PyPSA''s `bus1`, `bus2`, … columns.
+          A link of three output ports is three labels here rather than a third relation, so the file states
+          any number of them', key: link_output, value: bus}
+      Load_bus: {description: the bus a load sits on, key: load, value: bus}
+      StorageUnit_bus: {description: the bus a storage unit sits on, key: storage_unit, value: bus}
+      Store_bus: {description: the bus a store sits on, key: store, value: bus}
     parameters:
       snapshot_weightings_objective:
         description: PyPSA's `snapshot_weightings.objective` — hours a snapshot stands for in the cost
