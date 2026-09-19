@@ -19,7 +19,13 @@ import numpy as np
 import xarray as xr
 from math_spec import program
 
-from lpspec.errors import DataError, position_out_of_range_message, short_groups_message
+from lpspec.errors import (
+    DataError,
+    LanguageError,
+    compared_expressions_message,
+    position_out_of_range_message,
+    short_groups_message,
+)
 from lpspec.linopy import absence
 from lpspec.linopy.operators import _grouped
 
@@ -146,6 +152,9 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
 
     if isinstance(node, program.OrNode):
         return evaluate(node.left) | evaluate(node.right)
+
+    if isinstance(node, (program.ExpressionComparisonNode, program.ArithmeticComparisonNode)):
+        raise LanguageError(compared_expressions_message(node.op, node.dims))
 
     assert_never(node)
 

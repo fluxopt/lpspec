@@ -544,7 +544,7 @@ is structure.
 | `api.py` | the runner: `check` / `build` / `solve` / `write`, and `load_result` / `scan_result` for an answer read back off disk; linopy-free |
 | `layout.py` | below every verb that solves: what an archive holds — `model.yaml`, `sources/`, `answer/`, `axis.json` — written as one zip or as a directory, because a solve is the one moment all three exist together |
 | `archive.py` | above the runner and the fold: `load_archive` / `scan_archive` and the two values they give back, `SolveArchive` and `SweepArchive`. It reads; it never writes |
-| `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `LANES`, what each lane can build, read by `check` without the extra |
+| `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `LANES`, what each lane can build, read by `check` without the extra; `lowered`, the one door every verb lowers through, so a construct neither lane builds is refused where `check` reaches it |
 | `relational/collect.py` | which polars engine materialises a frame: the streaming one where this polars has it, asked once; a build without it, the browser's, gets the in-memory one |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
 | `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |
