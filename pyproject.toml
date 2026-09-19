@@ -196,7 +196,7 @@ codspeed = [
 # renderer is the docs toolchain and a contributor running the suite should not
 # pay for it — so they run in the environment that already has it.
 docs = [
-    "zensical==0.0.62",
+    "zensical==0.0.63",
     "markdown-exec==1.12.3",
     "pymdown-extensions==11.0.1",
     "pygments==2.20.0",
