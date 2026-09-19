@@ -52,14 +52,14 @@ class _Order:
     below takes it rather than rebuilding it.
     """
 
-    #: The groups the walk stays inside — the whole dimension as one group
+    #: The groups the call stays inside — the whole dimension as one group
     #: where no ``by=`` was written (:meth:`Grouping.whole`).
     grouping: Grouping
     incoming: pl.LazyFrame
     outgoing: pl.LazyFrame
 
     @classmethod
-    def of(cls, scope: Scope, dimension: str, partition: program.Walk | None) -> _Order:
+    def of(cls, scope: Scope, dimension: str, partition: program.Partition | None) -> _Order:
         """Rank *dimension* inside each group of *partition*, or along the whole of it.
 
         A neighbour is decided by rank within the group, and a wrap closes on

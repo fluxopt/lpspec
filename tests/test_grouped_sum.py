@@ -88,7 +88,11 @@ def test_sum_lowers_to_one_node_per_injection_term():
     (c,) = program.constraints.values()
     assert c.dims == ('snapshot', 'bus')
     terms = _flatten(c.lhs)
-    grouped = {(t.operand, t.over, t.relation, t.into) for t in terms if isinstance(t, GroupSum)}
+    grouped = {
+        (t.operand, t.direction.consumed_dims, t.direction.name, t.direction.produced_dims)
+        for t in terms
+        if isinstance(t, GroupSum)
+    }
     assert (Variable('p'), ('generator',), 'gen_bus', ('bus',)) in grouped, (
         'generation is grouped out of generator onto bus, through gen_bus and nothing else'
     )

@@ -860,7 +860,7 @@ def test_every_piecewise_fact_the_language_carries_is_read_by_the_curve_guard():
 def _gen_bus_walk(program: Any) -> Any:
     """One map walked one way — the shape every operator below takes a `by=` in."""
     gen_bus = program.RelationDeclaration('gen_bus', (('g', 'g'), ('bus', 'bus')), ('g',))
-    return program.Walk(gen_bus, ('g',), ('bus',), ())
+    return program.Direction(gen_bus, ('g',), ('bus',), ())
 
 
 def test_every_shape_operator_declares_its_fan_in():

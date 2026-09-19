@@ -30,6 +30,7 @@ from math_spec.program import (
     Constant,
     ConstraintDeclaration,
     DimensionDeclaration,
+    Direction,
     GroupSum,
     Mask,
     Negate,
@@ -42,7 +43,6 @@ from math_spec.program import (
     Sum,
     Variable,
     VariableDeclaration,
-    Walk,
 )
 
 import lpspec as lps
@@ -213,9 +213,9 @@ LINE_FROM = RelationDeclaration('from', (('line', 'line'), ('bus', 'bus')), ('li
 LINE_TO = RelationDeclaration('to', (('line', 'line'), ('bus', 'bus')), ('line',))
 
 
-def _onto_bus(relation: RelationDeclaration) -> Walk:
-    """*relation* walked the way a nodal balance walks it: out of its key, onto the bus."""
-    return Walk(relation, relation.key, relation.values, ())
+def _onto_bus(relation: RelationDeclaration) -> Direction:
+    """*relation* read the way a nodal balance reads it: out of its key, onto the bus."""
+    return Direction(relation, relation.key, relation.values, ())
 
 
 def transport_program() -> Program:
