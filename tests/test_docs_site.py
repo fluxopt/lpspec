@@ -1,28 +1,30 @@
 """The docs are read in two places; these are the checks that keep them honest in both.
 
 ``docs/`` is browsed on GitHub and served as a site, from one set of files. A
-link *inside* ``docs/`` is relative and mkdocs validates it — ``build --strict``
+link *inside* ``docs/`` is relative and the build validates it — ``--strict``
 in CI fails on a dead one. A link *outside* ``docs/`` cannot be relative,
 because the site has no `../CONTRIBUTING.md` to resolve to, so it is written as
 a full GitHub URL.
 
-That convention is the whole mechanism, and it is unenforceable by mkdocs in
-both directions: a relative link escaping ``docs/`` builds a silent 404, and a
-blob URL is opaque to every checker there is — the file it names can be deleted
-and nothing anywhere fails. Hence this module.
+That convention is the whole mechanism, and it is unenforceable by the builder
+in both directions: a relative link escaping ``docs/`` builds a silent 404, and
+a blob URL is opaque to every checker there is — the file it names can be
+deleted and nothing anywhere fails. Hence this module.
 
-``docs/README.md`` is the one exception and is exempted throughout: it is
-excluded from the site (``exclude_docs``), exists only as the folder view
-GitHub renders, and its relative links out of the tree are correct there.
+``docs/README.md`` used to be exempted here, because ``exclude_docs`` kept it
+out of the site and its relative links out of the tree were correct on GitHub.
+zensical builds no page from a ``README.md`` and validates its links anyway, so
+the page follows the convention like every other one and the exemption is gone.
 """
 
 from __future__ import annotations
 
 import functools
-import json
 import re
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / 'docs'
@@ -38,31 +40,18 @@ _ABSOLUTE = re.compile(r'^([a-z][a-z0-9+.-]*:|//|#|/)', re.IGNORECASE)
 
 @functools.cache
 def _pages() -> tuple[Path, ...]:
-    """Every page mkdocs builds — so, not `docs/README.md`.
+    """Every Markdown file under `docs/`, `README.md` included.
 
-    A notebook is one of them: mkdocs-jupyter renders it into the site and
-    GitHub renders it in the tree, so a link in a markdown cell is read in both
-    places and lives under exactly the convention above.
+    `README.md` is the folder view GitHub renders rather than a page of the
+    site, and it is held to the same two rules: it is read in the tree, where a
+    link above `docs/` is as wrong as it is on the site if it is spelled
+    relatively and the file moves.
     """
-    pages = (*DOCS.rglob('*.md'), *DOCS.rglob('*.ipynb'))
-    return tuple(p for p in sorted(pages) if p.relative_to(DOCS).as_posix() != 'README.md')
-
-
-def _all_pages() -> tuple[Path, ...]:
-    """The site's pages plus `docs/README.md`, the folder view GitHub renders."""
-    return (*_pages(), DOCS / 'README.md')
-
-
-def _prose(page: Path) -> str:
-    """What a reader sees: the whole file, or a notebook's markdown cells."""
-    if page.suffix != '.ipynb':
-        return page.read_text()
-    cells = json.loads(page.read_text())['cells']
-    return '\n'.join(''.join(cell['source']) for cell in cells if cell['cell_type'] == 'markdown')
+    return tuple(sorted(DOCS.rglob('*.md')))
 
 
 def _targets(page: Path) -> list[str]:
-    return [inline or reference for inline, reference in _TARGETS.findall(_prose(page))]
+    return [inline or reference for inline, reference in _TARGETS.findall(page.read_text())]
 
 
 def test_no_relative_link_escapes_the_docs_tree():
@@ -98,7 +87,7 @@ def test_every_blob_url_names_a_file_that_exists():
     GitHub's 404.
     """
     broken = []
-    for page in _all_pages():
+    for page in _pages():
         for target in _targets(page):
             if not target.startswith(BLOB):
                 continue
@@ -119,7 +108,7 @@ def test_links_to_our_own_files_are_all_spelled_the_same_way():
     file_shaped = re.compile(rf'^{re.escape(REPO_URL)}/(blob|tree|raw|blame)/')
     stray = [
         f'{page.relative_to(REPO)} -> {target}'
-        for page in _all_pages()
+        for page in _pages()
         for target in _targets(page)
         if file_shaped.match(target) and not target.startswith(f'{BLOB}/')
     ]
@@ -135,6 +124,55 @@ def test_the_convention_is_actually_in_use():
     """
     urls = [t for page in _pages() for t in _targets(page) if t.startswith(BLOB)]
     assert len(urls) >= 15, f'expected the docs to link out to the repo; found {len(urls)}'
+
+
+#: `mkdocs.yml` hands the builder callables through `!!python/name:` and
+#: `!!python/object/apply:` tags. Only `nav:` is read here, so the tags are
+#: turned into their own spelling rather than imported — `safe_load` refuses
+#: them outright and reports a valid config as broken.
+class _NavLoader(yaml.SafeLoader):
+    pass
+
+
+for _tag in ('tag:yaml.org,2002:python/name:', 'tag:yaml.org,2002:python/object/apply:'):
+    _NavLoader.add_multi_constructor(_tag, lambda loader, suffix, node: suffix)
+
+
+def _nav_pages(entries: list[Any]) -> list[str]:
+    """Every page the nav points at, depth first, as `mkdocs.yml` spells it.
+
+    An entry is a bare path or a one-key mapping whose value is a path or a
+    deeper list. A value that is not a page in this tree — an address on
+    another site, the hand-written chart page — is not one of these.
+    """
+    found: list[str] = []
+    for entry in entries:
+        target = entry if isinstance(entry, str) else next(iter(entry.values()))
+        if isinstance(target, list):
+            found.extend(_nav_pages(target))
+        elif isinstance(target, str) and target.endswith('.md'):
+            found.append(target)
+    return found
+
+
+def test_every_page_under_docs_has_a_nav_entry():
+    """The strict build stopped asking this when the site moved to zensical.
+
+    mkdocs failed the build on a page with no nav entry, under
+    `validation.nav.omitted_files`. zensical validates links and leaves
+    navigation alone, so an orphan page builds, ships and is reachable only by
+    search. Both directions are asked here, because a nav entry naming a file
+    that is not there is dropped just as quietly.
+
+    `README.md` is the folder view GitHub renders and the site builds no page
+    from it, so it is the one file under `docs/` that belongs in no nav.
+    """
+    config = yaml.load((REPO / 'mkdocs.yml').read_text(), Loader=_NavLoader)
+    nav = set(_nav_pages(config['nav']))
+    pages = {page.relative_to(DOCS).as_posix() for page in _pages()} - {'README.md'}
+    assert pages == nav, (
+        f'pages with no nav entry in mkdocs.yml: {sorted(pages - nav)}; nav entries with no page: {sorted(nav - pages)}'
+    )
 
 
 def test_the_home_page_still_carries_its_math_block():

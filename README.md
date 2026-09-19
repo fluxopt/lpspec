@@ -42,7 +42,7 @@ And because the math is a closed spec known before any data is touched, every
 name, dimension and expression is checked at load time — `check()` compiles a
 whole model repository in CI with nothing attached to it at all.
 
-<!--flow-start-->
+<!-- --8<-- [start:flow] -->
 ```mermaid
 flowchart LR
     Y["YAML + data"] --> AST["core AST"]
@@ -60,12 +60,11 @@ flowchart LR
     class ERR err
     classDef err fill:#fdf3e7,stroke:#b7791f,color:#111
 ```
-<!--flow-end-->
+<!-- --8<-- [end:flow] -->
 
 ## Example
 
-<!--quickstart-start-->
-<!--model-start-->
+<!-- --8<-- [start:model] -->
 ```yaml
 # dispatch.yaml
 dimensions:
@@ -88,9 +87,9 @@ objective:
   sense: minimize
   expression: sum(p * cost)
 ```
-<!--model-end-->
+<!-- --8<-- [end:model] -->
 
-<!--solve-start-->
+<!-- --8<-- [start:solve] -->
 ```python
 import lpspec as lps, polars as pl
 
@@ -115,7 +114,7 @@ none of them. Results come back as tables, so nothing has to be released and
 no dataframe library is a dependency: `result.to_pandas('p')`,
 `.to_dataarray('p')` and `.to_parquet(dir)` are the bridges out, each named for
 what it costs.
-<!--quickstart-end-->
+<!-- --8<-- [end:solve] -->
 
 ## Why
 
@@ -196,7 +195,7 @@ cite them: [prior art and credit](docs/about/prior-art.md).
 
 Alpha, pre-1.0.
 
-<!--status-start-->
+<!-- --8<-- [start:status] -->
 **Breaking changes land without a deprecation cycle.** When a construct is
 named wrong, a default is wrong, or a permissive input turns out to hide a
 silent wrong answer, it gets fixed rather than aliased — carrying a
@@ -209,4 +208,4 @@ describes the break, and a retired spelling fails at load naming its rewrite
 rather than drifting on silently. What exists is tested: real models round-trip
 through solve, differentially verified against linopy. It is the
 *surface* that is not yet frozen, not the behaviour.
-<!--status-end-->
+<!-- --8<-- [end:status] -->

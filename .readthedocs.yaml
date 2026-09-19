@@ -12,14 +12,20 @@ build:
   # other lacks — the environment is named, not assembled twice.
   #
   # The docs environment carries the project as well as the toolchain, because
-  # mkdocs.yml executes `docs/interactive.ipynb` during the build and its first
-  # cell imports lpspec. A page whose outputs are this build's own is what that
-  # buys, and there is no way to have it without running the package here.
+  # mkdocs.yml runs the `python exec="true"` blocks on `docs/interactive.md`
+  # during the build and the first of them imports lpspec. A page whose outputs
+  # are this build's own is what that buys, and there is no way to have it
+  # without running the package here.
   #
   # The installer is one request, unpinned, matching `prefix-dev/setup-pixi` in
   # the workflows: pixi floats there or nowhere. It is invoked by path because
   # each command runs in its own shell, so what the installer appended to the
   # profile is not in scope for the next line.
+  #
+  # `zensical build` takes no site directory, so the site lands in `site_dir`
+  # from mkdocs.yml and is copied from there. Read the Docs publishes whatever
+  # is under $READTHEDOCS_OUTPUT/html.
   commands:
     - curl -fsSL https://pixi.sh/install.sh | bash
-    - ~/.pixi/bin/pixi run docs-build --site-dir "$READTHEDOCS_OUTPUT/html"
+    - ~/.pixi/bin/pixi run docs-build
+    - mkdir -p "$READTHEDOCS_OUTPUT" && cp -a site "$READTHEDOCS_OUTPUT/html"

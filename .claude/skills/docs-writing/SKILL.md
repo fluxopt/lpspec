@@ -278,8 +278,10 @@ PY
 ## 9. Mechanics
 
 - **A new page needs a nav entry in `mkdocs.yml`.** The docs build is
-  `--strict`, so a page without one fails it, as do a dead cross-link and a
-  stale anchor.
+  `--strict`, so a dead cross-link and a stale anchor fail it. A page with no
+  nav entry does not fail the build — zensical validates links and leaves
+  navigation alone — so `pixi run test` is what reports it, in
+  `tests/test_docs_site.py`.
 - **Inside `docs/`, link relatively; outside it, write the full GitHub URL.**
   A relative link above `docs/` renders in the repo and 404s on the site, and
   `tests/test_docs_site.py` refuses it.
@@ -291,6 +293,7 @@ PY
 
 ```bash
 pixi run docs-build   # --strict, so a dead anchor is a failure
+pixi run docs-test    # the math a strict build cannot check
 pixi run pytest tests/test_doc_examples.py tests/test_docs_site.py -q
 ```
 
