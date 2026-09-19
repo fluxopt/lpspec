@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import polars as pl
 from math_spec import program
@@ -27,7 +27,7 @@ _EXPRESSION_ROW = '__expression row__'
 _LABEL_ORDER = '__label order__'
 
 
-def row(model: BuiltModel, name: str, coordinate: Mapping[str, Any]) -> ConstraintRow:
+def row(model: BuiltModel, name: str, coordinate: Mapping[str, object]) -> ConstraintRow:
     """One built constraint row, spelled back out. See :meth:`~lpspec.api.Model.row`.
 
     Three positional takes against frames the build already keeps, and no scan
@@ -56,7 +56,7 @@ def row(model: BuiltModel, name: str, coordinate: Mapping[str, Any]) -> Constrai
     )
 
 
-def _row_index(model: BuiltModel, name: str, coordinate: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
+def _row_index(model: BuiltModel, name: str, coordinate: Mapping[str, object]) -> tuple[int, dict[str, object]]:
     """The global row index constraint *name* built at *coordinate*, and that coordinate in dim order.
 
     The coordinate has to name **every** dim of the declaration: a partial
@@ -90,7 +90,7 @@ def _row_index(model: BuiltModel, name: str, coordinate: Mapping[str, Any]) -> t
     return int(found.item(0, 'row')), ordered
 
 
-def _label(name: str, dim: str, value: Any, dtype: pl.DataType) -> pl.Expr:
+def _label(name: str, dim: str, value: object, dtype: pl.DataType) -> pl.Expr:
     """*value* as a literal of *dim*'s own type, or a refusal naming what it is not.
 
     The cast **is** the check: a string against an integer dim and a stranger
@@ -174,7 +174,7 @@ def string_dims(attached: AttachedSources, dims: Sequence[str]) -> list[str]:
 def reordered(
     attached: AttachedSources,
     registry: Mapping[str, labels.Labelled],
-    declared: Mapping[str, Any],
+    declared: Mapping[str, program.VariableDeclaration | program.ConstraintDeclaration],
     frames: Mapping[str, pl.DataFrame],
 ) -> pl.Series:
     """A saved solution's value frames back as the positional vector — the inverse of :func:`laid_out`.
@@ -239,8 +239,8 @@ def _aligned(
 def readers(
     compiler: PolarsCompiler,
     named: Mapping[str, program.ExpressionDeclaration],
-    lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
-) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, Any]], pl.DataFrame] | None]:
+    lower: Callable[[str | Mapping[str, object]], program.ExpressionNode] | None,
+) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, object]], pl.DataFrame] | None]:
     """The reads :meth:`~lpspec.relational.result.Result.evaluate` is built from, over one compiler.
 
     Every producer of them — a live solve, a rebuilt archive, and the
@@ -269,7 +269,7 @@ def readers(
     if lower is None:
         return declared, None
 
-    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
+    def evaluate(written: str | Mapping[str, object]) -> pl.DataFrame:
         return expression_frame('the expression', lower(written), compiler)
 
     return declared, evaluate

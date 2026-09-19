@@ -352,7 +352,7 @@ class _Spill:
                 over other keys.
         """
         directory = Path(directory)
-        manifest: dict[str, Any] = {
+        manifest: dict[str, object] = {
             'key_name': key_name,
             'keys': [str(key) for key in keys],
             'hand_built': hand_built,
@@ -643,7 +643,7 @@ class EachWindow:
         """
         carrying, coordinates = _coordinates(sources, self.dim, 'window')
         out: list[_Slice] = []
-        owned: list[dict[str, Any]] = []
+        owned: list[dict[str, object]] = []
         start = 0
         for owns in self._blocks(len(coordinates)):
             window = coordinates[start : start + owns + self.lookahead]
@@ -751,7 +751,7 @@ class Runs:
     #: a sweep archive over the spec, sources, axis and carry it carries.
     #: ``None`` on a Runs a live solve returned, which retains no model to
     #: lower an expression against.
-    _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = field(repr=False, default=None)
+    _evaluate: Callable[[str | Mapping[str, object]], pl.DataFrame] | None = field(repr=False, default=None)
 
     @classmethod
     def _folded(
@@ -759,7 +759,7 @@ class Runs:
         key_name: str,
         original: _OriginalIndex | None,
         hand_built: bool,
-        answered: Generator[tuple[Any, _Answer], None, None],
+        answered: Generator[tuple[Label, _Answer], None, None],
         spill: _Spill | None,
         key_dtype: pl.DataType,
     ) -> Runs:
@@ -783,8 +783,8 @@ class Runs:
             key_dtype: What to write the key column as, settled over the
                 sweep's keys rather than inferred from each one.
         """
-        rows: list[dict[str, Any]] = []
-        taken: list[dict[str, Any]] = []
+        rows: list[dict[str, object]] = []
+        taken: list[dict[str, object]] = []
         primals: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
         duals: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
         expressions: defaultdict[str, list[pl.DataFrame]] = defaultdict(list)
@@ -909,7 +909,7 @@ class Runs:
             self._read(self._duals, 'constraint', name, self._no_duals), original_index=original_index
         )
 
-    def evaluate(self, expression: str | Mapping[str, Any], *, original_index: bool = False) -> pl.DataFrame:
+    def evaluate(self, expression: str | Mapping[str, object], *, original_index: bool = False) -> pl.DataFrame:
         """The value of *expression* at every slice's solution, the slice key prepended.
 
         :meth:`~lpspec.relational.result.Result.evaluate` one dimension wider,
@@ -965,7 +965,7 @@ class Runs:
         """The declared expressions some slice produced, wherever the sweep keeps them — in memory or on disk."""
         return dict.fromkeys(self._spill.held('expression')) if self._spill is not None else self._expressions
 
-    def _nothing_to_evaluate(self, expression: str | Mapping[str, Any]) -> str:
+    def _nothing_to_evaluate(self, expression: str | Mapping[str, object]) -> str:
         """Why a sweep with no model behind it cannot value *expression*.
 
         A string is first answered as a name, since a typo of a declared one is
@@ -1234,7 +1234,7 @@ def scan_runs(directory: str | Path) -> Runs:
     )
 
 
-def axis_manifest(axis: EachCoordinate | EachWindow) -> dict[str, Any]:
+def axis_manifest(axis: EachCoordinate | EachWindow) -> dict[str, Any]:  # pyrefly: ignore[explicit-any] — the archive's own JSON
     """*axis* as the JSON an archive carries, read back by :func:`axis_from`."""
     if isinstance(axis, EachCoordinate):
         return {'each': 'coordinate', 'dim': axis.dim}
@@ -1242,7 +1242,7 @@ def axis_manifest(axis: EachCoordinate | EachWindow) -> dict[str, Any]:
     return {'each': 'window', 'dim': axis.dim, 'steps': steps, 'lookahead': axis.lookahead, 'into': axis.into}
 
 
-def axis_from(manifest: Mapping[str, Any]) -> EachCoordinate | EachWindow:
+def axis_from(manifest: Mapping[str, Any]) -> EachCoordinate | EachWindow:  # pyrefly: ignore[explicit-any] — the archive's own JSON
     """The axis :func:`axis_manifest` wrote."""
     if manifest['each'] == 'coordinate':
         return EachCoordinate(manifest['dim'])
@@ -1279,7 +1279,7 @@ def solve_over(
     key_name: str | None = None,
     executor: Executor | None = None,
     workers_share_fs: bool | None = None,
-    solver_options: Mapping[str, Any] | None = None,
+    solver_options: Mapping[str, object] | None = None,
     solver_name: str = 'highs',
     keep: Keep = 'solver',
     spill_to: str | Path | None = None,
@@ -1436,7 +1436,7 @@ def attach_sweep_readers(
 
 def _per_slice(
     runs: Runs, spec: Spec, sources: Mapping[str, Source], axis: EachCoordinate | EachWindow
-) -> Iterator[tuple[Label, Callable[[str | Mapping[str, Any]], pl.DataFrame]]]:
+) -> Iterator[tuple[Label, Callable[[str | Mapping[str, object]], pl.DataFrame]]]:
     """``(key, evaluate)`` for each slice that produced a solution, its model rebuilt once.
 
     The one place a slice is put back together: the model is rebuilt from that
@@ -1465,7 +1465,7 @@ def _sweep_evaluator(
     sources: Mapping[str, Source],
     axis: EachCoordinate | EachWindow,
     carry: Mapping[str, str],
-) -> Callable[[str | Mapping[str, Any]], pl.DataFrame]:
+) -> Callable[[str | Mapping[str, object]], pl.DataFrame]:
     """One expression at every slice's solution, stitched by key.
 
     An expression that reads a carried parameter is refused: a carried value is
@@ -1475,7 +1475,7 @@ def _sweep_evaluator(
     carried = set(carry)
     key_dtype = runs.objective.schema[runs.key_name]
 
-    def evaluate(expression: str | Mapping[str, Any]) -> pl.DataFrame:
+    def evaluate(expression: str | Mapping[str, object]) -> pl.DataFrame:
         _refuse_carried(carried, [expressions.lower(spec, expression)])
         pieces = [
             _keyed(evaluate_one(expression), runs.key_name, key, key_dtype)
@@ -1538,11 +1538,11 @@ def _serially(
     program: Program,
     document: Spec,
     slices: Sequence[_Slice],
-    solving: Mapping[str, Any],
+    solving: Mapping[str, Any],  # pyrefly: ignore[explicit-any] — the verb's own keywords, forwarded
     plan: Mapping[str, _CarryRule],
     keep: Keep,
     spill: _Spill | None,
-) -> Generator[tuple[Any, _Answer], None, None]:
+) -> Generator[tuple[Label, _Answer], None, None]:
     """Each slice's answer, off one model updated in place.
 
     Every slice of a sweep is the same math over different numbers, which is
@@ -1568,7 +1568,7 @@ def _serially(
     """
     model: Model | None = None
     named: frozenset[str] | None = None
-    state: dict[str, Any] = {}
+    state: dict[str, pl.DataFrame] = {}
     try:
         for position, current in enumerate(slices):
             if spill is not None and spill.done(position):
@@ -1606,7 +1606,7 @@ def _carried(
     position: int,
     slices: Sequence[_Slice],
     answer: _Answer,
-) -> dict[str, Any]:
+) -> dict[str, pl.DataFrame]:
     """What the next slice starts from, read out of *primals* — nothing for the last slice, or with no plan.
 
     Raises:
@@ -1645,9 +1645,9 @@ def _pooled(
     program: Program,
     document: Spec,
     slices: Sequence[_Slice],
-    solving: Mapping[str, Any],
+    solving: Mapping[str, Any],  # pyrefly: ignore[explicit-any] — the verb's own keywords, forwarded
     spill: _Spill | None,
-) -> Generator[tuple[Any, _Answer], None, None]:
+) -> Generator[tuple[Label, _Answer], None, None]:
     """The same, from slices built independently and possibly elsewhere.
 
     Yielded in **slice order, never completion order**: the futures are walked
@@ -1663,7 +1663,7 @@ def _pooled(
     crosses = _crosses_a_process(executor)
     shared = _shares_filesystem(executor, workers_share_fs)
     call = dict(solving)
-    memo: dict[str, tuple[Any, Any]] = {}
+    memo: dict[str, tuple[Any, Any]] = {}  # pyrefly: ignore[explicit-any] — a source beside its encoding
     futures = [
         None
         if spill is not None and spill.done(position)
@@ -1730,9 +1730,9 @@ def _answers(result: Result, program: Program, metrics: SliceMetrics) -> _Answer
 def _run_slice(
     program: Program,
     document: Spec,
-    encoded: dict[str, Any],
+    encoded: dict[str, Any],  # pyrefly: ignore[explicit-any] — what crossed to the worker
     encode_out: bool,
-    call: dict[str, Any],
+    call: dict[str, Any],  # pyrefly: ignore[explicit-any] — the verb's own keywords, forwarded
 ) -> _Answer:
     """One slice, start to finish, over plain data — the *pooled* branch.
 
@@ -1818,8 +1818,11 @@ def _crosses_a_process(executor: Executor) -> bool:
 
 
 def _encode(
-    sources: Mapping[str, Source], memo: dict[str, tuple[Any, Any]], *, workers_share_fs: bool = False
-) -> dict[str, Any]:
+    sources: Mapping[str, Source],
+    memo: dict[str, tuple[Any, Any]],  # pyrefly: ignore[explicit-any] — a source beside its encoding
+    *,
+    workers_share_fs: bool = False,
+) -> dict[str, Any]:  # pyrefly: ignore[explicit-any] — a frame crosses as parquet bytes
     """Sources in the shape a worker can be handed.
 
     A path the workers can reach stays a path. A path they cannot travels as
@@ -1831,7 +1834,7 @@ def _encode(
     ``bytes`` is what :func:`_decode` reads back, and cannot be confused with a
     path.
     """
-    out: dict[str, Any] = {}
+    out: dict[str, Any] = {}  # pyrefly: ignore[explicit-any] — a frame crosses as parquet bytes
     for name, obj in sources.items():
         if isinstance(obj, (str, Path)) and workers_share_fs:
             out[name] = obj
@@ -1852,7 +1855,7 @@ def _encode(
     return out
 
 
-def _decode(encoded: Mapping[str, Any]) -> dict[str, Any]:
+def _decode(encoded: Mapping[str, Any]) -> dict[str, Any]:  # pyrefly: ignore[explicit-any] — a frame crosses as parquet bytes
     """The inverse of :func:`_encode`, and a pass-through for what never crossed.
 
     Called on every returned frame rather than only the encoded ones: a frame

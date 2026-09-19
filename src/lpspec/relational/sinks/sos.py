@@ -35,7 +35,7 @@ import numpy as np
 import polars as pl
 
 from lpspec.errors import DataError
-from lpspec.relational.sinks.tables import SENSE, Tables
+from lpspec.relational.sinks.tables import SENSE, Bools, Floats, Ints, Tables
 
 if TYPE_CHECKING:
     from typing import Any
@@ -101,13 +101,13 @@ class _Members:
             width.
     """
 
-    col: npt.NDArray[Any]
-    magnitude: npt.NDArray[np.float64]
-    binary: npt.NDArray[Any]
-    closes: npt.NDArray[np.bool_]
-    entries: npt.NDArray[np.int64]
-    cardinality: npt.NDArray[Any]
-    set_widths: npt.NDArray[np.int64]
+    col: npt.NDArray[Any]  # pyrefly: ignore[explicit-any] — a member column's dtype is the model's
+    magnitude: Floats
+    binary: npt.NDArray[Any]  # pyrefly: ignore[explicit-any] — a member column's dtype is the model's
+    closes: Bools
+    entries: Ints
+    cardinality: npt.NDArray[Any]  # pyrefly: ignore[explicit-any] — a member column's dtype is the model's
+    set_widths: Ints
 
 
 def _members(tables: Tables) -> _Members:
@@ -152,7 +152,7 @@ def _members(tables: Tables) -> _Members:
     )
 
 
-def _edges(sets: npt.NDArray[Any]) -> tuple[npt.NDArray[np.bool_], npt.NDArray[np.bool_]]:
+def _edges(sets: npt.NDArray[Any]) -> tuple[Bools, Bools]:  # pyrefly: ignore[explicit-any] — a set column's dtype is the model's
     """Which members begin and which end a run of one set.
 
     The one comparison everything else here is derived from; the stream's
@@ -167,7 +167,7 @@ def _edges(sets: npt.NDArray[Any]) -> tuple[npt.NDArray[np.bool_], npt.NDArray[n
     return first, last
 
 
-def _refuse_unbounded(tables: Tables, col: npt.NDArray[Any], magnitude: npt.NDArray[np.float64]) -> None:
+def _refuse_unbounded(tables: Tables, col: npt.NDArray[Any], magnitude: Floats) -> None:  # pyrefly: ignore[explicit-any] — a member column's dtype is the model's
     """Refuse a member no finite big-M can stand in for — linopy's two conditions.
 
     Asked of the big-M rather than of the bound: ``big_m:`` is declared
@@ -260,7 +260,7 @@ def _binary_columns(count: int, cols: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def _row_starts(tables: Tables, members: _Members) -> Any:
+def _row_starts(tables: Tables, members: _Members) -> Ints:
     """The CSR index, extended by what each appended row owns."""
     lengths = np.concatenate([members.entries, members.set_widths])
     return np.concatenate([tables.row_starts, tables.row_starts[-1] + np.cumsum(lengths)])

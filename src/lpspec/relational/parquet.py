@@ -27,7 +27,6 @@ from lpspec.relational.status import SolveStatus, status_of
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from pathlib import Path
-    from typing import Any
 
 #: The three kinds of frame a solve answers with, named after the reader each
 #: comes back through, and what each is a frame of.
@@ -318,7 +317,7 @@ class SliceMetrics(NamedTuple):
     solve_seconds: float
 
 
-def row_of[R](row_type: Callable[..., R], columns: Mapping[str, Any], found: Path) -> R:
+def row_of[R](row_type: Callable[..., R], columns: Mapping[str, object], found: Path) -> R:
     """One row read off disk as the type that declares its columns.
 
     A file short of a column or carrying one nothing declares is a sentence

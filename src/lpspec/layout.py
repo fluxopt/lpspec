@@ -14,7 +14,7 @@ import tempfile
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import polars as pl
 
@@ -76,7 +76,7 @@ def write_archive(
     sources: Mapping[str, Source],
     *,
     tables: Mapping[str, pl.LazyFrame],
-    axis: Mapping[str, Any] | None,
+    axis: Mapping[str, object] | None,
     answer: Path,
 ) -> Path:
     """Write a spec, its data and its answer to *out*: a directory, or one zip where the suffix is ``.zip``.
