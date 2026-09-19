@@ -696,6 +696,46 @@ def test_no_sink_reaches_a_sibling():
     )
 
 
+#: Nodes in the language's unions that ``lower_program`` always replaces, so
+#: no lowered plan holds one and neither lane can dispatch on it.
+#: ``ArithmeticComparisonNode`` is the resolved form of a where comparison
+#: between expressions; lowering rewrites every one into an
+#: ``ExpressionComparisonNode`` over program expressions.
+NEVER_LOWERED = frozenset({'ArithmeticComparisonNode'})
+
+
+def test_no_never_lowered_node_survives_lowering():
+    """``NEVER_LOWERED`` is a claim about upstream, so it is checked rather than trusted.
+
+    An entry that lowering stopped replacing would silently excuse both lanes
+    from a node they now have to build.
+    """
+    import dataclasses
+
+    from math_spec import to_program
+
+    from tests.fixtures import DISPATCH_SPEC, override
+
+    seen: set[str] = set()
+
+    def walk(node):
+        if node is None:
+            return
+        seen.add(type(node).__name__)
+        for field in dataclasses.fields(node):
+            child = getattr(node, field.name)
+            if dataclasses.is_dataclass(child):
+                walk(child)
+
+    for where in ('p_max > cost', '0.5 * p_max > 0', 'NOT p_max > cost'):
+        mask = to_program(override(DISPATCH_SPEC, **{'variables.p.where': where})).variables['p'].where
+        walk(None if mask is None else mask.root)
+    assert seen & NEVER_LOWERED == set(), (
+        f'{sorted(seen & NEVER_LOWERED)} reached a lowered mask — it is no longer excused from either lane'
+    )
+    assert 'ExpressionComparisonNode' in seen, 'the probe must reach the node lowering replaces them with'
+
+
 def test_every_plan_node_is_handled_by_the_compiler():
     """Two-tier economy: a primitive is not done until the engine consumes it.
 
@@ -724,7 +764,11 @@ def test_every_plan_node_is_handled_by_the_compiler():
     ]
     for qualifier, union, module in walkers:
         source = module.read_text()
-        unhandled = [c.__name__ for c in get_args(union) if f'{qualifier}.{c.__name__}' not in source]
+        unhandled = [
+            c.__name__
+            for c in get_args(union)
+            if c.__name__ not in NEVER_LOWERED and f'{qualifier}.{c.__name__}' not in source
+        ]
         assert not unhandled, f'{qualifier} nodes unknown to {module.name}: {unhandled}'
 
 
@@ -991,7 +1035,9 @@ def test_both_lanes_dispatch_on_every_plan_node():
 
     from math_spec import program
 
-    declared = {node.__name__ for union in (program.ExpressionNode, program.WhereNode) for node in get_args(union)}
+    declared = {
+        node.__name__ for union in (program.ExpressionNode, program.WhereNode) for node in get_args(union)
+    } - NEVER_LOWERED
     assert declared, 'no plan node classes found — the census has nothing to run over'
 
     def dispatched_on(*paths: Path) -> set[str]:
@@ -1056,9 +1102,18 @@ def test_every_module_is_documented_somewhere():
 
 
 #: Every in-function ``lpspec`` import in the package, with the cycle it
-#: breaks. Empty, and that is the claim: the layers are ordered with no
-#: exception at all, so a lazy import is only ever a leftover.
-DELIBERATE_LAZY_IMPORTS: dict[tuple[str, str], str] = {}
+#: breaks. The two here are one cycle, once per lane: a ``where`` may compare
+#: arithmetic over parameters, so a mask reads an expression, and a ``cases``
+#: expression reads a mask. The recursion is the language's own grammar, so no
+#: ordering of these two modules removes it and each lane's mask walk reaches
+#: its expression evaluator inside the one handler that needs it.
+DELIBERATE_LAZY_IMPORTS: dict[tuple[str, str], str] = {
+    ('linopy/where.py', 'lpspec.linopy.builder'): 'a where side is an expression, and a cases expression holds a mask',
+    (
+        'relational/engines/polars/predicates.py',
+        'lpspec.relational.engines.polars.compiler',
+    ): 'a where side is an expression, and a cases expression holds a mask',
+}
 
 
 def test_lazy_intra_package_imports_are_all_declared():
