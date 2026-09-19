@@ -44,15 +44,16 @@ def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:
         if node.partition.joined:
             raise LaneError(
                 _relation_shape_message(
-                    f"a partition by '{node.partition.name}' groups by a map keyed by {list(node.partition.key)}, "
+                    f"a partition by '{node.partition.name}' groups by a map keyed by "
+                    f'{list(node.partition.relation.key)}, '
                     f'and this lane groups a shift, sum_back or position by a map keyed by the dimension it '
                     f'walks alone'
                 )
             )
-        if len(node.partition.produced) != 1:
+        if len(node.partition.group) != 1:
             raise LaneError(
                 _relation_shape_message(
-                    f"a partition by '{node.partition.name}' groups by {list(node.partition.produced)}, and this "
+                    f"a partition by '{node.partition.name}' groups by {list(node.partition.group)}, and this "
                     f'lane groups a shift, sum_back or position by one column'
                 )
             )
@@ -64,7 +65,7 @@ def read_column(node: program.GroupSum | program.At) -> tuple[str, ...]:
     Both are the end of the walk whose dimensions are the node's ``into``, so
     one lookup serves the group and its adjoint.
     """
-    return node.walk.produced if isinstance(node, _program.GroupSum) else node.walk.consumed
+    return node.direction.produced if isinstance(node, _program.GroupSum) else node.direction.consumed
 
 
 def _relation_shape_message(what: str) -> str:

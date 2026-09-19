@@ -168,6 +168,16 @@ def short_groups_message(name: str, by: str, op: str, position: int, short: Sequ
     )
 
 
+def compared_expressions_message(op: str, dims: Sequence[str]) -> str:
+    """A ``where`` comparing two whole expressions, which neither lane reads a mask from."""
+    return (
+        f'a where comparing two expressions is outside the streaming language: a mask here is built '
+        f'from leaves that each read one column, and the {op} over {sorted(dims)} has a whole '
+        f'expression on each side. Name the comparison as a parameter the data carries, and test '
+        f'that parameter instead.'
+    )
+
+
 def unknown_name_message(kind: str, name: str, known: Iterable[str]) -> str:
     r"""``unknown <kind> '<name>'``, plus the near miss or the declared set.
 

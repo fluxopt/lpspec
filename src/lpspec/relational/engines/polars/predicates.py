@@ -6,10 +6,12 @@ product does not carry. The joins happen *during* the walk: the condition is
 built first and the frame read after.
 
 A closed vocabulary of its own — comparisons against a parameter, a dimension
-label, a position along a dimension, a relation, and the three connectives. It
-takes the :class:`~lpspec.relational.engines.polars.scope.Scope` as an
-argument and holds nothing. :func:`masked` is the product a declaration is
-instantiated over, cut by its mask: the one place the two meet.
+label, a position along a dimension, a relation, and the three connectives. A
+comparison with a whole expression on each side is outside it, and refused by
+name on both lanes rather than fallen through on. It takes the
+:class:`~lpspec.relational.engines.polars.scope.Scope` as an argument and holds
+nothing. :func:`masked` is the product a declaration is instantiated over, cut
+by its mask: the one place the two meet.
 
 :class:`Carrier` lives here too, and the bounds walk imports it: both walks
 that read parameters build an expression over columns they are joining on as
@@ -23,7 +25,13 @@ from typing import TYPE_CHECKING, assert_never
 import polars as pl
 from math_spec import program
 
-from lpspec.errors import DataError, position_out_of_range_message, short_groups_message
+from lpspec.errors import (
+    DataError,
+    LanguageError,
+    compared_expressions_message,
+    position_out_of_range_message,
+    short_groups_message,
+)
 from lpspec.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE, Grouping
 
 if TYPE_CHECKING:
@@ -249,6 +257,8 @@ def compile_predicate(
             return walk(p.left) | walk(p.right)
         if isinstance(p, program.NotNode):
             return ~falsy_if_null(walk(p.operand))
+        if isinstance(p, (program.ExpressionComparisonNode, program.ArithmeticComparisonNode)):
+            raise LanguageError(compared_expressions_message(p.op, p.dims))
         assert_never(p)
 
     condition = walk(mask.root)

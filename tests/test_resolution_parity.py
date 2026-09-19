@@ -14,6 +14,7 @@ import datetime
 import polars as pl
 import pytest
 import yaml as pyyaml
+from math_spec import program
 
 import lpspec as lps
 from tests.conftest import DISPATCH_SPEC, dispatch_spec_path, override
@@ -25,7 +26,7 @@ from tests.oracle import lpspec_linopy, pd  # skips the module without the [lino
     ('where', 'match'),
     [
         pytest.param('typo_name > 0', "'typo_name' not found", id='a-name-nothing-declares'),
-        pytest.param('p_max > cost', 'compares two parameters', id='two-parameters-compared'),
+        pytest.param('p_max > cost', 'outside the streaming language', id='two-expressions-compared'),
         pytest.param('generator == snapshot', 'compares against dimension', id='a-dimension-on-the-right'),
         pytest.param('nonexistent', "'nonexistent' not found", id='a-bare-name-nothing-declares'),
         pytest.param('snapshot', 'bare dimension name is true at every coordinate', id='a-bare-dimension-name'),
@@ -60,6 +61,46 @@ def test_both_lanes_refuse_a_comparison_that_carries_no_variable(tmp_path, dispa
         lps.check(path)
 
 
+@pytest.mark.parametrize(
+    'node',
+    [
+        pytest.param(
+            program.ExpressionComparisonNode(
+                program.Parameter('p_max'), '>', program.Parameter('cost'), ('generator',)
+            ),
+            id='lowered',
+        ),
+        pytest.param(
+            program.ArithmeticComparisonNode(left=None, op='>', right=None, dims=('generator',)),
+            id='spec-side',
+        ),
+    ],
+)
+def test_each_lane_refuses_a_compared_pair_of_expressions(node):
+    """Neither walk reads a mask whose comparison has a whole expression on each side.
+
+    `lanes.lowered` refuses the lowered node at the door every verb lowers
+    through, so no spec reaches either walk with one — which is why the walks
+    are asked here by hand, the claim being that the two refuse in the same
+    sentence rather than one of them falling through. The spec-side
+    `ArithmeticComparisonNode` reaches a lane no other way: lowering rebuilds
+    every mask with the lowered node in its place. Both sides are left unread,
+    so the probe carries none.
+    """
+    import xarray as xr
+
+    from lpspec.linopy.where import EvaluationContext, evaluate_where
+    from lpspec.relational.engines.polars.predicates import compile_predicate
+
+    mask = program.Mask(node)
+
+    with pytest.raises(lps.LanguageError, match='outside the streaming language'):
+        compile_predicate(None, pl.LazyFrame(), mask, ('generator',))
+
+    with pytest.raises(lps.LanguageError, match='outside the streaming language'):
+        evaluate_where(mask, EvaluationContext(xr.Dataset(), {}, None, {}, None))
+
+
 #: Where-strings that must build *identically* on both lanes. Chosen to cover
 #: every resolved predicate type — see the exhaustiveness test below. The dim
 #: comparisons are deliberately always-true: a mask that removes every variable
@@ -90,8 +131,14 @@ ACCEPTED = [
 #: declares no relation, and giving it one changes a fixture the rest of this
 #: file shares. They sweep a network carrying both relation kinds and a partial
 #: one, differentially against the same oracle.
+#: The two compared-expression nodes are outside what either lane builds, so
+#: they are refused rather than swept: the lowered one at the door every verb
+#: lowers through, and the spec-side one only by hand, lowering rebuilding
+#: every mask without it.
 #: Mapped rather than skipped so the coverage guard below still names a test.
 COVERED_ELSEWHERE = {
+    'ExpressionComparisonNode': 'tests/test_resolution_parity.py::test_both_lanes_refuse_the_same_where',
+    'ArithmeticComparisonNode': 'tests/test_resolution_parity.py::test_each_lane_refuses_a_compared_pair_of_expressions',
     'VariableDefinedNode': ('tests/test_relational.py::test_a_bare_variable_name_in_a_where_asks_whether_it_exists'),
     'RelationComparisonNode': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
     'RelationPairComparisonNode': 'tests/test_label_coords.py::test_a_relation_where_agrees_with_the_oracle',

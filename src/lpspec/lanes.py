@@ -7,16 +7,16 @@ installed and by the eager lane when it refuses.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from math_spec import to_program, to_spec
-from math_spec.program import Program
+from math_spec.program import Cases, ExpressionComparisonNode, Mask, Program, walk
 
-from lpspec.errors import LpspecError
+from lpspec.errors import LanguageError, LpspecError, compared_expressions_message
 from lpspec.relational.sinks.capabilities import Capabilities
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Mapping
+    from collections.abc import Collection, Iterator, Mapping
     from datetime import datetime
     from pathlib import Path
 
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 #: the language has already read. **Not** a ``Program``: lowering has no
 #: inverse, so an answer from one could not name the model it came from, and
 #: nothing built from one can be archived.
-type Buildable = str | Path | dict[str, Any] | Spec
+type Buildable = str | Path | Mapping[str, object] | Spec
 
 
 def declared(spec: Buildable) -> Spec:
@@ -101,6 +101,39 @@ LANES: Mapping[str, Capabilities] = {
 }
 
 
+def _compared_expressions(program: Program) -> str | None:
+    """A ``where`` comparing two expressions, as the sentence refusing it — or ``None``.
+
+    The language compares arithmetic in a mask; neither lane builds one, both
+    walks being closed over leaves that read one column each. Each walk
+    refuses it with the same sentence, and only once data is bound — so
+    refusing here is what lets ``check`` name it against the file alone.
+    """
+    for subject, mask in _masks(program):
+        for atom in mask.atoms:
+            if isinstance(atom, ExpressionComparisonNode):
+                return f'{subject}: {compared_expressions_message(atom.op, atom.dims)}'
+    return None
+
+
+def _masks(program: Program) -> Iterator[tuple[str, Mask]]:
+    """Every mask a program carries, under the name of the declaration that wrote it."""
+    for name, declaration in program.variables.items():
+        if declaration.where is not None:
+            yield f"variable '{name}'", declaration.where
+    for name, constraint in program.constraints.items():
+        if constraint.where is not None:
+            yield f"constraint '{name}'", constraint.where
+    for name, curve in program.piecewise.items():
+        if curve.where is not None:
+            yield f"piecewise '{name}'", curve.where
+    bodies = (*program.expressions, *(e.expression for e in program.named_expressions.values()))
+    for node in walk(*bodies):
+        if isinstance(node, Cases):
+            for region in node.regions:
+                yield 'a cases region', region.when
+
+
 def _case_collision(program: Program) -> str | None:
     """Two declarations of one namespace whose names differ only by case, as the sentence refusing them.
 
@@ -144,4 +177,6 @@ def lowered(spec: Buildable) -> Program:
     program = to_program(spec)
     if (refused := _case_collision(program)) is not None:
         raise LpspecError(refused)
+    if (unbuildable := _compared_expressions(program)) is not None:
+        raise LanguageError(unbuildable)
     return program

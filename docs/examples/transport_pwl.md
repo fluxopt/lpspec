@@ -209,7 +209,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           chord underneath the true curve and buy transport cheaper than the model
           allows. The binaries are what make the answer right — and what make this
           port a MILP.
-        over: bp
+        along: bp
         links:
           - [shipment, bp_x]
           - [scaled, bp_y]

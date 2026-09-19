@@ -553,9 +553,9 @@ class PolarsCompiler:
 
         Several walks ride the same join.
         """
-        missing = [d for d in g.over if d not in p.dims]
+        missing = [d for d in g.direction.consumed_dims if d not in p.dims]
         if missing:
-            refuse_a_fragment_without_the_dims(p, missing, context, f'sum(by=) over {list(g.over)}')
+            refuse_a_fragment_without_the_dims(p, missing, context, f'sum(by=) over {list(g.direction.consumed_dims)}')
         grouped = self._remap_fragment(p, g)
         if p.kind != 'const':
             return grouped
@@ -578,15 +578,16 @@ class PolarsCompiler:
         Only for a constant part: an empty group contributes no *term*, and a
         row left with no terms is not built at all.
         """
-        universe = self.scope.data.dimensions[g.into[0]].select(pl.col('val').alias(g.into[0]))
-        for target in g.into[1:]:
+        gained = g.direction.produced_dims
+        universe = self.scope.data.dimensions[gained[0]].select(pl.col('val').alias(gained[0]))
+        for target in gained[1:]:
             labels = self.scope.data.dimensions[target].select(pl.col('val').alias(target))
             universe = universe.join(labels, how='cross')
-        spanned = [d for d in p.dims if d not in g.into]
+        spanned = [d for d in p.dims if d not in gained]
         if spanned:
             universe = p.frame.select(spanned).unique().join(universe, how='cross')
-        reached = landed(mapping(self.scope.data.relations, g.walk), g)
-        empty = universe.join(reached, on=[*g.joined, *g.into], how='anti')
+        reached = landed(mapping(self.scope.data.relations, g.direction), g)
+        empty = universe.join(reached, on=[*g.direction.joined_dims, *gained], how='anti')
         return empty.with_columns(pl.lit(0.0, dtype=pl.Float64).alias('cval')).select(*p.dims, *p.carried)
 
     def _at_fragment(self, p: TermFragment, a: program.At, context: str) -> TermFragment:
@@ -605,7 +606,7 @@ class PolarsCompiler:
         pointwise, so what the fine coordinate has is whatever the coarse slot
         it reads has, and a slot with nothing has to take the row with it.
         """
-        absent = [d for d in a.into if d not in p.dims]
+        absent = [d for d in a.direction.consumed_dims if d not in p.dims]
         assert not absent, f'in {context}: At through {absent}, which the expression does not span'
         remapped = self._remap_fragment(p, a)
         return replace(remapped, presences=self._pulled_back_presences(p, a))
@@ -625,9 +626,9 @@ class PolarsCompiler:
         dims while this frame keeps the columns that matter — the hazard
         :class:`Presence` names.
         """
-        joined = a.joined
-        fine = (*joined, *a.over)
-        table = mapping(self.scope.data.relations, a.walk)
+        joined = a.direction.joined_dims
+        fine = (*joined, *a.direction.produced_dims)
+        table = mapping(self.scope.data.relations, a.direction)
         reachable = landed(table, a).unique()
         if not p.presences:
             total = math.prod(self.scope.data.cardinality[d] for d in fine)
@@ -638,7 +639,7 @@ class PolarsCompiler:
             keys = presence.keys(p.dims)
             if not keys:
                 return Presence(presence.restrict(reachable, keys), fine)
-            carries_targets = all(i in keys for i in (*a.into, *joined))
+            carries_targets = all(i in keys for i in (*a.direction.consumed_dims, *joined))
             source, keys = (
                 (presence.frame, keys) if carries_targets else (self.scope.widen(presence.frame, keys, p.dims), p.dims)
             )
@@ -654,7 +655,7 @@ class PolarsCompiler:
         (:meth:`_group_fragment`); an ``At`` reads the same table backwards
         (:meth:`_at_fragment`).
         """
-        frame, dims = walk_join(p.frame, mapping(self.scope.data.relations, node.walk), node, p.dims, p.carried)
+        frame, dims = walk_join(p.frame, mapping(self.scope.data.relations, node.direction), node, p.dims, p.carried)
         return TermFragment(dims, frame, p.kind, region=region_over(p.region, dims), parameters=p.parameters)
 
 
