@@ -61,10 +61,12 @@ class ArrowTable(Protocol):
     def __arrow_c_stream__(self, requested_schema: object = None) -> object: ...
 
 
-#: A pandas Series of any dtype a source may carry. Spelled out because
-#: pandas types ``Series`` invariantly: a bare ``pd.Series`` is
-#: ``Series[Any]``, and no single parameter stands for all four.
-type PandasSeries = pd.Series[float] | pd.Series[int] | pd.Series[str] | pd.Series[datetime]
+#: A pandas Series of any dtype a source may carry: an index's
+#: (:data:`math_spec.program.DimensionDtype`) or a parameter's values'
+#: (:data:`~math_spec.program.ParameterDtype`), which is where ``bool`` comes
+#: from. Spelled out because pandas types ``Series`` invariantly: a bare
+#: ``pd.Series`` is ``Series[Any]``, and no single parameter stands for the five.
+type PandasSeries = pd.Series[float] | pd.Series[int] | pd.Series[bool] | pd.Series[str] | pd.Series[datetime]
 
 #: A label along a dimension, and so a slice's key: the Python type of each
 #: dtype an index may declare (:data:`math_spec.program.DimensionDtype`).
