@@ -398,6 +398,6 @@ def _partition(node: program.Translate | program.Window, ctx: EvaluationContext)
     """
     if node.partition is None:
         return None
-    (column,) = node.partition.produced
+    (column,) = node.partition.group
     array = bound_relation(node.partition.name, column, ctx.relations)
-    return array.rename(node.partition.produced_dims[0])
+    return array.rename(node.partition.dim(column))

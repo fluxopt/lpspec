@@ -204,8 +204,8 @@ def test_the_sos2_method_states_the_restriction_instead_of_building_it():
         'balance',
     }, 'the two rows that pick and neighbour a segment are gone with the variable they restricted'
     assert all(v.domain == 'continuous' for v in program.variables.values()), 'sos2 emits no binary of its own'
-    assert [(s.variable, s.sos_type, s.over) for s in program.sos.values()] == [('cost_curve_lam', 2, 'bp')], (
-        'one set, over the weights, of the declared type'
+    assert [(s.variable, s.sos_type, s.along) for s in program.sos.values()] == [('cost_curve_lam', 2, 'bp')], (
+        'one set, along the weights, of the declared type'
     )
 
 
@@ -288,7 +288,7 @@ def test_both_lanes_check_the_declarations_a_formulation_emits(tmp_path):
         raw_of(NONCONVEX_YAML),
         **{'dimensions.zone': {'dtype': 'str'}, 'parameters.bp_y': {'dims': ['zone', 'bp']}},
     )
-    stray = r"link 1 values parameter 'bp_y' carries \['zone'\], which no link expression does"
+    stray = r"link 1 values parameter 'bp_y' carries \['zone'\], which its row's frame \['snapshot'\] does not"
 
     with pytest.raises(PiecewiseExpansionError, match=stray):
         lps.check(raw)
@@ -558,7 +558,7 @@ variables:
 
 piecewise:
   cost_curve:
-    over: bp
+    along: bp
     points: bp_present
     links:
       - [p, bp_x]
