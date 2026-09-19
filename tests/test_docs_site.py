@@ -126,18 +126,6 @@ def test_the_convention_is_actually_in_use():
     assert len(urls) >= 15, f'expected the docs to link out to the repo; found {len(urls)}'
 
 
-#: `mkdocs.yml` hands the builder callables through `!!python/name:` and
-#: `!!python/object/apply:` tags. Only `nav:` is read here, so the tags are
-#: turned into their own spelling rather than imported — `safe_load` refuses
-#: them outright and reports a valid config as broken.
-class _NavLoader(yaml.SafeLoader):
-    pass
-
-
-for _tag in ('tag:yaml.org,2002:python/name:', 'tag:yaml.org,2002:python/object/apply:'):
-    _NavLoader.add_multi_constructor(_tag, lambda loader, suffix, node: suffix)
-
-
 def _nav_pages(entries: list[Any]) -> list[str]:
     """Every page the nav points at, depth first, as `mkdocs.yml` spells it.
 
@@ -167,7 +155,7 @@ def test_every_page_under_docs_has_a_nav_entry():
     `README.md` is the folder view GitHub renders and the site builds no page
     from it, so it is the one file under `docs/` that belongs in no nav.
     """
-    config = yaml.load((REPO / 'mkdocs.yml').read_text(), Loader=_NavLoader)
+    config = yaml.safe_load((REPO / 'mkdocs.yml').read_text())
     nav = set(_nav_pages(config['nav']))
     pages = {page.relative_to(DOCS).as_posix() for page in _pages()} - {'README.md'}
     assert pages == nav, (

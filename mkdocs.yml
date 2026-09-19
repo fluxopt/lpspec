@@ -152,7 +152,6 @@ nav:
 
 theme:
   name: material
-  language: en
 
   palette:
     # Dark first = default for new visitors (no auto/system-pref entry).
@@ -162,18 +161,14 @@ theme:
       primary: custom
       accent: custom
       toggle:
-        icon: material/brightness-4
+        icon: lucide/moon
         name: Switch to light mode
     - scheme: default
       primary: custom
       accent: custom
       toggle:
-        icon: material/brightness-7
+        icon: lucide/sun
         name: Switch to dark mode
-
-  font:
-    text: Roboto
-    code: JetBrains Mono
 
   icon:
     repo: fontawesome/brands/github
@@ -190,7 +185,6 @@ theme:
     - navigation.top
     - navigation.footer
     - toc.follow
-    - search.suggest
     - search.highlight
     - search.share
     - content.code.copy
@@ -201,7 +195,6 @@ markdown_extensions:
   - admonition
   - attr_list
   - def_list
-  - footnotes
   - md_in_html
   - tables
   - toc:
@@ -212,7 +205,7 @@ markdown_extensions:
       # default slugifier collapses that to one, so every such link would 404
       # on the site while working in the repo. Same file, same anchor, both
       # renderings.
-      slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
+      slugify: { object: pymdownx.slugs.slugify, kwds: { case: lower } }
   - pymdownx.highlight:
       anchor_linenums: true
       use_pygments: true
@@ -224,7 +217,7 @@ markdown_extensions:
         # README and ARCHITECTURE both draw the lane diagram in mermaid.
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
+          format: pymdownx.superfences.fence_code_format
         # A ```math fence is how GitHub takes block math verbatim, and is what
         # math-spec's typesetter prints into every generated page here.
         # Arithmatex reads `$$…$$`, so the fence hands it over — indented inside
@@ -232,7 +225,7 @@ markdown_extensions:
         # not the hook's regex.
         - name: math
           class: arithmatex
-          format: !!python/object/apply:pymdownx.arithmatex.arithmatex_fenced_format { kwds: { which: generic } }
+          format: { object: pymdownx.arithmatex.arithmatex_fenced_format, kwds: { which: generic } }
   - pymdownx.details
   # `check_paths` so a renamed include fails the build rather than rendering as
   # nothing. `docs/index.md` pulls four named sections of the README through
@@ -249,8 +242,8 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: zensical.extensions.emoji.twemoji
+      emoji_generator: zensical.extensions.emoji.to_svg
 
 plugins:
   - search
