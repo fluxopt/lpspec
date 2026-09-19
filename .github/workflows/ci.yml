@@ -97,10 +97,18 @@ jobs:
       - run: pixi install -e docs
 
       # `strict: true` turns every warning into a failure, and the build runs
-      # docs/interactive.ipynb, so a failing cell fails the gate. Same
-      # environment `.readthedocs.yaml` builds, which is what stops CI and the
-      # published site from drifting.
+      # the blocks on docs/interactive.md and docs/lifecycle.md, so a block that
+      # raises fails the gate. A page with no nav entry is the suite's question
+      # rather than this one's: zensical validates links and leaves navigation
+      # alone. Same environment `.readthedocs.yaml` builds, which is what stops
+      # CI and the published site from drifting.
       - run: pixi run docs-build
+
+      # A page whose math reaches the reader as literal backticks is not a
+      # build warning, so the strict build above cannot see it. This is the
+      # assertion that can, and it needs the renderer, which is why it runs
+      # here rather than in the suite.
+      - run: pixi run docs-test
 
       # Typst compiles in the suite as a pip wheel; LaTeX needs a toolchain, so
       # it compiles here. The suite's structural checks are what a *generator*

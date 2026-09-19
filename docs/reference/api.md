@@ -352,7 +352,7 @@ for capacity in search:
 **For a sweep, a rolling horizon or a myopic pathway, [`solve_over`](sweeps.md)
 is this loop written for you.** `update` is the primitive underneath, for when
 the next set of numbers depends on the last answer. Where it depends on *you*,
-[Change a model](../interactive.ipynb) is the notebook loop.
+[Change a model](../interactive.md) is the loop written out.
 
 ### How much of the session a solve keeps
 

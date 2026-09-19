@@ -75,7 +75,8 @@ Everything below is the first one, in the order it runs.
 | `pixi run format-check` | formatting drifted. Run `pixi run format`. |
 | `pixi run typecheck` | a type is wrong. **Fix the type, don't widen it** — if the finding is genuinely wrong, `# pyrefly: ignore[rule-name]` on the one line with a reason, never the rule off globally. |
 | `pixi run test` | the suite. Includes the differential lanes and the ported models. |
-| `pixi run docs-build` | the site. A dead cross-link, an anchor that no longer resolves, or a page under `docs/` with no `nav:` entry — see *the docs* below. |
+| `pixi run docs-build` | the site. A dead cross-link or an anchor that no longer resolves — see *the docs* below. |
+| `pixi run docs-test` | a page's math reached the reader as literal backticks. Needs the docs environment, which is why it is not in `test`. |
 | `pixi run test-floors` | the engine reached for something it does not declare. |
 
 Every one of them runs the same way locally as it does in CI, because the
@@ -106,7 +107,13 @@ relative links, no site-only syntax — and the build handles the difference.
 ```bash
 pixi run docs        # http://127.0.0.1:8000, live-reloading
 pixi run docs-build  # what CI runs, and what Read the Docs runs
+pixi run docs-test   # the math the build cannot check
 ```
+
+The site is built by [Zensical](https://zensical.org/) from `mkdocs.yml`. The
+two tutorial pages hold their code in `python exec="true"` blocks, which
+markdown-exec runs during the build: a block that raises fails it, and what you
+read under a block is what it printed on that commit.
 
 **What a page is for decides where it goes, in the nav and in the tree.** A
 tutorial (`docs/`), a how-to guide (`docs/howto/`), reference
@@ -120,22 +127,23 @@ reachable and out of the way.
 Three rules on top of that, each enforced, so none has to be remembered:
 
 - **Every page under `docs/` needs a `nav:` entry** in `mkdocs.yml`. Adding a
-  model page without one fails the build rather than shipping an unreachable
-  page. `docs/README.md` is the deliberate exception — it is the folder view
-  GitHub renders, and `exclude_docs` keeps it out of the site, where
-  `docs/index.md` is the home page.
+  model page without one ships an unreachable page, so `pixi run test` refuses
+  it. The build does not: zensical validates links and leaves navigation alone.
+  `docs/README.md` is the one file with no entry — it is the folder view GitHub
+  renders, the site builds no page from it, and `docs/index.md` is the home
+  page.
 - **Inside `docs/`, link relatively.** `../reference/api.md`,
-  `examples/index.md`. mkdocs resolves and validates these; a dead one fails the
-  build.
+  `examples/index.md`. The build resolves and validates these; a dead one fails
+  it.
 - **Outside `docs/`, write the full GitHub URL** —
   `https://github.com/fluxopt/lpspec/blob/main/bench/README.md`, not
   `../bench/README.md`. The site has no file above `docs/` to resolve to, and
-  mkdocs does *not* flag the relative form: it ships as a silent 404. This is
-  the same convention the model pages already use to link at their `.yaml`.
+  the build does *not* flag the relative form: it ships as a silent 404. This
+  is the same convention the model pages already use to link at their `.yaml`.
 
-`tests/test_docs_site.py` enforces the last two in both directions — no
-relative link may escape `docs/`, and every blob URL must name a file that
-exists. Neither is checkable by mkdocs, which is why they are tests.
+`tests/test_docs_site.py` enforces all three — the nav in both directions, no
+relative link escaping `docs/`, and every blob URL naming a file that exists.
+None is checkable by the build, which is why they are tests.
 
 Headings are slugged the way GitHub slugs them, so `#track-4--sink-capabilities`
 means the same thing in both places.

@@ -10,18 +10,14 @@ strict: true
 # is a file that already had to make sense on its own. Two consequences:
 #
 #   - `README.md` stays as the folder view GitHub renders when you browse to
-#     `docs/`, and is excluded from the site, where `index.md` does that job.
+#     `docs/`, and `index.md` does that job on the site. zensical builds no page
+#     from a `README.md` and still validates its links, so this one obeys the
+#     rule below like every other page rather than being exempted from it.
 #   - A link to something *outside* `docs/` is written as a full GitHub URL, not
 #     as `../CONTRIBUTING.md` — the site has no such file, and a relative link
 #     would resolve in the repo and 404 here. `tests/test_docs_site.py` enforces
-#     both halves of that. Everything inside `docs/` stays relative and mkdocs
-#     validates it.
-exclude_docs: |
-  README.md
-  # rendered locally by the presentation script and gitignored; the chart page
-  # (benchmarks-scaling.html) is a source and stays.
-  relational.html
-  relational.pdf
+#     both halves of that. Everything inside `docs/` stays relative and the
+#     build validates it.
 
 validation:
   # Under `strict: true` a warning is a failed build, which is the point: a
@@ -46,8 +42,8 @@ nav:
   # four pages a reader looks things up in.
   - Tutorials:
       - Run a model: guide.md
-      - Change a model: interactive.ipynb
-      - Fix, relax, remove: lifecycle.ipynb
+      - Change a model: interactive.md
+      - Fix, relax, remove: lifecycle.md
   - How-to guides:
       - Preparing the data: howto/data.md
       # The schema is the language's, so the editor recipe is documented with it.
@@ -155,9 +151,6 @@ nav:
       - Changelog: about/changelog.md
 
 theme:
-  name: material
-  language: en
-
   palette:
     # Dark first = default for new visitors (no auto/system-pref entry).
     # Icon represents the CURRENT scheme — moon when active is dark,
@@ -166,26 +159,27 @@ theme:
       primary: custom
       accent: custom
       toggle:
-        icon: material/brightness-4
+        icon: lucide/moon
         name: Switch to light mode
     - scheme: default
       primary: custom
       accent: custom
       toggle:
-        icon: material/brightness-7
+        icon: lucide/sun
         name: Switch to dark mode
-
-  font:
-    text: Roboto
-    code: JetBrains Mono
 
   icon:
     repo: fontawesome/brands/github
 
   features:
     - header.autohide
-    # navigation.instant left off — MathJax fails to re-typeset on
-    # no-math → math swaps, and no documented reset recipe fixes it.
+    # `docs/javascripts/mathjax.js` subscribes to `document$` and re-typesets,
+    # which is what makes this safe: instant navigation swaps the document
+    # without a reload, so a page reached from one with no math would otherwise
+    # render every equation as literal text. The theme re-renders a mermaid
+    # diagram itself on the same signal.
+    - navigation.instant
+    - navigation.instant.progress
     - navigation.tracking
     - navigation.tabs
     - navigation.tabs.sticky
@@ -194,7 +188,6 @@ theme:
     - navigation.top
     - navigation.footer
     - toc.follow
-    - search.suggest
     - search.highlight
     - search.share
     - content.code.copy
@@ -205,7 +198,6 @@ markdown_extensions:
   - admonition
   - attr_list
   - def_list
-  - footnotes
   - md_in_html
   - tables
   - toc:
@@ -216,7 +208,7 @@ markdown_extensions:
       # default slugifier collapses that to one, so every such link would 404
       # on the site while working in the repo. Same file, same anchor, both
       # renderings.
-      slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
+      slugify: { object: pymdownx.slugs.slugify, kwds: { case: lower } }
   - pymdownx.highlight:
       anchor_linenums: true
       use_pygments: true
@@ -228,7 +220,7 @@ markdown_extensions:
         # README and ARCHITECTURE both draw the lane diagram in mermaid.
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
+          format: pymdownx.superfences.fence_code_format
         # A ```math fence is how GitHub takes block math verbatim, and is what
         # math-spec's typesetter prints into every generated page here.
         # Arithmatex reads `$$…$$`, so the fence hands it over — indented inside
@@ -236,33 +228,40 @@ markdown_extensions:
         # not the hook's regex.
         - name: math
           class: arithmatex
-          format: !!python/object/apply:pymdownx.arithmatex.arithmatex_fenced_format { kwds: { which: generic } }
+          format: { object: pymdownx.arithmatex.arithmatex_fenced_format, kwds: { which: generic } }
   - pymdownx.details
+  # `check_paths` so a renamed include fails the build rather than rendering as
+  # nothing. `docs/index.md` pulls four named sections of the README through
+  # this, and `docs/about/changelog.md` is the whole of CHANGELOG.md. It is what
+  # retired mkdocs-include-markdown-plugin, which zensical does not run.
+  - pymdownx.snippets:
+      check_paths: true
+  # The other half of the math, beside the `arithmatex` entry above: the
+  # verbatim `$`…`$` pair math-spec's typesetter prints for GitHub, rewritten
+  # into the `$…$` arithmatex reads. It is a preprocessor rather than a hook
+  # because zensical has no hooks, and because the suite can then load it
+  # without a site.
+  - tools.mdx_github_math
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
-
-hooks:
-  - tools/mkdocs_hooks.py
+      emoji_index: zensical.extensions.emoji.twemoji
+      emoji_generator: zensical.extensions.emoji.to_svg
 
 plugins:
   - search
-  - include-markdown
-  # `docs/interactive.ipynb` ships with its cells cleared (the nbstripout hook
-  # in .pre-commit-config.yaml), so the outputs on the page are this build's:
-  # every number, frame and rendered equation came from the code above it, on
-  # the commit being built. `allow_errors: false` makes a cell that raises fail
-  # the build, which is what stops the page from teaching a call that no longer
-  # works — the same bargain nbsphinx strikes for linopy's tutorials.
+  # `docs/interactive.md` and `docs/lifecycle.md` hold their code in
+  # `python exec="true"` blocks, which markdown-exec runs during the build. So
+  # every number, frame and rendered equation on those two pages came from the
+  # code above it, on the commit being built, and a block that raises fails the
+  # build — which is what stops a page from teaching a call that no longer
+  # works. It is the same bargain mkdocs-jupyter's `execute: true` struck for
+  # the notebooks these pages replaced, without a kernel and without a second
+  # copy of the tutorial in the tree.
   #
-  # Execution needs the package and a kernel, which is why `.readthedocs.yaml`
-  # installs the project and the `docs` group carries ipykernel.
-  - mkdocs-jupyter:
-      execute: true
-      allow_errors: false
-      include_source: true
+  # Execution needs the package importable, which is why `.readthedocs.yaml`
+  # installs the project and the `docs` environment carries it.
+  - markdown-exec
 
 extra_css:
   - stylesheets/extra.css

@@ -185,9 +185,9 @@ you review and diff. The third is
 linopy's *design* for declared solver capabilities without adopting its code.
 
 The modeling API is what a reader arriving from linopy misses first. Two
-notebook pages replace it. [Change a model](../interactive.ipynb) covers the
+tutorial pages replace it. [Change a model](../interactive.md) covers the
 loops: `update` for new numbers, a longer table for more rows, a patched `dict`
-for new math. [Fix, relax, remove](../lifecycle.ipynb) covers the verbs, the
+for new math. [Fix, relax, remove](../lifecycle.md) covers the verbs, the
 same loops aimed at `fix`, `relax` and `remove_constraints`. Neither replaces
 the *debugging*: an IIS. A built row is read with
 [`row`](../reference/api.md#reading-one-row), in linopy's own form.
