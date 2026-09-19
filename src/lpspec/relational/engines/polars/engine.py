@@ -13,7 +13,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 import polars as pl
 
@@ -114,7 +114,7 @@ class PolarsEngine:
     # sinks — see relational/sinks/; the engine only supplies the frames
     # ------------------------------------------------------------------
 
-    def row(self, name: str, coordinate: Mapping[str, Any]) -> ConstraintRow:
+    def row(self, name: str, coordinate: Mapping[str, object]) -> ConstraintRow:
         """One built constraint row, spelled back out. See :meth:`~lpspec.api.Model.row`."""
         if self._built is None:
             raise LpspecError(_no_built_model(f"to read '{name}' out of"))
@@ -144,9 +144,9 @@ class PolarsEngine:
         self,
         solver_name: str = 'highs',
         *,
-        solver_options: Mapping[str, Any] | None = None,
+        solver_options: Mapping[str, object] | None = None,
         keep: Keep = 'solver',
-        lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None = None,
+        lower: Callable[[str | Mapping[str, object]], program.ExpressionNode] | None = None,
     ) -> Result:
         """Hand the built model to a solver and solve it.
 
@@ -323,10 +323,10 @@ class PolarsEngine:
         primal: pl.Series | None,
         dual: pl.Series | None,
         no_duals: str | None,
-        lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
+        lower: Callable[[str | Mapping[str, object]], program.ExpressionNode] | None,
     ) -> tuple[
         dict[str, Callable[[], pl.DataFrame]],
-        Callable[[str | Mapping[str, Any]], pl.DataFrame] | None,
+        Callable[[str | Mapping[str, object]], pl.DataFrame] | None,
     ]:
         """What :meth:`~lpspec.relational.result.Result.evaluate` reads through: a reader per declared name, and the ad-hoc evaluator.
 
@@ -352,8 +352,8 @@ class PolarsEngine:
         primals: Mapping[str, pl.DataFrame],
         duals: Mapping[str, pl.DataFrame] | None,
         no_duals: str | None,
-        lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
-    ) -> Callable[[str | Mapping[str, Any]], pl.DataFrame] | None:
+        lower: Callable[[str | Mapping[str, object]], program.ExpressionNode] | None,
+    ) -> Callable[[str | Mapping[str, object]], pl.DataFrame] | None:
         """The ad-hoc evaluator for a saved solution, over this rebuilt model.
 
         The primal and dual are reconstructed from the frames a save wrote,
@@ -417,7 +417,7 @@ class PolarsEngine:
         return False
 
 
-def _per_name(kind: str, measured: Mapping[str, Any], **columns: PolarsDataType) -> pl.DataFrame:
+def _per_name(kind: str, measured: Mapping[str, object], **columns: PolarsDataType) -> pl.DataFrame:
     """One :class:`~lpspec.relational.result.Diagnostics` frame: a row per name in *measured*, in build order.
 
     *kind* names the first column, and the remaining *columns* carry each
@@ -434,8 +434,8 @@ def _per_name(kind: str, measured: Mapping[str, Any], **columns: PolarsDataType)
 def expression_readers(
     program: program.Program,
     sources: Mapping[str, pl.LazyFrame],
-    lower: Callable[[str | Mapping[str, Any]], program.ExpressionNode] | None,
-) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, Any]], pl.DataFrame] | None]:
+    lower: Callable[[str | Mapping[str, object]], program.ExpressionNode] | None,
+) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, object]], pl.DataFrame] | None]:
     """Attach *sources* and defer the reads :func:`lpspec.evaluate` values one expression through.
 
     A spec that declares no variables is a calculation rather than an

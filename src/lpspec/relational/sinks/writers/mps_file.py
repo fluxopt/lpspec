@@ -26,8 +26,6 @@ from lpspec.relational.sinks.tables import SENSE_CODES, ranges
 from lpspec.relational.sinks.writers.base import chunk_key, digits, number, sink
 
 if TYPE_CHECKING:
-    import numpy.typing as npt
-
     from lpspec.relational.sinks.tables import Tables
 
 
@@ -88,7 +86,7 @@ def write_mps_file(tables: Tables, path: str | Path) -> None:
         f.write(b'ENDATA\n')
 
 
-def _column_major(tables: Tables) -> tuple[pl.DataFrame, npt.NDArray[np.int64]]:
+def _column_major(tables: Tables) -> tuple[pl.DataFrame, np.ndarray[tuple[int, ...], np.dtype[np.int64]]]:
     """The matrix in ``(col, row)`` order, and where each column's entries begin.
 
     This module's own CSR, by column — computed rather than asked of the

@@ -15,7 +15,7 @@ The guards that need the numbers rather than the shapes are
 from __future__ import annotations
 
 from collections.abc import Collection, Iterable, Mapping, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import polars as pl
 
@@ -278,7 +278,7 @@ def _check_column_holds_labels(rows: pl.LazyFrame, name: str, role: str, dim: st
     off polars, never a numpy scalar — because the message reprs them.
     """
     known = set(labels.to_list())
-    strays: dict[Any, None] = {v: None for v in rows.select(role).collect()[role].to_list() if v not in known}
+    strays: dict[object, None] = {v: None for v in rows.select(role).collect()[role].to_list() if v not in known}
     if not strays:
         return
     shown = ', '.join(repr(v) for v in list(strays)[:5]) + (' …' if len(strays) > 5 else '')

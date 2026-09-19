@@ -26,6 +26,10 @@ from math_spec.program import AtLeastTwo, Contiguous, Curved, FirstOf, Increasin
 from lpspec.errors import DataError, PiecewiseExpansionError
 from lpspec.frames import as_frame
 
+#: A curve's breakpoints as the numbers they are. ``numpy.typing.NDArray``
+#: leaves the shape parameter ``Any``, and nothing here reads a rank.
+type _Values = np.ndarray[tuple[int, ...], np.dtype[np.float64]]
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -353,7 +357,7 @@ def validate_piecewise_data(program: Program, sources: Mapping[str, pl.LazyFrame
 
 def _curves(
     program: Program, x: str, y: str, mask: str | None, over: str, sources: Mapping[str, pl.LazyFrame]
-) -> list[tuple[np.ndarray, np.ndarray]] | None:
+) -> list[tuple[_Values, _Values]] | None:
     """Every curve of the block as its ``(xs, ys)`` along *over*, in index order.
 
     One curve per coordinate of the dims *x* and *y* carry beside *over*; the

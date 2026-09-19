@@ -15,7 +15,7 @@ import importlib.util
 from dataclasses import dataclass
 from datetime import datetime  # noqa: TC003  — a Record annotation this module writes
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from lpspec.errors import (
     LpspecError,
@@ -364,8 +364,8 @@ def _named(frames: Mapping[str, pl.LazyFrame], name: str, kind: str) -> pl.LazyF
 
 def evaluated(
     declared: Mapping[str, Callable[[], pl.DataFrame]],
-    evaluator: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None,
-    expression: str | Mapping[str, Any],
+    evaluator: Callable[[str | Mapping[str, object]], pl.DataFrame] | None,
+    expression: str | Mapping[str, object],
 ) -> pl.DataFrame:
     """*expression* valued: by the declared reader that holds it, else lowered by *evaluator*.
 
@@ -427,7 +427,7 @@ class Result:
     #: disk. Released with the primals by :meth:`close`, since each holds this
     #: build's frames and values.
     _expressions: Mapping[str, Callable[[], pl.DataFrame]] | None = None
-    _evaluate: Callable[[str | Mapping[str, Any]], pl.DataFrame] | None = None
+    _evaluate: Callable[[str | Mapping[str, object]], pl.DataFrame] | None = None
     #: Why there are no duals, when a solve that left values still has none.
     #: ``None`` whenever :attr:`_duals` holds them.
     _no_duals: str | None = None
@@ -645,7 +645,7 @@ class Result:
         frames = self._readable(self._activities, f"the activity of '{name}'")
         return _named(frames, name, 'constraint').collect(engine=polars_engine())
 
-    def evaluate(self, expression: str | Mapping[str, Any]) -> pl.DataFrame:
+    def evaluate(self, expression: str | Mapping[str, object]) -> pl.DataFrame:
         """The value of *expression* at this solution — ``(dims…, value)``.
 
         *expression* is what one ``expressions:`` entry takes: a name the file

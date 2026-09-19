@@ -31,7 +31,7 @@ import warnings
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 import polars as pl
 from math_spec import advice
@@ -160,7 +160,7 @@ def _refuse_a_model(program: Program) -> None:
     )
 
 
-def evaluate(spec: Buildable, sources: Mapping[str, Source], expression: str | Mapping[str, Any]) -> pl.DataFrame:
+def evaluate(spec: Buildable, sources: Mapping[str, Source], expression: str | Mapping[str, object]) -> pl.DataFrame:
     """The value of *expression* over a spec with no variables — arithmetic, no solver.
 
     A spec that declares no variables is a calculation, not an optimisation:
@@ -229,7 +229,7 @@ class Model:
         self._engine = PolarsEngine()
         self._fill()
 
-    def _lower(self, written: str | Mapping[str, Any]) -> ExpressionNode:
+    def _lower(self, written: str | Mapping[str, object]) -> ExpressionNode:
         """One unnamed expression as a plan node, for a result reading a quantity the file never named.
 
         Held here rather than passed to the engine at build, because the model
@@ -288,7 +288,7 @@ class Model:
         self,
         solver_name: str = 'highs',
         *,
-        solver_options: Mapping[str, Any] | None = None,
+        solver_options: Mapping[str, object] | None = None,
         keep: Keep = 'solver',
         archive: str | Path | None = None,
     ) -> Result:
@@ -414,7 +414,7 @@ class Model:
         primals: Mapping[str, pl.DataFrame],
         duals: Mapping[str, pl.DataFrame] | None,
         no_duals: str | None,
-    ) -> Callable[[str | Mapping[str, Any]], pl.DataFrame]:
+    ) -> Callable[[str | Mapping[str, object]], pl.DataFrame]:
         """An ad-hoc expression reader over a *saved* solution, put back against this build.
 
         What an archive and a sweep hand :meth:`~lpspec.relational.result.Result.evaluate`
@@ -466,7 +466,7 @@ class Model:
         return False
 
 
-def _refuse_unknown(given: Mapping[str, Any], declared: Mapping[str, Any]) -> None:
+def _refuse_unknown(given: Mapping[str, object], declared: Mapping[str, object]) -> None:
     """Refuse an update naming anything *declared* does not hold."""
     if unknown := set(given) - set(declared):
         raise DataError(unknown_source_keys_message(unknown, declared))
@@ -498,7 +498,7 @@ def solve(
     sources: Mapping[str, Source],
     solver_name: str = 'highs',
     *,
-    solver_options: Mapping[str, Any] | None = None,
+    solver_options: Mapping[str, object] | None = None,
     archive: str | Path | None = None,
 ) -> Result:
     """Build *spec* and solve it in one call.
@@ -747,9 +747,9 @@ def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source
     frames = answer._primals
     dual_frames = answer._duals
     no_duals = answer._no_duals
-    built: list[Callable[[str | Mapping[str, Any]], pl.DataFrame]] = []
+    built: list[Callable[[str | Mapping[str, object]], pl.DataFrame]] = []
 
-    def evaluate(written: str | Mapping[str, Any]) -> pl.DataFrame:
+    def evaluate(written: str | Mapping[str, object]) -> pl.DataFrame:
         if not built:
             primals = {name: frame.collect() for name, frame in frames.items()}
             duals = (

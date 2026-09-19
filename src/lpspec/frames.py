@@ -15,7 +15,7 @@ builds internally, never what either lane reads.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import polars as pl
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-    from lpspec.lanes import Source
+    from lpspec.lanes import PandasSeries, Source
 
 
 __all__ = ['as_frame', 'is_dense_array', 'is_multi_indexed', 'to_pandas']
@@ -97,7 +97,7 @@ def is_multi_indexed(obj: Source) -> bool:
     return pd is not None and isinstance(obj, pd.Series) and obj.index.nlevels > 1
 
 
-def _series_to_frame(series: pd.Series, dims: Sequence[str]) -> pd.DataFrame | None:
+def _series_to_frame(series: PandasSeries, dims: Sequence[str]) -> pd.DataFrame | None:
     """A pandas Series with its one index level promoted to a column.
 
     One level is all a Series can carry here — :func:`is_multi_indexed` refuses
@@ -125,7 +125,7 @@ def _from_pandas(frame: pd.DataFrame) -> pl.LazyFrame:
     strings are by default on pandas 3. Object arrays go through a list so
     numpy's float ``nan`` becomes a null rather than a string.
     """
-    columns: dict[str, Any] = {}
+    columns: dict[str, object] = {}
     for name in frame.columns:
         values = frame[name].to_numpy()
         if values.dtype == object:

@@ -26,7 +26,6 @@ from lpspec.relational.engines.polars.scope import Scope
 from lpspec.relational.sinks.tables import SENSE
 
 if TYPE_CHECKING:
-    import numpy.typing as npt
     from math_spec.program import ObjectiveSense
     from polars._typing import MaintainOrderJoin
 
@@ -661,7 +660,7 @@ def _pruned(matrix: pl.DataFrame) -> pl.DataFrame:
     return _without_zeros(matrix).rechunk()
 
 
-def _row_starts(ordered: pl.DataFrame, row_count: int) -> npt.NDArray[np.int64]:
+def _row_starts(ordered: pl.DataFrame, row_count: int) -> np.ndarray[tuple[int, ...], np.dtype[np.int64]]:
     """Each row's first entry in the row-ordered *ordered* — CSR's own index.
 
     Run-length, scatter, cumulative sum. *ordered* must ascend in ``row``: a

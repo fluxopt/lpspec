@@ -19,7 +19,13 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
     import numpy as np
-    import numpy.typing as npt
+
+#: The arrays a sink hands a solver. ``numpy.typing.NDArray`` leaves the shape
+#: parameter ``Any``, and nothing here reads a rank, so these name the dtype
+#: and say only that the shape is a tuple of ints.
+type Floats = np.ndarray[tuple[int, ...], np.dtype[np.float64]]
+type Ints = np.ndarray[tuple[int, ...], np.dtype[np.int64]]
+type Bools = np.ndarray[tuple[int, ...], np.dtype[np.bool_]]
 
 
 @dataclass(frozen=True)
@@ -30,18 +36,18 @@ class ColumnVectors:
     has columns.
     """
 
-    lb: npt.NDArray[np.float64]
-    ub: npt.NDArray[np.float64]
-    cost: npt.NDArray[np.float64]
-    integral: npt.NDArray[np.bool_]
+    lb: Floats
+    ub: Floats
+    cost: Floats
+    integral: Bools
 
 
 @dataclass(frozen=True)
 class RowVectors:
     """A sense code and a right-hand side, each as long as the model has rows."""
 
-    sense: npt.NDArray[np.uint8]
-    rhs: npt.NDArray[np.float64]
+    sense: np.ndarray[tuple[int, ...], np.dtype[np.uint8]]
+    rhs: Floats
 
 
 @dataclass(frozen=True)
@@ -56,7 +62,7 @@ class MatrixBlock:
     lo: int
     hi: int
     entries: pl.DataFrame
-    starts: npt.NDArray[np.int64]
+    starts: Ints
 
     @property
     def height(self) -> int:
@@ -130,7 +136,7 @@ class Tables:
     rows: pl.DataFrame
     matrix: pl.DataFrame
     sos: pl.DataFrame
-    row_starts: npt.NDArray[np.int64]
+    row_starts: Ints
     column_count: int
     row_count: int
     #: ``None`` where the file declares no objective — a feasibility problem,
@@ -356,7 +362,7 @@ class Tables:
         return self._span(lo, hi).with_columns(pl.Series('row', labels))
 
 
-def spelled_senses(spelling: Mapping[str, str]) -> Any:
+def spelled_senses(spelling: Mapping[str, str]) -> np.ndarray[tuple[int, ...], np.dtype[np.str_]]:
     """:data:`SENSE_CODES` as one solver's spellings, indexed by code.
 
     A sense added to :data:`SENSE_CODES` and not to *spelling* raises instead.
@@ -369,7 +375,7 @@ def spelled_senses(spelling: Mapping[str, str]) -> Any:
     return out
 
 
-def solver_vector(values: Any) -> pl.Series:
+def solver_vector(values: Any) -> pl.Series:  # pyrefly: ignore[explicit-any] — a solver hands back its own array type
     """One quantity a solver produced, in its own index — every sink's read-back.
 
     A series rather than a ``(label, value)`` frame: the read-back takes a
@@ -395,7 +401,7 @@ def _finite(value: pl.Expr, infinity: float) -> pl.Expr:
     )
 
 
-def _scattered(count: int, at: Any, values: Any, absent: Any) -> Any:
+def _scattered(count: int, at: Ints, values: Any, absent: Any) -> Any:  # pyrefly: ignore[explicit-any] — the dtype is the model's
     """*values* written at the label each one belongs to, *absent* elsewhere."""
     import numpy as np
 

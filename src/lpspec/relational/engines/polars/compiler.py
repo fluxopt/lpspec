@@ -57,8 +57,6 @@ from lpspec.relational.engines.polars.scope import UNIT, Scope
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
-    import numpy.typing as npt
-
     from lpspec.relational.engines.polars.labels import Labelled
 
 
@@ -658,7 +656,7 @@ class PolarsCompiler:
         return TermFragment(dims, frame, p.kind, region=region_over(p.region, dims), parameters=p.parameters)
 
 
-def _scattered(at: pl.Series, values: pl.Series, size: int) -> npt.NDArray[np.float64]:
+def _scattered(at: pl.Series, values: pl.Series, size: int) -> np.ndarray[tuple[int, ...], np.dtype[np.float64]]:
     """*values* moved to the positions *at* names, one pass, order checked."""
     indices = at.to_numpy()
     written = np.zeros(size, dtype=bool)

@@ -9,7 +9,7 @@ see (docs/about/architecture.md, hard rule 2).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from lpspec.lanes import lowered
 
@@ -28,7 +28,7 @@ _EVALUATED = '_evaluated'
 _SECTION = 'expressions'
 
 
-def lower(spec: Spec, expression: str | Mapping[str, Any]) -> ExpressionNode:
+def lower(spec: Spec, expression: str | Mapping[str, object]) -> ExpressionNode:
     """One unnamed expression as a plan node, read in *spec*'s namespace.
 
     Args:
@@ -50,7 +50,7 @@ def lower(spec: Spec, expression: str | Mapping[str, Any]) -> ExpressionNode:
     return _splice(written, {name: expression})[name]
 
 
-def _splice(written: dict[str, Any], entries: Mapping[str, Any]) -> dict[str, ExpressionNode]:
+def _splice(written: dict[str, object], entries: Mapping[str, object]) -> dict[str, ExpressionNode]:
     """*entries* added to the model *written* and lowered with it, as nodes.
 
     The lowered program is read for these nodes and dropped — its variables,
@@ -58,12 +58,13 @@ def _splice(written: dict[str, Any], entries: Mapping[str, Any]) -> dict[str, Ex
     check what is spliced against them. Through the same door the lanes use, so
     an added name is held to the rules a declared one is.
     """
-    written.setdefault(_SECTION, {}).update(entries)
+    section = written.get(_SECTION)
+    written[_SECTION] = {**section, **entries} if isinstance(section, dict) else dict(entries)
     named = lowered(written).named_expressions
     return {name: named[name].expression for name in entries}
 
 
-def _free_name(written: Mapping[str, Any]) -> str:
+def _free_name(written: Mapping[str, object]) -> str:
     """A name no declaration in *written* holds — where an unnamed expression is spliced."""
     taken = _declared(written)
     name = _EVALUATED
@@ -72,7 +73,7 @@ def _free_name(written: Mapping[str, Any]) -> str:
     return name
 
 
-def _declared(written: Mapping[str, Any]) -> set[str]:
+def _declared(written: Mapping[str, object]) -> set[str]:
     """Every name *written* declares.
 
     Read off the model's own mappings, the way the language checks the same
