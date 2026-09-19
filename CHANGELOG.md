@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.344](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.343...v0.0.1-alpha.344) (2026-09-19)
+
+
+### Documentation
+
+* the site is built by zensical, and the two tutorials run as pages rather than notebooks ([#1693](https://github.com/fluxopt/lpspec/issues/1693)) ([48633b2](https://github.com/fluxopt/lpspec/commit/48633b2b1cca7ce986c15edbe3eff41a7bc6135b))
+
 ## [0.0.1-alpha.343](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.342...v0.0.1-alpha.343) (2026-09-18)
 
 
