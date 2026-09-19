@@ -78,7 +78,7 @@ def derive_curve_sources(
                 edge = pl.col('_ord').max()
             case _:
                 continue
-        over = program.piecewise[block].over
+        over = program.piecewise[block].along
         dims = list(program.parameters[mask].dims)
         table = _coordinates(sources.get(mask, data.get(mask)), dims, keep_value=True)
         if table is None:
@@ -201,9 +201,11 @@ def _prefix_mask(
     table = _coordinates(sources.get(mask), dims, keep_value=True)
     if table is None:
         return None
-    order = _label_frame(pw.over, sources, table).with_row_index('_ord')
-    frame_dims = [d for d in dims if d != pw.over]
-    marked = table.filter(pl.col('value').cast(pl.Boolean)).join(order, on=pw.over, how='inner').select([*dims, '_ord'])
+    order = _label_frame(pw.along, sources, table).with_row_index('_ord')
+    frame_dims = [d for d in dims if d != pw.along]
+    marked = (
+        table.filter(pl.col('value').cast(pl.Boolean)).join(order, on=pw.along, how='inner').select([*dims, '_ord'])
+    )
     run_length = (
         pl.len().alias('marked'),
         (pl.col('_ord').max() - pl.col('_ord').min() + 1).alias('span'),
@@ -329,11 +331,11 @@ def validate_piecewise_data(program: Program, sources: Mapping[str, pl.LazyFrame
     """
     for name, decl in program.piecewise.items():
         curved = _one(decl.checks, Curved)
-        if curved is None or curved.over not in sources:
+        if curved is None or curved.along not in sources:
             continue
         increasing, segment = _one(decl.checks, Increasing), _one(decl.checks, AtLeastTwo)
         run = _one(decl.checks, Contiguous)
-        curves = _curves(program, curved.x, curved.y, run.mask if run else None, curved.over, sources)
+        curves = _curves(program, curved.x, curved.y, run.mask if run else None, curved.along, sources)
         if curves is None:
             continue
         for xs, ys in curves:

@@ -1,6 +1,6 @@
 """A relation's table as a walk reads it — the one place a role becomes a column.
 
-The plan's :class:`~math_spec.program.Walk` names *roles*: which columns of a
+The plan's :class:`~math_spec.program.Direction` names *roles*: which columns of a
 relation an operator consumes, produces and joins on. The engine reads by
 *dimension*, since an operand carries its coordinates under the dimensions'
 names. Everything here is that translation, spelled once:
@@ -60,7 +60,7 @@ def group_column(role: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def mapping(relations: Mapping[str, pl.LazyFrame], walk: program.Walk) -> pl.LazyFrame:
+def mapping(relations: Mapping[str, pl.LazyFrame], walk: program.Direction) -> pl.LazyFrame:
     """The table a group or a pullback joins against — the walk's relation, read as the walk names it.
 
     Consumed and joined columns arrive under their dimensions, produced ones
@@ -76,7 +76,9 @@ def mapping(relations: Mapping[str, pl.LazyFrame], walk: program.Walk) -> pl.Laz
 
 def landed(mapping: pl.LazyFrame, node: program.GroupSum | program.At) -> pl.LazyFrame:
     """*mapping* at the coordinates it lands on: the joined dimensions and the produced ones, under their names."""
-    return mapping.select(*node.joined, *(pl.col(landing(d)).alias(d) for d in node.walk.produced_dims))
+    return mapping.select(
+        *node.direction.joined_dims, *(pl.col(landing(d)).alias(d) for d in node.direction.produced_dims)
+    )
 
 
 def walk_join(
@@ -107,9 +109,9 @@ def walk_join(
     Returns:
         The traded frame, and the dimensions it is over, in order.
     """
-    gained = node.walk.produced_dims
-    keep = [d for d in have if d not in node.walk.consumed_dims]
-    traded = frame.join(mapping, on=[*node.walk.consumed_dims, *node.joined], how='inner').select(
+    gained = node.direction.produced_dims
+    keep = [d for d in have if d not in node.direction.consumed_dims]
+    traded = frame.join(mapping, on=[*node.direction.consumed_dims, *node.direction.joined_dims], how='inner').select(
         *keep, *(pl.col(landing(d)).alias(d) for d in gained), *columns
     )
     return traded, (*keep, *gained)
@@ -124,8 +126,8 @@ def walk_join(
 class Grouping:
     """A dimension ranked inside the groups a partition makes — what ``shift``, ``sum_back`` and ``position`` count along.
 
-    A group is the walk's produced columns at each coordinate of its joined
-    dimensions — a season per generator, where the relation is keyed by both.
+    A group is the partition's ``within=`` columns at each coordinate of its
+    joined dimensions — a season per generator, where the relation is keyed by both.
     The inner join behind :attr:`table` is where "this coordinate is in no
     group" comes from: it has no row in the relation, so it has none here,
     and every rank, span and neighbour a walk reads sees only coordinates
@@ -161,16 +163,15 @@ class Grouping:
         return cls(dimension, (), (), (), table)
 
     @classmethod
-    def of(cls, data: AttachedSources, walk: program.Walk) -> Grouping:
-        """Rank the dimension *walk* consumes inside the groups it produces."""
-        (consumed,) = walk.consumed
-        dimension = walk.dim(consumed)
-        joined = walk.joined_dims
-        groups = tuple(group_column(role) for role in walk.produced)
-        rows = data.relations[walk.name].select(
-            pl.col(consumed).alias('val'),
-            *(pl.col(role).alias(dim) for role, dim in zip(walk.joined, joined, strict=True)),
-            *(pl.col(role).alias(column) for role, column in zip(walk.produced, groups, strict=True)),
+    def of(cls, data: AttachedSources, partition: program.Partition) -> Grouping:
+        """Rank the dimension *partition* steps along inside the groups its ``within=`` columns make."""
+        dimension = partition.along_dim
+        joined = partition.joined_dims
+        groups = tuple(group_column(role) for role in partition.group)
+        rows = data.relations[partition.name].select(
+            pl.col(partition.along).alias('val'),
+            *(pl.col(role).alias(dim) for role, dim in zip(partition.joined, joined, strict=True)),
+            *(pl.col(role).alias(column) for role, column in zip(partition.group, groups, strict=True)),
         )
         key = [*joined, *groups]
         table = (
@@ -181,7 +182,8 @@ class Grouping:
                 pl.len().over(key).cast(pl.Int64).alias(GROUP_SIZE),
             )
         )
-        return cls(dimension, joined, groups, walk.produced_dims, table)
+        grouped = tuple(partition.dim(role) for role in partition.group)
+        return cls(dimension, joined, groups, grouped, table)
 
     @property
     def key(self) -> tuple[str, ...]:

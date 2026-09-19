@@ -155,7 +155,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         description: >-
           cost read off the generator's curve — convex, so the weights need no
           binaries to keep them on one segment
-        over: bp
+        along: bp
         links:
           - [p, bp_x]
           - [op_cost, bp_y]

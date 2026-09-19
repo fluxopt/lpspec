@@ -64,7 +64,7 @@ def read_column(node: program.GroupSum | program.At) -> tuple[str, ...]:
     Both are the end of the walk whose dimensions are the node's ``into``, so
     one lookup serves the group and its adjoint.
     """
-    return node.walk.produced if isinstance(node, _program.GroupSum) else node.walk.consumed
+    return node.direction.produced if isinstance(node, _program.GroupSum) else node.direction.consumed
 
 
 def _relation_shape_message(what: str) -> str:

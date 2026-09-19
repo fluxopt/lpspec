@@ -163,7 +163,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           each unit's own curve — `points: bp_x` says a curve runs as far as its own
           breakpoints do, so the hydro unit pays for two weights and the gas turbine
           for four
-        over: bp
+        along: bp
         points: bp_x
         links:
           - [p, bp_x]

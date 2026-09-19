@@ -7,7 +7,7 @@ installed and by the eager lane when it refuses.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from math_spec import to_program, to_spec
 from math_spec.program import Program
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 #: the language has already read. **Not** a ``Program``: lowering has no
 #: inverse, so an answer from one could not name the model it came from, and
 #: nothing built from one can be archived.
-type Buildable = str | Path | dict[str, Any] | Spec
+type Buildable = str | Path | Mapping[str, object] | Spec
 
 
 def declared(spec: Buildable) -> Spec:
