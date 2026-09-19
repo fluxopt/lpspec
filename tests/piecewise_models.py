@@ -33,7 +33,7 @@ variables:
 
 piecewise:
   cost_curve:
-    over: bp
+    along: bp
     links:
       - [p, bp_x]
       - [op_cost, bp_y]
@@ -72,7 +72,7 @@ variables:
 
 piecewise:
   cost_curve:
-    over: bp
+    along: bp
     links:
       - [p, bp_x]
       - [op_cost, bp_y]
@@ -110,7 +110,7 @@ variables:
 
 piecewise:
   chp:
-    over: bp
+    along: bp
     links:
       - [power, power_bp]
       - [fuel, fuel_bp]
@@ -149,7 +149,7 @@ variables:
 
 piecewise:
   cost_curve:
-    over: bp
+    along: bp
     links:
       - [p, bp_x]
       - [op_cost, bp_y]
@@ -198,7 +198,7 @@ variables:
 piecewise:
   cost_curve:
     description: cost bounded below by the curve, which is exact where the curve is convex
-    over: bp
+    along: bp
     links:
       - [p, bp_x]
       - [op_cost, bp_y, '>=']

@@ -63,7 +63,7 @@ variables:
 piecewise:
   cost_curve:
     description: each unit's cost bounded below by its own segment lines
-    over: bp
+    along: bp
     links:
       - [p, bp_x]
       - [op_cost, bp_y, '>=']

@@ -677,7 +677,7 @@ variables:
     bounds: {lower: 0}
 piecewise:
   cost_curve:
-    over: bp
+    along: bp
     points: bp_x
     links:
       - [p, bp_x]

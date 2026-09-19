@@ -33,7 +33,7 @@ PLAIN = {
 
 #: The same model with a set on it — the one construct in the language today
 #: that a shipped sink satisfies by rewriting rather than by taking.
-WITH_A_SET = PLAIN | {'sos': {'pick': {'variable': 'p', 'over': 'g', 'type': 1}}}
+WITH_A_SET = PLAIN | {'sos': {'pick': {'variable': 'p', 'along': 'g', 'type': 1}}}
 
 #: The same model at degree 2, in each of the two positions the language takes
 #: it: the first constructs a shipped sink refuses outright.
@@ -188,7 +188,7 @@ def test_a_refusal_does_not_swallow_the_solver_independent_advice(recwarn):
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always')
             with pytest.raises(LpspecError):
-                lps.check(unused | {'sos': {'pick': {'variable': 'p', 'over': 'g', 'type': 1}}}, sink='stub')
+                lps.check(unused | {'sos': {'pick': {'variable': 'p', 'along': 'g', 'type': 1}}}, sink='stub')
         assert [str(w.message) for w in caught] == bare, 'the advice a bare check gives is issued before the raise'
 
 

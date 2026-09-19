@@ -121,7 +121,7 @@ def _build_sos(ctx: EvaluationContext) -> None:
             ctx.model.add_sos_constraints(
                 ctx.model.variables[sos.variable],
                 sos_type=sos.sos_type,
-                sos_dim=sos.over,
+                sos_dim=sos.along,
                 big_m=sos.big_m,
             )
 
