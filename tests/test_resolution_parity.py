@@ -86,6 +86,10 @@ ACCEPTED = [
     #: of a constraint carries.
     '0.5 * p_max > 0',
     'sum(p_max, over=generator) > 0',
+    #: Both sides constant, so the comparison is one scalar against another and
+    #: carries no dimension. The eager lane read the result as an array and got
+    #: a plain bool, which has no `fillna`.
+    '1 > 0',
 ]
 
 #: Predicates this sweep cannot host, with where they are checked instead. The

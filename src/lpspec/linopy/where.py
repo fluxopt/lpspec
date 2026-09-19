@@ -103,7 +103,8 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
         from lpspec.linopy.builder import _eval  # mask ↔ expression recursion
 
         left, right = _eval(node.left, ctx), _eval(node.right, ctx)
-        return _PREDICATE_OPS[node.op](left, right).fillna(value=False).astype(bool)
+        compared = xr.DataArray(_PREDICATE_OPS[node.op](left, right))
+        return compared.fillna(value=False).astype(bool)
 
     if isinstance(node, (program.ParameterComparisonNode, program.DimensionComparisonNode)):
         if isinstance(node, program.ParameterComparisonNode):
