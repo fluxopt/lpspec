@@ -78,19 +78,11 @@ Write the math in YAML, attach data at runtime, solve.
 
 </div>
 
-{%
-   include-markdown "../README.md"
-   start="<!--flow-start-->"
-   end="<!--flow-end-->"
-%}
+--8<-- "README.md:flow"
 
 ## The whole thing, in one model
 
-{%
-   include-markdown "../README.md"
-   start="<!--model-start-->"
-   end="<!--model-end-->"
-%}
+--8<-- "README.md:model"
 
 ### And that file says, exactly this
 
@@ -227,11 +219,7 @@ is a choice, and **How** shows the one that was made here.
 
 ### Then you solve it
 
-{%
-   include-markdown "../README.md"
-   start="<!--solve-start-->"
-   end="<!--quickstart-end-->"
-%}
+--8<-- "README.md:solve"
 
 ## Where to next
 
@@ -306,10 +294,6 @@ pip install "lpspec[xpress]"  # adds the xpress sink: solver_name='xpress'
 
 !!! warning "Alpha, pre-1.0"
 
-    {%
-       include-markdown "../README.md"
-       start="<!--status-start-->"
-       end="<!--status-end-->"
-    %}
+    --8<-- "README.md:status"
 
 </div>

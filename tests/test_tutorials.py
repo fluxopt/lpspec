@@ -1,31 +1,29 @@
-"""The notebook pages must keep running, and keep claiming true things.
+"""The tutorial pages must keep running, and keep claiming true things.
 
-``docs/interactive.ipynb`` teaches the three loops a session actually has —
-update, grow a coordinate set, patch the spec — plus the verb that reads a built
-row back when one of them lands wrong, and ``docs/lifecycle.ipynb``
-aims them at linopy's `fix` / `relax` / `remove`. Every cell is a real call, so a
+``docs/interactive.md`` teaches the three loops a session actually has — update,
+grow a coordinate set, patch the spec — plus the verb that reads a built row
+back when one of them lands wrong, and ``docs/lifecycle.md`` aims them at
+linopy's `fix` / `relax` / `remove`. Every executed block is a real call, so a
 signature change breaks this test rather than leaving a page that reads fine and
-errors in a reader's kernel.
+errors in a reader's session.
 
 Running is the weaker half, as with ``test_walkthrough.py``. The prose also
 *claims* things: that the update loop loaded one model for three solves, that
 growing an axis loads a second, that a pin moves bounds rather than labels,
-that a masked-out generator leaves the balance row a term short. A
-page that executed but had stopped doing any of that would still be green here
-without these assertions, and would teach the wrong loop.
+that a masked-out generator leaves the balance row a term short. A page that
+executed but had stopped doing any of that would still be green here without
+these assertions, and would teach the wrong loop.
 
-Cells are exec'd in order in one namespace rather than run through a kernel:
-the property under test is that the notebook works top to bottom, and a kernel
-would add jupyter_client and ipykernel to the dev group to prove the same thing.
-The site does run it on one — ``execute: true`` in mkdocs.yml — so a build is
-the second place this would fail, several minutes later and only on a push.
+Blocks are exec'd in order in one namespace, which is what markdown-exec's
+``session=`` gives them on the site. The site does run them — a build is the
+second place this would fail, several minutes later and only on a push.
 """
 
 from __future__ import annotations
 
 import contextlib
 import io
-import json
+import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -36,27 +34,31 @@ from tests.conftest import EXAMPLES_DIR
 if TYPE_CHECKING:
     from pathlib import Path
 
-pytest.importorskip('IPython', reason='the notebook displays through IPython, which the bare install lacks')
+REPO = EXAMPLES_DIR.parent
+DOCS_DIR = REPO / 'docs'
+LOOPS = DOCS_DIR / 'interactive.md'
+LIFECYCLE = DOCS_DIR / 'lifecycle.md'
 
-DOCS_DIR = EXAMPLES_DIR.parent / 'docs'
-LOOPS = DOCS_DIR / 'interactive.ipynb'
-LIFECYCLE = DOCS_DIR / 'lifecycle.ipynb'
+#: A block markdown-exec runs, and only those: the fence carries `exec="true"`.
+#: A plain ```python fence on the same page is a listing, and running it would
+#: make this test disagree with the site about what the page does.
+EXECUTED = re.compile(r'^```python[^\n]*\bexec="true"[^\n]*$\n(?P<code>.*?)^```$', re.DOTALL | re.MULTILINE)
 
 
-def run(notebook: Path) -> tuple[dict[str, Any], str]:
+def run(page: Path) -> tuple[dict[str, Any], str]:
     """One top-to-bottom run: the namespace it ends with, and what it printed.
 
-    Runs from ``docs/`` because that is where the pages sit, and so where both a
-    reader's kernel and mkdocs-jupyter's start them — which is what makes
-    ``../examples/dispatch.yaml`` resolve.
+    Runs from the repository root, which is where zensical runs the build and
+    so where markdown-exec starts a block — which is what makes
+    ``examples/dispatch.yaml`` resolve.
     """
-    document = json.loads(notebook.read_text())
-    namespace: dict[str, Any] = {'__name__': '__notebook__'}
+    blocks = [match['code'] for match in EXECUTED.finditer(page.read_text())]
+    assert blocks, f'{page.name} has no executed block, so this test would assert nothing'
+    namespace: dict[str, Any] = {'__name__': '__tutorial__'}
     printed = io.StringIO()
-    with contextlib.chdir(DOCS_DIR), contextlib.redirect_stdout(printed):
-        for cell in document['cells']:
-            if cell['cell_type'] == 'code':
-                exec(compile(''.join(cell['source']), str(notebook), 'exec'), namespace)
+    with contextlib.chdir(REPO), contextlib.redirect_stdout(printed):
+        for block in blocks:
+            exec(compile(block, str(page), 'exec'), namespace)
     return namespace, printed.getvalue()
 
 
@@ -70,30 +72,22 @@ def lifecycle() -> tuple[dict[str, Any], str]:
     return run(LIFECYCLE)
 
 
-@pytest.mark.parametrize('notebook', [LOOPS, LIFECYCLE], ids=lambda p: p.name)
-def test_the_tree_copy_has_no_outputs(notebook: Path) -> None:
-    """A committed output is an unreviewable diff, and one this test would not check."""
-    document = json.loads(notebook.read_text())
-    stored = [cell for cell in document['cells'] if cell.get('outputs') or cell.get('execution_count') is not None]
-    assert not stored, f'{notebook.name}: {len(stored)} cell(s) carry stored output — clear them before committing'
-
-
 def test_the_update_loop_stays_on_the_fast_path(session: tuple[dict[str, Any], str]) -> None:
     namespace, _ = session
     reused = namespace['reused']
-    assert (reused.loads, reused.solves) == (1, 3), 'the notebook says three answers came off one loaded model'
+    assert (reused.loads, reused.solves) == (1, 3), 'the page says three answers came off one loaded model'
 
 
 def test_growing_a_coordinate_set_loads_again(session: tuple[dict[str, Any], str]) -> None:
     namespace, _ = session
-    assert namespace['grown'].loads == 2, 'the notebook says new coordinates cost a reload, and why that is fine'
+    assert namespace['grown'].loads == 2, 'the page says new coordinates cost a reload, and why that is fine'
     assert namespace['schedule'].height == 36, 'twelve snapshots against three generators'
 
 
 def test_a_update_answers_what_a_fresh_build_answers(session: tuple[dict[str, Any], str]) -> None:
     namespace, _ = session
     assert namespace['updated'] == pytest.approx(namespace['fresh']), (
-        'the equality the notebook offers as the oracle for a loop that looks wrong'
+        'the equality the page offers as the oracle for a loop that looks wrong'
     )
 
 
@@ -113,7 +107,7 @@ def test_pinning_a_variable_stays_on_the_fast_path(lifecycle: tuple[dict[str, An
 
 def test_a_refused_edit_says_what_is_wrong(session: tuple[dict[str, Any], str]) -> None:
     _, printed = session
-    assert 'does not name a declared dimension' in printed, 'the load-time error is the notebook error message'
+    assert 'does not name a declared dimension' in printed, "the load-time error is the page's error message"
 
 
 def test_a_masked_generator_leaves_the_balance_row_short(session: tuple[dict[str, Any], str]) -> None:

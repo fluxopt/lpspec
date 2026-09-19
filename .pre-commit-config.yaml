@@ -5,27 +5,9 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
-        # mkdocs.yml carries `!!python/name:` and `!!python/object/apply:` tags —
-        # that is how mkdocs is handed a callable (the emoji generators, the
-        # GitHub-compatible slugifier). `safe_load` refuses to construct them, so
-        # the hook reports a valid config as broken. mkdocs parses it on every
-        # build, and CI builds strictly, so it is not unchecked.
-        exclude: ^mkdocs\.yml$
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: debug-statements
-
-  # A notebook is committed with its cells cleared, so its diff is the source
-  # and nothing else. The site runs it — `execute: true` in mkdocs.yml — which
-  # is what makes a stored output redundant as well as unreadable, and
-  # `tests/test_notebook.py` fails if one is committed anyway. `execution` and
-  # `ExecuteTime` are cell metadata a kernel writes even when the outputs go,
-  # and are the same two linopy's hook strips.
-  - repo: https://github.com/kynan/nbstripout
-    rev: 0.9.1
-    hooks:
-      - id: nbstripout
-        args: [--extra-keys=cell.metadata.ExecuteTime cell.metadata.execution]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.1
