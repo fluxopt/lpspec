@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.345](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.344...v0.0.1-alpha.345) (2026-09-19)
+
+
+### Refactoring
+
+* only the linopy lane and the solver sinks say Any ([#1699](https://github.com/fluxopt/lpspec/issues/1699)) ([067f14d](https://github.com/fluxopt/lpspec/commit/067f14dd8814a6e3e16f9b5a4e41cfa8337d1e71))
+
 ## [0.0.1-alpha.344](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.343...v0.0.1-alpha.344) (2026-09-19)
 
 
