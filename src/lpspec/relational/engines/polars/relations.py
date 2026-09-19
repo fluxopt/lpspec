@@ -1,14 +1,15 @@
-"""A relation's table as a walk reads it — the one place a role becomes a column.
+"""A relation's table as a call reads it — the one place a role becomes a column.
 
-The plan's :class:`~math_spec.program.Walk` names *roles*: which columns of a
-relation an operator consumes, produces and joins on. The engine reads by
+The plan's :class:`~math_spec.program.Direction` names *roles*: which columns of
+a relation a call consumes, produces and joins on, and
+:class:`~math_spec.program.Partition` which it steps along and groups by. The engine reads by
 *dimension*, since an operand carries its coordinates under the dimensions'
 names. Everything here is that translation, spelled once:
 
-- a group or a pullback trades the dimensions its walk consumes for the
-  ones it produces through :func:`walk_join`, against the :func:`mapping`
-  table;
-- a partition ranks the walked dimension inside a :class:`Grouping`.
+- a group or a pullback trades the dimensions its direction consumes for
+  the ones it produces through :func:`walk_join`, against the
+  :func:`mapping` table;
+- a partition ranks the dimension it steps along inside a :class:`Grouping`.
 
 Nothing here reads data or holds state: every function takes the attached
 frames and returns a lazy query.
@@ -60,23 +61,25 @@ def group_column(role: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def mapping(relations: Mapping[str, pl.LazyFrame], walk: program.Walk) -> pl.LazyFrame:
-    """The table a group or a pullback joins against — the walk's relation, read as the walk names it.
+def mapping(relations: Mapping[str, pl.LazyFrame], direction: program.Direction) -> pl.LazyFrame:
+    """The table a group or a pullback joins against — the direction's relation, read as the direction names it.
 
     Consumed and joined columns arrive under their dimensions, produced ones
-    under :func:`landing`. A key the walk does not map has no row in the
+    under :func:`landing`. A key the direction does not map has no row in the
     relation and so none here, which is what "reaches no slot" means.
     """
-    table = relations[walk.name]
+    table = relations[direction.name]
     return table.select(
-        *(pl.col(role).alias(walk.dim(role)) for role in (*walk.consumed, *walk.joined)),
-        *(pl.col(role).alias(landing(walk.dim(role))) for role in walk.produced),
+        *(pl.col(role).alias(direction.dim(role)) for role in (*direction.consumed, *direction.joined)),
+        *(pl.col(role).alias(landing(direction.dim(role))) for role in direction.produced),
     )
 
 
 def landed(mapping: pl.LazyFrame, node: program.GroupSum | program.At) -> pl.LazyFrame:
     """*mapping* at the coordinates it lands on: the joined dimensions and the produced ones, under their names."""
-    return mapping.select(*node.joined, *(pl.col(landing(d)).alias(d) for d in node.walk.produced_dims))
+    return mapping.select(
+        *node.direction.joined_dims, *(pl.col(landing(d)).alias(d) for d in node.direction.produced_dims)
+    )
 
 
 def walk_join(
@@ -88,35 +91,35 @@ def walk_join(
 ) -> tuple[pl.LazyFrame, tuple[str, ...]]:
     """*frame* traded through *mapping*: one inner equi-join, and the dimensions the result is over.
 
-    The join keys on the dimensions the walk consumes and joins on. The result
-    keeps every dimension of *have* but the consumed ones, gains every
+    The join keys on the dimensions the direction consumes and joins on. The
+    result keeps every dimension of *have* but the consumed ones, gains every
     produced dimension under its own name, and keeps *columns* beside them. A
-    walk brings the dimensions it lands on — the language refuses one the
+    call brings the dimensions it lands on — the language refuses one the
     operand already carries — so the gained are exactly the produced. The
     consumed and a gained one may still be a single dimension, which a
     self-map does, so the two are traded in a single select.
 
     Args:
         frame: The operand, carrying *have* and *columns*.
-        mapping: :func:`mapping` for the node's walk.
-        node: The group or the pullback, whose walk says what is consumed
-            and produced and whose ``joined`` says what is joined on.
+        mapping: :func:`mapping` for the node's direction.
+        node: The group or the pullback, whose direction says what is
+            consumed, what is produced and what is joined on.
         have: The dimensions *frame* carries.
         columns: The other columns to keep — a fragment's carried ones.
 
     Returns:
         The traded frame, and the dimensions it is over, in order.
     """
-    gained = node.walk.produced_dims
-    keep = [d for d in have if d not in node.walk.consumed_dims]
-    traded = frame.join(mapping, on=[*node.walk.consumed_dims, *node.joined], how='inner').select(
+    gained = node.direction.produced_dims
+    keep = [d for d in have if d not in node.direction.consumed_dims]
+    traded = frame.join(mapping, on=[*node.direction.consumed_dims, *node.direction.joined_dims], how='inner').select(
         *keep, *(pl.col(landing(d)).alias(d) for d in gained), *columns
     )
     return traded, (*keep, *gained)
 
 
 # ---------------------------------------------------------------------------
-# a partition: the walked dimension ranked inside its groups
+# a partition: the dimension stepped along, ranked inside its groups
 # ---------------------------------------------------------------------------
 
 
@@ -124,17 +127,17 @@ def walk_join(
 class Grouping:
     """A dimension ranked inside the groups a partition makes — what ``shift``, ``sum_back`` and ``position`` count along.
 
-    A group is the walk's produced columns at each coordinate of its joined
+    A group is the partition's group columns at each coordinate of its joined
     dimensions — a season per generator, where the relation is keyed by both.
     The inner join behind :attr:`table` is where "this coordinate is in no
     group" comes from: it has no row in the relation, so it has none here,
-    and every rank, span and neighbour a walk reads sees only coordinates
-    that are in one.
+    and every rank, span and neighbour a partition reads sees only
+    coordinates that are in one.
 
     Attributes:
-        dimension: The dimension walked.
+        dimension: The dimension stepped along.
         joined: The partition's other key dimensions, which the operand carries.
-        groups: The group-making columns, one per produced column, under
+        groups: The group-making columns, one per group column, under
             :func:`group_column`.
         grouped: The dimension each group column is over, in the same order.
         table: ``(val, ord, joined…, groups…, GROUP_RANK, GROUP_SIZE)``, one
@@ -151,7 +154,7 @@ class Grouping:
     def whole(cls, data: AttachedSources, dimension: str) -> Grouping:
         """*dimension* as one group: the rank is the ordinal, the size the cardinality, and every label is placed.
 
-        What an unpartitioned walk counts along, so ``shift`` and ``sum_back``
+        What an unpartitioned call counts along, so ``shift`` and ``sum_back``
         read one table shape whether or not a ``by=`` was written.
         """
         table = data.dimensions[dimension].with_columns(
@@ -161,16 +164,15 @@ class Grouping:
         return cls(dimension, (), (), (), table)
 
     @classmethod
-    def of(cls, data: AttachedSources, walk: program.Walk) -> Grouping:
-        """Rank the dimension *walk* consumes inside the groups it produces."""
-        (consumed,) = walk.consumed
-        dimension = walk.dim(consumed)
-        joined = walk.joined_dims
-        groups = tuple(group_column(role) for role in walk.produced)
-        rows = data.relations[walk.name].select(
-            pl.col(consumed).alias('val'),
-            *(pl.col(role).alias(dim) for role, dim in zip(walk.joined, joined, strict=True)),
-            *(pl.col(role).alias(column) for role, column in zip(walk.produced, groups, strict=True)),
+    def of(cls, data: AttachedSources, partition: program.Partition) -> Grouping:
+        """Rank the dimension *partition* steps along inside the groups it makes."""
+        dimension = partition.along_dim
+        joined = partition.joined_dims
+        groups = tuple(group_column(role) for role in partition.group)
+        rows = data.relations[partition.name].select(
+            pl.col(partition.along).alias('val'),
+            *(pl.col(role).alias(dim) for role, dim in zip(partition.joined, joined, strict=True)),
+            *(pl.col(role).alias(column) for role, column in zip(partition.group, groups, strict=True)),
         )
         key = [*joined, *groups]
         table = (
@@ -181,7 +183,7 @@ class Grouping:
                 pl.len().over(key).cast(pl.Int64).alias(GROUP_SIZE),
             )
         )
-        return cls(dimension, joined, groups, walk.produced_dims, table)
+        return cls(dimension, joined, groups, tuple(partition.dim(role) for role in partition.group), table)
 
     @property
     def key(self) -> tuple[str, ...]:
@@ -190,7 +192,7 @@ class Grouping:
 
     @property
     def keys(self) -> tuple[str, ...]:
-        """What a coordinate of the walked dimension is identified by: the dimension, and the joined ones."""
+        """What a coordinate of the dimension stepped along is identified by: the dimension, and the joined ones."""
         return (self.dimension, *self.joined)
 
     @property
@@ -201,7 +203,7 @@ class Grouping:
     def placed(self) -> pl.LazyFrame:
         """The coordinates the partition places in some group, under :attr:`keys`.
 
-        The rest belong to none, so a partitioned walk reaches nothing for
+        The rest belong to none, so a partitioned call reaches nothing for
         them and their rows are not built — the reading ``sum(by=)`` gives a
         label the map has no row for, and the one an edge policy cannot speak
         about.
@@ -211,7 +213,7 @@ class Grouping:
     def column_of(self, dim: str) -> str | None:
         """The group column carrying *dim*'s labels, or ``None`` where the partition does not group into it.
 
-        Where two produced columns are over one dimension, the first declared
+        Where two group columns are over one dimension, the first declared
         carries it.
         """
         return next((column for column, over in zip(self.groups, self.grouped, strict=True) if over == dim), None)

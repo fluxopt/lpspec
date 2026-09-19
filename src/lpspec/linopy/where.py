@@ -116,7 +116,7 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
         labels = master_coords[node.name]
         if node.partition is not None:
             by = node.partition.name
-            (column,) = node.partition.produced
+            (column,) = node.partition.group
             arr = _group_offsets(node, by, bound_relation(by, column, ctx.relations), np.asarray(labels))
             return (_PREDICATE_OPS[node.op](arr, 0) & arr.notnull()).fillna(value=False).astype(bool)
         at = node.position + len(labels) if node.position < 0 else node.position

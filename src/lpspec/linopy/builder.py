@@ -290,13 +290,13 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
         return operator_grouped_sum(
             _eval(node.operand, ctx),
             _walked_arrays(node, ctx),
-            into=node.into,
-            joined=node.joined,
+            into=node.direction.produced_dims,
+            joined=node.direction.joined_dims,
             labels=ctx.master_coords,
         )
 
     if isinstance(node, program.At):
-        return operator_at(_eval(node.operand, ctx), _walked_arrays(node, ctx), into=node.into)
+        return operator_at(_eval(node.operand, ctx), _walked_arrays(node, ctx), into=node.direction.consumed_dims)
 
     if isinstance(node, program.Translate):
         return operator_shift(
@@ -384,8 +384,8 @@ def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
 
 
 def _walked_arrays(node: program.GroupSum | program.At, ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The relation's walked columns as arrays over the dimensions its key names, in the order ``into`` writes them."""
-    return tuple(bound_relation(node.relation, column, ctx.relations) for column in read_column(node))
+    """The relation's read columns as arrays over the dimensions its key names, in the order they land in."""
+    return tuple(bound_relation(node.direction.name, column, ctx.relations) for column in read_column(node))
 
 
 def _partition(node: program.Translate | program.Window, ctx: EvaluationContext) -> Any:
@@ -398,6 +398,6 @@ def _partition(node: program.Translate | program.Window, ctx: EvaluationContext)
     """
     if node.partition is None:
         return None
-    (column,) = node.partition.produced
+    (column,) = node.partition.group
     array = bound_relation(node.partition.name, column, ctx.relations)
-    return array.rename(node.partition.produced_dims[0])
+    return array.rename(node.partition.dim(column))

@@ -357,13 +357,18 @@ def test_a_group_shorter_than_the_position_is_an_error_at_bind(tmp_path):
 @pytest.mark.parametrize(
     ('by', 'match'),
     [
-        pytest.param('price', r"groups by 'price', which is a parameter", id='by-a-parameter'),
-        pytest.param('period', r"groups by 'period', which is a dimension", id='by-a-dimension'),
-        pytest.param('nowhere', r"groups by 'nowhere', which is not declared", id='by-nothing'),
+        pytest.param('price', r'position\(by=price\) does not name a relation', id='by-a-parameter'),
+        pytest.param('period', r"'period' is a dimension, and by= takes a relation", id='by-a-dimension'),
+        pytest.param('nowhere', r'position\(by=nowhere\) does not name a relation', id='by-nothing'),
     ],
 )
 def test_by_takes_a_relation(by, match):
-    """`by=` is the same word it is in `sum(by=)` and `at(by=)`, or it is nothing."""
+    """`by=` is the same word it is in `sum(by=)` and `at(by=)`, or it is nothing.
+
+    A parameter and an undeclared name are refused by the message every
+    operator's `by=` gives; a dimension is told that `by=` takes the map out
+    of it.
+    """
     spec = MASK.replace('WHERE', f'position(snapshot, by={by}) == 0')
     with pytest.raises(LanguageError, match=match):
         schema_of(spec)
