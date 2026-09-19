@@ -99,6 +99,12 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
     if isinstance(node, program.VariableDefinedNode):
         return absence.present(ctx.model, node.name)
 
+    if isinstance(node, program.ExpressionComparisonNode):
+        from lpspec.linopy.builder import _eval  # mask ↔ expression recursion
+
+        left, right = _eval(node.left, ctx), _eval(node.right, ctx)
+        return _PREDICATE_OPS[node.op](left, right).fillna(value=False).astype(bool)
+
     if isinstance(node, (program.ParameterComparisonNode, program.DimensionComparisonNode)):
         if isinstance(node, program.ParameterComparisonNode):
             arr = dataset[node.name]
@@ -147,7 +153,7 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
     if isinstance(node, program.OrNode):
         return evaluate(node.left) | evaluate(node.right)
 
-    assert_never(node)
+    assert_never(node)  # pyrefly: ignore[bad-argument-type]  — ArithmeticComparisonNode is in the union and lowering always replaces it (NEVER_LOWERED)
 
 
 def _defined(arr: xr.DataArray, dtype: str) -> xr.DataArray:

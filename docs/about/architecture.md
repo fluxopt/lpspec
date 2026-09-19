@@ -269,10 +269,14 @@ rule. A cost phrased as a rule makes one implementation's choice load-bearing in
 the language's rulebook.
 
 0. **The layers are ordered, and imports prove it.** Every module imports only
-   downward, at module level, with **no exception at all**.
-   `DELIBERATE_LAZY_IMPORTS` in `tests/test_architecture.py` is empty, and an
-   undeclared in-function import fails the build. A lazy import here is a cycle
-   to remove, not to defer.
+   downward, at module level, and every exception is declared in
+   `DELIBERATE_LAZY_IMPORTS` in `tests/test_architecture.py` with the cycle it
+   breaks. An undeclared in-function import fails the build, and a declared one
+   that disappears fails it too. There are two, one per lane, and they are one
+   cycle: a `where` may compare arithmetic over parameters, so a mask reads an
+   expression, while a `cases` expression reads a mask. That recursion is the
+   language's own grammar, so no ordering of a lane's two modules removes it.
+   Every other lazy import is a cycle to remove, not to defer.
 1. **Core AST is the whole language, and the language is upstream.** Both lanes
    consume only core AST. Macros and `piecewise:` are expanded away before
    dispatch, and so is a named expression unless it states `cases:`. That one
