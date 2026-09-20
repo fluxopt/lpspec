@@ -717,10 +717,10 @@ def test_every_plan_node_is_handled_by_the_compiler():
 
     engine_dir = PKG / 'relational' / 'engines' / 'polars'
     walkers = [
-        ('program', program.ExpressionNode, engine_dir / 'compiler.py'),
-        ('program', program.ExpressionNode, PKG / 'linopy' / 'builder.py'),
-        ('program', program.WhereNode, engine_dir / 'predicates.py'),
-        ('program', program.WhereNode, PKG / 'linopy' / 'where.py'),
+        ('program', program.Expression, engine_dir / 'compiler.py'),
+        ('program', program.Expression, PKG / 'linopy' / 'builder.py'),
+        ('program', program.Predicate, engine_dir / 'predicates.py'),
+        ('program', program.Predicate, PKG / 'linopy' / 'where.py'),
     ]
     for qualifier, union, module in walkers:
         source = module.read_text()
@@ -857,10 +857,10 @@ def test_every_piecewise_fact_the_language_carries_is_read_by_the_curve_guard():
     )
 
 
-def _gen_bus_walk(program: Any) -> Any:
-    """One map walked one way — the shape every operator below takes a `by=` in."""
-    gen_bus = program.RelationDeclaration('gen_bus', (('g', 'g'), ('bus', 'bus')), ('g',))
-    return program.Walk(gen_bus, ('g',), ('bus',), ())
+def _gen_bus_direction(program: Any) -> Any:
+    """One map read one way — the shape every operator below takes a `by=` in."""
+    gen_bus = program.RelationDeclaration((('g', 'g'), ('bus', 'bus')), ('g',))
+    return program.Direction('gen_bus', gen_bus, ('g',), ('bus',), ())
 
 
 def test_every_shape_operator_declares_its_fan_in():
@@ -879,18 +879,18 @@ def test_every_shape_operator_declares_its_fan_in():
         type(node).__name__: program.fan_in(node)
         for node in (
             program.Sum(x, ('t',)),
-            program.GroupSum(x, _gen_bus_walk(program)),
-            program.At(x, _gen_bus_walk(program)),
+            program.GroupSum(x, _gen_bus_direction(program)),
+            program.Pullback(x, _gen_bus_direction(program)),
             program.Translate(x, 't', 1, wrap=False),
-            program.Window(x, 't', 3, wrap=False),
+            program.WindowSum(x, 't', 3, wrap=False),
         )
     }
     assert declared == {
         'Sum': 'many-to-one',
         'GroupSum': 'many-to-one',
-        'At': 'one-to-one',
+        'Pullback': 'one-to-one',
         'Translate': 'one-to-one',
-        'Window': 'one-to-many',
+        'WindowSum': 'one-to-many',
     }, 'a fan-in moved — the absence pass now treats that operator differently, which is a semantic change'
 
 
@@ -991,7 +991,7 @@ def test_both_lanes_dispatch_on_every_plan_node():
 
     from math_spec import program
 
-    declared = {node.__name__ for union in (program.ExpressionNode, program.WhereNode) for node in get_args(union)}
+    declared = {node.__name__ for union in (program.Expression, program.Predicate) for node in get_args(union)}
     assert declared, 'no plan node classes found — the census has nothing to run over'
 
     def dispatched_on(*paths: Path) -> set[str]:

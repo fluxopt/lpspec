@@ -59,7 +59,7 @@ class _Order:
     outgoing: pl.LazyFrame
 
     @classmethod
-    def of(cls, scope: Scope, dimension: str, partition: program.Walk | None) -> _Order:
+    def of(cls, scope: Scope, dimension: str, partition: program.Partition | None) -> _Order:
         """Rank *dimension* inside each group of *partition*, or along the whole of it.
 
         A neighbour is decided by rank within the group, and a wrap closes on
@@ -103,7 +103,7 @@ class _Order:
         )
 
 
-def window_fragment(scope: Scope, p: TermFragment, s: program.Window, context: str) -> TermFragment:
+def window_fragment(scope: Scope, p: TermFragment, s: program.WindowSum, context: str) -> TermFragment:
     """A one-to-many remap of the dim through its ord.
 
     A row at *o* contributes at every ``o + lag`` for ``lag`` inside the
@@ -126,9 +126,9 @@ def window_fragment(scope: Scope, p: TermFragment, s: program.Window, context: s
     rank rather than the ``ord`` along the whole dimension, and a wrap closes on the group's
     own size, exactly as :func:`translate_fragment` walks a partitioned shift.
     """
-    if s.dimension not in p.dims:
-        refuse_a_fragment_without_the_dims(p, [s.dimension], context, f'sum_back(along={s.dimension!r})')
-    order = _Order.of(scope, s.dimension, s.partition)
+    if s.along not in p.dims:
+        refuse_a_fragment_without_the_dims(p, [s.along], context, f'sum_back(along={s.along!r})')
+    order = _Order.of(scope, s.along, s.partition)
 
     width_name = s.width if isinstance(s.width, str) else None
     if width_name is not None:
@@ -136,7 +136,7 @@ def window_fragment(scope: Scope, p: TermFragment, s: program.Window, context: s
     else:
         assert not isinstance(s.width, str)
         widest = s.width
-    lags = pl.LazyFrame({_LAG: pl.Series(range(min(widest, scope.data.cardinality[s.dimension])), dtype=pl.Int64)})
+    lags = pl.LazyFrame({_LAG: pl.Series(range(min(widest, scope.data.cardinality[s.along])), dtype=pl.Int64)})
 
     moved = pl.col(_ORD_IN) + pl.col(_LAG)
     if s.wrap:
@@ -181,10 +181,10 @@ def translate_fragment(scope: Scope, p: TermFragment, s: program.Translate, cont
     entry would be a matrix nonzero standing for a term that is not there.
     Lowering refuses every other numeric edge over a variable.
     """
-    if s.dimension not in p.dims:
-        refuse_a_fragment_without_the_dims(p, [s.dimension], context, f'shift(along={s.dimension!r})')
-    others = [d for d in p.dims if d != s.dimension]
-    order = _Order.of(scope, s.dimension, s.partition)
+    if s.along not in p.dims:
+        refuse_a_fragment_without_the_dims(p, [s.along], context, f'shift(along={s.along!r})')
+    others = [d for d in p.dims if d != s.along]
+    order = _Order.of(scope, s.along, s.partition)
     edge = _Edge.of(scope, order, s)
 
     named_offset = isinstance(s.offset, str)
@@ -269,7 +269,7 @@ class _Edge:
     def of(cls, scope: Scope, order: _Order, s: program.Translate) -> _Edge:
         if not isinstance(s.offset, str):
             return cls(order, s, (), None)
-        dims = scope.program.parameter(s.offset).dims
+        dims = scope.program.parameters[s.offset].dims
         offset_dims = tuple(d for d in dims if order.grouping.column_of(d) is None)
         return cls(order, s, offset_dims, _named_amount(scope, order, s.offset, _OFFSET))
 
@@ -303,8 +303,8 @@ class _Edge:
         source = position - offset
         reaches = (source % span + span) % span if s.wrap else source
         outside = (reaches < 0) | (reaches >= span)
-        keyed = [d for d in self.keys if d != s.dimension]
-        return table.filter(outside if vacated else ~outside).select(pl.col('val').alias(s.dimension), *keyed)
+        keyed = [d for d in self.keys if d != s.along]
+        return table.filter(outside if vacated else ~outside).select(pl.col('val').alias(s.along), *keyed)
 
     def filled(self, scope: Scope, others: list[str], fill: float) -> pl.LazyFrame:
         """``(dims…, cval=fill)`` at every coordinate the shift vacated.
@@ -320,9 +320,7 @@ class _Edge:
             if d in self.keys:
                 continue
             edge = edge.join(scope.data.dimensions[d].select(pl.col('val').alias(d)), how='cross')
-        return edge.with_columns(pl.lit(fill, dtype=pl.Float64).alias('cval')).select(
-            *others, self.shift.dimension, 'cval'
-        )
+        return edge.with_columns(pl.lit(fill, dtype=pl.Float64).alias('cval')).select(*others, self.shift.along, 'cval')
 
     def vacated_of(self, scope: Scope, presence: Presence, dims: tuple[str, ...]) -> pl.LazyFrame:
         """The edge positions ``shift`` leaves with nothing to move in, for one presence.
@@ -339,7 +337,7 @@ class _Edge:
         dims first, since a narrowly keyed one — a pullback's, an earlier
         shift's — is silent about the columns this reads.
         """
-        others = [d for d in dims if d != self.shift.dimension]
+        others = [d for d in dims if d != self.shift.along]
         edge = self.coordinates(vacated=True)
         if not others:
             return edge
@@ -360,7 +358,7 @@ def _named_amount(scope: Scope, order: _Order, name: str, alias: str) -> tuple[p
     nowhere is in no partitioned table and joins to nothing, which is what it
     reaches everywhere else.
     """
-    dims = scope.program.parameter(name).dims
+    dims = scope.program.parameters[name].dims
     keys = [order.grouping.column_of(d) or d for d in dims]
     frame = scope.data.parameters[name].select(
         *(pl.col(d).alias(key) for d, key in zip(dims, keys, strict=True)),

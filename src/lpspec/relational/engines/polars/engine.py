@@ -146,7 +146,7 @@ class PolarsEngine:
         *,
         solver_options: Mapping[str, object] | None = None,
         keep: Keep = 'solver',
-        lower: Callable[[str | Mapping[str, object]], program.ExpressionNode] | None = None,
+        lower: Callable[[str | Mapping[str, object]], program.Expression] | None = None,
     ) -> Result:
         """Hand the built model to a solver and solve it.
 
@@ -323,7 +323,7 @@ class PolarsEngine:
         primal: pl.Series | None,
         dual: pl.Series | None,
         no_duals: str | None,
-        lower: Callable[[str | Mapping[str, object]], program.ExpressionNode] | None,
+        lower: Callable[[str | Mapping[str, object]], program.Expression] | None,
     ) -> tuple[
         dict[str, Callable[[], pl.DataFrame]],
         Callable[[str | Mapping[str, object]], pl.DataFrame] | None,
@@ -345,14 +345,14 @@ class PolarsEngine:
         model = self._model
         solution = Solution(primal, dual, dict(model.constraints), no_duals)
         compiler = PolarsCompiler(Scope(model.program, model.attached, dict(model.variables)), solution)
-        return readback.readers(compiler, model.program.named_expressions, lower)
+        return readback.readers(compiler, model.program.expressions, lower)
 
     def reconstruct(
         self,
         primals: Mapping[str, pl.DataFrame],
         duals: Mapping[str, pl.DataFrame] | None,
         no_duals: str | None,
-        lower: Callable[[str | Mapping[str, object]], program.ExpressionNode] | None,
+        lower: Callable[[str | Mapping[str, object]], program.Expression] | None,
     ) -> Callable[[str | Mapping[str, object]], pl.DataFrame] | None:
         """The ad-hoc evaluator for a saved solution, over this rebuilt model.
 
@@ -434,7 +434,7 @@ def _per_name(kind: str, measured: Mapping[str, object], **columns: PolarsDataTy
 def expression_readers(
     program: program.Program,
     sources: Mapping[str, pl.LazyFrame],
-    lower: Callable[[str | Mapping[str, object]], program.ExpressionNode] | None,
+    lower: Callable[[str | Mapping[str, object]], program.Expression] | None,
 ) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, object]], pl.DataFrame] | None]:
     """Attach *sources* and defer the reads :func:`lpspec.evaluate` values one expression through.
 
@@ -455,7 +455,7 @@ def expression_readers(
         the attached data.
     """
     compiler = PolarsCompiler(Scope(program, attach(program, sources), {}))
-    return readback.readers(compiler, program.named_expressions, lower)
+    return readback.readers(compiler, program.expressions, lower)
 
 
 def _no_dual_ray_message(status: SolveStatus, solver_name: str) -> str:

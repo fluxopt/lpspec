@@ -1,7 +1,7 @@
 """A ``where:`` predicate as a boolean array over the coordinates it masks.
 
 The other half of what a declaration says: ``builder.py`` builds the thing,
-this decides where it exists. A :class:`~math_spec.program.WhereNode` in, one
+this decides where it exists. A :class:`~math_spec.program.Predicate` in, one
 ``xr.DataArray`` of booleans out, and :func:`as_linopy_mask` puts it in the
 shape linopy's ``mask=`` takes. Both lanes read the same node kinds, and
 ``relational/engines/polars/predicates.py`` answers each with a polars
@@ -73,7 +73,7 @@ def evaluate_where(mask: program.Mask | None, ctx: EvaluationContext) -> xr.Data
     return _eval_node(mask.root, ctx)
 
 
-def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
+def _eval_node(node: program.Predicate, ctx: EvaluationContext) -> xr.DataArray:
     """One predicate node as a boolean DataArray.
 
     Two absences read as exclusion rather than as an answer: a variable's
@@ -87,20 +87,20 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
     """
     dataset, master_coords = ctx.dataset, ctx.master_coords
 
-    def evaluate(child: program.WhereNode) -> xr.DataArray:
+    def evaluate(child: program.Predicate) -> xr.DataArray:
         return _eval_node(child, ctx)
 
-    if isinstance(node, program.BooleanLiteralNode):
+    if isinstance(node, program.BooleanLiteral):
         return xr.DataArray(node.value)
 
-    if isinstance(node, program.ParameterDefinedNode):
-        return _defined(dataset[node.name], ctx.program.parameter(node.name).dtype)
+    if isinstance(node, program.ParameterDefined):
+        return _defined(dataset[node.name], ctx.program.parameters[node.name].dtype)
 
-    if isinstance(node, program.VariableDefinedNode):
+    if isinstance(node, program.VariableDefined):
         return absence.present(ctx.model, node.name)
 
-    if isinstance(node, (program.ParameterComparisonNode, program.DimensionComparisonNode)):
-        if isinstance(node, program.ParameterComparisonNode):
+    if isinstance(node, (program.ParameterComparison, program.DimensionComparison)):
+        if isinstance(node, program.ParameterComparison):
             arr = dataset[node.name]
         else:
             arr = xr.DataArray(
@@ -112,11 +112,11 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
         result = _PREDICATE_OPS[node.op](arr, _as_the_axis_spells_it(arr, node.value))
         return result.fillna(False).astype(bool)
 
-    if isinstance(node, program.DimensionPositionNode):
+    if isinstance(node, program.DimensionPosition):
         labels = master_coords[node.name]
         if node.partition is not None:
             by = node.partition.name
-            (column,) = node.partition.produced
+            (column,) = node.partition.group
             arr = _group_offsets(node, by, bound_relation(by, column, ctx.relations), np.asarray(labels))
             return (_PREDICATE_OPS[node.op](arr, 0) & arr.notnull()).fillna(value=False).astype(bool)
         at = node.position + len(labels) if node.position < 0 else node.position
@@ -125,26 +125,26 @@ def _eval_node(node: program.WhereNode, ctx: EvaluationContext) -> xr.DataArray:
         arr = xr.DataArray(np.arange(len(labels)), coords={node.name: labels}, dims=[node.name])
         return _PREDICATE_OPS[node.op](arr, at).astype(bool)
 
-    if isinstance(node, program.RelationComparisonNode):
+    if isinstance(node, program.RelationComparison):
         arr = bound_relation(node.name, node.column, ctx.relations)
         return (_PREDICATE_OPS[node.op](arr, node.value) & arr.notnull()).fillna(value=False).astype(bool)
 
-    if isinstance(node, program.RelationPairComparisonNode):
+    if isinstance(node, program.RelationPairComparison):
         left = bound_relation(node.name, node.column, ctx.relations)
         right = bound_relation(node.other, node.other_column, ctx.relations)
         defined = left.notnull() & right.notnull()
         return (_PREDICATE_OPS[node.op](left, right) & defined).fillna(value=False).astype(bool)
 
-    if isinstance(node, program.RelationDefinedNode):
+    if isinstance(node, program.RelationDefined):
         return _relation_has_a_row(node, ctx)
 
-    if isinstance(node, program.NotNode):
+    if isinstance(node, program.Not):
         return ~evaluate(node.operand)
 
-    if isinstance(node, program.AndNode):
+    if isinstance(node, program.And):
         return evaluate(node.left) & evaluate(node.right)
 
-    if isinstance(node, program.OrNode):
+    if isinstance(node, program.Or):
         return evaluate(node.left) | evaluate(node.right)
 
     assert_never(node)
@@ -164,9 +164,7 @@ def _defined(arr: xr.DataArray, dtype: str) -> xr.DataArray:
     return arr.notnull() & np.isfinite(arr)
 
 
-def _group_offsets(
-    node: program.DimensionPositionNode, by: str, groups: xr.DataArray, labels: np.ndarray
-) -> xr.DataArray:
+def _group_offsets(node: program.DimensionPosition, by: str, groups: xr.DataArray, labels: np.ndarray) -> xr.DataArray:
     """Each coordinate's distance from the boundary of *its own* group.
 
     Zero marks the coordinate the position names, so every comparator reads the
@@ -186,7 +184,7 @@ def _group_offsets(
     return partition.within.where(partition.grouped) - target
 
 
-def _relation_has_a_row(node: program.RelationDefinedNode, ctx: EvaluationContext) -> xr.DataArray:
+def _relation_has_a_row(node: program.RelationDefined, ctx: EvaluationContext) -> xr.DataArray:
     """Where the relation holds a row at the frame's coordinates.
 
     The arrays are padded to the key's whole product, so a key the table leaves

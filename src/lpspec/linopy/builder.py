@@ -95,7 +95,7 @@ def _check_bounds_are_defined(name: str, vdef: program.VariableDeclaration, data
         raise DataError(null_bounds_message(name, missing))
 
 
-def _bound(bound: program.ExpressionNode, dataset: xr.Dataset) -> Any:
+def _bound(bound: program.Expression, dataset: xr.Dataset) -> Any:
     """A bound as linopy takes it: the literal, or the named parameter's array.
 
     A gap is not filled here: absence's zero is a coefficient and never a
@@ -244,7 +244,7 @@ def _refuse_an_objective_constant(expr: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
+def _eval(node: program.Expression, ctx: EvaluationContext) -> Any:
     """One plan node as a linopy term, an array, or a number.
 
     One node kind per branch: a variable is its linopy term, a parameter its
@@ -255,7 +255,7 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
         return node.value
 
     if isinstance(node, program.Variable):
-        variable, declared = ctx.model.variables[node.name], ctx.program.variable(node.name).absence
+        variable, declared = ctx.model.variables[node.name], ctx.program.variables[node.name].absence
         return absence.variable_value(variable, declared) if ctx.solved else absence.variable_term(variable, declared)
 
     if isinstance(node, program.Dual):
@@ -290,28 +290,28 @@ def _eval(node: program.ExpressionNode, ctx: EvaluationContext) -> Any:
         return operator_grouped_sum(
             _eval(node.operand, ctx),
             _walked_arrays(node, ctx),
-            into=node.into,
-            joined=node.joined,
+            into=node.direction.produced_dims,
+            joined=node.direction.joined_dims,
             labels=ctx.master_coords,
         )
 
-    if isinstance(node, program.At):
-        return operator_at(_eval(node.operand, ctx), _walked_arrays(node, ctx), into=node.into)
+    if isinstance(node, program.Pullback):
+        return operator_at(_eval(node.operand, ctx), _walked_arrays(node, ctx), into=node.direction.consumed_dims)
 
     if isinstance(node, program.Translate):
         return operator_shift(
             _eval(node.operand, ctx),
-            over=node.dimension,
+            over=node.along,
             offset=_amount(node.offset, ctx),
             wrap=node.wrap,
             fill=node.fill,
             by=_partition(node, ctx),
         )
 
-    if isinstance(node, program.Window):
+    if isinstance(node, program.WindowSum):
         return operator_sum_back(
             _eval(node.operand, ctx),
-            over=node.dimension,
+            over=node.along,
             within=_amount(node.width, ctx),
             wrap=node.wrap,
             by=_partition(node, ctx),
@@ -383,12 +383,12 @@ def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
     return absence.coefficient(ctx.dataset[amount]) if isinstance(amount, str) else amount
 
 
-def _walked_arrays(node: program.GroupSum | program.At, ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The relation's walked columns as arrays over the dimensions its key names, in the order ``into`` writes them."""
-    return tuple(bound_relation(node.relation, column, ctx.relations) for column in read_column(node))
+def _walked_arrays(node: program.GroupSum | program.Pullback, ctx: EvaluationContext) -> tuple[Any, ...]:
+    """The relation's read columns as arrays over the dimensions its key names, in the order the direction writes them."""
+    return tuple(bound_relation(node.direction.name, column, ctx.relations) for column in read_column(node))
 
 
-def _partition(node: program.Translate | program.Window, ctx: EvaluationContext) -> Any:
+def _partition(node: program.Translate | program.WindowSum, ctx: EvaluationContext) -> Any:
     """The relation a windowed operator may not reach across, as its values.
 
     **Named for the dimension its values are labels of**, not for itself: an
@@ -398,6 +398,6 @@ def _partition(node: program.Translate | program.Window, ctx: EvaluationContext)
     """
     if node.partition is None:
         return None
-    (column,) = node.partition.produced
+    (column,) = node.partition.group
     array = bound_relation(node.partition.name, column, ctx.relations)
-    return array.rename(node.partition.produced_dims[0])
+    return array.rename(node.partition.dim(column))

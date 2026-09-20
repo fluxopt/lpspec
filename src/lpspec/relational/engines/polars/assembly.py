@@ -147,7 +147,7 @@ class Assembly:
         index off that order, after which ``row`` is dropped from the matrix.
         """
         cols = [self._build_variable(name, v) for name, v in self.program.variables.items()]
-        sets = [self._build_sos(s, self.program.variable(s.variable)) for s in self.program.sos.values()]
+        sets = [self._build_sos(s, self.program.variables[s.variable]) for s in self.program.sos.values()]
         ordered = sorted(self.program.constraints.items(), key=lambda item: declares_quadratic(item[1]))  # pyrefly: ignore[implicit-any-lambda]  — a (name, declaration) pair
         built = [self._build_constraint(name, c) for name, c in ordered]
         objective = self._build_objective(self.program.objective)
@@ -176,7 +176,7 @@ class Assembly:
         return BuiltModel(self.program, self.attached, self.variables, self.constraints, tables)
 
     def _matrix_share(
-        self, pieces: list[pl.LazyFrame], name: str, *expressions: program.ExpressionNode
+        self, pieces: list[pl.LazyFrame], name: str, *expressions: program.Expression
     ) -> tuple[pl.DataFrame, pl.Series]:
         """One constraint's share: in ``(row, col)`` order, repeated cells summed.
 
@@ -462,7 +462,7 @@ class Assembly:
         return objective
 
     def _objective_quadratic(
-        self, quads: tuple[TermFragment, ...], expression: program.ExpressionNode
+        self, quads: tuple[TermFragment, ...], expression: program.Expression
     ) -> pl.DataFrame | None:
         r"""The objective's quadratic part as ``(col_l, col_r, coeff)``, or ``None``.
 

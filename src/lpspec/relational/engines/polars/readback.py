@@ -125,7 +125,7 @@ def _named_terms(model: BuiltModel, entries: pl.DataFrame) -> pl.DataFrame:
         inside = wanted[(wanted >= held.start) & (wanted < held.start + held.height)]
         if not inside.size:
             continue
-        dims = model.program.variable(variable).dims
+        dims = model.program.variables[variable].dims
         at = pl.Series('#position', inside - held.start, dtype=pl.UInt32)
         picked = held.frame.select(pl.col('var_label'), *(pl.col(d) for d in dims)).select(pl.all().gather(at))
         rendered = pl.concat_str([pl.col(d).cast(pl.String) for d in dims], separator=', ') if dims else pl.lit('')
@@ -239,7 +239,7 @@ def _aligned(
 def readers(
     compiler: PolarsCompiler,
     named: Mapping[str, program.ExpressionDeclaration],
-    lower: Callable[[str | Mapping[str, object]], program.ExpressionNode] | None,
+    lower: Callable[[str | Mapping[str, object]], program.Expression] | None,
 ) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, object]], pl.DataFrame] | None]:
     """The reads :meth:`~lpspec.relational.result.Result.evaluate` is built from, over one compiler.
 
@@ -262,7 +262,7 @@ def readers(
         ``None``).
     """
 
-    def reader(name: str, expression: program.ExpressionNode) -> Callable[[], pl.DataFrame]:
+    def reader(name: str, expression: program.Expression) -> Callable[[], pl.DataFrame]:
         return lambda: expression_frame(name, expression, compiler)
 
     declared = {name: reader(name, e.expression) for name, e in named.items()}
@@ -275,7 +275,7 @@ def readers(
     return declared, evaluate
 
 
-def expression_frame(name: str, expr: program.ExpressionNode, compiler: PolarsCompiler) -> pl.DataFrame:
+def expression_frame(name: str, expr: program.Expression, compiler: PolarsCompiler) -> pl.DataFrame:
     """Named expression *expr* evaluated at the solve *compiler* holds — ``(dims…, value)``.
 
     Every leaf is a number after a solve: the compiler reads a variable as its

@@ -119,7 +119,7 @@ def compile_predicate(
     (:func:`_certain_names`). An atom over a missing value reads as false
     either way, so the strategies differ only in *where* the row is dropped.
 
-    ``VariableDefinedNode`` is the one atom answered by a join rather than a
+    ``VariableDefined`` is the one atom answered by a join rather than a
     column test — existence lives in the variable's own frame — keyed by
     dims the dim rule has already checked are inside this frame.
 
@@ -158,7 +158,7 @@ def compile_predicate(
             ),
         )
 
-    def join_group_offset(p: program.DimensionPositionNode) -> str:
+    def join_group_offset(p: program.DimensionPosition) -> str:
         """One column: the row's ordinal minus its own group's target ordinal.
 
         Joined on the dimension and the partition's joined dimensions, which
@@ -204,32 +204,32 @@ def compile_predicate(
             ),
         )
 
-    def walk(p: program.WhereNode) -> pl.Expr:
-        if isinstance(p, program.ParameterComparisonNode):
+    def walk(p: program.Predicate) -> pl.Expr:
+        if isinstance(p, program.ParameterComparison):
             return _compare(pl.col(join_param(p.name)), p.op, p.value)
-        if isinstance(p, program.DimensionComparisonNode):
+        if isinstance(p, program.DimensionComparison):
             refuse_outside_frame(f"dimension '{p.name}'", p.name)
             return _compare(_dimension_column(p.name, p.value), p.op, p.value)
-        if isinstance(p, program.DimensionPositionNode):
+        if isinstance(p, program.DimensionPosition):
             if p.partition is not None:
                 return falsy_if_null(_COLUMN_COMPARISONS[p.op](pl.col(join_group_offset(p)), pl.lit(0)))
             at = _position_ordinal(p, scope.data.cardinality[p.name])
             return _COLUMN_COMPARISONS[p.op](pl.col(join_ordinal(p.name)), pl.lit(at))
-        if isinstance(p, program.RelationComparisonNode):
+        if isinstance(p, program.RelationComparison):
             column = pl.col(join_relation(p.name, p.dims, p.column))
             if isinstance(p.value, str):
                 column = column.cast(pl.String)
             return _compare(column, p.op, p.value)
-        if isinstance(p, program.RelationPairComparisonNode):
+        if isinstance(p, program.RelationPairComparison):
             left = pl.col(join_relation(p.name, p.dims, p.column))
             right = pl.col(join_relation(p.other, p.dims, p.other_column))
             return _COLUMN_COMPARISONS[p.op](left, right)
-        if isinstance(p, program.RelationDefinedNode):
+        if isinstance(p, program.RelationDefined):
             return pl.col(join_relation(p.name, p.dims, None)).is_not_null()
-        if isinstance(p, program.ParameterDefinedNode):
-            return _defined(pl.col(join_param(p.name)), scope.program.parameter(p.name).dtype)
-        if isinstance(p, program.VariableDefinedNode):
-            on = list(scope.program.variable(p.name).dims)
+        if isinstance(p, program.ParameterDefined):
+            return _defined(pl.col(join_param(p.name)), scope.program.parameters[p.name].dtype)
+        if isinstance(p, program.VariableDefined):
+            on = list(scope.program.variables[p.name].dims)
             coordinates = scope.variables[p.name].frame.select(*on)
             if p.name in certain:
                 carrier.once(f'__where defined {p.name}__', lambda f, _: f.join(coordinates, on=on, how='semi'))
@@ -241,13 +241,13 @@ def compile_predicate(
                 ),
             )
             return falsy_if_null(pl.col(flag))
-        if isinstance(p, program.BooleanLiteralNode):
+        if isinstance(p, program.BooleanLiteral):
             return pl.lit(value=p.value)
-        if isinstance(p, program.AndNode):
+        if isinstance(p, program.And):
             return walk(p.left) & walk(p.right)
-        if isinstance(p, program.OrNode):
+        if isinstance(p, program.Or):
             return walk(p.left) | walk(p.right)
-        if isinstance(p, program.NotNode):
+        if isinstance(p, program.Not):
             return ~falsy_if_null(walk(p.operand))
         assert_never(p)
 
@@ -263,11 +263,11 @@ def _certain_names(mask: program.Mask) -> frozenset[str]:
     ``NOT`` an absent value can still leave the mask true, and dropping the
     row there is a wrong model rather than a slow one.
     """
-    atoms = (program.ParameterComparisonNode, program.ParameterDefinedNode, program.VariableDefinedNode)
+    atoms = (program.ParameterComparison, program.ParameterDefined, program.VariableDefined)
     return frozenset(a.name for a in mask.conjuncts if isinstance(a, atoms))
 
 
-def _refuse_short_groups(p: program.DimensionPositionNode, grouping: Grouping) -> None:
+def _refuse_short_groups(p: program.DimensionPosition, grouping: Grouping) -> None:
     """Refuse a position no coordinate of some group occupies.
 
     The ungrouped counterpart is :func:`_position_ordinal`, and the reason is
@@ -297,7 +297,7 @@ def falsy_if_null(condition: pl.Expr) -> pl.Expr:
     return condition.fill_null(value=False)
 
 
-def _position_ordinal(p: program.DimensionPositionNode, cardinality: int) -> int:
+def _position_ordinal(p: program.DimensionPosition, cardinality: int) -> int:
     """*p*'s position as an ordinal into a dimension of *cardinality* labels.
 
     A negative position counts from the end. Out of range is an error rather

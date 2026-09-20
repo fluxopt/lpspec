@@ -77,7 +77,7 @@ if TYPE_CHECKING:
     import pandas as pd
     import xarray as xr
     from math_spec import Spec
-    from math_spec.program import ExpressionNode, Program
+    from math_spec.program import Expression, Program
 
     from lpspec.api import Model
     from lpspec.lanes import Buildable, Label, Source
@@ -448,7 +448,7 @@ def _least(program: Program, sources: Mapping[str, Source], name: str) -> int:
     """
     if name not in sources:
         raise DataError(f"no data provided for parameter '{name}'")
-    least = least_value(name, program.parameter(name), sources[name])
+    least = least_value(name, program.parameters[name], sources[name])
     return 0 if least is None else int(least)
 
 
@@ -1453,7 +1453,7 @@ def _per_slice(
         yield key, build(spec, slice_sources).evaluator(slice_primals, slice_duals, runs._no_duals)
 
 
-def _refuse_carried(carried: set[str], nodes: Iterable[ExpressionNode]) -> None:
+def _refuse_carried(carried: set[str], nodes: Iterable[Expression]) -> None:
     """Refuse a block that reads a parameter the sweep carried — its value is not stored per slice."""
     if touched := sorted({name for node in nodes for name in parameters_of(node)} & carried):
         raise LpspecError(carried_parameter_message(touched))
@@ -1715,7 +1715,7 @@ def _answers(result: Result, program: Program, metrics: SliceMetrics) -> _Answer
     primals = {name: result.primal(name) for name in program.variables}
     expressions: dict[str, pl.DataFrame] = {}
     no_expressions: dict[str, str] = {}
-    for name in program.named_expressions:
+    for name in program.expressions:
         try:
             expressions[name] = result.evaluate(name)
         except LpspecError as exc:

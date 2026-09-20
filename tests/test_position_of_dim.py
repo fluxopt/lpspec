@@ -357,9 +357,9 @@ def test_a_group_shorter_than_the_position_is_an_error_at_bind(tmp_path):
 @pytest.mark.parametrize(
     ('by', 'match'),
     [
-        pytest.param('price', r"groups by 'price', which is a parameter", id='by-a-parameter'),
-        pytest.param('period', r"groups by 'period', which is a dimension", id='by-a-dimension'),
-        pytest.param('nowhere', r"groups by 'nowhere', which is not declared", id='by-nothing'),
+        pytest.param('price', r'position\(by=price\) does not name a relation', id='by-a-parameter'),
+        pytest.param('period', r"'period' is a dimension, and by= takes a relation", id='by-a-dimension'),
+        pytest.param('nowhere', r'position\(by=nowhere\) does not name a relation', id='by-nothing'),
     ],
 )
 def test_by_takes_a_relation(by, match):

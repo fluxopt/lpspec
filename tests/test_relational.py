@@ -30,19 +30,20 @@ from math_spec.program import (
     Constant,
     ConstraintDeclaration,
     DimensionDeclaration,
+    Direction,
     GroupSum,
     Mask,
+    Multiply,
     Negate,
     ObjectiveDeclaration,
     Parameter,
-    ParameterComparisonNode,
+    ParameterComparison,
     ParameterDeclaration,
     Program,
     RelationDeclaration,
     Sum,
     Variable,
     VariableDeclaration,
-    Walk,
 )
 
 import lpspec as lps
@@ -98,7 +99,7 @@ def dispatch_program() -> Program:
         variables={
             'p': VariableDeclaration(
                 ('snapshot', 'generator'),
-                where=Mask(ParameterComparisonNode('p_max', '>', 0, ('generator',))),
+                where=Mask(ParameterComparison('p_max', '>', 0, ('generator',))),
                 lower=Constant(0.0),
                 upper=Parameter('p_max'),
             )
@@ -112,7 +113,7 @@ def dispatch_program() -> Program:
             )
         },
         objective=ObjectiveDeclaration(
-            'minimize', Sum(Variable('p') * Parameter('cost'), over=('generator', 'snapshot'))
+            'minimize', Sum(Multiply(Variable('p'), Parameter('cost')), over=('generator', 'snapshot'))
         ),
         dimensions={'snapshot': DimensionDeclaration(dtype='int'), 'generator': DimensionDeclaration()},
     )
@@ -207,24 +208,27 @@ def dispatch_eager_objective(gens: pd.DataFrame, load: pd.DataFrame) -> float:
     return float(m.objective.value)
 
 
-#: The transport network's wiring, as the three maps a nodal balance walks.
-GEN_BUS = RelationDeclaration('gen_bus', (('generator', 'generator'), ('bus', 'bus')), ('generator',))
-LINE_FROM = RelationDeclaration('from', (('line', 'line'), ('bus', 'bus')), ('line',))
-LINE_TO = RelationDeclaration('to', (('line', 'line'), ('bus', 'bus')), ('line',))
+#: The transport network's wiring, as the three maps a nodal balance reads.
+WIRING = {
+    'gen_bus': RelationDeclaration((('generator', 'generator'), ('bus', 'bus')), ('generator',)),
+    'from': RelationDeclaration((('line', 'line'), ('bus', 'bus')), ('line',)),
+    'to': RelationDeclaration((('line', 'line'), ('bus', 'bus')), ('line',)),
+}
 
 
-def _onto_bus(relation: RelationDeclaration) -> Walk:
-    """*relation* walked the way a nodal balance walks it: out of its key, onto the bus."""
-    return Walk(relation, relation.key, relation.values, ())
+def _onto_bus(name: str) -> Direction:
+    """Relation *name* read the way a nodal balance reads it: out of its key, onto the bus."""
+    relation = WIRING[name]
+    return Direction(name, relation, relation.key, relation.values, ())
 
 
 def transport_program() -> Program:
     injection = Add(
         Add(
-            GroupSum(Variable('p'), _onto_bus(GEN_BUS)),
-            GroupSum(Variable('f'), _onto_bus(LINE_TO)),
+            GroupSum(Variable('p'), _onto_bus('gen_bus')),
+            GroupSum(Variable('f'), _onto_bus('to')),
         ),
-        Negate(GroupSum(Variable('f'), _onto_bus(LINE_FROM))),
+        Negate(GroupSum(Variable('f'), _onto_bus('from'))),
     )
     return Program(
         parameters={
@@ -255,14 +259,15 @@ def transport_program() -> Program:
             )
         },
         objective=ObjectiveDeclaration(
-            'minimize', Sum(Variable('p') * Parameter('cost'), over=('generator', 'snapshot'))
+            'minimize', Sum(Multiply(Variable('p'), Parameter('cost')), over=('generator', 'snapshot'))
         ),
         dimensions={
             'snapshot': DimensionDeclaration(dtype='int'),
-            'bus': DimensionDeclaration((GEN_BUS, LINE_FROM, LINE_TO)),
-            'generator': DimensionDeclaration((GEN_BUS,)),
-            'line': DimensionDeclaration((LINE_FROM, LINE_TO)),
+            'bus': DimensionDeclaration(),
+            'generator': DimensionDeclaration(),
+            'line': DimensionDeclaration(),
         },
+        relations=WIRING,
     )
 
 
@@ -646,7 +651,7 @@ class TestTheLabelSpace:
         gens = gens.assign(p_max=gens['p_max'].where(gens['p_max'] > 0, 1.0))  # nothing left to mask out
 
         labels = []
-        for where in (None, Mask(ParameterComparisonNode('p_max', '>', 0, ('generator',)))):
+        for where in (None, Mask(ParameterComparison('p_max', '>', 0, ('generator',)))):
             base = dispatch_program()
             program = replace(base, variables={'p': replace(base.variables['p'], where=where)})
             with PolarsEngine() as engine:

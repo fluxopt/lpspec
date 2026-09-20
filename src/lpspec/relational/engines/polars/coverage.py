@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from lpspec.relational.engines.polars.scope import Scope
 
 
-def refuse_null_coefficients(stacked: pl.DataFrame, subject: str, *expressions: program.ExpressionNode) -> None:
+def refuse_null_coefficients(stacked: pl.DataFrame, subject: str, *expressions: program.Expression) -> None:
     """A null coefficient in *stacked* means a divisor had no value where the model divided.
 
     A quotient left-joins its divisor, so a missing value leaves a null — and a
@@ -203,7 +203,7 @@ def _uncovered_coordinates(
     claiming no built row at all leaves the parameter owing nothing, which is
     why the narrowing runs even where no dim is shared.
     """
-    dims = scope.program.parameter(param).dims
+    dims = scope.program.parameters[param].dims
     shared = tuple(d for d in dims if d in c.dims)
     summed = tuple(d for d in dims if d not in c.dims)
     built = rows

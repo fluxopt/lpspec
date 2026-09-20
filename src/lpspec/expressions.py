@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from math_spec import Spec
-    from math_spec.program import ExpressionNode
+    from math_spec.program import Expression
 
 #: The name a single unnamed expression is spliced under. Stepped over rather
 #: than overwritten where a model declares it — :func:`_free_name`.
@@ -28,7 +28,7 @@ _EVALUATED = '_evaluated'
 _SECTION = 'expressions'
 
 
-def lower(spec: Spec, expression: str | Mapping[str, object]) -> ExpressionNode:
+def lower(spec: Spec, expression: str | Mapping[str, object]) -> Expression:
     """One unnamed expression as a plan node, read in *spec*'s namespace.
 
     Args:
@@ -50,7 +50,7 @@ def lower(spec: Spec, expression: str | Mapping[str, object]) -> ExpressionNode:
     return _splice(written, {name: expression})[name]
 
 
-def _splice(written: dict[str, object], entries: Mapping[str, object]) -> dict[str, ExpressionNode]:
+def _splice(written: dict[str, object], entries: Mapping[str, object]) -> dict[str, Expression]:
     """*entries* added to the model *written* and lowered with it, as nodes.
 
     The lowered program is read for these nodes and dropped — its variables,
@@ -60,7 +60,7 @@ def _splice(written: dict[str, object], entries: Mapping[str, object]) -> dict[s
     """
     section = written.get(_SECTION)
     written[_SECTION] = {**section, **entries} if isinstance(section, dict) else dict(entries)
-    named = lowered(written).named_expressions
+    named = lowered(written).expressions
     return {name: named[name].expression for name in entries}
 
 

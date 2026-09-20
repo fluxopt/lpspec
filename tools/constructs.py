@@ -105,12 +105,12 @@ def constructs(spec: Path) -> set[str]:
             used.add('sum')
         elif isinstance(node, program.GroupSum):
             used.add('sum(by=)')
-        elif isinstance(node, program.At):
+        elif isinstance(node, program.Pullback):
             used.add('at()')
         elif isinstance(node, program.Translate):
             used.add("shift(edge='wrap')" if node.wrap else 'shift')
 
-    if any(isinstance(n, program.WhereNode) for n in nodes):
+    if any(isinstance(n, program.Predicate) for n in nodes):
         used.add('where')
     if lowered.footprint.domains - {'continuous'}:
         used.add('MILP')
