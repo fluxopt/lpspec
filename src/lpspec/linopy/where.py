@@ -99,6 +99,14 @@ def _eval_node(node: program.Predicate, ctx: EvaluationContext) -> xr.DataArray:
     if isinstance(node, program.VariableDefined):
         return absence.present(ctx.model, node.name)
 
+    if isinstance(node, program.CountComparison):
+        counted = evaluate(node.predicate.root).sum(dim=node.over)
+        return _PREDICATE_OPS[node.op](counted, node.value).astype(bool)
+
+    if isinstance(node, program.TranslatedPredicate):
+        moved = evaluate(node.operand.root).shift({node.along: node.offset}, fill_value=False)
+        return moved.astype(bool)
+
     if isinstance(node, program.ExpressionComparison):
         from lpspec.linopy.builder import _eval  # mask ↔ expression recursion
 

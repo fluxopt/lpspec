@@ -114,6 +114,8 @@ in `linopy/builder.py`, one section per group below.
 | `defined(x)` | `Model.variables['x'].labels != -1`, linopy's own marker for an absent slot |
 | a comparison | the Python comparison operators element-wise, absence reading as false |
 | a comparison of expressions | each side evaluated as a constant position is, and compared element-wise; a side with no value at a coordinate reads as false there, and under a sum, a window or a `+` an absent term is one fewer |
+| `count(<predicate>, over=)` | the predicate summed over that dimension, which reduces it away, and the total compared against the literal |
+| `shift(<predicate>, along=, offset=)` | `DataArray.shift` with `fill_value=False`, so a vacated position is false and no `edge=` is read |
 
 Absence has no single row. It is positional: a missing parameter row is zero in a coefficient, an error in `bounds:`, and false in a `where` operand.
 `linopy/absence.py` holds all four spellings, and the builder calls them

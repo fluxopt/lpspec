@@ -90,6 +90,13 @@ ACCEPTED = [
     #: carries no dimension. The eager lane read the result as an array and got
     #: a plain bool, which has no `fillna`.
     '1 > 0',
+    #: A count reduces the dim it counts along away, so both of these carry no
+    #: dimension at all: one number against a literal.
+    'count(p_max > 0, over=generator) >= 2',
+    'count(load > 0, over=snapshot) >= 1',
+    #: A predicate read one coordinate back, false where the translation
+    #: vacates — so this is true at the first snapshot alone.
+    'load AND NOT shift(load, along=snapshot, offset=1)',
 ]
 
 #: Predicates this sweep cannot host, with where they are checked instead. The

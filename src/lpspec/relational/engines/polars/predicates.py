@@ -6,11 +6,12 @@ product does not carry. The joins happen *during* the walk: the condition is
 built first and the frame read after.
 
 A closed vocabulary of its own — comparisons against a parameter, a dimension
-label, a position along a dimension, a relation, arithmetic over parameters,
-and the three connectives. It
-takes the :class:`~lpspec.relational.engines.polars.scope.Scope` as an
-argument and holds nothing. :func:`masked` is the product a declaration is
-instantiated over, cut by its mask: the one place the two meet.
+label, a position along a dimension, a relation, arithmetic over parameters, a
+count of what a predicate admits, a predicate read at a neighbour, and the three
+connectives. It takes the
+:class:`~lpspec.relational.engines.polars.scope.Scope` as an argument and holds
+nothing. :func:`masked` is the product a declaration is instantiated over, cut
+by its mask: the one place the two meet.
 
 :class:`Carrier` lives here too, and the bounds walk imports it: both walks
 that read parameters build an expression over columns they are joining on as
@@ -30,7 +31,7 @@ from lpspec.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE, G
 
 if TYPE_CHECKING:
     import datetime
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
 
     from polars._typing import JoinStrategy
 
@@ -75,6 +76,18 @@ def _defined(col: pl.Expr, dtype: program.ParameterDtype) -> pl.Expr:
     if dtype == 'str':
         return col.is_not_null()
     return col.is_not_null() & col.is_finite()
+
+
+#: Column names the count and the shift work in, inside their own frames: the
+#: count, a dimension's ordinal, the label the move lands on, and the truth a
+#: moved coordinate carries.
+_COUNT, _ORD, _MOVED, _TRUE = '__count__', '__ord__', '__moved__', '__true__'
+
+
+def _in_declaration_order(scope: Scope, dims: Iterable[str]) -> tuple[str, ...]:
+    """*dims* in the program's declaration order, which is the order a product is built in."""
+    read = set(dims)
+    return tuple(d for d in scope.program.dimensions if d in read)
 
 
 def masked(scope: Scope, dims: tuple[str, ...], where: program.Mask | None) -> pl.LazyFrame:
@@ -229,7 +242,63 @@ def compile_predicate(
 
         return carrier.once(f'__where expression {expression!r}__', attach)
 
+    def join_count(p: program.CountComparison) -> str:
+        """One column: how many coordinates along ``over`` the counted predicate admits, per coordinate of ``dims``.
+
+        The counted predicate is read over its own product — ``over`` plus what
+        is left — so the count is taken where the predicate is true and joined
+        back onto the frame. A coordinate the predicate admits nowhere has no
+        row to join and counts zero, which is the answer rather than a gap.
+        """
+        for dim in p.dims:
+            refuse_outside_frame(f"count over '{p.over}' reading dimension '{dim}'", dim)
+        counted = _in_declaration_order(scope, (p.over, *p.dims))
+        admitted = masked(scope, counted, p.predicate)
+        totals = (
+            admitted.group_by(list(p.dims)).agg(pl.len().alias(_COUNT))
+            if p.dims
+            else admitted.select(pl.len().alias(_COUNT))
+        )
+        return carrier.once(
+            f'__where count {p.over} {p.predicate!r}__',
+            lambda f, alias: join_on(f, totals.rename({_COUNT: alias}), p.dims, 'left'),
+        )
+
+    def join_translated(p: program.TranslatedPredicate) -> str:
+        """One boolean column: the operand's truth set moved *offset* along the axis, null where the translation vacates.
+
+        The operand is read over its own product and the coordinates it admits
+        are carried forward by ``offset`` positions in the axis' own order. A
+        position the move runs off the end of has no row to carry, so it joins
+        null and the caller reads it as false — which is what a missing row
+        means in any mask, and why the predicate form states no ``edge``.
+        """
+        read = _in_declaration_order(scope, p.dims)
+        for dim in read:
+            refuse_outside_frame(f"shift along '{p.along}' reading dimension '{dim}'", dim)
+        axis = scope.data.dimensions[p.along].lazy()
+        at = axis.select(pl.col('val').alias(p.along), pl.col('ord').alias(_ORD))
+        landing = axis.select(pl.col('val').alias(_MOVED), pl.col('ord').alias(_ORD))
+        moved = (
+            masked(scope, read, p.operand)
+            .select(*read)
+            .join(at, on=p.along, how='inner')
+            .with_columns((pl.col(_ORD) + p.offset).alias(_ORD))
+            .join(landing, on=_ORD, how='inner')
+            .drop(_ORD, p.along)
+            .rename({_MOVED: p.along})
+            .with_columns(pl.lit(value=True).alias(_TRUE))
+        )
+        return carrier.once(
+            f'__where shift {p.along} {p.offset} {p.operand!r}__',
+            lambda f, alias: join_on(f, moved.rename({_TRUE: alias}), read, 'left'),
+        )
+
     def walk(p: program.Predicate) -> pl.Expr:
+        if isinstance(p, program.CountComparison):
+            return _COLUMN_COMPARISONS[p.op](pl.col(join_count(p)).fill_null(0), pl.lit(p.value))
+        if isinstance(p, program.TranslatedPredicate):
+            return falsy_if_null(pl.col(join_translated(p)))
         if isinstance(p, program.ExpressionComparison):
             left, right = (_side(p.left, p.dims), _side(p.right, p.dims))
             return falsy_if_null(_COLUMN_COMPARISONS[p.op](pl.col(left), pl.col(right)))
