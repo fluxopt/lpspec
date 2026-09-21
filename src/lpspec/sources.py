@@ -81,8 +81,8 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
         if dname in data:
             sources[dname] = _index(data[dname], dname, declared.dtype)
     relations = {name: _read_relation(data[name], name, relation) for name, relation in program.relations.items()}
-    for dname, declared in program.dimensions.items():
-        if dname not in sources and (authors := [f'sources[{r.name!r}]' for r in declared.relations]):
+    for dname in program.dimensions:
+        if dname not in sources and (authors := [f'sources[{name!r}]' for name in _relations_over(program, dname)]):
             raise DataError(_relation_needs_labels_message(dname, authors))
     _check_relations_hold_labels(program, relations, sources)
     sources |= relations
@@ -223,18 +223,23 @@ def _check_relation_sources(program: Program, data: Mapping[str, Source]) -> Non
         if name not in data:
             raise DataError(_unsupplied_relation_message(name, relation))
 
-    for dim, declared in program.dimensions.items():
+    for dim in program.dimensions:
         if dim not in data:
             continue
         carried = _column_names(data[dim], dim)
-        for relation in declared.relations:
-            if relation.name in carried:
+        for name in _relations_over(program, dim):
+            if name in carried:
                 raise DataError(
-                    f"index for dimension '{dim}' carries a '{relation.name}' column, and '{relation.name}' "
+                    f"index for dimension '{dim}' carries a '{name}' column, and '{name}' "
                     f"is a relation with a column over '{dim}'. A relation is supplied under its own key, not "
-                    f'as a column of an index it runs over: pass it as sources[{relation.name!r}], a table of '
+                    f'as a column of an index it runs over: pass it as sources[{name!r}], a table of '
                     f'the rows it holds.'
                 )
+
+
+def _relations_over(program: Program, dim: str) -> tuple[str, ...]:
+    """The relations with a column over *dim*, in declaration order."""
+    return tuple(name for name, lk in program.relations.items() if any(over == dim for _, over in lk.columns))
 
 
 def _unsupplied_relation_message(name: str, relation: RelationDeclaration) -> str:

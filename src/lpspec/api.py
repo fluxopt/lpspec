@@ -66,7 +66,7 @@ from lpspec.sources import attachable, supplied, tidy_sources, unknown_source_ke
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from math_spec.program import ExpressionNode, Program
+    from math_spec.program import Expression, Program
 
     from lpspec.relational.result import ConstraintRow, Diagnostics, Keep
 
@@ -229,7 +229,7 @@ class Model:
         self._engine = PolarsEngine()
         self._fill()
 
-    def _lower(self, written: str | Mapping[str, object]) -> ExpressionNode:
+    def _lower(self, written: str | Mapping[str, object]) -> Expression:
         """One unnamed expression as a plan node, for a result reading a quantity the file never named.
 
         Held here rather than passed to the engine at build, because the model

@@ -62,7 +62,7 @@ def check_constant_side_covers(
 
 
 def _constant_leaves(
-    node: program.ExpressionNode, ctx: EvaluationContext, mask: Any, coefficient: bool
+    node: program.Expression, ctx: EvaluationContext, mask: Any, coefficient: bool
 ) -> Iterator[tuple[str, Any]]:
     """Every parameter standing as a constant piece under *node*, with the rows it must cover.
 
@@ -97,8 +97,8 @@ def _constant_leaves(
 
 
 def _under_regions(
-    node: program.ExpressionNode, ctx: EvaluationContext, mask: Any
-) -> Iterator[tuple[program.ExpressionNode, Any]]:
+    node: program.Expression, ctx: EvaluationContext, mask: Any
+) -> Iterator[tuple[program.Expression, Any]]:
     """Every node under *node*, each with the rows it actually has to cover.
 
     The mask narrows at every region of a ``cases:`` block: a region's data is
@@ -118,7 +118,7 @@ def _under_regions(
 
 
 def check_divisors_cover(
-    name: str, expressions: tuple[program.ExpressionNode, ...], ctx: EvaluationContext, mask: Any
+    name: str, expressions: tuple[program.Expression, ...], ctx: EvaluationContext, mask: Any
 ) -> None:
     """A divisor must have a value wherever this declaration divides by it.
 

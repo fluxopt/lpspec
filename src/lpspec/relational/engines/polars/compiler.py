@@ -118,7 +118,7 @@ class PolarsCompiler:
             subject = f"bound parameter '{name}' of variable '{variable}'"
             return self.scope.parameter_join(f, name, v.dims, alias, subject, maintain_order='left')
 
-        def bound(e: program.ExpressionNode) -> pl.Expr:
+        def bound(e: program.Expression) -> pl.Expr:
             """A bound is a number or a parameter name; lowering admits nothing else."""
             if isinstance(e, program.Constant):
                 return pl.lit(float(e.value), dtype=pl.Float64)
@@ -153,7 +153,7 @@ class PolarsCompiler:
         Duplicate coordinates would break density without changing the height,
         and the door refuses them before this.
         """
-        declaration = self.scope.program.parameter(param)
+        declaration = self.scope.program.parameters[param]
         if v.where is not None or tuple(declaration.dims) != tuple(v.dims) or not v.dims:
             return None
 
@@ -170,7 +170,7 @@ class PolarsCompiler:
     # expressions → fragments
     # ------------------------------------------------------------------
 
-    def expression(self, expr: program.ExpressionNode, context: str, *, quadratic: bool = False) -> CompiledExpression:
+    def expression(self, expr: program.Expression, context: str, *, quadratic: bool = False) -> CompiledExpression:
         """Compile an expression into term, quadratic and const fragments.
 
         *quadratic* is the position's ceiling, passed by the caller that knows
@@ -262,7 +262,7 @@ class PolarsCompiler:
             return CompiledExpression((), (join_pow(a.consts[0], b.consts[0]),))
 
         def shaped(
-            e: program.Sum | program.GroupSum | program.At | program.Translate | program.Window,
+            e: program.Sum | program.GroupSum | program.Pullback | program.Translate | program.WindowSum,
             rewrite: Callable[[TermFragment], TermFragment],
         ) -> CompiledExpression:
             """One shape operator applied to its compiled operand, absence pushed in by the node's own fan-in.
@@ -352,7 +352,7 @@ class PolarsCompiler:
                 tuple(f for c in built for f in c.quads),
             )
 
-        def ev(e: program.ExpressionNode) -> CompiledExpression:
+        def ev(e: program.Expression) -> CompiledExpression:
             if isinstance(e, program.Constant):
                 frame = pl.LazyFrame({'cval': [float(e.value)]}, schema={'cval': pl.Float64})
                 return CompiledExpression((), (TermFragment((), frame, 'const'),))
@@ -382,11 +382,11 @@ class PolarsCompiler:
                 return shaped(e, lambda p: self._sum_fragment(p, e.over, context))
             if isinstance(e, program.GroupSum):
                 return shaped(e, lambda p: self._group_fragment(p, e, context))
-            if isinstance(e, program.At):
+            if isinstance(e, program.Pullback):
                 return shaped(e, lambda p: self._at_fragment(p, e, context))
             if isinstance(e, program.Translate):
                 return shaped(e, lambda p: translate_fragment(self.scope, p, e, context))
-            if isinstance(e, program.Window):
+            if isinstance(e, program.WindowSum):
                 return shaped(e, lambda p: window_fragment(self.scope, p, e, context))
             if isinstance(e, program.Cases):
                 return cases(e)
@@ -400,7 +400,7 @@ class PolarsCompiler:
         One row per coordinate, which the engine enforces by refusing a
         duplicated one.
         """
-        dims = self.scope.program.parameter(name).dims
+        dims = self.scope.program.parameters[name].dims
         frame = self.scope.data.parameters[name].select(*dims, pl.col('value').cast(pl.Float64).alias('cval'))
         return TermFragment(dims, frame, 'const', parameters=frozenset({name}))
 
@@ -420,14 +420,14 @@ class PolarsCompiler:
         because dims are rewritten downstream while the presence frame is not
         — the hazard :class:`Presence` names.
         """
-        dims = self.scope.program.variable(name).dims
+        dims = self.scope.program.variables[name].dims
         frame = self.scope.variables[name].frame.select(
             *dims, 'var_label', pl.lit(1.0, dtype=pl.Float64).alias('coeff')
         )
         return TermFragment(dims, frame, 'term', presences=self._variable_presences(name, dims))
 
     def _variable_presences(self, name: str, dims: tuple[str, ...]) -> tuple[Presence, ...]:
-        declaration = self.scope.program.variable(name)
+        declaration = self.scope.program.variables[name]
         propagates = declaration.where is not None and declaration.absence == 'undefined'
         return (Presence(_presence(self.scope.variables[name], dims, 'var_label'), dims),) if propagates else ()
 
@@ -442,7 +442,7 @@ class PolarsCompiler:
         an absent term contributes nothing to a row either way.
         """
         assert self.solution is not None
-        held, declaration = self.scope.variables[name], self.scope.program.variable(name)
+        held, declaration = self.scope.variables[name], self.scope.program.variables[name]
         dims = declaration.dims
         keys = dims or (UNIT,)
         rows = held.frame.select(*keys).with_columns(held.share(self.solution.primal).alias('cval'))
@@ -538,7 +538,7 @@ class PolarsCompiler:
         return TermFragment(keep, frame, p.kind, region=region_over(p.region, keep), parameters=p.parameters)
 
     def _group_fragment(self, p: TermFragment, g: program.GroupSum, context: str) -> TermFragment:
-        """Relabel the dims ``over`` to ``into`` through the walks' relations.
+        """Relabel the dims the direction consumes to the ones it produces, through its relation.
 
         No aggregate either: a keyed relation holds one row per key and its
         columns were checked for containment at build time, so the join
@@ -549,18 +549,19 @@ class PolarsCompiler:
         as. A group is a sum, so it constructs rather than ``replace``s — see
         :meth:`_sum_fragment`.
 
-        Several walks ride the same join.
+        Several reads ride the same join.
         """
-        missing = [d for d in g.over if d not in p.dims]
+        over = g.direction.consumed_dims
+        missing = [d for d in over if d not in p.dims]
         if missing:
-            refuse_a_fragment_without_the_dims(p, missing, context, f'sum(by=) over {list(g.over)}')
+            refuse_a_fragment_without_the_dims(p, missing, context, f'sum(by=) over {list(over)}')
         grouped = self._remap_fragment(p, g)
         if p.kind != 'const':
             return grouped
         return replace(grouped, frame=pl.concat([grouped.frame, self._empty_groups(grouped, g)]))
 
     def _empty_groups(self, p: TermFragment, g: program.GroupSum) -> pl.LazyFrame:
-        """The ``into`` combinations no member maps to, as constant rows worth zero.
+        """The produced combinations no member maps to, as constant rows worth zero.
 
         A group with no members contributes nothing, so on a constant side it
         holds a *value* — the empty sum — and not a hole. The two are the same
@@ -568,7 +569,7 @@ class PolarsCompiler:
         which reads what the fragment produced and cannot see why a label is
         absent, so the value is written down here where the reason is known.
 
-        A walk to several columns lands on a *product* of targets, and a
+        A read producing several columns lands on a *product* of targets, and a
         combination no member sits at is empty for the reason one unreached
         label is — so what the reached set is subtracted from is that product,
         at each coordinate of the joined dimensions the group is read under.
@@ -576,23 +577,24 @@ class PolarsCompiler:
         Only for a constant part: an empty group contributes no *term*, and a
         row left with no terms is not built at all.
         """
-        universe = self.scope.data.dimensions[g.into[0]].select(pl.col('val').alias(g.into[0]))
-        for target in g.into[1:]:
+        into = g.direction.produced_dims
+        universe = self.scope.data.dimensions[into[0]].select(pl.col('val').alias(into[0]))
+        for target in into[1:]:
             labels = self.scope.data.dimensions[target].select(pl.col('val').alias(target))
             universe = universe.join(labels, how='cross')
-        spanned = [d for d in p.dims if d not in g.into]
+        spanned = [d for d in p.dims if d not in into]
         if spanned:
             universe = p.frame.select(spanned).unique().join(universe, how='cross')
-        reached = landed(mapping(self.scope.data.relations, g.walk), g)
-        empty = universe.join(reached, on=[*g.joined, *g.into], how='anti')
+        reached = landed(mapping(self.scope.data.relations, g.direction), g)
+        empty = universe.join(reached, on=[*g.direction.joined_dims, *into], how='anti')
         return empty.with_columns(pl.lit(0.0, dtype=pl.Float64).alias('cval')).select(*p.dims, *p.carried)
 
-    def _at_fragment(self, p: TermFragment, a: program.At, context: str) -> TermFragment:
-        """Spread ``into`` back out over ``over`` — the adjoint of a group.
+    def _at_fragment(self, p: TermFragment, a: program.Pullback, context: str) -> TermFragment:
+        """Spread the consumed dims back out over the produced ones — the adjoint of a group.
 
         The same mapping table as :meth:`_group_fragment`, joined on the other
-        columns, so the join **fans out**: one row per ``into`` tuple lands on
-        every ``over`` tuple sharing it. Still one equi-join against a table
+        columns, so the join **fans out**: one row per consumed tuple lands on
+        every produced tuple sharing it. Still one equi-join against a table
         the frame holds, so the locality class does not move.
 
         A pullback duplicates a label — the same ``var_label`` at every fine
@@ -603,12 +605,12 @@ class PolarsCompiler:
         pointwise, so what the fine coordinate has is whatever the coarse slot
         it reads has, and a slot with nothing has to take the row with it.
         """
-        absent = [d for d in a.into if d not in p.dims]
-        assert not absent, f'in {context}: At through {absent}, which the expression does not span'
+        absent = [d for d in a.direction.consumed_dims if d not in p.dims]
+        assert not absent, f'in {context}: a pullback through {absent}, which the expression does not span'
         remapped = self._remap_fragment(p, a)
         return replace(remapped, presences=self._pulled_back_presences(p, a))
 
-    def _pulled_back_presences(self, p: TermFragment, a: program.At) -> tuple[Presence, ...]:
+    def _pulled_back_presences(self, p: TermFragment, a: program.Pullback) -> tuple[Presence, ...]:
         """Where a pullback's variables exist, keyed by the fine dims they now span.
 
         Two absences reach the fine coordinate and :meth:`_remap_fragment`'s
@@ -623,9 +625,9 @@ class PolarsCompiler:
         dims while this frame keeps the columns that matter — the hazard
         :class:`Presence` names.
         """
-        joined = a.joined
-        fine = (*joined, *a.over)
-        table = mapping(self.scope.data.relations, a.walk)
+        joined = a.direction.joined_dims
+        fine = (*joined, *a.direction.produced_dims)
+        table = mapping(self.scope.data.relations, a.direction)
         reachable = landed(table, a).unique()
         if not p.presences:
             total = math.prod(self.scope.data.cardinality[d] for d in fine)
@@ -636,7 +638,7 @@ class PolarsCompiler:
             keys = presence.keys(p.dims)
             if not keys:
                 return Presence(presence.restrict(reachable, keys), fine)
-            carries_targets = all(i in keys for i in (*a.into, *joined))
+            carries_targets = all(i in keys for i in (*a.direction.consumed_dims, *joined))
             source, keys = (
                 (presence.frame, keys) if carries_targets else (self.scope.widen(presence.frame, keys, p.dims), p.dims)
             )
@@ -644,15 +646,15 @@ class PolarsCompiler:
 
         return tuple(pulled(x) for x in p.presences)
 
-    def _remap_fragment(self, p: TermFragment, node: program.GroupSum | program.At) -> TermFragment:
-        """Trade the dims *node*'s walk consumes for the ones it produces, through its relation.
+    def _remap_fragment(self, p: TermFragment, node: program.GroupSum | program.Pullback) -> TermFragment:
+        """Trade the dims *node*'s direction consumes for the ones it produces, through its relation.
 
         One inner equi-join against :func:`mapping`, keyed as :func:`walk_join`
-        says. A group consumes the dims its walk is over
-        (:meth:`_group_fragment`); an ``At`` reads the same table backwards
+        says. A group consumes the dims its direction is over
+        (:meth:`_group_fragment`); a pullback reads the same table backwards
         (:meth:`_at_fragment`).
         """
-        frame, dims = walk_join(p.frame, mapping(self.scope.data.relations, node.walk), node, p.dims, p.carried)
+        frame, dims = walk_join(p.frame, mapping(self.scope.data.relations, node.direction), node, p.dims, p.carried)
         return TermFragment(dims, frame, p.kind, region=region_over(p.region, dims), parameters=p.parameters)
 
 

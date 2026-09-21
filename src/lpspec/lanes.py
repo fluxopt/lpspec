@@ -119,7 +119,7 @@ def _case_collision(program: Program) -> str | None:
         *(('relation', name) for name in program.relations),
         *(('parameter', name) for name in program.parameters),
         *(('variable', name) for name in program.variables),
-        *(('named expression', name) for name in program.named_expressions),
+        *(('named expression', name) for name in program.expressions),
     )
     for namespace in (flat, tuple(('constraint', name) for name in program.constraints)):
         seen: dict[str, tuple[str, str]] = {}

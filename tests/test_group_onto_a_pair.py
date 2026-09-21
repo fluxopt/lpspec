@@ -244,11 +244,12 @@ def test_two_columns_lower_to_one_node_and_not_to_a_composition():
     (limit, _demand) = to_program(schema_of(SPEC)).constraints.values()
     assert isinstance(limit.lhs, GroupSum)
     assert limit.lhs.operand == Variable('p')
-    assert (limit.lhs.over, limit.lhs.relation, limit.lhs.into) == (
+    direction = limit.lhs.direction
+    assert (direction.consumed_dims, direction.name, direction.produced_dims) == (
         ('generator',),
         'gen_placement',
         ('bus', 'technology'),
-    ), 'one node carrying one walk, each column walked to paired with the dimension it lands on'
+    ), 'one node carrying one direction, each column read paired with the dimension it lands on'
 
 
 # ---------------------------------------------------------------------------
@@ -270,5 +271,5 @@ def test_a_call_walks_one_table_and_says_so():
             'sum(p, by=[gen_placement, gen_bus], over=generator, into=[bus, technology]) <= limit'
         ),
     }
-    with pytest.raises(SchemaError, match=r'names 2 relations, and one call walks one table'):
+    with pytest.raises(SchemaError, match=r'names 2 relations, and one call reads one table'):
         schema_of(SPEC, **patch)

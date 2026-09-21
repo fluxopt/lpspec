@@ -95,7 +95,7 @@ class Scope:
         and are read in order; every other consumer verifies order where it
         reads.
         """
-        declaration = self.program.parameter(param)
+        declaration = self.program.parameters[param]
         assert not set(declaration.dims) - set(frame_dims), (
             f'{subject} has dims outside the frame dims {list(frame_dims)}'
         )

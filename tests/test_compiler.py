@@ -58,7 +58,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 #: A generator's bus: the single-valued map, keyed by the generator.
-GEN_BUS = program.RelationDeclaration('gen_bus', (('generator', 'generator'), ('bus', 'bus')), ('generator',))
+GEN_BUS = program.RelationDeclaration((('generator', 'generator'), ('bus', 'bus')), ('generator',))
 
 PROGRAM = program.Program(
     parameters={
@@ -71,13 +71,14 @@ PROGRAM = program.Program(
     objective=program.ObjectiveDeclaration('minimize', program.Variable('p')),
     dimensions={
         'snapshot': program.DimensionDeclaration(),
-        'generator': program.DimensionDeclaration(relations=(GEN_BUS,)),
-        'bus': program.DimensionDeclaration(relations=(GEN_BUS,)),
+        'generator': program.DimensionDeclaration(),
+        'bus': program.DimensionDeclaration(),
     },
+    relations={'gen_bus': GEN_BUS},
 )
 
-#: The walk every grouping case here takes: out of `generator`, into `bus`.
-GEN_BUS_WALK = program.Walk(GEN_BUS, ('generator',), ('bus',), ())
+#: The direction every grouping case here reads: out of `generator`, into `bus`.
+GEN_BUS_DIRECTION = program.Direction('gen_bus', GEN_BUS, ('generator',), ('bus',), ())
 
 CARDINALITY = {'snapshot': 24, 'generator': 3, 'bus': 2}
 
@@ -175,7 +176,7 @@ def test_a_parameter_is_a_constant_fragment_not_a_term():
 
 def test_addition_concatenates_fragments_rather_than_joining():
     """An LP row is a sum of terms, so ``+`` needs no query at all."""
-    compiled = compiler().expression(program.Variable('p') + program.Variable('p'), 'test')
+    compiled = compiler().expression(program.Add(program.Variable('p'), program.Variable('p')), 'test')
     assert len(compiled.terms) == 2
 
 
@@ -226,7 +227,7 @@ def masked_compiler() -> PolarsCompiler:
     with a single masked term there is nothing for absence to propagate *to*.
     """
     over = ('snapshot', 'generator')
-    where = program.Mask(program.ParameterComparisonNode('available', '>', 0.0, ('generator',)))
+    where = program.Mask(program.ParameterComparison('available', '>', 0.0, ('generator',)))
     masked = program.Program(
         parameters=PROGRAM.parameters,
         variables={
@@ -284,7 +285,7 @@ def test_sum_over_an_absent_dim_scales_by_that_dims_cardinality():
 
 
 def test_sum_swaps_the_source_dim_for_the_target_and_emits_no_aggregate():
-    node = program.GroupSum(program.Variable('p'), GEN_BUS_WALK)
+    node = program.GroupSum(program.Variable('p'), GEN_BUS_DIRECTION)
     fragment = compiler().expression(node, 'test').terms[0]
     assert fragment.dims == ('snapshot', 'bus')
     assert columns(fragment.frame) == ['snapshot', 'bus', 'var_label', 'coeff']
@@ -328,7 +329,7 @@ def test_a_shape_operator_along_a_dim_the_expression_lacks_is_refused():
 
 def test_a_dimension_comparison_filters_a_column_already_in_the_frame():
     """Pointwise, and free: no table is read to decide it."""
-    frame = masked(compiler().scope, ('snapshot',), program.Mask(program.DimensionComparisonNode('snapshot', '>', 0)))
+    frame = masked(compiler().scope, ('snapshot',), program.Mask(program.DimensionComparison('snapshot', '>', 0)))
     text = query(frame)
     assert 'FILTER' in text
     assert 'JOIN' not in text
@@ -336,7 +337,7 @@ def test_a_dimension_comparison_filters_a_column_already_in_the_frame():
 
 def test_a_parameter_predicate_needs_a_join():
     frame = masked(
-        compiler().scope, ('generator',), program.Mask(program.ParameterDefinedNode('available', ('generator',)))
+        compiler().scope, ('generator',), program.Mask(program.ParameterDefined('available', ('generator',)))
     )
     text = query(frame)
     assert 'JOIN' in text
@@ -347,9 +348,7 @@ def test_a_name_the_mask_is_certain_of_is_inner_joined():
     """The rows a left join would keep here are rows the filter then drops, so
     all it adds is the width of the product they are dropped from."""
     text = query(
-        masked(
-            compiler().scope, ('generator',), program.Mask(program.ParameterDefinedNode('available', ('generator',)))
-        )
+        masked(compiler().scope, ('generator',), program.Mask(program.ParameterDefined('available', ('generator',))))
     )
     assert 'INNER JOIN' in text
     assert 'LEFT JOIN' not in text
@@ -360,9 +359,9 @@ def test_the_same_predicate_under_an_or_is_left_joined_again():
     can be what makes the mask true, so the rows an inner join would drop are
     rows the answer may need."""
     where = program.Mask(
-        program.OrNode(
-            program.ParameterDefinedNode('available', ('generator',)),
-            program.DimensionComparisonNode('generator', '==', 'g'),
+        program.Or(
+            program.ParameterDefined('available', ('generator',)),
+            program.DimensionComparison('generator', '==', 'g'),
         )
     )
     text = query(masked(compiler().scope, ('generator',), where))
@@ -378,22 +377,20 @@ def test_what_a_bare_name_asks_is_decided_by_its_declaration():
     `is_finite`, which polars refuses outright.
     """
     numeric = query(
-        masked(
-            compiler().scope, ('generator',), program.Mask(program.ParameterDefinedNode('available', ('generator',)))
-        )
+        masked(compiler().scope, ('generator',), program.Mask(program.ParameterDefined('available', ('generator',))))
     )
     boolean = query(
         masked(
             compiler({'available': 'bool'}).scope,
             ('generator',),
-            program.Mask(program.ParameterDefinedNode('available', ('generator',))),
+            program.Mask(program.ParameterDefined('available', ('generator',))),
         )
     )
     text = query(
         masked(
             compiler({'available': 'str'}).scope,
             ('generator',),
-            program.Mask(program.ParameterDefinedNode('available', ('generator',))),
+            program.Mask(program.ParameterDefined('available', ('generator',))),
         )
     )
 
@@ -427,7 +424,7 @@ def test_a_mask_reading_part_of_the_frame_restricts_by_semi_join():
     frame = masked(
         compiler().scope,
         ('snapshot', 'generator'),
-        program.Mask(program.ParameterDefinedNode('available', ('generator',))),
+        program.Mask(program.ParameterDefined('available', ('generator',))),
     )
     assert 'SEMI JOIN' in query(frame)
 
@@ -438,9 +435,9 @@ def test_a_mask_reading_every_dim_filters_instead():
     exactly that shape and paid 6.6% of the `m` pipeline for it before this
     branch existed; the filter it falls back to keeps order the same way."""
     where = program.Mask(
-        program.AndNode(
-            program.ParameterDefinedNode('load', ('snapshot',)),
-            program.ParameterDefinedNode('available', ('generator',)),
+        program.And(
+            program.ParameterDefined('load', ('snapshot',)),
+            program.ParameterDefined('available', ('generator',)),
         )
     )
     assert 'SEMI JOIN' not in query(masked(compiler().scope, ('snapshot', 'generator'), where))

@@ -92,10 +92,10 @@ ACCEPTED = [
 #: one, differentially against the same oracle.
 #: Mapped rather than skipped so the coverage guard below still names a test.
 COVERED_ELSEWHERE = {
-    'VariableDefinedNode': ('tests/test_relational.py::test_a_bare_variable_name_in_a_where_asks_whether_it_exists'),
-    'RelationComparisonNode': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
-    'RelationPairComparisonNode': 'tests/test_label_coords.py::test_a_relation_where_agrees_with_the_oracle',
-    'RelationDefinedNode': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
+    'VariableDefined': ('tests/test_relational.py::test_a_bare_variable_name_in_a_where_asks_whether_it_exists'),
+    'RelationComparison': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
+    'RelationPairComparison': 'tests/test_label_coords.py::test_a_relation_where_agrees_with_the_oracle',
+    'RelationDefined': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
 }
 
 
@@ -125,8 +125,8 @@ def test_both_lanes_build_the_same_model(tmp_path, dispatch_spec_inputs, where):
 def test_every_resolved_predicate_is_parity_tested():
     """The guard that would have caught the DimDefined hole.
 
-    `DimDefined` shipped in #62 lowering to `program.BooleanLiteralNode(True)`, which discarded
-    the dimension — so unlike `DimensionComparisonNode`, nothing checked it against the frame's
+    `DimDefined` shipped in #62 lowering to `program.BooleanLiteral(True)`, which discarded
+    the dimension — so unlike `DimensionComparison`, nothing checked it against the frame's
     dims, and a bare dimension name outside `dims` raised eagerly and built
     relationally. No test touched it. This one fails if any resolved predicate
     is not exercised by ACCEPTED above, so a new node cannot arrive untested.
@@ -136,7 +136,7 @@ def test_every_resolved_predicate_is_parity_tested():
 
     from math_spec import program, to_program
 
-    expected = set(get_args(program.WhereNode))  # resolved-only: the Unresolved* nodes left the union with the parser
+    expected = set(get_args(program.Predicate))  # resolved-only: the Unresolved* nodes left the union with the parser
     covered: set[type] = set()
 
     def walk(node):

@@ -22,7 +22,7 @@ from __future__ import annotations
 import functools
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import yaml
 
@@ -244,10 +244,10 @@ def test_the_translation_table_names_every_built_in_operator():
     )
 
 
-def _gen_bus_walk(program: Any) -> Any:
-    """One map walked one way — what a `by=` node stands on, whichever operator takes it."""
-    gen_bus = program.RelationDeclaration('gen_bus', (('g', 'g'), ('bus', 'bus')), ('g',))
-    return program.Walk(gen_bus, ('g',), ('bus',), ())
+def _gen_bus_direction(program: Any) -> Any:
+    """One map read one way — what a `by=` node stands on, whichever operator takes it."""
+    gen_bus = program.RelationDeclaration((('g', 'g'), ('bus', 'bus')), ('g',))
+    return program.Direction('gen_bus', gen_bus, ('g',), ('bus',), ())
 
 
 def test_the_plan_table_names_every_expression_node():
@@ -279,14 +279,14 @@ def test_the_plan_table_names_every_expression_node():
             program.Divide(x, program.Parameter('p')),
             program.Power(program.Parameter('p'), program.Constant(2.0)),
             program.Sum(x, ('t',)),
-            program.GroupSum(x, _gen_bus_walk(program)),
-            program.At(x, _gen_bus_walk(program)),
+            program.GroupSum(x, _gen_bus_direction(program)),
+            program.Pullback(x, _gen_bus_direction(program)),
             program.Translate(x, 't', 1, wrap=False),
-            program.Window(x, 't', 3, wrap=False),
-            program.Cases((program.Region(program.Mask(program.BooleanLiteralNode(True)), x),)),
+            program.WindowSum(x, 't', 3, wrap=False),
+            program.Cases((program.Region(program.Mask(program.BooleanLiteral(True)), x),)),
         )
     }
-    assert set(nodes) == {c.__name__ for c in program.Expression.__subclasses__()}, (
+    assert set(nodes) == {c.__name__ for c in get_args(program.Expression)}, (
         'the instances below stand for every expression node, so a node added to the language is one here too'
     )
     assert set(rows) == set(nodes), (
