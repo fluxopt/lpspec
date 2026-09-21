@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.346](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.345...v0.0.1-alpha.346) (2026-09-21)
+
+
+### Bug Fixes
+
+* **language:** a pullback that reads a column over the dimension it joins on is refused at load ([#1703](https://github.com/fluxopt/lpspec/issues/1703)) ([e92827f](https://github.com/fluxopt/lpspec/commit/e92827fd4b50a9e6c06893363e72dad34d6c2962))
+
 ## [0.0.1-alpha.345](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.344...v0.0.1-alpha.345) (2026-09-19)
 
 
