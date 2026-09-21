@@ -109,6 +109,7 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | a divisor with no value where the model divides by it | names the parameter and how many rows ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/)) |
 | a comparison's whole constant side with no value where the row is built | the same, naming the constraint |
 | a bound parameter with no value where the variable exists | names both models the two repairs build |
+| an [`assumptions:`](https://math-spec.readthedocs.io/en/latest/reference/language/assumptions/) entry the data fails | names the assumption, the parameters it reads, and the first coordinates where the predicate is false; a missing row reads as false |
 
 ### Accepted
 

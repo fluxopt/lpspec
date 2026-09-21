@@ -106,6 +106,26 @@ p_{t,g} = \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \math
 0 \le \mathit{cost\_curve\_lam}_{t,g,b} \le 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G},\ b \in \mathcal{B} \,:\, \mathrm{cost\_curve\_points}_{g,b}
 ```
 
+#### Assumptions
+
+**`cost_curve increasing`**
+
+```math
+\mathrm{bp\_x}_{g,b - 1} < \mathrm{bp\_x}_{g,b} \qquad \forall\, g \in \mathcal{G},\ b \in \mathcal{B} \,:\, \mathrm{cost\_curve\_points}_{g,b} \wedge \mathrm{cost\_curve\_points}_{g,b - 1}
+```
+
+**`cost_curve curvature`**
+
+```math
+\mathrm{bp\_y}_{g,b} \text{ is a convex or concave function of } \mathrm{bp\_x}_{g,b} \text{ along } b \qquad \forall\, g \in \mathcal{G}
+```
+
+**`cost_curve points`**
+
+```math
+\{ b \in \mathcal{B} \,:\, \mathrm{cost\_curve\_points}_{g,b} \} \text{ is one run of consecutive breakpoints} \qquad \forall\, g \in \mathcal{G}
+```
+
 </details>
 <!-- math:end -->
 

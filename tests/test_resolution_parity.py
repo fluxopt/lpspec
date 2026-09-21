@@ -25,7 +25,6 @@ from tests.oracle import lpspec_linopy, pd  # skips the module without the [lino
     ('where', 'match'),
     [
         pytest.param('typo_name > 0', "'typo_name' not found", id='a-name-nothing-declares'),
-        pytest.param('p_max > cost', 'compares two parameters', id='two-parameters-compared'),
         pytest.param('generator == snapshot', 'compares against dimension', id='a-dimension-on-the-right'),
         pytest.param('nonexistent', "'nonexistent' not found", id='a-bare-name-nothing-declares'),
         pytest.param('snapshot', 'bare dimension name is true at every coordinate', id='a-bare-dimension-name'),
@@ -79,6 +78,18 @@ ACCEPTED = [
     #: The one position a literal survives to: alone, and false. `True` alone
     #: is no mask at all and arrives as `None`.
     'False',
+    #: Two parameters compared, which the language refused until math-spec #566
+    #: with "compares two parameters, which is not in the language".
+    'p_max > cost',
+    #: Arithmetic on a side, and a reduction on one — both sides of a
+    #: comparison are expressions now, so a side carries what a constant side
+    #: of a constraint carries.
+    '0.5 * p_max > 0',
+    'sum(p_max, over=generator) > 0',
+    #: Both sides constant, so the comparison is one scalar against another and
+    #: carries no dimension. The eager lane read the result as an array and got
+    #: a plain bool, which has no `fillna`.
+    '1 > 0',
 ]
 
 #: Predicates this sweep cannot host, with where they are checked instead. The
@@ -96,6 +107,11 @@ COVERED_ELSEWHERE = {
     'RelationComparison': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
     'RelationPairComparison': 'tests/test_label_coords.py::test_a_relation_where_agrees_with_the_oracle',
     'RelationDefined': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
+    #: The resolved form of an arithmetic comparison, which `lower_program`
+    #: replaces with `ExpressionComparison` over program expressions. It is in
+    #: `program.Predicate` but reaches no lowered mask, so no lane dispatches on
+    #: it and the sweep above cannot host it.
+    'ArithmeticComparison': 'tests/test_architecture.py::test_no_never_lowered_node_survives_lowering',
 }
 
 

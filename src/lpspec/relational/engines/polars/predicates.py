@@ -6,7 +6,8 @@ product does not carry. The joins happen *during* the walk: the condition is
 built first and the frame read after.
 
 A closed vocabulary of its own — comparisons against a parameter, a dimension
-label, a position along a dimension, a relation, and the three connectives. It
+label, a position along a dimension, a relation, arithmetic over parameters,
+and the three connectives. It
 takes the :class:`~lpspec.relational.engines.polars.scope.Scope` as an
 argument and holds nothing. :func:`masked` is the product a declaration is
 instantiated over, cut by its mask: the one place the two meet.
@@ -24,6 +25,7 @@ import polars as pl
 from math_spec import program
 
 from lpspec.errors import DataError, position_out_of_range_message, short_groups_message
+from lpspec.relational.engines.polars.fragments import join_on
 from lpspec.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE, Grouping
 
 if TYPE_CHECKING:
@@ -204,7 +206,33 @@ def compile_predicate(
             ),
         )
 
+    def _side(expression: program.Expression, dims: tuple[str, ...]) -> str:
+        """*expression* joined onto the carrier as one value column, and that column's name.
+
+        A side of a comparison is arithmetic over parameters — the language
+        refuses a variable and a ``dual()`` there — so it compiles to constant
+        fragments alone, and they are added over the comparison's dims the way
+        a constant side of a constraint is. A coordinate no fragment reaches
+        stays null so the comparison reads false, which is what every other
+        atom over a missing value does.
+        """
+        from lpspec.relational.engines.polars.compiler import PolarsCompiler  # mask ↔ expression recursion
+
+        def attach(frame: pl.LazyFrame, alias: str) -> pl.LazyFrame:
+            compiled = PolarsCompiler(scope).expression(expression, 'a where clause')
+            assert not compiled.terms and not compiled.quads, (
+                'a where side is arithmetic over parameters, which compiles to constants alone'
+            )
+            product = frame.select(*dims).unique() if dims else frame.select(pl.lit(0).alias('__one__')).head(1)
+            added = PolarsCompiler(scope).added(compiled.consts, product, fill=False)
+            return join_on(frame, added.rename({'cval': alias}), dims, 'left')
+
+        return carrier.once(f'__where expression {expression!r}__', attach)
+
     def walk(p: program.Predicate) -> pl.Expr:
+        if isinstance(p, program.ExpressionComparison):
+            left, right = (_side(p.left, p.dims), _side(p.right, p.dims))
+            return falsy_if_null(_COLUMN_COMPARISONS[p.op](pl.col(left), pl.col(right)))
         if isinstance(p, program.ParameterComparison):
             return _compare(pl.col(join_param(p.name)), p.op, p.value)
         if isinstance(p, program.DimensionComparison):
@@ -249,7 +277,7 @@ def compile_predicate(
             return walk(p.left) | walk(p.right)
         if isinstance(p, program.Not):
             return ~falsy_if_null(walk(p.operand))
-        assert_never(p)
+        assert_never(p)  # pyrefly: ignore[bad-argument-type]  — ArithmeticComparison is in the union and lowering always replaces it (NEVER_LOWERED)
 
     condition = walk(mask.root)
     return carrier.frame, condition

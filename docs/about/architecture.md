@@ -269,10 +269,14 @@ rule. A cost phrased as a rule makes one implementation's choice load-bearing in
 the language's rulebook.
 
 0. **The layers are ordered, and imports prove it.** Every module imports only
-   downward, at module level, with **no exception at all**.
-   `DELIBERATE_LAZY_IMPORTS` in `tests/test_architecture.py` is empty, and an
-   undeclared in-function import fails the build. A lazy import here is a cycle
-   to remove, not to defer.
+   downward, at module level, and every exception is declared in
+   `DELIBERATE_LAZY_IMPORTS` in `tests/test_architecture.py` with the cycle it
+   breaks. An undeclared in-function import fails the build, and a declared one
+   that disappears fails it too. There are two, one per lane, and they are one
+   cycle: a `where` may compare arithmetic over parameters, so a mask reads an
+   expression, while a `cases` expression reads a mask. That recursion is the
+   language's own grammar, so no ordering of a lane's two modules removes it.
+   Every other lazy import is a cycle to remove, not to defer.
 1. **Core AST is the whole language, and the language is upstream.** Both lanes
    consume only core AST. Macros and `piecewise:` are expanded away before
    dispatch, and so is a named expression unless it states `cases:`. That one
@@ -547,6 +551,7 @@ is structure.
 | `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `LANES`, what each lane can build, read by `check` without the extra |
 | `relational/collect.py` | which polars engine materialises a frame: the streaming one where this polars has it, asked once; a build without it, the browser's, gets the in-memory one |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
+| `assumptions.py` | the `assumptions:` entries a file writes, checked at the door: each predicate evaluated where its `where` admits, through the relational lane's mask compiler, and the data refused in the language's own words at the coordinates it fails |
 | `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `lps.`; a wording lives here only where two modules raise it |

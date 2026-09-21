@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
+from lpspec.assumptions import validate_assumptions
 from lpspec.curves import derive_curve_sources, validate_curve_extent, validate_piecewise_data
 from lpspec.errors import DataError, did_you_mean
 from lpspec.frames import as_frame, is_dense_array, is_multi_indexed
@@ -104,6 +105,7 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
     for dname in program.dimensions:
         if dname not in sources:
             raise DataError(no_index_source_message(dname))
+    validate_assumptions(program, sources)
     return sources
 
 

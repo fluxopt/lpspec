@@ -488,3 +488,25 @@ def test_a_zero_edge_writes_its_rows_like_any_other_fill():
     bare = program.Translate(program.Parameter('load'), 'snapshot', 1, wrap=False, fill=None)
     vacated = q.expression(bare, 'test').consts[0].frame.collect()
     assert vacated['snapshot'].to_list() == [1, 2], 'a bare shift vacates, and that is a gap on purpose'
+
+
+def test_a_where_side_holding_a_variable_is_caught_rather_than_compiled_as_a_constant():
+    """The guard the suite survives deleting, because the language gets there first.
+
+    `lower_program` only builds an `ExpressionComparison` from a side it has
+    already refused a variable and a `dual()` on, so no model reaches `_side`
+    with a variable term — the guard is the invariant that stays true if that
+    refusal ever moves. Handed the node directly, it says which assumption
+    broke instead of folding a variable's coefficient into a value column and
+    masking on it.
+    """
+    from lpspec.relational.engines.polars.predicates import compile_predicate
+
+    mask = program.Mask(
+        program.ExpressionComparison(program.Variable('p'), '>', program.Constant(0.0), ('snapshot', 'generator'))
+    )
+    frame = pl.LazyFrame(schema={'snapshot': pl.Int64, 'generator': pl.String})
+
+    with pytest.raises(AssertionError, match='arithmetic over parameters, which compiles to constants alone'):
+        carrier, _ = compile_predicate(compiler().scope, frame, mask, ('snapshot', 'generator'))
+        carrier.collect()

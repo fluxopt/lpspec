@@ -5,10 +5,15 @@ builds it — and can decide nothing about its numbers, because it has never
 seen one. This is the other half: given the tidy sources, is the curve
 supplied everywhere the block builds a weight for it, and does it hold what
 its method rests on. What those conditions *are* is the language's answer —
-a block carries them as :data:`~math_spec.program.Check` values, each naming
-its own subjects, and :func:`~math_spec.program.check_message` words the
-refusal — so what is decided here is only whether the numbers hold them, and
-this module appends what it saw.
+the method implies them, a block's standing under
+:attr:`~math_spec.program.Program.assumptions` as
+:data:`~math_spec.program.Check` values, each naming its own subjects, and
+:func:`~math_spec.program.assumption_message` words the refusal — so what is
+decided here is only whether the numbers hold them, and this module appends
+what it saw.
+
+What the *file* assumes of its data is the other kind of entry in that same
+mapping, and :mod:`lpspec.assumptions` holds it.
 
 Called from :func:`~lpspec.sources.tidy_sources`, so both lanes pass through it
 by entering the one door.
@@ -21,7 +26,16 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
-from math_spec.program import AtLeastTwo, Contiguous, Curved, FirstOf, Increasing, LastOf, MaskOf, check_message
+from math_spec.program import (
+    AtLeastTwo,
+    Contiguous,
+    Curved,
+    FirstOf,
+    Increasing,
+    LastOf,
+    MaskOf,
+    assumption_message,
+)
 
 from lpspec.errors import DataError, PiecewiseExpansionError
 from lpspec.frames import as_frame
@@ -95,9 +109,16 @@ def derive_curve_sources(
     return sources
 
 
-def _one[C: Check](checks: Sequence[Check], kind: type[C]) -> C | None:
-    """The block's check of *kind*, or ``None`` — a block carries at most one of each."""
-    return next((check for check in checks if isinstance(check, kind)), None)
+def _one[C: Check](program: Program, block: str, kind: type[C]) -> C | None:
+    """The condition of *kind* that *block*'s method implies, or ``None`` — a block implies at most one of each."""
+    implied = (a for a in program.assumptions.values() if isinstance(a, kind))
+    return next((a for a in implied if a.block == block), None)
+
+
+def _refusal(program: Program, check: Check) -> str:
+    """The language's sentence for *check*, under the name it is filed as in :attr:`~math_spec.program.Program.assumptions`."""
+    name = next(n for n, a in program.assumptions.items() if a is check)
+    return assumption_message(name, check)
 
 
 def validate_curve_extent(program: Program, sources: Mapping[str, pl.LazyFrame]) -> None:
@@ -121,7 +142,7 @@ def validate_curve_extent(program: Program, sources: Mapping[str, pl.LazyFrame])
             breakpoint axis.
     """
     for block, decl in program.piecewise.items():
-        run = _one(decl.checks, Contiguous)
+        run = _one(program, block, Contiguous)
         mask = _prefix_mask(block, decl, run, program, sources)
         points = (run.values or run.mask) if run else None
         for values in decl.breakpoints:
@@ -219,7 +240,7 @@ def _prefix_mask(
         broken = _grid(extents, frame_dims, table).join(marked, on=frame_dims, how='anti').head(1).collect()
     if broken.height:
         shown = ', '.join(f'{d}={broken.row(0, named=True)[d]!r}' for d in frame_dims)
-        message = check_message(block, pw, run)
+        message = _refusal(program, run)
         raise DataError(f'{message}\n  Not so at {shown}' if shown else message)
     return marked.select(dims)
 
@@ -331,28 +352,28 @@ def validate_piecewise_data(program: Program, sources: Mapping[str, pl.LazyFrame
             a ``method: lp`` curve with no segment, or a curve of the curvature
             the method is not exact for.
     """
-    for name, decl in program.piecewise.items():
-        curved = _one(decl.checks, Curved)
+    for name in program.piecewise:
+        curved = _one(program, name, Curved)
         if curved is None or curved.over not in sources:
             continue
-        increasing, segment = _one(decl.checks, Increasing), _one(decl.checks, AtLeastTwo)
-        run = _one(decl.checks, Contiguous)
+        increasing, segment = _one(program, name, Increasing), _one(program, name, AtLeastTwo)
+        run = _one(program, name, Contiguous)
         curves = _curves(program, curved.x, curved.y, run.mask if run else None, curved.over, sources)
         if curves is None:
             continue
         for xs, ys in curves:
             if segment is not None and xs.size < 2:
-                raise PiecewiseExpansionError(f'{check_message(name, decl, segment)}\n  This curve carries {xs.size}')
+                raise PiecewiseExpansionError(f'{_refusal(program, segment)}\n  This curve carries {xs.size}')
             dx = np.diff(xs)
             if increasing is not None and not (dx > 0).all():
-                raise PiecewiseExpansionError(f'{check_message(name, decl, increasing)} (got {xs.tolist()})')
+                raise PiecewiseExpansionError(f'{_refusal(program, increasing)} (got {xs.tolist()})')
             slopes = np.diff(ys) / dx
             bend, tol = np.diff(slopes), 1e-9 * float(np.abs(slopes).max(initial=0.0))
             rises, falls = bool((bend > tol).any()), bool((bend < -tol).any())
             required = curved.curvature
             wrong_bend = (rises and falls) if required == 'either' else (falls if required == 'convex' else rises)
             if wrong_bend:
-                raise PiecewiseExpansionError(f'{check_message(name, decl, curved)} (got {ys.tolist()})')
+                raise PiecewiseExpansionError(f'{_refusal(program, curved)} (got {ys.tolist()})')
 
 
 def _curves(
