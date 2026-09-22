@@ -776,7 +776,9 @@ def test_a_curve_masked_by_its_own_breakpoints_asks_for_nothing_extra():
     assert sorted(tidy_sources(program, _ONE_DIM_CURVE)) == ['bp', 'bp_x', 'bp_y', 'load', 'snapshot'], (
         'and the door gives back one frame per name it takes'
     )
-    assert lps.solve(_nominated_mask_spec(), _ONE_DIM_CURVE).objective == pytest.approx(95.0)
+    assert lps.solve(_nominated_mask_spec(), _ONE_DIM_CURVE).objective == pytest.approx(95.0), (
+        'and the curve still binds and solves, masked by the rows of its own breakpoints'
+    )
 
 
 def test_values_the_mask_leaves_out_are_left_alone(short_curve_inputs):
