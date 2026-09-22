@@ -185,8 +185,8 @@ output format is one module in `relational/sinks/writers/`.
 
 **The renderer is that claim cashed, and it is not here.**
 `math_spec.typesetting` typesets any model the lanes can build, in one walk of
-the resolved AST. A `piecewise:` block prints as the λ-formulation it expands
-to. It lives in the package that owns the language, and this package does not
+the resolved AST. A `piecewise:` block prints as the curve it states, and its
+expansion as the rows. It lives in the package that owns the language, and this package does not
 depend on it. A consumer that reads the AST and nothing else needs no part of
 this repository to run. The waist is **closed**, which is what [the limits of
 the language](https://math-spec.readthedocs.io/en/latest/about/limits/)
@@ -274,8 +274,10 @@ the language's rulebook.
    undeclared in-function import fails the build. A lazy import here is a cycle
    to remove, not to defer.
 1. **Core AST is the whole language, and the language is upstream.** Both lanes
-   consume only core AST. Macros and `piecewise:` are expanded away before
-   dispatch, and so is a named expression unless it states `cases:`. That one
+   consume only core AST. Macros are substituted away by the language before
+   dispatch, and so is a named expression unless it states `cases:`; a
+   `piecewise:` block is written out by the caller (`Spec.expand`) before the
+   door, which refuses one left as written. That one
    arrives as a node of its own, because a substitution cannot carry a mask in a
    value position. The plan, the query and the xarray are private to their lane.
    The AST crossing that seam is **fully resolved**, with names typed

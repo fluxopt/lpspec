@@ -82,7 +82,7 @@ def _portability(program: Program, sink: str) -> str | None:
 
 
 def check(spec: Buildable, sink: str | None = None) -> Program:
-    """Parse, expand, validate and lower a spec; attach no data.
+    """Parse, validate and lower a spec; attach no data.
 
     With *sink*, also: **will that sink take it?** Bare ``check`` says nothing
     about portability. The answer is read off a declared table with no data

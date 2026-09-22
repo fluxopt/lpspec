@@ -1,7 +1,7 @@
 """piecewise costs: the λ-formulation block, and the epigraph that needs none.
 
-The ``piecewise:`` expansion runs before either backend, so eager and
-relational receive identical affine declarations. Nonconvex correctness is
+The ``piecewise:`` expansion is the language's and the caller's, run before
+either backend, so eager and relational receive identical affine declarations. Nonconvex correctness is
 verified by checking the linked primals lie ON the curve (adjacency binaries
 at work) against a numpy interpolation; the ``convex:`` flag is verified to
 produce the hull instead.

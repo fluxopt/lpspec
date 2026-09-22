@@ -157,7 +157,9 @@ def lowered(spec: Buildable) -> Program:
     """*spec* as a program, refusing what this package cannot keep apart.
 
     Every door lowers through here, so what :func:`check` refuses
-    :func:`build` and an archive refuse too.
+    :func:`build` and an archive refuse too. Nothing is expanded here: the
+    model is lowered as it arrived, and :func:`declared` has already refused
+    one with a formulation still to be written out.
 
     Raises:
         LanguageError: A construct outside the streaming language.
