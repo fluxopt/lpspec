@@ -122,7 +122,6 @@ def _build_sos(ctx: EvaluationContext) -> None:
                 ctx.model.variables[sos.variable],
                 sos_type=sos.sos_type,
                 sos_dim=sos.over,
-                big_m=sos.big_m,
             )
 
 
@@ -263,7 +262,7 @@ def _eval(node: program.Expression, ctx: EvaluationContext) -> Any:
         return _dual(node.constraint, ctx)
 
     if isinstance(node, program.Parameter):
-        return absence.coefficient(ctx.dataset[node.name])
+        return ctx.absent_parameter(ctx.dataset[node.name])
 
     if isinstance(node, program.Negate):
         return -_eval(node.operand, ctx)

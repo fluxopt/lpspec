@@ -76,7 +76,6 @@ sos:
     variable: weight
     over: bp
     type: 2
-    big_m: 1
 
 constraints:
   one_operating_point:

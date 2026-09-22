@@ -21,7 +21,7 @@ import polars as pl
 from lpspec.relational.engines.polars.fragments import join_on
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Mapping, Sequence
 
     from math_spec import program
     from polars._typing import JoinStrategy, MaintainOrderJoin
@@ -146,5 +146,14 @@ class Scope:
 
     def spanned(self, fragments: Sequence[TermFragment]) -> tuple[str, ...]:
         """The dims *fragments* carry between them, in declaration order."""
-        union = {d for p in fragments for d in p.dims}
-        return tuple(d for d in self.program.dimensions if d in union)
+        return self.in_declaration_order(d for p in fragments for d in p.dims)
+
+    def in_declaration_order(self, dims: Iterable[str]) -> tuple[str, ...]:
+        """*dims* in the order the file declares them, duplicates dropped.
+
+        A ``where`` leaf stamps its dims as a set, and two frames keyed by the
+        same dims in two orders join on a key written twice — so the order
+        comes from the one place that has one.
+        """
+        wanted = set(dims)
+        return tuple(d for d in self.program.dimensions if d in wanted)

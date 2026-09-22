@@ -39,7 +39,7 @@ _QUAD = ('col_l', 'col_r', 'coeff')
 _ROWS = ('row', 'sense', 'rhs')
 _MATRIX = ('row', 'col', 'coeff')
 _QMATRIX = ('row', 'col_l', 'col_r', 'coeff')
-_SOS = ('set', 'type', 'col', 'weight', 'big_m')
+_SOS = ('set', 'type', 'col', 'weight')
 
 #: The dtype of each of those columns. ``vtype`` is an ``Enum`` over the
 #: variable types the plan declares, so a type added upstream and not reaching
@@ -51,7 +51,7 @@ _DTYPES = {
     'col': pl.Int32, 'row': pl.Int64,
     'lb': pl.Float64, 'ub': pl.Float64, 'rhs': pl.Float64, 'coeff': pl.Float64,
     'sense': SENSE, 'vtype': pl.Enum(get_args(program.VariableDomain)),
-    'set': pl.Int32, 'type': pl.UInt8, 'weight': pl.Int32, 'big_m': pl.Float64,
+    'set': pl.Int32, 'type': pl.UInt8, 'weight': pl.Int32,
     'col_l': pl.Int32, 'col_r': pl.Int32,
 }  # fmt: skip
 
@@ -231,7 +231,7 @@ class Assembly:
         return cols
 
     def _build_sos(self, s: program.SosDeclaration, v: program.VariableDeclaration) -> pl.DataFrame:
-        """One declaration's sets as ``(set, type, col, weight, big_m)``, over *v*.
+        """One declaration's sets as ``(set, type, col, weight)``, over *v*.
 
         Builds no column and no row: a set names columns the variable already
         made, so it runs after every variable and before any constraint.
@@ -249,9 +249,6 @@ class Assembly:
         order is verified and the sort runs only where members interleave — on
         **both** columns, because a sort that reordered ties would be a set
         whose members arrive out of weight order.
-
-        ``big_m`` rides along per member, at ``inf`` where the block declared
-        none — the one thing here no sink taking a set natively reads.
         """
         held = self.variables[s.variable]
         cardinality = self.scope.data.cardinality
@@ -278,7 +275,6 @@ class Assembly:
             pl.lit(s.sos_type, dtype=_DTYPES['type']).alias('type'),
             'col',
             'weight',
-            pl.lit(float('inf') if s.big_m is None else s.big_m, dtype=_DTYPES['big_m']).alias('big_m'),
         )
         if built.height:
             self.n_sets = built.item(-1, 'set') + 1

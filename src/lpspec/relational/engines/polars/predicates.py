@@ -18,12 +18,16 @@ they go.
 
 from __future__ import annotations
 
+import itertools
+import operator
+from functools import reduce
 from typing import TYPE_CHECKING, assert_never
 
 import polars as pl
 from math_spec import program
 
 from lpspec.errors import DataError, position_out_of_range_message, short_groups_message
+from lpspec.relational.engines.polars.fragments import constant_scalar, join_on
 from lpspec.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE, Grouping
 
 if TYPE_CHECKING:
@@ -33,6 +37,11 @@ if TYPE_CHECKING:
     from polars._typing import JoinStrategy
 
     from lpspec.relational.engines.polars.scope import Scope
+
+#: The two columns a shift relabels through: a coordinate's target ordinal and
+#: the label sitting there. Spaces make them unrepresentable as declared names.
+_SHIFT_ORD = '__shift ord__'
+_SHIFT_TO = '__shift to__'
 
 
 class Carrier:
@@ -129,6 +138,7 @@ def compile_predicate(
     """
     certain = _certain_names(mask)
     carrier = Carrier(frame)
+    serial = itertools.count()
 
     def join_param(param: str) -> str:
         how: JoinStrategy = 'inner' if param in certain else 'left'
@@ -204,9 +214,38 @@ def compile_predicate(
             ),
         )
 
+    def join_reduction(label: str, build: Callable[[str], pl.LazyFrame], on: tuple[str, ...]) -> str:
+        """A frame a leaf reduces its own product to, joined onto the walk's by *on*.
+
+        Numbered rather than named after what it reduces: two leaves of one
+        mask can reduce the same frame to different answers, so sharing an
+        alias between them would answer one with the other.
+        """
+        for dimension in on:
+            refuse_outside_frame(f'where {label}', dimension)
+        alias = f'__where {label} {next(serial)}__'
+        return carrier.once(alias, lambda f, a: join_on(f, build(a), on, 'left'))
+
     def walk(p: program.Predicate) -> pl.Expr:
         if isinstance(p, program.ParameterComparison):
             return _compare(pl.col(join_param(p.name)), p.op, p.value)
+        if isinstance(p, program.ExpressionComparison):
+            left, right = (_values(scope, side) for side in (p.left, p.right))
+            columns = tuple(
+                join_reduction('value', lambda a, v=values: v.rename({'cval': a}), on) for values, on in (left, right)
+            )
+            return _COLUMN_COMPARISONS[p.op](pl.col(columns[0]), pl.col(columns[1]))
+        if isinstance(p, program.ArithmeticComparison):
+            msg = 'lowering rewrites a comparison of arithmetic into one of expressions, so a program carries none'
+            raise AssertionError(msg)
+        if isinstance(p, program.CountComparison):
+            keys = scope.in_declaration_order(p.dims)
+            alias = join_reduction('count', lambda a: _counted(scope, p, a), keys)
+            return _COLUMN_COMPARISONS[p.op](pl.col(alias).fill_null(0), pl.lit(p.value))
+        if isinstance(p, program.TranslatedPredicate):
+            on = scope.in_declaration_order(p.dims)
+            alias = join_reduction(f'shift {p.along}', lambda a: _translated(scope, p, on, a), on)
+            return falsy_if_null(pl.col(alias))
         if isinstance(p, program.DimensionComparison):
             refuse_outside_frame(f"dimension '{p.name}'", p.name)
             return _compare(_dimension_column(p.name, p.value), p.op, p.value)
@@ -253,6 +292,79 @@ def compile_predicate(
 
     condition = walk(mask.root)
     return carrier.frame, condition
+
+
+def _values(scope: Scope, side: program.Expression) -> tuple[pl.LazyFrame, tuple[str, ...]]:
+    """One side of a comparison of expressions as ``(dims…, cval)``, and the dims it is keyed by.
+
+    The expression compiler answers what the side is made of rather than a
+    walk of its own here: a side is the whole expression language,
+    translations and groupings included, and a second reading of it would
+    drift from the one the rows are built with.
+
+    **The additive pieces are added so that a null spreads**, which
+    :meth:`~lpspec.relational.engines.polars.compiler.PolarsCompiler.added`
+    does not: a row's constant side reads a parameter with no row as the zero
+    it multiplies by, and arithmetic under a ``where`` has no value wherever
+    an operand has none (the absence rules). Out of a summing operator it
+    does not spread, and there it does not reach here — a reduction is one
+    piece, already collapsed. A side with no value is the false
+    :func:`falsy_if_null` reads out of the null.
+    """
+    # in-function: the compiler imports this module
+    from lpspec.relational.engines.polars.compiler import PolarsCompiler
+
+    compiled = PolarsCompiler(scope).expression(side, 'a where comparing expressions')
+    assert not (compiled.terms or compiled.quads), (
+        'a where compares expressions the language keeps every variable out of'
+    )
+    dims = scope.spanned(compiled.consts)
+    frame = masked(scope, dims, None)
+    pieces: list[pl.Expr] = []
+    for at, fragment in enumerate(compiled.consts):
+        piece = f'__side piece {at}__'
+        frame = join_on(frame, constant_scalar(fragment).rename({'cval': piece}), fragment.dims, 'left')
+        pieces.append(pl.col(piece))
+    return frame.select(*dims, reduce(operator.add, pieces).alias('cval')), dims
+
+
+def _counted(scope: Scope, p: program.CountComparison, alias: str) -> pl.LazyFrame:
+    """How many coordinates along ``over`` the predicate admits, per coordinate of the rest.
+
+    Counted over the predicate's **own** product, which spans a dim the frame
+    around it need not — that reduction is what the node is. A coordinate no
+    row survives at is absent from the answer and read as the zero it counts
+    where the walk joins it.
+    """
+    dims = scope.in_declaration_order(p.predicate.dims)
+    keys = [d for d in dims if d != p.over]
+    surviving = masked(scope, dims, p.predicate)
+    if not keys:
+        return surviving.select(pl.len().alias(alias))
+    return surviving.group_by(keys).agg(pl.len().alias(alias))
+
+
+def _translated(scope: Scope, p: program.TranslatedPredicate, dims: tuple[str, ...], alias: str) -> pl.LazyFrame:
+    """Where the operand holds *offset* coordinates back along ``along``, true-only.
+
+    A coordinate the operand admits at ordinal *k* is what the coordinate at
+    ``k + offset`` reads, so the shift relabels the surviving coordinates
+    rather than joining a neighbour onto each of them. The end the shift
+    vacates has no label to move to, which the inner join drops and a missing
+    row already reads as false.
+    """
+    assert p.along in dims, f"a shift along '{p.along}' is read at a frame carrying it"
+    labels = scope.data.dimensions[p.along]
+    steps = labels.select(pl.col('val').alias(p.along), (pl.col('ord') + p.offset).alias(_SHIFT_ORD)).join(
+        labels.select(pl.col('ord').alias(_SHIFT_ORD), pl.col('val').alias(_SHIFT_TO)), on=_SHIFT_ORD, how='inner'
+    )
+    moved = masked(scope, dims, p.operand).select(list(dims)).join(steps.select(p.along, _SHIFT_TO), on=p.along)
+    return (
+        moved.drop(p.along)
+        .rename({_SHIFT_TO: p.along})
+        .select(list(dims))
+        .with_columns(pl.lit(value=True).alias(alias))
+    )
 
 
 def _certain_names(mask: program.Mask) -> frozenset[str]:

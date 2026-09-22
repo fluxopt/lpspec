@@ -65,9 +65,9 @@ BASE: dict[str, Any] = {
 }
 
 
-def spec(sos_type: int, **sos: Any) -> dict[str, Any]:
+def spec(sos_type: int) -> dict[str, Any]:
     """The base model with one set over ``take``'s ``size`` dim."""
-    return BASE | {'sos': {'pick': {'variable': 'take', 'over': 'size', 'type': sos_type, **sos}}}
+    return BASE | {'sos': {'pick': {'variable': 'take', 'over': 'size', 'type': sos_type}}}
 
 
 def best(sos_type: int | None, sizes: list[int] = SIZES) -> float:
@@ -108,6 +108,11 @@ def test_the_three_regimes_have_different_optima():
 #: no members — the one case needing a declaration the base model lacks.
 UNCARRIED = {'dimensions': BASE['dimensions'] | {'other': {'dtype': 'str'}}}
 
+#: A member the set cannot hold at zero from one side, because the model
+#: declares no coefficient there. Each replaces ``take``'s bounds block.
+OPEN_ABOVE = {'variables': {'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0}}}}
+OPEN_BELOW = {'variables': {'take': {'dims': ['site', 'size'], 'bounds': {'upper': 'cap'}}}}
+
 
 @pytest.mark.parametrize(
     ('blocks', 'expected', 'also'),
@@ -131,12 +136,8 @@ UNCARRIED = {'dimensions': BASE['dimensions'] | {'other': {'dtype': 'str'}}}
         pytest.param(
             {'pick': {'variable': 'take', 'over': 'size', 'type': 3}}, 'sos type must be 1 or 2', {}, id='third-order'
         ),
-        pytest.param(
-            {'pick': {'variable': 'take', 'over': 'size', 'big_m': 0}},
-            'big_m must be a positive, finite number',
-            {},
-            id='zero-big-m',
-        ),
+        pytest.param({'pick': {'variable': 'take', 'over': 'size'}}, 'has no upper bound', OPEN_ABOVE, id='open-above'),
+        pytest.param({'pick': {'variable': 'take', 'over': 'size'}}, 'has no lower bound', OPEN_BELOW, id='open-below'),
         pytest.param(
             {'pick': {'variable': 'take', 'over': 'size', 'kind': 1}}, "unknown key 'kind'", {}, id='unknown-key'
         ),
@@ -234,43 +235,39 @@ def test_highs_refuses_the_written_section_which_is_why_it_reformulates(tmp_path
 # ---------------------------------------------------------------------------
 
 
+#: ``cap`` with the north's first member left open, so a bound that *is* a
+#: parameter reaches the sink with no finite coefficient in it. The language
+#: cannot see this: it reads the declaration, and the declaration is ``cap``.
+OPEN_CAP = DATA | {'cap': _table(CAP | {('north', 0): float('inf')})}
+
+
 @pytest.mark.parametrize(
-    ('bounds', 'expected'),
+    ('bounds', 'data', 'expected'),
     [
-        pytest.param({'lower': 0}, 'no upper bound and no big_m', id='nothing-to-link-with'),
-        pytest.param({'lower': -1, 'upper': 'cap'}, 'negative lower bound', id='a-member-that-can-go-negative'),
+        pytest.param({'lower': 0, 'upper': 'cap'}, OPEN_CAP, 'no finite upper bound', id='nothing-to-link-with'),
+        pytest.param({'lower': -1, 'upper': 'cap'}, DATA, 'negative lower bound', id='a-member-that-can-go-negative'),
     ],
 )
-def test_a_member_a_big_m_cannot_stand_in_for_is_refused(bounds, expected):
+def test_a_member_the_linking_rows_cannot_hold_at_zero_is_refused(bounds, data, expected):
     raw = spec(1)
     raw['variables'] = {'take': {'dims': ['site', 'size'], 'bounds': bounds}}
     with pytest.raises(DataError, match=expected):
-        lps.solve(raw, DATA)
+        lps.solve(raw, data)
 
 
-def test_a_big_m_stands_in_for_the_missing_bound():
-    """What the refusal names as the fix, taken — and the optimum follows it,
-    which is what makes `big_m` a statement rather than a knob."""
-    raw = spec(1, big_m=2.0)
-    raw['variables'] = {'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0}}}
-    result = lps.solve(raw, DATA)
-    assert result.objective == pytest.approx(2.0 * 3.0 + 2.0 * 5.0), 'the optimum does not follow the declared big-M'
-
-
-def test_the_tighter_of_the_bound_and_big_m_is_the_coefficient():
-    """``M = min(big_m, ub)``, linopy's rule — a looser one is a worse search."""
-    with lps.build(spec(1, big_m=2.5), DATA) as model:
+def test_the_members_own_upper_bound_is_the_coefficient():
+    """``M_i = ub_i`` — the set carries no number of its own, so the bound is the only one there is."""
+    with lps.build(spec(1), DATA) as model:
         tables = sos_sink.reformulated(model._engine._model.tables)
     used = sorted({-coeff for coeff in tables.matrix['coeff'].to_list() if coeff < 0})
-    assert used == [1.0, 2.0, 2.5], 'a member whose bound is looser than big_m did not take big_m'
+    assert used == [1.0, 2.0, 3.0, 4.0, 6.0], 'the linking coefficients are not the caps, without repeats'
 
 
 def test_the_refusals_do_not_reach_the_sinks_that_need_neither(tmp_path):
     """An unbounded member is a *reformulation* condition, not a language one."""
     raw = spec(1)
-    raw['variables'] = {'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0}}}
     lps.check(raw)
-    assert lps.write(raw, DATA, tmp_path / 'unbounded.lp').read_text().count('S1 ::') == 2
+    assert lps.write(raw, OPEN_CAP, tmp_path / 'unbounded.lp').read_text().count('S1 ::') == 2
 
 
 # ---------------------------------------------------------------------------

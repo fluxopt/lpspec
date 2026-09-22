@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from lpspec.curves import derive_curve_sources, validate_curve_extent, validate_piecewise_data
+from lpspec.assumptions import validate_assumptions
+from lpspec.curves import derive_curve_sources
 from lpspec.errors import DataError, did_you_mean
 from lpspec.frames import as_frame, is_dense_array, is_multi_indexed
 from lpspec.relational.collect import polars_engine
@@ -56,7 +57,8 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
     plain-Python parameter shapes :func:`_spread` accepts are spread over
     their labels; a ``piecewise:`` block's derived parameters are filled next
     (:func:`derive_curve_sources`), before the loop that reads the caller's
-    own.
+    own. What the model assumes of all of it is checked last, once every frame
+    is there to check it against (:func:`~lpspec.assumptions.validate_assumptions`).
 
     Args:
         program: The lowered spec.
@@ -69,7 +71,9 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
             with two rows for one coordinate, a label its dimension lacks, a
             null or NaN value, or a column of another type than it declares;
             a relation with a null, a row twice, or a label its column's
-            dimension lacks.
+            dimension lacks; or an ``assumptions:`` entry the data does not
+            hold, a ``piecewise:`` method's conditions on its breakpoints
+            among them.
     """
     known = attachable(program)
     if unknown := set(data) - set(known):
@@ -98,12 +102,11 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
         if pname in sources:
             sources[pname] = _checked_parameter(pname, pdef, sources[pname], sources)
 
-    validate_curve_extent(program, sources)
-    validate_piecewise_data(program, sources)
-
     for dname in program.dimensions:
         if dname not in sources:
             raise DataError(no_index_source_message(dname))
+
+    validate_assumptions(program, sources)
     return sources
 
 

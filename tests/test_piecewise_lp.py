@@ -31,7 +31,7 @@ import pytest
 import yaml as pyyaml
 
 import lpspec as lps
-from lpspec.errors import PiecewiseExpansionError
+from lpspec.errors import DataError
 from tests.conftest import override, schema_of
 from tests.differential import RTOL, differential
 from tests.oracle import lpspec_linopy, pd
@@ -250,8 +250,9 @@ def test_a_ragged_curve_down_to_one_point_is_refused(spelling):
     with lps.solve(ragged, _per_unit_points(short=False, mask=mask)) as result:
         assert result.objective == pytest.approx(25.0, rel=RTOL), 'two points is one segment, and that is enough'
 
-    with pytest.raises(PiecewiseExpansionError, match='This curve carries 1'):
+    with pytest.raises(DataError, match='needs at least two breakpoints') as refusal:
         lps.build(ragged, _per_unit_points(short=True, mask=mask))
+    assert "unit='b'" in str(refusal.value), 'the refusal names the curve that is short, not the block'
 
 
 def test_values_past_the_mask_are_not_part_of_the_curve():
@@ -295,7 +296,7 @@ def test_a_one_breakpoint_curve_is_refused_rather_than_dropped():
     """
     point = _relational(load=[10.0, 10.0, 10.0], xs=[10.0], ys=[25.0])
 
-    with pytest.raises(PiecewiseExpansionError, match='needs at least two breakpoints') as refusal:
+    with pytest.raises(DataError, match='needs at least two breakpoints') as refusal:
         lps.build(pyyaml.safe_load(SPEC), point)
     assert 'adjacency' in str(refusal.value), 'and names the methods a one-point curve does mean something under'
 
@@ -356,7 +357,7 @@ def test_the_curvature_the_sign_states_is_required(sign, sense, ys, wanted):
         pyyaml.safe_load(SPEC),
         **{'piecewise.cost_curve.links': [['p', 'bp_x'], ['op_cost', 'bp_y', sign]], 'objective.sense': sense},
     )
-    with pytest.raises(PiecewiseExpansionError, match=f'exact only for a {wanted} curve'):
+    with pytest.raises(DataError, match=f'exact only for a {wanted} curve'):
         lps.solve(spec, _relational(ys=ys))
     assert schema_of(SPEC) is not None, 'and the schema alone is fine — this needs the values'
 
@@ -364,7 +365,7 @@ def test_the_curvature_the_sign_states_is_required(sign, sense, ys, wanted):
 def test_breakpoints_that_do_not_increase_are_refused():
     """The run is what the row is multiplied through by, so it must be positive."""
     spec = pyyaml.safe_load(SPEC)
-    with pytest.raises(PiecewiseExpansionError, match='requires strictly increasing breakpoints'):
+    with pytest.raises(DataError, match='requires strictly increasing breakpoints'):
         lps.solve(spec, _relational(xs=[0.0, 10.0, 10.0, 30.0]))
 
 
@@ -380,9 +381,9 @@ def test_each_curve_of_a_frame_is_checked_on_its_own():
 
     lps.build(pyyaml.safe_load(PER_UNIT_SPEC), _per_unit(convex, convex)).close()  # every curve convex, nothing to say
 
-    with pytest.raises(PiecewiseExpansionError, match='exact only for a convex curve') as refusal:
+    with pytest.raises(DataError, match='exact only for a convex curve') as refusal:
         lps.build(pyyaml.safe_load(PER_UNIT_SPEC), _per_unit(convex, concave))
-    assert str(concave) in str(refusal.value), 'the refusal quotes the curve that bends the wrong way'
+    assert "unit='b'" in str(refusal.value), 'the refusal names the curve that bends the wrong way'
 
 
 def test_a_curve_bound_to_a_path_is_checked_like_one_in_memory(tmp_path):
@@ -402,7 +403,7 @@ def test_a_curve_bound_to_a_path_is_checked_like_one_in_memory(tmp_path):
         sources[name] = tmp_path / f'{name}.parquet'
 
     for lane in (lps.build, lpspec_linopy.build):
-        with pytest.raises(PiecewiseExpansionError, match='exact only for a convex curve'):
+        with pytest.raises(DataError, match='exact only for a convex curve'):
             lane(pyyaml.safe_load(SPEC), sources)
 
 
@@ -420,7 +421,7 @@ def test_a_concave_curve_is_refused_whatever_the_breakpoints_are_measured_in():
 
     stretched = override(pyyaml.safe_load(SPEC), **{'variables.p.bounds.upper': 3e6})
 
-    with pytest.raises(PiecewiseExpansionError, match='exact only for a convex curve'):
+    with pytest.raises(DataError, match='exact only for a convex curve'):
         lps.build(stretched, _relational(load=[5e5, 1.5e6, 2.5e6], xs=xs, ys=concave))
 
 

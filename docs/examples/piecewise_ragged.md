@@ -42,7 +42,6 @@ Least-cost dispatch where each generator's cost curve has as many breakpoints as
 | $`\mathrm{load}`$ | `load` over $`\mathcal{T}`$ — demand to be met |
 | $`\mathrm{bp\_x}`$ | `bp_x` over $`\mathcal{G} \times \mathcal{B}`$ — breakpoint dispatch levels, one curve per generator and no two the same length |
 | $`\mathrm{bp\_y}`$ | `bp_y` over $`\mathcal{G} \times \mathcal{B}`$ — cost at each breakpoint |
-| $`\mathrm{cost\_curve\_points}`$ | `cost_curve_points` over $`\mathcal{G} \times \mathcal{B}`$ — where 'bp\_x' has a row, and so where the curve runs |
 
 #### Variables
 
@@ -50,9 +49,10 @@ Least-cost dispatch where each generator's cost curve has as many breakpoints as
 |---|---|
 | $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — dispatched power |
 | $`\mathit{op\_cost}`$ | `op_cost` over $`\mathcal{T} \times \mathcal{G}`$ — operating cost, piecewise-linear in dispatch |
-| $`\mathit{cost\_curve\_lam}`$ | `cost_curve_lam` over $`\mathcal{T} \times \mathcal{G} \times \mathcal{B}`$ — convex-combination weight on a breakpoint |
 
 Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{max}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
+
+$`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $`v`$ rather than being dropped.
 
 #### Objective
 
@@ -68,22 +68,10 @@ Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm
 \sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\, t \in \mathcal{T}
 ```
 
-**`cost_curve_convexity`**
+**`cost_curve`**
 
 ```math
-\sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} = 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
-```
-
-**`cost_curve_link0`**
-
-```math
-p_{t,g} = \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \mathrm{bp\_x}_{g,b} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
-```
-
-**`cost_curve_link1`**
-
-```math
-\mathit{op\_cost}_{t,g} \ge \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \mathrm{bp\_y}_{g,b} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+\mathit{op\_cost}_{t,g} \ge \mathrm{conv}_{b \in \mathcal{B} \,:\, \mathrm{bp\_x}_{g,b} \text{ is defined}}(\mathrm{bp\_x}_{g,b},\ \mathrm{bp\_y}_{g,b})(p_{t,g}) \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
 ```
 
 #### Variable domains
@@ -100,10 +88,30 @@ p_{t,g} = \sum_{b \in \mathcal{B}} \mathit{cost\_curve\_lam}_{t,g,b} \cdot \math
 \mathit{op\_cost}_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
 ```
 
-**`cost_curve_lam`**
+#### Assumptions
+
+**`cost_curve_complete`**
 
 ```math
-0 \le \mathit{cost\_curve\_lam}_{t,g,b} \le 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G},\ b \in \mathcal{B} \,:\, \mathrm{cost\_curve\_points}_{g,b}
+\mathrm{bp\_x}_{g,b} \text{ is defined} \wedge \mathrm{bp\_y}_{g,b} \text{ is defined} \qquad \forall\, g \in \mathcal{G},\ b \in \mathcal{B} \,:\, \mathrm{bp\_x}_{g,b} \text{ is defined}
+```
+
+**`cost_curve_increasing`**
+
+```math
+\mathrm{bp\_x}_{g,b \boxminus_{0} 1} < \mathrm{bp\_x}_{g,b} \qquad \forall\, g \in \mathcal{G},\ b \in \mathcal{B} \,:\, \mathrm{bp\_x}_{g,b} \text{ is defined} \wedge \mathrm{bp\_x}_{g,b - 1} \text{ is defined}
+```
+
+**`cost_curve_curvature`**
+
+```math
+\left( \mathrm{bp\_y}_{g,b} - \mathrm{bp\_y}_{g,b \boxminus_{0} 1} \right) \cdot \left( \mathrm{bp\_x}_{g,b \boxplus_{0} 1} - \mathrm{bp\_x}_{g,b} \right) \le \left( \mathrm{bp\_y}_{g,b \boxplus_{0} 1} - \mathrm{bp\_y}_{g,b} \right) \cdot \left( \mathrm{bp\_x}_{g,b} - \mathrm{bp\_x}_{g,b \boxminus_{0} 1} \right) \qquad \forall\, g \in \mathcal{G},\ b \in \mathcal{B} \,:\, \mathrm{bp\_x}_{g,b} \text{ is defined} \wedge \mathrm{bp\_x}_{g,b - 1} \text{ is defined} \wedge \mathrm{bp\_x}_{g,b + 1} \text{ is defined}
+```
+
+**`cost_curve_contiguous`**
+
+```math
+\lvert \{ b \in \mathcal{B} \,:\, \mathrm{bp\_x}_{g,b} \text{ is defined} \wedge \neg \left( \mathrm{bp\_x}_{g,b - 1} \text{ is defined} \right) \} \rvert = 1 \qquad \forall\, g \in \mathcal{G}
 ```
 
 </details>

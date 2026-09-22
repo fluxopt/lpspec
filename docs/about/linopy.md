@@ -91,7 +91,7 @@ in `linopy/builder.py`, one section per group below.
 | Declaration | linopy |
 |---|---|
 | `variables:` | `Model.add_variables(lower, upper, coords, name, mask, binary, integer)` |
-| `sos:` | `Model.add_sos_constraints(variable, sos_type, sos_dim, big_m)`, the block handed over rather than a formulation rebuilt |
+| `sos:` | `Model.add_sos_constraints(variable, sos_type, sos_dim)`, the block handed over rather than a formulation rebuilt |
 | `constraints:` | `Model.add_constraints(lhs, sign, rhs, name, mask)`, one rule per declaration |
 | `objective:` | `Model.add_objective(expr, sense)`, each additive term summed over the dims it carries |
 | `expressions:` | evaluated at the solution as xarray arithmetic, every variable its `.solution` and every `dual(c)` the constraint's `.dual`; an entry the math never reads is read at whatever degree it was written |

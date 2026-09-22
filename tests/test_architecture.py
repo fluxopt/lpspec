@@ -832,28 +832,30 @@ def sources_annotations(doors: dict[str, Any]) -> set[str]:
     return {str(inspect.signature(door).parameters['sources'].annotation) for door in doors.values()}
 
 
-def test_every_piecewise_fact_the_language_carries_is_read_by_the_curve_guard():
-    """A block's conditions are the language's; this repository is what holds the numbers.
+def test_every_way_a_piecewise_parameter_is_filled_is_read_by_the_curve_guard():
+    """How an emitted parameter is filled is the language's; this repository is what fills it.
 
-    ``Check`` and ``Derivation`` are closed unions upstream, which is exactly
-    what makes a member added there *silent* here: ``curves.py`` dispatches on
-    ``isinstance``, so a check nobody looks for is a condition the data is
-    never tested against, and a derivation nobody fills is an emitted
-    parameter the caller is asked for and cannot have. Neither shows up as a
-    type error and neither fails a differential test — no model in the corpus
-    exercises a construct the language has only just gained. The same
-    grep-level alarm as the plan-node walk above, and for the same reason.
+    ``Derivation`` is a closed union upstream, which is exactly what makes a
+    member added there *silent* here: ``curves.py`` dispatches on
+    ``isinstance``, so a derivation nobody fills is an emitted parameter the
+    caller is asked for and cannot have. It shows up as neither a type error
+    nor a failing differential test — no model in the corpus exercises a
+    construct the language has only just gained. The same grep-level alarm as
+    the plan-node walk above, and for the same reason.
+
+    What a block *assumes* of its numbers needs no such alarm: it is one
+    ``Assumption`` kind evaluated as an ordinary mask, so a condition the
+    language adds is a where string this already walks.
     """
     from typing import get_args
 
     from math_spec import program
 
     source = (PKG / 'curves.py').read_text()
-    facts = (*get_args(program.Check), *get_args(program.Derivation))
-    unread = [fact.__name__ for fact in facts if fact.__name__ not in source]
+    unread = [fact.__name__ for fact in get_args(program.Derivation) if fact.__name__ not in source]
     assert not unread, (
-        f'piecewise facts the language carries and curves.py never looks for: {unread} — each is a '
-        f'condition or a derived parameter that would pass unchecked'
+        f'derivations the language carries and curves.py never fills: {unread} — each is an emitted '
+        f'parameter the caller would be asked for and cannot have'
     )
 
 
@@ -1058,7 +1060,16 @@ def test_every_module_is_documented_somewhere():
 #: Every in-function ``lpspec`` import in the package, with the cycle it
 #: breaks. Empty, and that is the claim: the layers are ordered with no
 #: exception at all, so a lazy import is only ever a leftover.
-DELIBERATE_LAZY_IMPORTS: dict[tuple[str, str], str] = {}
+DELIBERATE_LAZY_IMPORTS: dict[tuple[str, str], str] = {
+    ('linopy/where.py', 'lpspec.linopy.builder'): (
+        "a where comparing two expressions reads them with the builder's own walk, and the builder "
+        'reads this module for every mask it puts on a declaration'
+    ),
+    ('relational/engines/polars/predicates.py', 'lpspec.relational.engines.polars.compiler'): (
+        'the same comparison on the streaming lane, and the compiler reads this module for the mask '
+        'walk and the carrier both of its walks join on'
+    ),
+}
 
 
 def test_lazy_intra_package_imports_are_all_declared():

@@ -44,9 +44,14 @@ Least-cost dispatch where each generator's cost curve is piecewise-linear in its
 |---|---|
 | $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — dispatched power |
 | $`\mathrm{cost}`$ | `op_cost` over $`\mathcal{T} \times \mathcal{G}`$ — operating cost, piecewise-linear in dispatch |
-| $`\lambda`$ | `cost_curve_lam` over $`\mathcal{T} \times \mathcal{G} \times \mathcal{K}`$ — convex-combination weight on a breakpoint |
 
 Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{max}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
+
+$`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $`v`$ rather than being dropped.
+
+$`\mathrm{pos}(t)`$ denotes where index $`t`$ sits along its dimension's own order — the order `shift` steps along, not the order labels sort in — counted from $`0`$. The index itself stays the coordinate, so $`t`$ compares against labels and $`\mathrm{pos}(t)`$ against positions.
+
+$`\lvert \mathcal{T} \rvert`$ denotes the size of the set being counted along, and a position counted from the end prints against it — $`\lvert \mathcal{T} \rvert - 1`$ is the last position, one less than the size because the first is $`0`$.
 
 #### Objective
 
@@ -62,22 +67,10 @@ Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm
 \sum_{g \in \mathcal{G}} p_{t,g} = \mathrm{load}_{t} \qquad \forall\, t \in \mathcal{T}
 ```
 
-**`cost_curve_convexity`**
+**`cost_curve`**
 
 ```math
-\sum_{k \in \mathcal{K}} \lambda_{t,g,k} = 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
-```
-
-**`cost_curve_link0`**
-
-```math
-p_{t,g} = \sum_{k \in \mathcal{K}} \lambda_{t,g,k} \cdot x_{g,k} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
-```
-
-**`cost_curve_link1`**
-
-```math
-\mathrm{cost}_{t,g} = \sum_{k \in \mathcal{K}} \lambda_{t,g,k} \cdot y_{g,k} \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
+\left( p_{t,g},\ \mathrm{cost}_{t,g} \right) \in \mathrm{conv}_{k \in \mathcal{K}}(x_{g,k},\ y_{g,k}) \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
 ```
 
 #### Variable domains
@@ -94,10 +87,24 @@ p_{t,g} = \sum_{k \in \mathcal{K}} \lambda_{t,g,k} \cdot x_{g,k} \qquad \forall\
 \mathrm{cost}_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
 ```
 
-**`cost_curve_lam`**
+#### Assumptions
+
+**`cost_curve_complete`**
 
 ```math
-0 \le \lambda_{t,g,k} \le 1 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G},\ k \in \mathcal{K}
+x_{g,k} \text{ is defined} \wedge y_{g,k} \text{ is defined} \qquad \forall\, g \in \mathcal{G},\ k \in \mathcal{K}
+```
+
+**`cost_curve_increasing`**
+
+```math
+x_{g,k \boxminus_{0} 1} < x_{g,k} \qquad \forall\, g \in \mathcal{G},\ k \in \mathcal{K} \,:\, \mathrm{pos}(k) > 0
+```
+
+**`cost_curve_curvature`**
+
+```math
+\lvert \{ k \in \mathcal{K} \,:\, \left( y_{g,k} - y_{g,k \boxminus_{0} 1} \right) \cdot \left( x_{g,k \boxplus_{0} 1} - x_{g,k} \right) > \left( y_{g,k \boxplus_{0} 1} - y_{g,k} \right) \cdot \left( x_{g,k} - x_{g,k \boxminus_{0} 1} \right) \wedge \mathrm{pos}(k) > 0 \wedge \mathrm{pos}(k) \neq \lvert \mathcal{K} \rvert - 1 \} \rvert = 0 \vee \lvert \{ k \in \mathcal{K} \,:\, \left( y_{g,k} - y_{g,k \boxminus_{0} 1} \right) \cdot \left( x_{g,k \boxplus_{0} 1} - x_{g,k} \right) < \left( y_{g,k \boxplus_{0} 1} - y_{g,k} \right) \cdot \left( x_{g,k} - x_{g,k \boxminus_{0} 1} \right) \wedge \mathrm{pos}(k) > 0 \wedge \mathrm{pos}(k) \neq \lvert \mathcal{K} \rvert - 1 \} \rvert = 0 \qquad \forall\, g \in \mathcal{G}
 ```
 
 </details>

@@ -94,7 +94,7 @@ solves with HiGHS.
 
 A sink takes a `Tables` and nothing else: the frames `cols`
 (col, lb, ub, vtype), `obj` (col, coeff), `rows` (row, sense, rhs), `matrix`
-(row, col, coeff) and `sos` (set, type, col, weight, big_m), plus the counts it
+(row, col, coeff) and `sos` (set, type, col, weight), plus the counts it
 chunks by and the objective's sense and constant — those last two live outside
 the tables because a constant has no column to attach to.
 
