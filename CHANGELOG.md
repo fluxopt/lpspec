@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.347](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.346...v0.0.1-alpha.347) (2026-09-22)
+
+
+### Features
+
+* **language:** a model states what it assumes of its data, and a where may compare arithmetic, count coordinates and shift a predicate ([#1707](https://github.com/fluxopt/lpspec/issues/1707)) ([e107514](https://github.com/fluxopt/lpspec/commit/e10751445e3f20ba942781f63050304da771aecd))
+
 ## [0.0.1-alpha.346](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.345...v0.0.1-alpha.346) (2026-09-21)
 
 
