@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.1-alpha.349](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.348...v0.0.1-alpha.349) (2026-09-22)
+
+
+### Features
+
+* **api:** a curve is written out before a verb reads it, and a sink with no SOS concept refuses a set rather than rewriting it ([#1713](https://github.com/fluxopt/lpspec/issues/1713)) ([7516597](https://github.com/fluxopt/lpspec/commit/7516597014817d061f754e98ced921d1bbd68930))
+
+
+### Bug Fixes
+
+* **api:** the language refuses a curve left as written, so the door no longer has to ([#1714](https://github.com/fluxopt/lpspec/issues/1714)) ([8021377](https://github.com/fluxopt/lpspec/commit/8021377eba0fdb9e92dfb2ee87da84c34f3c3adb))
+
 ## [0.0.1-alpha.348](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.347...v0.0.1-alpha.348) (2026-09-22)
 
 
