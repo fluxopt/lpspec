@@ -89,7 +89,7 @@ def port_sources(name: str) -> dict[str, Any]:
     data = json.loads((PORTS_DIR / 'data' / f'{name}.json').read_text())
     tables = {k: pl.DataFrame(v) if isinstance(v, dict) else v for k, v in data.items()}
     spec = PORTS_DIR / f'{name}.yaml'
-    program = to_program(spec if spec.exists() else EXAMPLES_DIR / f'{name}.yaml')
+    program = to_program(expanded(spec if spec.exists() else EXAMPLES_DIR / f'{name}.yaml', 'piecewise'))
     return {k: v for k, v in tables.items() if k in attachable(program)}
 
 

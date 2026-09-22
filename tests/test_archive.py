@@ -59,7 +59,7 @@ def _archived(spec, sources, out: Path) -> Path:
 
 @pytest.mark.parametrize('name', sorted(PORT_REFERENCES), ids=str)
 def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: str, tmp_path: Path) -> None:
-    program = to_program(port_spec(name))
+    program = to_program(expanded(port_spec(name)))
     sources = port_sources(name)
     archive = _archived(expanded(port_spec(name)), sources, tmp_path / 'model.zip')
     spec, unpacked = _question(lps.load_archive(archive, tmp_path / 'out'))

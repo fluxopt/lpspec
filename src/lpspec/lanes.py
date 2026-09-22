@@ -41,8 +41,7 @@ def declared(spec: Buildable) -> Spec:
         spec: A YAML path, a mapping, or a ``Spec``.
 
     Raises:
-        LpspecError: A lowered ``Program``, or a model still carrying a
-            ``piecewise:`` block.
+        LpspecError: A lowered ``Program``.
         LanguageError: Anything the language does not accept.
     """
     if isinstance(spec, Program):
@@ -53,21 +52,7 @@ def declared(spec: Buildable) -> Spec:
             'the form worth keeping: reading a file costs about ten times what lowering it does. '
             'lps.check() still hands back the Program, for reading the plan.'
         )
-    written = to_spec(spec)
-    if written.piecewise:
-        raise LpspecError(unexpanded_curve_message(sorted(written.piecewise)))
-    return written
-
-
-def unexpanded_curve_message(blocks: list[str]) -> str:
-    """A model handed over with its ``piecewise:`` blocks still to be written out."""
-    named = ', '.join(f"'{block}'" for block in blocks)
-    return (
-        f'piecewise: {named} states rows rather than being one, and this builds the rows. Pass '
-        f"math_spec.to_spec(...).expand('piecewise'), which writes each block out as the variables and "
-        f'constraints it states and keeps every sos: block for a sink that takes a set — or expand(), '
-        f'which writes the sets out as binaries and linking rows too, for a sink with no SOS concept.'
-    )
+    return to_spec(spec)
 
 
 @runtime_checkable
@@ -158,13 +143,14 @@ def lowered(spec: Buildable) -> Program:
 
     Every door lowers through here, so what :func:`check` refuses
     :func:`build` and an archive refuse too. Nothing is expanded here: the
-    model is lowered as it arrived, and :func:`declared` has already refused
-    one with a formulation still to be written out.
+    language lowers the model as it arrived, and refuses one still carrying a
+    ``piecewise:`` block naming ``Spec.expand``.
 
     Raises:
-        LanguageError: A construct outside the streaming language.
+        LanguageError: A construct outside the streaming language, or a
+            ``piecewise:`` block still to be written out.
         LpspecError: Two declarations of one namespace whose names differ only
-            by case, or a ``piecewise:`` block still to be written out.
+            by case.
     """
     program = to_program(declared(spec))
     if (refused := _case_collision(program)) is not None:

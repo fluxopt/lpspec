@@ -108,7 +108,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{bp\_rate}`$
 0 \le \mathit{weight}_{c,t,b} \le 1 \qquad \forall\, c \in \mathcal{C},\ t \in \mathcal{T},\ b \in \mathcal{B} \,:\, \mathrm{bp\_present}_{c,b}
 ```
 
-**`weight sos`**
+**`on_one_segment`**
 
 ```math
 \left( \mathit{weight}_{c,t,b} \right)_{b \in \mathcal{B}} \in \mathrm{SOS}2 \qquad \forall\, c \in \mathcal{C},\ t \in \mathcal{T}

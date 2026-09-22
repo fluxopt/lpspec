@@ -96,7 +96,7 @@ def constructs(spec: Path) -> set[str]:
     declaration of its own, so it is read off the plan like the rest.
     """
     schema = to_spec(spec)
-    lowered = to_program(schema)
+    lowered = to_program(schema.expand('piecewise'))
     nodes = list(walk(lowered))
     used: set[str] = set()
 
