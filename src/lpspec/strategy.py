@@ -69,7 +69,7 @@ from lpspec.relational.parquet import (
     write_whole,
 )
 from lpspec.relational.result import tidy_to_dataarray, tidy_to_dataset, tidy_to_pandas
-from lpspec.sources import least_value, supplied, tidy_sources
+from lpspec.sources import least_value, tidy_sources
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
@@ -1410,7 +1410,7 @@ def _archive_the_sweep(
     manifest = axis_manifest(axis)
     if carry:
         manifest['carry'] = dict(carry)
-    tables = {**supplied(program, tidy_sources(program, one_slice)), **carries(sources, axis.dim)}
+    tables = {**tidy_sources(program, one_slice), **carries(sources, axis.dim)}
     if folded._spill is not None:
         write_archive(out, spec, sources, tables=tables, axis=manifest, answer=folded._spill.directory)
         return

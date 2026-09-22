@@ -718,15 +718,12 @@ MASKED_CURVE_DATA = {
 
 
 def test_a_named_expression_reads_off_a_masked_curve(yaml_file):
-    """A curve's derived mask is the file's to supply, so the file is what asks for it.
+    """Both lanes value one named expression the same where a curve is masked.
 
-    `points:` names a values parameter, and the mask that says where the curve
-    runs is then derived from that parameter's rows — by `derive_curve_sources`,
-    which reads `piecewise:`. The expansion has cleared `piecewise:`, so handing
-    it the expanded model asks for `cost_curve_points` and derives nothing:
-    `DataError: no data provided for parameter 'cost_curve_points'`, naming a
-    parameter no caller wrote and none can supply. `build` passed the file and
-    this reader passed the expansion, which is the only reason one worked.
+    `points:` names a values parameter, and the mask is that parameter read as
+    a bare name in a `where` — true wherever it has a row. So the weights the
+    expression sums over exist at some breakpoints and not others, and a lane
+    that read the unmasked product would answer a longer curve.
     """
     path = yaml_file(MASKED_CURVE_YAML, 'masked_curve.yaml')
     with differential(path, MASKED_CURVE_DATA) as run:

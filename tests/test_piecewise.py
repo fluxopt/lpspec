@@ -22,7 +22,7 @@ from math_spec import PiecewiseExpansionError, to_program
 
 import lpspec as lps
 from lpspec.errors import DataError
-from lpspec.sources import tidy_sources
+from lpspec.sources import attachable, tidy_sources
 from tests.conftest import EXAMPLES_DIR, by_coord, override, raw_of, schema_of
 from tests.differential import differential
 from tests.oracle import lpspec_linopy, pd
@@ -754,45 +754,29 @@ _ONE_DIM_CURVE = {
 def _nominated_mask_spec():
     """`NONCONVEX_YAML` with its length named as one of its own breakpoints.
 
-    The spelling whose mask the expansion emits: `points: bp_x` derives
-    `cost_curve_points` from `bp_x`'s rows, so the model declares five
-    parameters and the program carries six.
+    `points: bp_x` masks the weights by where `bp_x` has a row, which is what
+    a bare parameter name means in any `where`.
     """
     return override(raw_of(NONCONVEX_YAML), **{'piecewise.cost_curve.points': 'bp_x'})
 
 
-def test_a_parameter_the_expansion_emitted_is_not_a_source_key():
-    """The caller attaches what the file declares; the mask is derived, not supplied.
+def test_a_curve_masked_by_its_own_breakpoints_asks_for_nothing_extra():
+    """`points:` naming a values parameter declares no second name to bind.
 
-    Both spellings of `points:` reach the same emitted name, so accepting it as
-    a source key would let a caller hand over one curve's length and have it
-    silently replaced by the one derived from the values — or the other way
-    round, depending on which ran last. It is refused as an unknown key, which
-    is also what lists the names that *are* attachable.
+    The block masks the weights by a parameter the file already wrote, so what
+    the caller attaches is exactly what the file declares and the curve still
+    solves. A name only the expansion knew would be one the caller could
+    neither supply nor be told about.
     """
     program = to_program(_nominated_mask_spec())
 
-    with pytest.raises(DataError, match='names neither a parameter') as refusal:
-        tidy_sources(program, {**_ONE_DIM_CURVE, 'cost_curve_points': pl.DataFrame({'bp': [0], 'value': [True]})})
-    assert 'cost_curve_points' not in str(refusal.value).split('Declared:')[1], (
-        'and the list of what may be attached does not offer it back'
+    assert sorted(attachable(program)) == ['bp', 'bp_x', 'bp_y', 'load', 'snapshot'], (
+        "the file's own parameters and dimensions, and nothing a block invented"
     )
-
-
-def test_a_parameter_the_expansion_emitted_is_never_asked_of_the_caller():
-    """A derivation that cannot be read leaves the mask absent, and asks for nothing.
-
-    `bp_x` as a bare sequence is dense against the labels it spreads over and
-    carries no coordinates of its own, so there is no length to derive from it.
-    Binding still refuses the model — downstream, for the parameter no frame
-    fills — but it must not do so by telling the caller to supply
-    `cost_curve_points`, which is a name only the expansion knows.
-    """
-    program = to_program(_nominated_mask_spec())
-
-    tidy = tidy_sources(program, _ONE_DIM_CURVE)
-
-    assert 'cost_curve_points' not in tidy, 'a sequence has no coordinates to read a curve length from'
+    assert sorted(tidy_sources(program, _ONE_DIM_CURVE)) == ['bp', 'bp_x', 'bp_y', 'load', 'snapshot'], (
+        'and the door gives back one frame per name it takes'
+    )
+    assert lps.solve(_nominated_mask_spec(), _ONE_DIM_CURVE).objective == pytest.approx(95.0)
 
 
 def test_values_the_mask_leaves_out_are_left_alone(short_curve_inputs):
