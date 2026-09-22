@@ -277,7 +277,7 @@ the language's rulebook.
    consume only core AST. Macros are substituted away by the language before
    dispatch, and so is a named expression unless it states `cases:`; a
    `piecewise:` block is written out by the caller (`Spec.expand`) before the
-   door, which refuses one left as written. That one
+   door, the language refusing one left as written. That one
    arrives as a node of its own, because a substitution cannot carry a mask in a
    value position. The plan, the query and the xarray are private to their lane.
    The AST crossing that seam is **fully resolved**, with names typed
@@ -474,8 +474,9 @@ that has the concept. Reimplementing a reformulation pass inside the plan is
 rejected: the language writes a formulation out itself (`Spec.expand`), and a
 sink with no SOS concept is handed the model so written rather than a rewrite
 of the built tables. The same rule decides the door: a `piecewise:` block
-states rows this cannot lower, so a model arrives with its curves expanded,
-and the sets expanded or not as the caller's sinks demand.
+states rows nothing lowers, and the language refuses a model still carrying
+one, so a model arrives with its curves expanded, and the sets expanded or not
+as the caller's sinks demand.
 
 **A frame is the boundary in both directions.** `frames.py` recognises a
 caller's table through the Arrow PyCapsule protocol without importing any

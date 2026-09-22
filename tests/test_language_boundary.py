@@ -13,7 +13,7 @@ from math_spec import to_program
 
 import lpspec as lps
 from lpspec.errors import LanguageError
-from tests.conftest import EXAMPLES_DIR, SPEC_PATHS, schema_of
+from tests.conftest import EXAMPLES_DIR, SPEC_PATHS, expanded, schema_of
 
 DISPATCH = EXAMPLES_DIR / 'dispatch.yaml'
 
@@ -35,7 +35,7 @@ def test_every_shipped_example_is_inside_the_language(path):
     out. The second is that the result lowers, so an example falling outside
     the streaming subset is caught here rather than by a reader running it.
     """
-    to_program(schema_of(path))
+    to_program(expanded(path, 'piecewise'))
 
 
 @pytest.mark.parametrize(

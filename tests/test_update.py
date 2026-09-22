@@ -316,7 +316,7 @@ def test_a_update_walk_answers_what_a_fresh_build_answers(port):
     if port['name'] in TOO_SLOW_TO_WALK:
         pytest.skip(f'{port["name"]} is too slow to walk — see TOO_SLOW_TO_WALK')
 
-    program = to_program(port['spec'])
+    program = to_program(expanded(port['spec']))
     given = _declared(port_sources(port['name']), program)
 
     with lps.build(expanded(port['spec']), given) as model:
