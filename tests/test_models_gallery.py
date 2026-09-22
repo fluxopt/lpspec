@@ -248,16 +248,20 @@ def _call_snippet(name: str) -> str:
     """The lpspec tab's call block, derived rather than copied.
 
     Three lines: the solve, the objective it reaches, the dual the corpus
-    checks — a projection of `references.json`, and this is its one home.
+    checks — a projection of `references.json`, and this is its one home. A
+    model with a formulation is handed over written out, which is the door's
+    rule.
     `test_ports.py` executes the same call against the committed instance;
     the page only has to match it.
     """
     entry = constructs.REFERENCES[name]
     ports_yaml = constructs.ROOT / 'examples' / 'ports' / f'{name}.yaml'
     model = f'examples/ports/{name}.yaml' if ports_yaml.exists() else f'examples/{name}.yaml'
+    written = to_spec(constructs.ROOT / model)
+    handed = f"to_spec('{model}').expand()" if written.piecewise or written.sos else f"'{model}'"
     lines = [
         '# sources: parameter name -> frame or parquet path',
-        f"with lps.solve('{model}', sources) as solution:",
+        f'with lps.solve({handed}, sources) as solution:',
         f'    solution.objective  # {entry["objective"]!r}',
     ]
     if entry.get('duals'):

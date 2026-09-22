@@ -25,8 +25,9 @@ if TYPE_CHECKING:
     from math_spec import Spec
 
 #: Anything a verb takes as the spec: a YAML path, a mapping, or a ``Spec``
-#: the language has already read. **Not** a ``Program``: lowering has no
-#: inverse, so an answer from one could not name the model it came from, and
+#: the language has already read, its ``piecewise:`` blocks written out
+#: (``to_spec(...).expand('piecewise')``). **Not** a ``Program``: lowering has
+#: no inverse, so an answer from one could not name the model it came from, and
 #: nothing built from one can be archived.
 type Buildable = str | Path | Mapping[str, object] | Spec
 
@@ -40,7 +41,8 @@ def declared(spec: Buildable) -> Spec:
         spec: A YAML path, a mapping, or a ``Spec``.
 
     Raises:
-        LpspecError: A lowered ``Program``.
+        LpspecError: A lowered ``Program``, or a model still carrying a
+            ``piecewise:`` block.
         LanguageError: Anything the language does not accept.
     """
     if isinstance(spec, Program):
@@ -51,7 +53,21 @@ def declared(spec: Buildable) -> Spec:
             'the form worth keeping: reading a file costs about ten times what lowering it does. '
             'lps.check() still hands back the Program, for reading the plan.'
         )
-    return to_spec(spec)
+    written = to_spec(spec)
+    if written.piecewise:
+        raise LpspecError(unexpanded_curve_message(sorted(written.piecewise)))
+    return written
+
+
+def unexpanded_curve_message(blocks: list[str]) -> str:
+    """A model handed over with its ``piecewise:`` blocks still to be written out."""
+    named = ', '.join(f"'{block}'" for block in blocks)
+    return (
+        f'piecewise: {named} states rows rather than being one, and this builds the rows. Pass '
+        f"math_spec.to_spec(...).expand('piecewise'), which writes each block out as the variables and "
+        f'constraints it states and keeps every sos: block for a sink that takes a set — or expand(), '
+        f'which writes the sets out as binaries and linking rows too, for a sink with no SOS concept.'
+    )
 
 
 @runtime_checkable
@@ -146,9 +162,9 @@ def lowered(spec: Buildable) -> Program:
     Raises:
         LanguageError: A construct outside the streaming language.
         LpspecError: Two declarations of one namespace whose names differ only
-            by case.
+            by case, or a ``piecewise:`` block still to be written out.
     """
-    program = to_program(spec)
+    program = to_program(declared(spec))
     if (refused := _case_collision(program)) is not None:
         raise LpspecError(refused)
     return program

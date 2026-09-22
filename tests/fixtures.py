@@ -14,13 +14,10 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import yaml as pyyaml
-from math_spec import to_spec
-
-if TYPE_CHECKING:
-    from math_spec import Spec
+from math_spec import Spec, to_spec
 
 #: The dispatch model as a dict, for tests that need to mutate a declaration
 #: rather than read a file. Deliberately the same math as
@@ -67,6 +64,17 @@ def schema_of(source: str | Path | dict[str, Any], **patch: Any) -> Spec:
     """
     raw = raw_of(source)
     return to_spec(override(raw, **patch) if patch else raw)
+
+
+def expanded(source: str | Path | dict[str, Any] | Spec, *kinds: Any, **patch: Any) -> Spec:
+    """:func:`schema_of` with its formulations written out — the shape every lane is handed.
+
+    Every ``piecewise:`` block, and every ``sos:`` block too unless *kinds*
+    names ``'piecewise'`` alone: the door builds no curve as written, and HiGHS
+    takes no set. A ``Spec`` passes straight through to ``expand``.
+    """
+    schema = source if isinstance(source, Spec) else schema_of(source, **patch)
+    return schema.expand(*kinds)
 
 
 def raw_of(source: str | Path | dict[str, Any]) -> dict[str, Any]:

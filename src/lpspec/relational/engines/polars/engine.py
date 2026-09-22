@@ -68,11 +68,6 @@ class PolarsEngine:
         #: one that already held it.
         self._solves = 0
         self._loads = 0
-        #: What the last solve's sink had to add to take the model — nothing,
-        #: unless it had no concept of a set the model declares. A fact about a
-        #: *solve*, so a rebuild does not clear it.
-        self._added_columns = 0
-        self._added_rows = 0
         #: Wall seconds each phase has spent, cumulatively. Time spent is a
         #: fact about what ran, so a rebuild adds to it rather than clearing it.
         self._seconds: dict[str, float] = {}
@@ -125,7 +120,7 @@ class PolarsEngine:
 
         A construct the format has no section for is refused here, the way the
         solve path refuses one a solver cannot ingest
-        (:func:`~lpspec.relational.sinks.ingestible`).
+        (:func:`~lpspec.relational.sinks.refusal`).
 
         Raises:
             ValueError: A suffix nothing writes.
@@ -153,12 +148,9 @@ class PolarsEngine:
         The solver stays loaded where it can, which is
         :func:`~lpspec.relational.sinks.solvers.loaded`'s decision: an updated
         model has its new numbers pushed onto what the solver already holds,
-        and one whose structure moved is loaded again. What the solver is
-        handed may be wider than what was built
-        (:func:`~lpspec.relational.sinks.ingestible`): a sink with no SOS
-        concept takes the sets as binaries and rows appended past the model's
-        own. The read-back is unaffected — a declaration's share is a slice,
-        and nothing was appended before one.
+        and one whose structure moved is loaded again. A construct the solver
+        cannot ingest is refused before the load
+        (:func:`~lpspec.relational.sinks.refusal`).
 
         Args:
             solver_name: One of :data:`~lpspec.relational.sinks.SOLVERS`.
@@ -188,11 +180,10 @@ class PolarsEngine:
         """
         if keep not in KEEPS:
             raise LpspecError(unknown_keep_message(keep))
-        built = self._model.tables
+        tables = self._model.tables
+        if (refused := sinks.refusal(self._model.program, solver_name)) is not None:
+            raise LpspecError(refused)
         with _clocked(self._seconds, 'handoff'):
-            tables = sinks.ingestible(solver_name, built, self._model.program)
-            self._added_columns = tables.column_count - built.column_count
-            self._added_rows = tables.row_count - built.row_count
             if keep == 'nothing' and self._solver is not None:
                 self._solver.close()
                 self._solver = None
@@ -219,7 +210,6 @@ class PolarsEngine:
             else _no_duals_message(
                 self._discrete(),
                 answer.status.termination_condition,
-                sets=self._reformulated_sets(tables is not built),
                 quadratic_rows=self._quadratic_constraints(),
             )
         )
@@ -236,7 +226,7 @@ class PolarsEngine:
             _no_duals=no_duals,
             _dual_rays=rays,
             _no_dual_ray=None if answer.dual_ray is not None else _no_dual_ray_message(answer.status, solver_name),
-            _model_digest=lambda: built.contents,
+            _model_digest=lambda: tables.contents,
         )
 
     def contents(self) -> str:
@@ -260,8 +250,6 @@ class PolarsEngine:
             columns=measured.columns,
             rows=measured.rows,
             nonzeros=measured.nonzeros,
-            added_columns=self._added_columns,
-            added_rows=self._added_rows,
             omissions=_per_name('constraint', measured.omitted, rows_not_built=pl.UInt32),
             coefficient_range=_per_name('constraint', measured.coefficients, smallest=pl.Float64, largest=pl.Float64),
             bound_range=_per_name('variable', measured.bounds, smallest=pl.Float64, largest=pl.Float64),
@@ -386,14 +374,6 @@ class PolarsEngine:
         """The constraints this model declared as quadratic — a fact about the model, not the solve."""
         return sorted(n for n, c in self._model.program.constraints.items() if declares_quadratic(c))
 
-    def _reformulated_sets(self, reformulated: bool) -> list[str]:
-        """The sets that reached the solver as binaries, if any did.
-
-        The one reason for a missing dual no declaration shows: the model
-        declares no integrality, and the sink added some.
-        """
-        return sorted(self._model.program.sos) if reformulated else []
-
     # ------------------------------------------------------------------
     # lifecycle
     # ------------------------------------------------------------------
@@ -489,14 +469,12 @@ def _no_dual_ray_message(status: SolveStatus, solver_name: str) -> str:
 def _no_duals_message(
     discrete: Sequence[str],
     termination_condition: str,
-    sets: Sequence[str],
     quadratic_rows: Sequence[str],
 ) -> str:
     """The message for a solve that left values but no duals.
 
-    *sets* are the special-ordered sets a sink without the concept turned into
-    binaries. *quadratic_rows* are the quadratic constraints, whose prices are
-    off by default.
+    *quadratic_rows* are the quadratic constraints, whose prices are off by
+    default.
     """
     if quadratic_rows and not discrete:
         names = ', '.join(f"'{n}'" for n in quadratic_rows)
@@ -506,13 +484,6 @@ def _no_duals_message(
             f'prices makes the solver take the convex path, so a nonconvex row that solves without '
             f'them fails with them — which is why this is yours to ask for rather than ours to '
             f"assume. Re-solve with solver_options={{'QCPDual': 1}} if the model is convex."
-        )
-    if sets:
-        names = ', '.join(f"'{n}'" for n in sets)
-        return (
-            f'duals are undefined for a mixed-integer model, and this sink has no SOS concept, so '
-            f'{names} reached it as binaries. Solve with a sink that takes a set natively (gurobi) '
-            f'to keep the LP, or drop the set to price the relaxation.'
         )
     if discrete:
         names = ', '.join(f"'{n}'" for n in discrete)

@@ -15,7 +15,7 @@ from lpspec.relational.sinks.capabilities import CAPABILITIES, Capabilities
 EMPTY = Capabilities(supports={})
 
 HIGHS_SHAPED = Capabilities(
-    supports={'integrality': 'native', 'sos': 'reformulated', 'quadratic_objective': 'native'},
+    supports={'integrality': 'native', 'quadratic_objective': 'native'},
     excludes=(frozenset({'quadratic_objective', 'integrality'}),),
 )
 
@@ -25,11 +25,10 @@ def test_a_capability_left_out_is_absent():
     full vocabulary in step by hand."""
     assert EMPTY.support('sos') == 'absent'
     assert HIGHS_SHAPED.support('quadratic_constraint') == 'absent'
-    assert HIGHS_SHAPED.support('sos') == 'reformulated', 'reformulated is an answer, not a missing native'
 
 
 def test_missing_names_only_what_is_required_and_absent():
-    assert HIGHS_SHAPED.missing(['sos', 'quadratic_objective']) == []
+    assert HIGHS_SHAPED.missing(['sos', 'quadratic_objective']) == ['sos']
     assert HIGHS_SHAPED.missing(['quadratic_constraint']) == ['quadratic_constraint']
 
 
@@ -68,7 +67,7 @@ def test_nothing_is_excluded_where_no_exclusion_is_declared():
 @pytest.mark.parametrize(
     ('sink', 'capability', 'expected'),
     [
-        pytest.param('highs', 'sos', 'reformulated', id='highs-has-no-set-concept'),
+        pytest.param('highs', 'sos', 'absent', id='highs-has-no-set-concept'),
         pytest.param('highs', 'quadratic_objective', 'native', id='highs-takes-a-convex-hessian'),
         pytest.param('highs', 'nonconvex_quadratic_objective', 'absent', id='highs-refuses-a-nonconvex-one'),
         pytest.param('highs', 'quadratic_constraint', 'absent', id='highs-has-no-quadratic-row-at-all'),
@@ -93,25 +92,8 @@ def test_the_shipped_solver_table(sink, capability, expected):
 def test_only_highs_excludes_a_combination():
     """Gurobi's column has no exclusion, which is what makes it the sink a
     refusal can name."""
-    assert SOLVERS['highs'].capabilities.excludes == (
-        frozenset({'quadratic_objective', 'integrality'}),
-        frozenset({'quadratic_objective', 'sos'}),
-    )
+    assert SOLVERS['highs'].capabilities.excludes == (frozenset({'quadratic_objective', 'integrality'}),)
     assert SOLVERS['gurobi'].capabilities.excludes == ()
-
-
-def test_a_set_is_excluded_from_the_hessian_it_would_arrive_beside():
-    """The exclusion a reformulation manufactures, and the reason it is
-    declared rather than derived at the hand-off: what HiGHS is handed for a
-    set *is* binaries, so the pair it refuses is the pair it would be given —
-    while the model itself declares no integrality at all."""
-    excluded = SOLVERS['highs'].capabilities.excluded(['sos', 'quadratic_objective'])
-    assert excluded == frozenset({'quadratic_objective', 'sos'}), (
-        'a set and a Hessian reach highs as integrality and a Hessian, which it refuses'
-    )
-    assert SOLVERS['gurobi'].capabilities.excluded(['sos', 'quadratic_objective']) is None, (
-        'gurobi branches on the set instead, so nothing is manufactured'
-    )
 
 
 def test_the_lp_writer_carries_what_it_writes():

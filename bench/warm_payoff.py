@@ -47,7 +47,6 @@ from math_spec import to_spec
 
 import lpspec as lps
 from bench.cases import Shape, _seed
-from lpspec.relational import sinks
 from lpspec.relational.sinks.solvers import SOLVERS
 from lpspec.relational.sinks.solvers.base import WarmStart
 
@@ -349,7 +348,7 @@ def sweep(n_gen: int, n_snap: int = SNAPSHOTS, steps: int = 200) -> Run:
                 }
             )
             engine = master._engine
-            built = sinks.ingestible('highs', engine._model.tables)
+            built = engine._model.tables
             now, order = _blocks(engine)
 
             cold, cold_iterations, cold_seconds, _ = _solved(built, None)

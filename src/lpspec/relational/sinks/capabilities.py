@@ -7,9 +7,9 @@ naming both rather than a ``kError`` from inside a library.
 
 Four shapes:
 
-- **Three-valued.** ``reformulated`` is an answer, not a missing ``native``: a
-  set reaches HiGHS as binaries and linking rows and the model still solves, at
-  the cost of the duals an LP would have returned.
+- **Two-valued.** A sink takes a construct or it does not; nothing is
+  rewritten at the hand-off. A set on a sink with no SOS concept is refused,
+  and the refusal names the expansion that writes it out as binaries and rows.
 - **Exclusions.** HiGHS takes a Hessian, takes integrality, and refuses the
   pair.
 - **Some entries are data-time.** Convexity is a property of coefficients, so
@@ -44,19 +44,10 @@ Capability = Literal[
     'quadratic_constraint',
 ]
 
-#: How a sink satisfies one capability. ``reformulated`` means the model is
-#: rewritten into what the sink does take — a worse relaxation rather than a
-#: refusal.
-Support = Literal['native', 'reformulated', 'absent']
+#: Whether a sink takes one capability.
+Support = Literal['native', 'absent']
 
 CAPABILITIES: tuple[Capability, ...] = get_args(Capability)
-
-#: Those whose ``reformulated`` rewrite is binaries and linking rows
-#: (:func:`~lpspec.relational.sinks.sos.reformulated`): a sink promising such
-#: a rewrite must take integrality to perform it, and a model that declared
-#: none reaches that sink mixed-integer, so it comes back without the duals an
-#: LP would have returned.
-REWRITTEN_AS_INTEGRALITY: frozenset[Capability] = frozenset({'sos'})
 
 
 @dataclass(frozen=True)

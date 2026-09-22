@@ -198,7 +198,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/transport_pwl.yaml', sources) as solution:
+    with lps.solve(to_spec('examples/ports/transport_pwl.yaml').expand(), sources) as solution:
         solution.objective  # 8.786852757777865
     ```
 

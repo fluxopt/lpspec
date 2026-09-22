@@ -24,8 +24,8 @@ import pytest
 import yaml
 
 import lpspec as lps
+from tests.conftest import expanded, port_spec
 from tests.conftest import port_sources as sources
-from tests.conftest import port_spec
 
 
 def test_port_reaches_the_reference_optimum(port: dict[str, Any]) -> None:
@@ -33,7 +33,7 @@ def test_port_reaches_the_reference_optimum(port: dict[str, Any]) -> None:
     at a different vertex than the source prints, so a corpus pinned to a
     solution would fail on a solver upgrade that broke nothing. ``rtol`` is per
     port because a published optimum is rounded and a solved one is not."""
-    with lps.solve(port['spec'], sources(port['name'])) as solution:
+    with lps.solve(expanded(port['spec']), sources(port['name'])) as solution:
         assert solution.is_ok, f'{port["name"]} did not solve: {solution.status}'
         assert solution.objective == pytest.approx(port['objective'], rel=port['rtol']), (
             f'{port["name"]} disagrees with {port["provenance"]}'
@@ -44,7 +44,7 @@ def test_port_is_inside_the_language(port: dict[str, Any]) -> None:
     """Compiles with no data attached, so a language regression fails separately
     from a semantics one: this breaks when lowering stops accepting the model,
     the test above when it lowers and misses the number."""
-    lps.check(port['spec'])
+    lps.check(expanded(port['spec']))
 
 
 def test_port_reaches_the_reference_duals(port: dict[str, Any]) -> None:
@@ -65,7 +65,7 @@ def test_port_reaches_the_reference_duals(port: dict[str, Any]) -> None:
     if not expected:
         pytest.skip(f'{port["name"]} records no duals (a MILP has none)')
 
-    with lps.solve(port['spec'], sources(port['name'])) as solution:
+    with lps.solve(expanded(port['spec']), sources(port['name'])) as solution:
         for constraint, table in expected.items():
             dims = [c for c in table if c != 'value']
             got = solution.dual(constraint).sort(dims)
@@ -121,9 +121,9 @@ def test_the_instance_can_tell_the_rule_from_its_misreading(
     )
     spec['constraints'][constraint]['expression'] = misread
 
-    with lps.solve(port_spec(name), sources(name)) as solution:
+    with lps.solve(expanded(port_spec(name)), sources(name)) as solution:
         as_shipped = solution.objective
-    with lps.solve(spec, sources(name)) as solution:
+    with lps.solve(expanded(spec), sources(name)) as solution:
         misreading = solution.objective
 
     assert misreading != pytest.approx(as_shipped, rel=1e-09), (

@@ -24,7 +24,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 
 | | |
 |---|---|
-| `lps.check(spec, sink=None)` | parse, expand, validate and lower; attach no data. With a `sink`, also say whether that sink takes it. Returns the lowered `Program`, for reading the plan — no verb takes one back |
+| `lps.check(spec, sink=None)` | parse, validate and lower; attach no data. With a `sink`, also say whether that sink takes it. Returns the lowered `Program`, for reading the plan — no verb takes one back |
 | `math_spec.to_spec(spec)` | the file as written, for editing and typesetting; the language's own verb |
 | `lps.build(spec, sources)` | attach data and build; returns a `Model` |
 | `lps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
@@ -75,6 +75,22 @@ to_spec(spec).to_yaml()  # the review copy — a dict-built spec still gets a fi
 `Program` for reading the plan, and no verb takes one. A `Spec` handed back
 to a verb is not read again.
 
+**A formulation is written out before a verb reads it.** A `piecewise:` block
+states rows this cannot lower, so every verb refuses a model still carrying
+one and names the way in: `to_spec(spec).expand('piecewise')` writes each
+curve out as the variables and constraints it states and keeps every `sos:`
+block, for a sink that branches on a set; `to_spec(spec).expand()` writes the
+sets out too, as binaries and linking rows, which every sink takes. Which of
+the two is the caller's to say, because the sinks disagree: HiGHS has no SOS
+concept and refuses a set, Gurobi and Xpress take one whole.
+
+```python
+from math_spec import to_spec
+
+lps.solve(to_spec('piecewise.yaml').expand(), sources)  # curves and sets written out — any sink
+lps.solve(to_spec('sos.yaml').expand('piecewise'), sources, 'gurobi')  # the set reaches the solver as a set
+```
+
 **A framework emits data, not YAML text, and never merges files.** A generated
 spec must be able to show you a file. Hand-written math still starts as one.
 
@@ -102,8 +118,8 @@ forwarded to the solver verbatim.
 
 ## Checking a spec
 
-**`check` is the CI verb.** It parses, expands, resolves and lowers the spec
-and attaches nothing, so a spec repository can validate every commit without
+**`check` is the CI verb.** It parses, resolves and lowers the spec and
+attaches nothing, so a spec repository can validate every commit without
 the data. It returns the *program*: the spec lowered to the plan a build reads
 its rows off.
 
@@ -146,10 +162,9 @@ is optional and silent by default.** With a sink named, you get back one of:
   combination. The message names the construct, the sink, and the sinks that
   do take it. Only Gurobi and the LP writer take a quadratic row, and HiGHS
   refuses a quadratic objective *beside* integrality while taking either
-  alone.
-- **A warning** if the sink takes it only by rewriting. `sos:` on HiGHS is the
-  one case: the set arrives as binaries, so a spec that declared no
-  integrality comes back mixed-integer and without duals.
+  alone. HiGHS has no SOS concept, so a set on it is refused and the message
+  names `Spec.expand()`, which writes the set out as binaries and linking rows
+  every sink takes.
 
 **`check` answers off a declared table, with no data and no installed
 solver.** `check(m, sink='gurobi')` answers on a machine that has never had
@@ -302,7 +317,7 @@ xarray, from the `[linopy]` extra.
 | **`evaluate` takes what an `expressions:` entry takes** | a name the file declares, an expression string, or the mapping that carries `cases:`. A declared name is the value of that [named expression](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions) at the solution, aggregated to its own dimensions, served by the reader already holding it and compiled at the read, so unread expressions cost nothing. Anything else lowers the model again, which costs what `check` costs. It may use every name the solved model declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read |
 | **an undeclared expression names nothing** | so it is not a *kind*: `save` does not write it and a sweep does not spill it. A declared expression is: `save` writes it under `expression/`, and it rides every bridge as `kind='expression'`. To keep a quantity, declare it under `expressions:` and read it by name |
 | **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `LpspecError`. Any integer or binary variable makes duals undefined |
-| **a solver can make a model mixed-integer** | an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set reaches a solver with no SOS concept as binaries, so an otherwise continuous model solved on `highs` has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
+| **an expanded set makes a model mixed-integer** | an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set written out with `Spec.expand()` is binaries, so an otherwise continuous model solved that way has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
 | **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `save` |
 | **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default. One kind per call |
@@ -496,7 +511,6 @@ any of them.
 | Field | |
 |---|---|
 | `columns`, `rows`, `nonzeros` | the shape the build produced; `check` cannot answer this, having no data |
-| `added_columns`, `added_rows` | what the last solve's solver *added* to that shape: zero, or the binaries and linking rows that replaced a set it has no concept of |
 | `omissions` | rows a constraint declared but did not build ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/#a-row-with-no-variable-terms-is-not-built)) |
 | `sparse_parameters` | `(parameter, coordinates, rows, missing)`, one row per parameter whose source is short of the coordinates its dimensions reach. Sparsity is how a model masks, so this reports rather than judges: a table that lost a row and a `where:` that removed one build the same model, and nothing else says which |
 | `coefficient_range` | `(constraint, smallest, largest)`, the coefficient **magnitudes** each block put in the matrix. `largest / smallest` over the table is the conditioning to compare against the solver's own |
@@ -513,12 +527,11 @@ any of them.
 it — a range is a table per declaration, which does not fold into a row beside
 a count. This is what `archive=` records and what `archive.metrics` hands back,
 and what a caller feeding its own store reads off a model it solved. It is
-thirteen attributes and they are every column of `answer/metrics.parquet`:
+eleven attributes and they are every column of `answer/metrics.parquet`:
 
 | Attribute | |
 |---|---|
 | `columns`, `rows`, `nonzeros` | the shape the build produced |
-| `added_columns`, `added_rows` | what the last solve's sink added on top of that shape, and zero where it added nothing. The difference, not the sink's totals |
 | `solves` | how many solves this row covers. `1` for the archive `lps.solve` writes, that verb building the model it solves |
 | `loads` | how many of those handed the solver the model from scratch |
 | `attach_seconds` | the caller's sources onto the plan |

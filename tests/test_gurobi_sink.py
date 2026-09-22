@@ -32,6 +32,7 @@ from tests.conftest import (
     QP_SOURCES,
     assert_agrees_with_highs,
     assert_infeasible_reports_both_axes,
+    expanded,
     port_sources,
 )
 
@@ -73,7 +74,7 @@ def test_every_port_reaches_its_reference_optimum_on_gurobi(port: dict[str, Any]
     """
     if port['name'] in OVER_THE_GUROBI_LIMIT:
         pytest.skip(f'{port["name"]} exceeds the bundled gurobi licence — see OVER_THE_GUROBI_LIMIT')
-    with lps.solve(port['spec'], port_sources(port['name']), solver_name='gurobi') as solution:
+    with lps.solve(expanded(port['spec'], 'piecewise'), port_sources(port['name']), solver_name='gurobi') as solution:
         assert solution.is_ok, f'{port["name"]} did not solve: {solution.status}'
         assert solution.objective == pytest.approx(port['objective'], rel=port['rtol'])
 

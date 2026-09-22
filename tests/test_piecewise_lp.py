@@ -32,7 +32,7 @@ import yaml as pyyaml
 
 import lpspec as lps
 from lpspec.errors import DataError
-from tests.conftest import override, schema_of
+from tests.conftest import expanded, override, schema_of
 from tests.differential import RTOL, differential
 from tests.oracle import lpspec_linopy, pd
 from tests.piecewise_models import LP_SPEC as SPEC
@@ -140,7 +140,7 @@ def test_a_curve_that_does_not_start_at_the_origin():
     force a cost of 30 where the curve says 13 — and nothing would say so.
     """
     xs, ys, loads = [1.0, 2.0, 3.0], [10.0, 11.0, 13.0], [1.0, 2.0, 3.0]
-    with lps.solve(pyyaml.safe_load(SPEC), _relational(load=loads, xs=xs, ys=ys)) as result:
+    with lps.solve(expanded(pyyaml.safe_load(SPEC)), _relational(load=loads, xs=xs, ys=ys)) as result:
         assert result.objective == pytest.approx(sum(ys)), (
             'each load sits on a breakpoint, so the total is the curve read at each'
         )
@@ -158,7 +158,10 @@ def test_lp_and_convex_reach_one_optimum():
         **{'piecewise.cost_curve.method': 'convex', 'piecewise.cost_curve.links': [['p', 'bp_x'], ['op_cost', 'bp_y']]},
     )
 
-    with lps.solve(pyyaml.safe_load(SPEC), _relational()) as lines, lps.solve(hull, _relational()) as weights:
+    with (
+        lps.solve(expanded(pyyaml.safe_load(SPEC)), _relational()) as lines,
+        lps.solve(expanded(hull), _relational()) as weights,
+    ):
         assert lines.objective == pytest.approx(weights.objective, rel=RTOL)
 
 
@@ -171,7 +174,7 @@ def test_the_domain_rows_hold_the_output_inside_the_curve():
     """
     beyond = pyyaml.safe_load(SPEC)
     sources = _relational(load=[5.0, 15.0, 45.0])
-    with lps.solve(beyond, sources) as result:
+    with lps.solve(expanded(beyond), sources) as result:
         assert not result.is_ok, 'a load past the last breakpoint is outside the curve, not on its last slope'
 
 
@@ -186,7 +189,7 @@ def test_the_bounded_link_may_be_written_first():
         pyyaml.safe_load(SPEC), **{'piecewise.cost_curve.links': [['op_cost', 'bp_y', '>='], ['p', 'bp_x']]}
     )
 
-    with lps.solve(swapped, _relational()) as result:
+    with lps.solve(expanded(swapped), _relational()) as result:
         assert result.objective == pytest.approx(sum(_on_the_curve(x) for x in LOAD), rel=RTOL), (
             'the bounded link written first is the same curve, not a curve with the axes swapped'
         )
@@ -202,7 +205,7 @@ def test_a_convex_curve_that_falls_is_still_convex():
     """
     falling = [60.0, 30.0, 10.0, 0.0]
     loads = [0.0, 10.0, 30.0]
-    with lps.solve(pyyaml.safe_load(SPEC), _relational(load=loads, ys=falling)) as result:
+    with lps.solve(expanded(pyyaml.safe_load(SPEC)), _relational(load=loads, ys=falling)) as result:
         assert result.objective == pytest.approx(60.0 + 30.0 + 0.0, rel=RTOL), (
             'each load sits on a breakpoint of a falling convex curve, so the total is read off it'
         )
@@ -220,7 +223,7 @@ def test_a_one_breakpoint_curve_is_that_point_under_the_weight_methods(method):
         **{'piecewise.cost_curve.method': method, 'piecewise.cost_curve.links': [['p', 'bp_x'], ['op_cost', 'bp_y']]},
     )
 
-    with lps.solve(point, _relational(load=[10.0, 10.0, 10.0], xs=[10.0], ys=[25.0])) as result:
+    with lps.solve(expanded(point), _relational(load=[10.0, 10.0, 10.0], xs=[10.0], ys=[25.0])) as result:
         assert result.objective == pytest.approx(3 * 25.0, rel=RTOL), (
             f'method: {method} pins the cost to the one breakpoint the curve has'
         )
@@ -247,11 +250,11 @@ def test_a_ragged_curve_down_to_one_point_is_refused(spelling):
     if mask:
         ragged['parameters']['runs_to'] = {'dims': ['unit', 'bp'], 'dtype': 'bool', 'description': 'curve length'}
 
-    with lps.solve(ragged, _per_unit_points(short=False, mask=mask)) as result:
+    with lps.solve(expanded(ragged), _per_unit_points(short=False, mask=mask)) as result:
         assert result.objective == pytest.approx(25.0, rel=RTOL), 'two points is one segment, and that is enough'
 
     with pytest.raises(DataError, match='needs at least two breakpoints') as refusal:
-        lps.build(ragged, _per_unit_points(short=True, mask=mask))
+        lps.build(expanded(ragged), _per_unit_points(short=True, mask=mask))
     assert "unit='b'" in str(refusal.value), 'the refusal names the curve that is short, not the block'
 
 
@@ -279,7 +282,7 @@ def test_values_past_the_mask_are_not_part_of_the_curve():
         },
     )
 
-    with lps.solve(ragged, sources) as result:
+    with lps.solve(expanded(ragged), sources) as result:
         assert result.objective == pytest.approx(25.0, rel=RTOL), (
             'the answer is the marked curves, and the values past them are not read at all'
         )
@@ -297,7 +300,7 @@ def test_a_one_breakpoint_curve_is_refused_rather_than_dropped():
     point = _relational(load=[10.0, 10.0, 10.0], xs=[10.0], ys=[25.0])
 
     with pytest.raises(DataError, match='needs at least two breakpoints') as refusal:
-        lps.build(pyyaml.safe_load(SPEC), point)
+        lps.build(expanded(pyyaml.safe_load(SPEC)), point)
     assert 'adjacency' in str(refusal.value), 'and names the methods a one-point curve does mean something under'
 
 
@@ -322,7 +325,7 @@ def test_the_saving_is_columns_paid_for_in_rows():
             pyyaml.safe_load(SPEC),
             **{'piecewise.cost_curve.method': method, 'piecewise.cost_curve.links': links},
         )
-        built = lps.build(spec, _relational())
+        built = lps.build(expanded(spec), _relational())
         sizes[method] = built.diagnostics()
         built.close()
 
@@ -358,7 +361,7 @@ def test_the_curvature_the_sign_states_is_required(sign, sense, ys, wanted):
         **{'piecewise.cost_curve.links': [['p', 'bp_x'], ['op_cost', 'bp_y', sign]], 'objective.sense': sense},
     )
     with pytest.raises(DataError, match=f'exact only for a {wanted} curve'):
-        lps.solve(spec, _relational(ys=ys))
+        lps.solve(expanded(spec), _relational(ys=ys))
     assert schema_of(SPEC) is not None, 'and the schema alone is fine — this needs the values'
 
 
@@ -366,7 +369,7 @@ def test_breakpoints_that_do_not_increase_are_refused():
     """The run is what the row is multiplied through by, so it must be positive."""
     spec = pyyaml.safe_load(SPEC)
     with pytest.raises(DataError, match='requires strictly increasing breakpoints'):
-        lps.solve(spec, _relational(xs=[0.0, 10.0, 10.0, 30.0]))
+        lps.solve(expanded(spec), _relational(xs=[0.0, 10.0, 10.0, 30.0]))
 
 
 def test_each_curve_of_a_frame_is_checked_on_its_own():
@@ -379,10 +382,12 @@ def test_each_curve_of_a_frame_is_checked_on_its_own():
     """
     convex, concave = [0.0, 10.0, 30.0, 60.0], [0.0, 30.0, 50.0, 60.0]
 
-    lps.build(pyyaml.safe_load(PER_UNIT_SPEC), _per_unit(convex, convex)).close()  # every curve convex, nothing to say
+    lps.build(
+        expanded(pyyaml.safe_load(PER_UNIT_SPEC)), _per_unit(convex, convex)
+    ).close()  # every curve convex, nothing to say
 
     with pytest.raises(DataError, match='exact only for a convex curve') as refusal:
-        lps.build(pyyaml.safe_load(PER_UNIT_SPEC), _per_unit(convex, concave))
+        lps.build(expanded(pyyaml.safe_load(PER_UNIT_SPEC)), _per_unit(convex, concave))
     assert "unit='b'" in str(refusal.value), 'the refusal names the curve that bends the wrong way'
 
 
@@ -404,7 +409,7 @@ def test_a_curve_bound_to_a_path_is_checked_like_one_in_memory(tmp_path):
 
     for lane in (lps.build, lpspec_linopy.build):
         with pytest.raises(DataError, match='exact only for a convex curve'):
-            lane(pyyaml.safe_load(SPEC), sources)
+            lane(expanded(pyyaml.safe_load(SPEC)), sources)
 
 
 def test_a_concave_curve_is_refused_whatever_the_breakpoints_are_measured_in():
@@ -422,7 +427,7 @@ def test_a_concave_curve_is_refused_whatever_the_breakpoints_are_measured_in():
     stretched = override(pyyaml.safe_load(SPEC), **{'variables.p.bounds.upper': 3e6})
 
     with pytest.raises(DataError, match='exact only for a convex curve'):
-        lps.build(stretched, _relational(load=[5e5, 1.5e6, 2.5e6], xs=xs, ys=concave))
+        lps.build(expanded(stretched), _relational(load=[5e5, 1.5e6, 2.5e6], xs=xs, ys=concave))
 
 
 # ---------------------------------------------------------------------------

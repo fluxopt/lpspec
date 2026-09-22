@@ -32,6 +32,7 @@ from tests.conftest import (
     DISPATCH_SNAPSHOTS,
     PORT_REFERENCES,
     _dispatch_load,
+    expanded,
     override,
     port_sources,
     port_spec,
@@ -60,7 +61,7 @@ def _archived(spec, sources, out: Path) -> Path:
 def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: str, tmp_path: Path) -> None:
     program = to_program(port_spec(name))
     sources = port_sources(name)
-    archive = _archived(port_spec(name), sources, tmp_path / 'model.zip')
+    archive = _archived(expanded(port_spec(name)), sources, tmp_path / 'model.zip')
     spec, unpacked = _question(lps.load_archive(archive, tmp_path / 'out'))
 
     assert set(unpacked) == set(attachable(program)), (
@@ -429,8 +430,6 @@ def test_an_archive_records_what_reaching_its_answer_cost(
         'columns',
         'rows',
         'nonzeros',
-        'added_columns',
-        'added_rows',
         'solves',
         'loads',
         'attach_seconds',

@@ -192,7 +192,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/piecewise_ragged.yaml', sources) as solution:
+    with lps.solve(to_spec('examples/piecewise_ragged.yaml').expand(), sources) as solution:
         solution.objective  # 426.0
         solution.dual('balance')
     ```

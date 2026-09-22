@@ -24,7 +24,6 @@ from typing import Any
 
 import polars as pl
 import pytest
-from math_spec import to_program
 
 from lpspec.errors import LaneError
 from tests.conftest import PORT_REFERENCES, PORTS_DIR, port_sources, port_spec
@@ -55,18 +54,10 @@ def test_both_lanes_and_the_lp_file_reach_one_objective(name: str) -> None:
     """The harness is the whole assertion: it builds both lanes and re-solves the LP.
 
     Every port's ``sources`` already carries each dimension's own index table,
-    which is what both lanes read.
-
-    **A model whose expansion declares a set skips the file leg**, read off the
-    expanded schema rather than a list so it cannot drift — ``method: sos2``
-    emits an ``sos:`` block the file never wrote. HiGHS reads no SOS section,
-    from an LP file or an MPS one — five LP spellings and the standard MPS
-    header each come back ``kError`` with an empty model — so the re-solve would
-    be checking the reader. What the writer put there is checked as bytes in
-    ``test_lp_text``.
+    which is what both lanes read. The harness writes every formulation out,
+    so a ``method: sos2`` curve reaches the file as binaries HiGHS reads back.
     """
-    declares_a_set = bool(to_program(port_spec(name)).sos)
-    with differential(port_spec(name), port_sources(name), lp=not declares_a_set) as run:
+    with differential(port_spec(name), port_sources(name), lp=True) as run:
         _same_matrix(name, run)
         _eager_matches_the_recorded_duals(name, run)
 

@@ -157,7 +157,7 @@ flowchart LR
     Y(["your math, written once<br/>one YAML file"]) --> AST
     AST["<b>the whole model</b> — <code>Spec</code>, and the <code>Program</code> it lowers to<br/>names typed, dims checked, degree judged<br/><i>before a byte of data is read</i>"]
     AST --> SHOW["<b>show it</b><br/>math_spec.typesetting · its CLI<br/><i>no data, no solver</i>"]
-    AST --> CHECK["<b>check it</b><br/>parse → expand → validate → lower<br/><i>no data, no solver</i>"]
+    AST --> CHECK["<b>check it</b><br/>parse → validate → lower<br/><i>no data, no solver</i>"]
     AST --> RUN["<b>run it</b><br/>solver · LP/MPS file · linopy"]
     DATA[("your data<br/>parquet · polars · any Arrow table")] --> RUN
     RUN --> ANS(["<b>your answers</b><br/>tables you can join"])
@@ -468,10 +468,12 @@ LP `binary`/`general` sections and HiGHS integrality, which keeps basic MILP
 inside the relational lane. **`sos:` is the same shape.** It is a
 `SosDeclaration` naming columns the variable already made, one more stream out
 of the engine and no expression node. So a set can be carried whole to a sink
-that has the concept. Reimplementing linopy's reformulation passes inside the
-plan is rejected: that duplicates the library this package consumes. Where one
-is unavoidable, for a sink with no SOS at all, it happens at the *sink*
-boundary, on the built tables.
+that has the concept. Reimplementing a reformulation pass inside the plan is
+rejected: the language writes a formulation out itself (`Spec.expand`), and a
+sink with no SOS concept is handed the model so written rather than a rewrite
+of the built tables. The same rule decides the door: a `piecewise:` block
+states rows this cannot lower, so a model arrives with its curves expanded,
+and the sets expanded or not as the caller's sinks demand.
 
 **A frame is the boundary in both directions.** `frames.py` recognises a
 caller's table through the Arrow PyCapsule protocol without importing any
@@ -489,15 +491,11 @@ from here is `genconstr`, plus a semi-continuous threshold on `cols`.
 **The fourth stream is the one that lands unevenly**, because its destination
 differs per sink (see [Capability is not the
 ceiling](https://math-spec.readthedocs.io/en/latest/about/limits/#solver-capability)).
-So a solver **declares** how it satisfies one, `native` or `reformulated`, and
-the *family* acts on the answer (`solvers.ingestible`). A sink that cannot take
-a set is handed the same feasible region as binaries and linking rows
-(`sinks/sos.py`, whose README carries the per-sink table). That is the first two
-entries of what [Track 3](https://github.com/fluxopt/lpspec/issues/472) asked
-for. What the rewrite adds goes **after** the model, the label contract spent
-rather than bent. An appended column moves none of the model's own, and an
-appended row renumbers none of its rows. A solve reads its answer back by the
-same slice either way.
+So a solver **declares** whether it takes one, and the *family* acts on the
+answer (`sinks.refusal`): a sink with no SOS concept refuses the model, and the
+refusal names `Spec.expand()`, which writes each set out as binaries and
+linking rows the language states rather than this package. Nothing is appended
+past the model at the hand-off, so what a solve reads back is what was built.
 
 **A sink is one of two things, and the directory says which.** A **solver** runs
 the tables and returns an answer, chosen by **name** at the call
@@ -569,7 +567,6 @@ is structure.
 | `relational/parquet.py` | answers on disk: the `<kind>/<name>` layout a result and a sweep both write, and the writer that lands a file whole |
 | `relational/sinks/tables.py` | what every sink reads and no more: the five tables, the batching scalars, and their projection onto the solver's column index |
 | `relational/sinks/capabilities.py` | what a sink can ingest — hard rule 3's *accepts ≠ builds* axis; `lanes.py` declares each **lane** in the same vocabulary |
-| `relational/sinks/sos.py` | the one stream a sink may not ingest, written as two it can: sets → binaries and linking rows |
 | `relational/sinks/` | how a built model leaves, in two families: `solvers/` (one module per solver, chosen by name) and `writers/` (one per format, chosen by suffix) — [README](https://github.com/fluxopt/lpspec/blob/main/src/lpspec/relational/sinks/README.md) |
 | `linopy/__init__.py` | the lane's two verbs: `build` constructing a `linopy.Model`, and `evaluate` valuing an expression at a solved one |
 | `linopy/loader.py` | the crossing into pandas and xarray: `tidy_sources`' tables as master coords, an `xr.Dataset`, and one array per relation; refuses the relation shapes the lane does not build, naming the relational lane |

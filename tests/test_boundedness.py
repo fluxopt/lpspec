@@ -65,18 +65,20 @@ def test_the_note_closes_no_door():
     )
 
 
-def test_check_expands_a_curve_before_it_reads_the_notes():
+def test_check_reads_the_notes_off_the_expanded_curve():
     """`piecewise:` holds its variables through the constraints it expands into.
 
     Nothing in the file as written names `op_cost`, so a note read off the
     declarations alone would call a model unbounded that the block bounds two
-    constraints later. The expansion is the language's to do and `advice` does
-    it; what is pinned here is that `check` asks it the question that way.
+    constraints later. The expansion is the language's to do and the caller
+    hands `check` the expanded model; what is pinned here is that the notes
+    are read off that one.
     """
     raw = yaml.safe_load((EXAMPLES_DIR / 'piecewise.yaml').read_text())
     del raw['variables']['op_cost']['bounds']
+    written_out = to_spec(raw).expand('piecewise')
 
-    assert not advice(to_spec(raw)), 'the curve bounds op_cost, so there is nothing to advise about'
+    assert not advice(written_out), 'the curve bounds op_cost, so there is nothing to advise about'
     with warnings.catch_warnings():
         warnings.simplefilter('error', LpspecWarning)
-        lps.check(raw)
+        lps.check(written_out)

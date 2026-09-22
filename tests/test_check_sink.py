@@ -32,7 +32,7 @@ PLAIN = {
 }
 
 #: The same model with a set on it — the one construct in the language today
-#: that a shipped sink satisfies by rewriting rather than by taking.
+#: that a shipped sink has no concept of.
 WITH_A_SET = PLAIN | {'sos': {'pick': {'variable': 'p', 'over': 'g', 'type': 1}}}
 
 #: The same model at degree 2, in each of the two positions the language takes
@@ -61,15 +61,12 @@ def test_bare_check_says_nothing_about_portability():
     assert _warnings(WITH_A_SET) == []
 
 
-def test_a_set_on_highs_says_it_will_be_reformulated_and_what_that_costs():
-    """The one verdict that exists today."""
-    (note,) = _warnings(WITH_A_SET, sink='highs')
-    assert "'highs'" in note and 'special-ordered sets' in note
-    assert 'reformulated' in note
-    assert 'without duals' in note, (
-        'a model that declared no integrality of its own comes back mixed-integer here, and that is '
-        'the consequence a caller is actually choosing between sinks over'
-    )
+def test_a_set_on_highs_is_refused_naming_the_expansion():
+    """Nothing is rewritten at the hand-off, so the refusal names the language's own way out."""
+    with pytest.raises(LpspecError, match="'highs' sink cannot take special-ordered sets") as refusal:
+        lps.check(WITH_A_SET, sink='highs')
+    assert 'gurobi' in str(refusal.value), 'the sinks that take a set are named'
+    assert 'expand()' in str(refusal.value), 'and so is the expansion that writes one out for the sinks that do not'
 
 
 @pytest.mark.parametrize('sink', ['gurobi', '.lp'])
@@ -105,18 +102,16 @@ def _refusing(spec) -> set[str]:
 def test_which_shipped_sinks_refuse_what_the_language_can_now_say():
     """The state of the world, pinned so it is visible when it changes.
 
-    A **set** still reaches every sink, natively or as binaries, so a model
-    carrying one is warned about at worst. **Degree 2** does not: it is the
-    first thing the language can say that some destinations have no spelling
-    for at all, which is what turned `check(sink=)` from a warning into a
-    refusal.
+    A **set** reaches every sink but HiGHS, which has no concept of one and
+    refuses the model naming the expansion that writes it out. **Degree 2** is
+    what some destinations have no spelling for at all.
 
     Named individually rather than counted, because which sink is on the list
     is the fact: a cell moving in either direction — xpress growing a Hessian,
     a writer gaining a section — should be read here rather than inferred from
     a number.
     """
-    assert _refusing(WITH_A_SET) == set(), 'a set reaches every sink, the ones that cannot branch on it rewriting it'
+    assert _refusing(WITH_A_SET) == {'highs'}, 'the one shipped sink with no SOS concept, and nothing rewrites for it'
     assert _refusing(WITH_A_QUADRATIC_OBJECTIVE) == {'xpress', '.mps'}, (
         'the two with no path for a Hessian: xpress ships one and this package hands it none, '
         'and MPS spells it in a section this writer does not write'
@@ -141,7 +136,7 @@ def test_a_sink_that_takes_nothing_is_refused_by_name_and_offered_the_others(mon
     assert message is not None
     assert "'stub'" in message, 'the refusal names the sink'
     assert 'special-ordered sets' in message, "the refusal names the construct, in the modeller's own words"
-    assert 'gurobi' in message and 'highs' in message and '.lp' in message, 'and the sinks that do take it'
+    assert 'gurobi' in message and '.lp' in message and 'highs' not in message, 'and the sinks that do take it'
 
 
 def test_a_sink_excluding_a_pair_says_so_rather_than_denying_the_half(monkeypatch):
@@ -190,34 +185,6 @@ def test_a_refusal_does_not_swallow_the_solver_independent_advice(recwarn):
             with pytest.raises(LpspecError):
                 lps.check(unused | {'sos': {'pick': {'variable': 'p', 'over': 'g', 'type': 1}}}, sink='stub')
         assert [str(w.message) for w in caught] == bare, 'the advice a bare check gives is issued before the raise'
-
-
-def test_a_refusal_names_only_what_the_model_declares(monkeypatch):
-    """What a rewrite would cost is the sink's fact, not a requirement of the
-    model: a pure LP with a set on it declares no integrality, and a refusal
-    telling its author otherwise sends them looking for binaries they never
-    wrote."""
-
-    class Stub:
-        capabilities = Capabilities(supports={'sos': 'reformulated'})
-
-    monkeypatch.setitem(SOLVERS, 'stub', Stub)
-    message = sinks.refusal(_program(WITH_A_SET), 'stub')
-    assert message is None, 'a sink that rewrites a set takes the model; only what it lacks refuses one'
-
-
-def test_a_set_beside_a_hessian_is_the_pair_highs_refuses():
-    """The exclusion HiGHS's own rewrite manufactures, read through `check`.
-
-    Its answer for a set is binaries, and it refuses those beside a Hessian —
-    so the pair is declared there and named here in the model's own words,
-    rather than derived into integrality the file never mentions.
-    """
-    from lpspec.relational.sinks.capabilities import required
-
-    needed = required(_program(WITH_A_SET)) | {'quadratic_objective'}
-    excluded = sinks.sink_capabilities('highs').excluded(needed)
-    assert excluded == frozenset({'quadratic_objective', 'sos'})
 
 
 def _program(spec):
