@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.348](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.347...v0.0.1-alpha.348) (2026-09-22)
+
+
+### Refactoring
+
+* **data:** the caller binds every parameter a piecewise curve reads, and no name the expansion invented ([#1711](https://github.com/fluxopt/lpspec/issues/1711)) ([7496de9](https://github.com/fluxopt/lpspec/commit/7496de928fe2ba336dbd576b1b2e3ae282d95eb7))
+
 ## [0.0.1-alpha.347](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.346...v0.0.1-alpha.347) (2026-09-22)
 
 
