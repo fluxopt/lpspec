@@ -105,7 +105,7 @@ def constructs(spec: Path) -> set[str]:
             used.add('sum')
         elif isinstance(node, program.GroupSum):
             used.add('sum(by=)')
-        elif isinstance(node, program.Pullback):
+        elif isinstance(node, program.Lookup):
             used.add('at()')
         elif isinstance(node, program.Translate):
             used.add("shift(edge='wrap')" if node.wrap else 'shift')
