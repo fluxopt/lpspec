@@ -103,6 +103,20 @@ class _Order:
         )
 
 
+def translate_rows(
+    scope: Scope, frame: pl.LazyFrame, dims: tuple[str, ...], carried: Sequence[str], along: str, offset: int
+) -> pl.LazyFrame:
+    """*frame*'s rows moved *offset* positions along *along*, the end the move vacates dropped.
+
+    The predicate form of :func:`translate_fragment`: no partition, no named
+    offset, no wrap and nothing to fill, since false is what a missing row
+    already means in a mask. *carried* is the columns that travel with the
+    coordinates.
+    """
+    order = _Order.of(scope, along, None)
+    return order.remap(frame, carried, dims, moved=pl.col(_ORD_IN) + offset, prepared=lambda f: f)
+
+
 def window_fragment(scope: Scope, p: TermFragment, s: program.WindowSum, context: str) -> TermFragment:
     """A one-to-many remap of the dim through its ord.
 

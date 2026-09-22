@@ -132,7 +132,7 @@ def _eval_node(node: program.Predicate, ctx: EvaluationContext) -> xr.DataArray:
 
     if isinstance(node, program.TranslatedPredicate):
         operand = _along(evaluate(node.operand.root), node.along, master_coords)
-        return operand.shift({node.along: node.offset}, fill_value=False).fillna(value=False).astype(bool)
+        return operand.shift({node.along: node.offset}, fill_value=False)
 
     if isinstance(node, program.DimensionPosition):
         labels = master_coords[node.name]
@@ -198,11 +198,7 @@ def _along(arr: xr.DataArray, dimension: str, master_coords: Mapping[str, pd.Ind
     every coordinate of it, and counting or shifting along an axis the array
     has never seen would otherwise drop the reduction the node *is*.
     """
-    if dimension in arr.dims:
-        return arr
-    labels = master_coords[dimension]
-    axis = xr.DataArray(np.zeros(len(labels), dtype=bool), coords={dimension: labels}, dims=[dimension])
-    return arr | axis
+    return arr if dimension in arr.dims else arr.expand_dims({dimension: master_coords[dimension]})
 
 
 def _defined(arr: xr.DataArray, dtype: str) -> xr.DataArray:
