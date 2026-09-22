@@ -280,7 +280,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
       offer_cap:
         description: >-
           an offer is capped by its tranche's share of its generator's capacity —
-          two other dimensions' parameters pulled back through two legs of one edge
+          two other dimensions' parameters looked up through two legs of one edge
           set
         dims: [offer]
         expression: r <= at(tranche_frac, by=tranche_of, over=tranche, into=offer) * at(p_max, by=gen_of, over=generator, into=offer)
