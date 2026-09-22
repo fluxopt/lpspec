@@ -221,7 +221,7 @@ def test_a_width_read_through_a_relation_that_maps_nothing_there_builds_no_row()
     build died on `cannot convert float NaN to integer` while the relational
     lane solved the file (#1535). A bare width parameter never showed it: the
     holes are filled with the coefficient zero before the operator sees them,
-    and only the pullback puts them back.
+    and only the lookup puts them back.
     """
     with differential(UNMAPPED_WIDTH, UNMAPPED_WIDTH_SOURCES, lp=True) as run:
         assert run.engine.diagnostics().rows == 3, 'the snapshot in no season carries no width, so it holds no row'

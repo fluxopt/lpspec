@@ -3,9 +3,9 @@
 The language's relation is a table over any number of dimensions, keyed by
 any number of its columns. What this lane builds of it is the **single-valued
 map**: one value column read at the key, so the map is one dense array over
-the key's dimensions and a walk is an ``assign_coords`` and a ``groupby``, or
+the key's dimensions and a join is an ``assign_coords`` and a ``groupby``, or
 a vectorised ``sel``. A relation may carry several value columns and each is
-its own array, since a call names the column it walks.
+its own array, since a call names the column it reads.
 :func:`refuse_relations_the_lane_does_not_build` turns the rest away at the
 lane's door, naming the relational lane, which builds every shape the language
 admits.
@@ -49,22 +49,22 @@ def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:
                     f'walks alone'
                 )
             )
-        if len(node.partition.group) != 1:
+        if len(node.partition.grouped) != 1:
             raise LaneError(
                 _relation_shape_message(
-                    f"a partition by '{node.partition.name}' groups by {list(node.partition.group)}, and this "
+                    f"a partition by '{node.partition.name}' groups by {list(node.partition.grouped)}, and this "
                     f'lane groups a shift, sum_back or position by one column'
                 )
             )
 
 
-def read_column(node: program.GroupSum | program.Pullback) -> tuple[str, ...]:
-    """The relation's columns a read takes at the key: what a group lands on, what a pullback reads from.
+def read_column(node: program.GroupSum | program.Lookup) -> tuple[str, ...]:
+    """The relation's columns a call reads at the key: what a group groups by, what a lookup joins on.
 
-    Both are the far end of the direction, so one lookup serves the group and
-    its adjoint.
+    Both are the value end of the join, so one read serves the group and the
+    lookup.
     """
-    return node.direction.produced if isinstance(node, _program.GroupSum) else node.direction.consumed
+    return node.join.added if isinstance(node, _program.GroupSum) else node.join.dropped
 
 
 def _relation_shape_message(what: str) -> str:

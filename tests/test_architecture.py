@@ -857,10 +857,10 @@ def test_every_piecewise_fact_the_language_carries_is_read_by_the_curve_guard():
     )
 
 
-def _gen_bus_direction(program: Any) -> Any:
+def _gen_bus_join(program: Any) -> Any:
     """One map read one way — the shape every operator below takes a `by=` in."""
     gen_bus = program.RelationDeclaration((('g', 'g'), ('bus', 'bus')), ('g',))
-    return program.Direction('gen_bus', gen_bus, ('g',), ('bus',), ())
+    return program.Join('gen_bus', gen_bus, ('g',), ('bus',))
 
 
 def test_every_shape_operator_declares_its_fan_in():
@@ -879,8 +879,8 @@ def test_every_shape_operator_declares_its_fan_in():
         type(node).__name__: program.fan_in(node)
         for node in (
             program.Sum(x, ('t',)),
-            program.GroupSum(x, _gen_bus_direction(program)),
-            program.Pullback(x, _gen_bus_direction(program)),
+            program.GroupSum(x, _gen_bus_join(program)),
+            program.Lookup(x, _gen_bus_join(program)),
             program.Translate(x, 't', 1, wrap=False),
             program.WindowSum(x, 't', 3, wrap=False),
         )
@@ -888,7 +888,7 @@ def test_every_shape_operator_declares_its_fan_in():
     assert declared == {
         'Sum': 'many-to-one',
         'GroupSum': 'many-to-one',
-        'Pullback': 'one-to-one',
+        'Lookup': 'one-to-one',
         'Translate': 'one-to-one',
         'WindowSum': 'one-to-many',
     }, 'a fan-in moved — the absence pass now treats that operator differently, which is a semantic change'

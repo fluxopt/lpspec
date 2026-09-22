@@ -334,7 +334,7 @@ class _Edge:
         removed is genuinely absent and remapping already dropped it. So the
         edge is crossed with the other-dim combinations the variable actually
         has, one vacated row each. The incoming presence is widened to the other
-        dims first, since a narrowly keyed one — a pullback's, an earlier
+        dims first, since a narrowly keyed one — a lookup's, an earlier
         shift's — is silent about the columns this reads.
         """
         others = [d for d in dims if d != self.shift.along]

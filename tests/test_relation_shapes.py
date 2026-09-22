@@ -1,25 +1,25 @@
 """Every shape of relation the language admits, built by the relational lane.
 
 math-spec's relation is a table over any number of dimensions, keyed by any
-number of its columns, walked in whichever direction a call names. The
+number of its columns, joined in whichever direction a call names. The
 single-valued map — two columns, one of them the key — is one shape of it. The
 others each ask something of the engine that the map did not:
 
 - **a key of several columns** reads the map *under a condition* the row
   carries, so the join carries the rest of the key through;
-- **several value columns** land one walk on a product of dimensions;
+- **several value columns** group one join by a product of dimensions;
 - **a bare relation** fans a member out to every target it is related to;
 - **a partition by a conditioned map** groups a shift, a window or a position
   by the value at the rest of the key, so a neighbour is a neighbour inside
   *this generator's* season;
-- **a self-map** produces the dimension it consumes, so the walk's landing
-  column needs a name of its own until the consumed one is dropped;
+- **a self-map** groups by the dimension it joins on, so the join's landing
+  column needs a name of its own until the joined one is dropped;
 - **two columns over one dimension** name a line's two ends in one table.
 
 Every optimum here is hand-derived, and the written LP file re-solves to it,
 which is the second opinion this lane has where the eager one refuses the
 shape (`test_conditioned_relations.py` holds what it does build). Each case
-carries a number a lane that walked the table wrongly would not reach.
+carries a number a lane that joined the table wrongly would not reach.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ def _solved(spec: dict[str, Any], sources: dict[str, Any], tmp_path: Path) -> tu
 
 
 # ---------------------------------------------------------------------------
-# several value columns — one walk onto a product of dimensions
+# several value columns — one join grouped by a product of dimensions
 # ---------------------------------------------------------------------------
 
 GENERATORS = ['g1', 'g2', 'g3', 'g4']
@@ -106,7 +106,7 @@ def _two_value_sources(demand: float) -> dict[str, Any]:
 
 
 def test_a_sum_through_one_relation_lands_on_a_product_of_dimensions(tmp_path):
-    """`sum(p, by=gen_bt, over=generator, into=[bus, technology])` is one walk onto both value columns.
+    """`sum(p, by=gen_bt, over=generator, into=[bus, technology])` is one join grouped by both value columns.
 
     (a, wind) caps `g1` at 10 and (a, sun) caps `g2` at 5, which is 15 of the
     20 demanded. The rest comes from (b, wind), shared by `g3` and `g4`, so
@@ -120,8 +120,8 @@ def test_a_sum_through_one_relation_lands_on_a_product_of_dimensions(tmp_path):
     )
 
 
-def test_a_pullback_reads_a_two_column_slot_at_each_generator(tmp_path):
-    """`at(limit, by=gen_bt, over=[bus, technology], into=generator)` is the adjoint: each generator's own limit.
+def test_a_lookup_reads_a_two_column_slot_at_each_generator(tmp_path):
+    """`at(limit, by=gen_bt, over=[bus, technology], into=generator)` is the join with no group-by: each generator's own limit.
 
     Bounded one by one rather than as a group, `g3` and `g4` each take (b,
     wind)'s 7, so 24 is reachable: 10 + 5 + 7 + 2.
@@ -172,20 +172,20 @@ MASKED_SUM_SOURCES = {
 }
 
 
-def test_a_walk_onto_a_dimension_the_operand_carries_is_refused_and_names_the_rewrite():
-    """A walk brings the dimension it lands on, so the operand may not already carry it.
+def test_grouping_by_a_dimension_the_operand_carries_is_refused_and_names_the_rewrite():
+    """A call brings the dimension it groups by, so the operand may not already carry it.
 
-    Inside the operator, `load[bus]` and a walk onto `bus` read as a product
-    over every (generator, bus) pair masked back down to the pairs the map
+    Inside the operator, `load[bus]` and a group-by onto `bus` read as a product
+    over every (generator, bus) pair joined back down to the pairs the map
     agrees with — which is the same answer as multiplying outside, reached by a
     spelling that hides what the call adds.
     """
     spec = _masked_sum_spec('sum(load * p, by=gen_bus, over=generator, into=bus) <= cap')
-    with pytest.raises(DimensionError, match=r"sum\(by=gen_bus\) lands on \['bus'\], which the expression already"):
+    with pytest.raises(DimensionError, match=r"sum\(by=gen_bus\) groups by \['bus'\], which the expression already"):
         lps.check(spec)
 
 
-def test_the_factor_over_the_landed_dimension_multiplies_outside(tmp_path):
+def test_the_factor_over_the_grouped_dimension_multiplies_outside(tmp_path):
     """The rewrite the refusal names, and the answer it reaches.
 
     Bus a holds `load_a * p1` and bus b holds `load_b * p2`, under caps of 4 —
@@ -384,7 +384,7 @@ def test_a_pair_the_conditioned_partition_leaves_out_reaches_nothing(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# a self-map — a dimension related to itself; the walks are test_self_map.py's, this is the partition
+# a self-map — a dimension related to itself; the joins are test_self_map.py's, this is the partition
 # ---------------------------------------------------------------------------
 
 SNAPSHOTS = [0, 1, 2]

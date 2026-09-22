@@ -66,7 +66,7 @@ def _inputs() -> dict[str, object]:
     }
 
 
-def test_a_pullback_through_a_self_map_reads_the_representative():
+def test_a_lookup_through_a_self_map_reads_the_representative():
     """`at(price, by=rep_of, over=rep, into=snapshot)` is the price at the snapshot that stands for this one.
 
     Was: the walk named its value column after the dimension it lands on, which
@@ -91,7 +91,7 @@ def test_a_pullback_through_a_self_map_reads_the_representative():
 def test_a_group_through_a_self_map_sums_the_snapshots_it_represents():
     """`sum(p, by=rep_of, over=snapshot, into=rep)` adds each snapshot's output into its representative's row.
 
-    The adjoint of the pullback above, and the direction the two lanes
+    The lookup above joined the other way, and the direction the two lanes
     disagreed on before the fix (#1652): the relational one raised where the
     eager one built, so nothing here was checking that what it built was right.
     """

@@ -67,20 +67,20 @@ def operator_grouped_sum(
     """Sum *array* through a declared relation, producing dimensions *into*.
 
     YAML: ``sum(p, by=gen_bus, over=generator, into=bus)``. *mappings* are the
-    walked columns' values as arrays over the dimensions the relation's key
+    grouped columns' values as arrays over the dimensions the relation's key
     names — one dimension for a plain map, and one more per condition where the
-    key is several columns. The walked dimension is summed out and *into* holds
-    the group labels, one dim per column walked to, so a walk to two columns is
-    one grouping onto their pair.
+    key is several columns. The dimension joined on is summed out and *into*
+    holds the group labels, one dim per column grouped by, so grouping by two
+    columns is one grouping onto their pair.
 
     A null value says the key belongs to no group, so its terms contribute
     nowhere. linopy refuses to group by NaN at all, so the operand is masked
     to absent at those keys and a declared label stands in for them — which is
     what lets a key of several columns leave one combination out without
-    dropping a whole label of any one dimension. A key missing *any* walked
-    column belongs to no group.
+    dropping a whole label of any one dimension. A key missing *any* column
+    joined on belongs to no group.
 
-    *joined* names the dimensions the key holds beside the one walked: they
+    *joined* names the dimensions the key holds beside the one summed away: they
     are group keys too, so a group is a (value, condition) pair rather than a
     value summed across conditions — which is what the whole two-dimensional
     label array would otherwise collapse into.
@@ -103,12 +103,12 @@ def operator_grouped_sum(
 
 
 def operator_at(array: Any, mappings: tuple[Any, ...], *, into: tuple[str, ...]) -> Any:
-    """Read *array* through a declared relation — the adjoint of a group.
+    """Read *array* through a declared relation — a group's join with no group-by.
 
     YAML: ``at(on, by=component, over=bus, into=line)``. *mappings* are the same
     arrays ``sum`` takes; grouping sums *along* them, this indexes *through*
     them, so the operand must carry every dim in ``into`` and the result carries
-    the mappings' own dims. xarray's vectorised selection is the pullback exactly
+    the mappings' own dims. xarray's vectorised selection is the lookup exactly
     — one ``into`` label read once per fine key pointing at it, pointwise
     along a condition the operand already carries.
 
@@ -312,10 +312,10 @@ def _per_group(offset: Any, groups: Any) -> Any:
     ``(period, timestep)`` model writes as an offset over ``period`` because
     ``period`` is not the axis it walks. The group *is* the relation's value, so
     the lag a coordinate moves by is its group's, read through that relation:
-    the pullback ``at()`` already is. Every other offset is returned as it
+    the lookup ``at()`` already is. Every other offset is returned as it
     came.
 
-    The group's label is dropped rather than ridden along: a pullback leaves
+    The group's label is dropped rather than ridden along: a lookup leaves
     what it read through as a coordinate, and a constraint built from one is
     then reported as carrying a dimension the language says a shift does not
     have.

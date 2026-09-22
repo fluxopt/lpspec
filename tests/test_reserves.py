@@ -73,7 +73,7 @@ def _zero_zone_share(sources: dict) -> dict:
     ('mutate', 'direction'),
     [
         pytest.param(lambda s: _drop_line(s, 'l2'), 'dearer', id='a-parallel-edge-carries-real-flow'),
-        pytest.param(_uncap_exporter, 'cheaper', id='the-pullback-caps-the-exporting-bus'),
+        pytest.param(_uncap_exporter, 'cheaper', id='the-lookup-caps-the-exporting-bus'),
         pytest.param(_repoint_dangling, 'cheaper', id='a-dangling-leg-carries-nothing-until-pointed'),
         pytest.param(lambda s: _drop_offer(s, 'o2'), 'dearer', id='a-duplicate-pair-is-real-capacity'),
         pytest.param(_zero_zone_share, 'dearer', id='an-incidence-weight-binds-the-zone'),
@@ -109,7 +109,7 @@ def test_the_instance_actually_holds_every_shape():
     assert set(zones_of_g2['value'].to_list()) == {0.5, 1.0}, 'and at different weights, so the value is a weight'
 
 
-def test_the_offer_cap_is_two_pullbacks_through_two_legs():
+def test_the_offer_cap_is_two_lookups_through_two_legs():
     """A per-offer number assembled from two other dimensions' parameters —
     ``at()`` through ``tranche_of`` times ``at()`` through ``gen_of`` — priced
     into the eager lane's own solution: o4 sits exactly at 0.25 * 80."""

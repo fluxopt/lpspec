@@ -1,13 +1,13 @@
 """A relation's table as a call reads it — the one place a role becomes a column.
 
-The plan's :class:`~math_spec.program.Direction` names *roles*: which columns of
-a relation an operator consumes, produces and joins on. The engine reads by
+The plan's :class:`~math_spec.program.Join` names *roles*: which columns of
+a relation an operator joins on and which it groups by. The engine reads by
 *dimension*, since an operand carries its coordinates under the dimensions'
 names. Everything here is that translation, spelled once:
 
-- a group or a pullback trades the dimensions its direction consumes for the
-  ones it produces through :func:`walk_join`, against the :func:`mapping`
-  table;
+- a group or a lookup joins the operand to the :func:`mapping` table through
+  :func:`join_relation`, dropping the dimensions joined on and not grouped by
+  and gaining the ones grouped by and not joined on;
 - a :class:`~math_spec.program.Partition` ranks the dimension it steps along
   inside a :class:`Grouping`.
 
@@ -37,9 +37,9 @@ GROUP_SIZE = '__group size__'
 
 
 def landing(dim: str) -> str:
-    """The column a walk's produced column waits under until the consumed one is dropped.
+    """The column a join's added column waits under until the dropped one is gone.
 
-    A self-map produces the dimension it consumes, and a frame carries a
+    A self-map groups by the dimension it joins on, and a frame carries a
     dimension once; the spaces make the name unrepresentable as a declared
     one.
     """
@@ -57,62 +57,64 @@ def group_column(role: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# a group or a pullback: the ends of a walk, and the join that trades them
+# a group or a lookup: the join, and what it drops and adds
 # ---------------------------------------------------------------------------
 
 
-def mapping(relations: Mapping[str, pl.LazyFrame], direction: program.Direction) -> pl.LazyFrame:
-    """The table a group or a pullback joins against — the relation, read as the direction names it.
+def mapping(relations: Mapping[str, pl.LazyFrame], join: program.Join) -> pl.LazyFrame:
+    """The table a group or a lookup joins against — the relation, as *join* names its columns.
 
-    Consumed and joined columns arrive under their dimensions, produced ones
-    under :func:`landing`. A key the direction does not map has no row in the
-    relation and so none here, which is what "reaches no slot" means.
+    Columns joined on arrive under their dimensions, columns grouped by and
+    not joined on under :func:`landing`. A key the relation does not map has
+    no row in the relation and so none here, which is what "reaches no slot"
+    means.
     """
-    table = relations[direction.name]
+    table = relations[join.name]
     return table.select(
-        *(pl.col(role).alias(direction.dim(role)) for role in (*direction.consumed, *direction.joined)),
-        *(pl.col(role).alias(landing(direction.dim(role))) for role in direction.produced),
+        *(pl.col(role).alias(join.dim(role)) for role in join.joined),
+        *(pl.col(role).alias(landing(join.dim(role))) for role in join.added),
     )
 
 
-def landed(mapping: pl.LazyFrame, node: program.GroupSum | program.Pullback) -> pl.LazyFrame:
-    """*mapping* at the coordinates it lands on: the joined dimensions and the produced ones, under their names."""
-    joined = node.direction.joined_dims
-    return mapping.select(*joined, *(pl.col(landing(d)).alias(d) for d in node.direction.produced_dims))
+def grouped(mapping: pl.LazyFrame, node: program.GroupSum | program.Lookup) -> pl.LazyFrame:
+    """*mapping* at the coordinates the join groups by, under their own names."""
+    join = node.join
+    return mapping.select(*join.kept_dims, *(pl.col(landing(d)).alias(d) for d in join.added_dims))
 
 
-def walk_join(
+def join_relation(
     frame: pl.LazyFrame,
     mapping: pl.LazyFrame,
-    node: program.GroupSum | program.Pullback,
+    node: program.GroupSum | program.Lookup,
     have: Sequence[str],
     columns: Sequence[str] = (),
 ) -> tuple[pl.LazyFrame, tuple[str, ...]]:
-    """*frame* traded through *mapping*: one inner equi-join, and the dimensions the result is over.
+    """*frame* joined to *mapping*: one inner equi-join, and the dimensions the result is over.
 
-    The join keys on the dimensions the direction consumes and joins on. The
-    result keeps every dimension of *have* but the consumed ones, gains every
-    produced dimension under its own name, and keeps *columns* beside them. A
-    read brings the dimensions it lands on — the language refuses one the
-    operand already carries — so the gained are exactly the produced. The
-    consumed and a gained one may still be a single dimension, which a
-    self-map does, so the two are traded in a single select.
+    The join keys on every dimension the node's join joins on. The result
+    keeps every dimension of *have* but the ones joined on and not grouped
+    by, gains every dimension grouped by and not joined on under its own
+    name, and keeps *columns* beside them. A call brings the dimensions it
+    groups by — the language refuses one the operand already carries — so the
+    gained are exactly the added. A dropped and a gained one may still be a
+    single dimension, which a self-map does, so the two are traded in a single
+    select.
 
     Args:
         frame: The operand, carrying *have* and *columns*.
-        mapping: :func:`mapping` for the node's direction.
-        node: The group or the pullback, whose direction says what is
-            consumed, what is produced and what is joined on.
+        mapping: :func:`mapping` for the node's join.
+        node: The group or the lookup, whose join says what is joined on and
+            what is grouped by.
         have: The dimensions *frame* carries.
         columns: The other columns to keep — a fragment's carried ones.
 
     Returns:
-        The traded frame, and the dimensions it is over, in order.
+        The joined frame, and the dimensions it is over, in order.
     """
-    direction = node.direction
-    gained = direction.produced_dims
-    keep = [d for d in have if d not in direction.consumed_dims]
-    traded = frame.join(mapping, on=[*direction.consumed_dims, *direction.joined_dims], how='inner').select(
+    join = node.join
+    gained = join.added_dims
+    keep = [d for d in have if d not in join.dropped_dims]
+    traded = frame.join(mapping, on=list(join.joined_dims), how='inner').select(
         *keep, *(pl.col(landing(d)).alias(d) for d in gained), *columns
     )
     return traded, (*keep, *gained)
@@ -168,11 +170,11 @@ class Grouping:
         """Rank the dimension *partition* steps along inside the groups its ``within=`` columns make."""
         dimension = partition.along_dim
         joined = partition.joined_dims
-        groups = tuple(group_column(role) for role in partition.group)
+        groups = tuple(group_column(role) for role in partition.grouped)
         rows = data.relations[partition.name].select(
             pl.col(partition.along).alias('val'),
             *(pl.col(role).alias(dim) for role, dim in zip(partition.joined, joined, strict=True)),
-            *(pl.col(role).alias(column) for role, column in zip(partition.group, groups, strict=True)),
+            *(pl.col(role).alias(column) for role, column in zip(partition.grouped, groups, strict=True)),
         )
         key = [*joined, *groups]
         table = (
@@ -183,7 +185,7 @@ class Grouping:
                 pl.len().over(key).cast(pl.Int64).alias(GROUP_SIZE),
             )
         )
-        return cls(dimension, joined, groups, tuple(partition.dim(role) for role in partition.group), table)
+        return cls(dimension, joined, groups, tuple(partition.dim(role) for role in partition.grouped), table)
 
     @property
     def key(self) -> tuple[str, ...]:

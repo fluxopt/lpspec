@@ -382,10 +382,10 @@ reference above, and checks the balance duals too.
 | self-relation, used in both directions | lines bus→bus, balance sums through `line_from` and `line_to` | edge dimension + leg relations | — (the balance is every other row's feasibility) |
 | parallel edges | `l1`, `l2` both b2→b1 | member identity is the label, not the endpoint pair | drop `l2` → dearer |
 | dangling member | `l4`'s `line_to` is null | a partial relation: the open end aggregates nowhere | point `l4` at b1 → cheaper |
-| pullback through a leg | `f ≤ at(bus_cap, by=line_from, over=bus, into=line)` | `at()` | uncap the exporting bus → cheaper |
+| lookup through a leg | `f ≤ at(bus_cap, by=line_from, over=bus, into=line)` | `at()` | uncap the exporting bus → cheaper |
 | k-ary edge set | offers carry `gen_of`, `market_of`, `tranche_of` | three legs, one edge dimension | — (structure, pinned by test) |
 | duplicate pair | `o1`, `o2` share all three legs | multiplicity is real capacity | drop `o2` → dearer |
-| two pullbacks through two legs | the offer cap above | `at() * at()` | `o4` sits exactly at its cap |
+| two lookups through two legs | the offer cap above | `at() * at()` | `o4` sits exactly at its cap |
 | weighted n-to-n membership | `zone_share`, `g2` in both zones at 0.5 / 1.0 | incidence parameter, contracted | zero g2's z2 share → dearer |
 
 Zone `z1` stays slack by design: it holds the *overlap* (g2 at weight 0.5)

@@ -111,7 +111,7 @@ REPRODUCIBLE = ('dispatch', 'monthly_budget', 'transport')
 DIVERGENT = {
     'piecewise_conversion': (
         'names the weights at the converter a flow belongs to — the c(f) the tie reads through '
-        'at(). The generator writes each row against the dims it carries, so the pullback is a '
+        'at(). The generator writes each row against the dims it carries, so the lookup is a '
         'coordinate there and a subscript here.'
     ),
     'piecewise_ragged': (
@@ -136,7 +136,7 @@ DIVERGENT = {
         'inner sum where the model reaches it through a named expression.'
     ),
     'multi_period': (
-        'writes the pullback in reader notation: a hatted p for the capacity variable '
+        'writes the lookup in reader notation: a hatted p for the capacity variable '
         'and period() for the relation, where the generator spells the declarations — '
         'p^nom and period_of(). Matching would take a symbol table, not a renderer '
         'change.'

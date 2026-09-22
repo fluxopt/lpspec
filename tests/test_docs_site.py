@@ -244,10 +244,10 @@ def test_the_translation_table_names_every_built_in_operator():
     )
 
 
-def _gen_bus_direction(program: Any) -> Any:
+def _gen_bus_join(program: Any) -> Any:
     """One map read one way — what a `by=` node stands on, whichever operator takes it."""
     gen_bus = program.RelationDeclaration((('g', 'g'), ('bus', 'bus')), ('g',))
-    return program.Direction('gen_bus', gen_bus, ('g',), ('bus',), ())
+    return program.Join('gen_bus', gen_bus, ('g',), ('bus',))
 
 
 def test_the_plan_table_names_every_expression_node():
@@ -279,8 +279,8 @@ def test_the_plan_table_names_every_expression_node():
             program.Divide(x, program.Parameter('p')),
             program.Power(program.Parameter('p'), program.Constant(2.0)),
             program.Sum(x, ('t',)),
-            program.GroupSum(x, _gen_bus_direction(program)),
-            program.Pullback(x, _gen_bus_direction(program)),
+            program.GroupSum(x, _gen_bus_join(program)),
+            program.Lookup(x, _gen_bus_join(program)),
             program.Translate(x, 't', 1, wrap=False),
             program.WindowSum(x, 't', 3, wrap=False),
             program.Cases((program.Region(program.Mask(program.BooleanLiteral(True)), x),)),

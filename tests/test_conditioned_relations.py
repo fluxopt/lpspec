@@ -144,8 +144,8 @@ def test_a_pair_the_map_leaves_out_is_in_no_group():
     assert built[('g1', 2)] == pytest.approx(5.0), 'still mapped in period 2, where its zone caps the pair'
 
 
-def test_a_pullback_reads_a_conditioned_map_at_the_row_it_stands_on():
-    """`at(by=)` is the adjoint: the cap of *this* generator's zone in *this* period.
+def test_a_lookup_reads_a_conditioned_map_at_the_row_it_stands_on():
+    """`at(by=)` is the join with no group-by: the cap of *this* generator's zone in *this* period.
 
     Bounding each generator by its own zone's cap is a different model from the
     zonal sum — and the pair (g2, 1) reads zone s, not the n its period-1 peer

@@ -1,4 +1,4 @@
-"""``at()`` — the pullback, and the models that had no formulation without it.
+"""``at()`` — the lookup, and the models that had no formulation without it.
 
 `sum` walks a mapping table from the fine dim into the coarse one; this
 walks it back out. They take the same one argument on purpose: ``by=`` names
@@ -6,7 +6,7 @@ one relation, and the helper says which direction.
 
 Two things are checked here that a single-lane test could not reach.
 
-**The answer, against the oracle.** A pullback duplicates a variable's label
+**The answer, against the oracle.** A lookup duplicates a variable's label
 across the fine dim, so the relational lane's key claim has to weaken and the
 terminal aggregate has to run. Whether it does is only observable as a *wrong
 objective*, which is what the differential case is for.
@@ -84,7 +84,7 @@ def test_the_multi_period_page_number():
 def test_a_period_bound_actually_binds():
     """Not vacuous: halving what 2050 may build has to move the answer.
 
-    A pullback that silently dropped its rows would leave `p` unbounded above
+    A lookup that silently dropped its rows would leave `p` unbounded above
     and the objective unchanged, which is the failure this rules out. The cap
     is applied by making 2050 capacity ruinously expensive.
     """
@@ -151,13 +151,13 @@ def test_one_binary_gates_every_flow_of_its_component():
 def test_at_agrees_with_the_oracle_through_a_reduction():
     """The differential half, and the case the key claim is about.
 
-    A pullback duplicates a variable's label across the fine dim, so a later
+    A lookup duplicates a variable's label across the fine dim, so a later
     reduction can bring two copies into one constraint row. If the relational
     lane still claimed its ``(row, col)`` key were unique, the terminal
     aggregate would be skipped and the frame would hold a cell twice — which a
     solver reads as whichever copy it saw last, not as their sum.
 
-    Summing the pulled-back term back over `flow` is what forces that, so this
+    Summing the looked-up term back over `flow` is what forces that, so this
     is deliberately not the pointwise case the tests above cover.
 
     The oracle is imported in the body rather than at module scope: every other
@@ -362,7 +362,7 @@ def test_at_through_a_null_relation_agrees_between_lanes():
     """The same model on both lanes, which is what #897 is finally about.
 
     Until #968 the relational lane answered 0.0: the null entry was dropped by
-    the join that places the pullback's terms, so the term vanished while its
+    the join that places the lookup's terms, so the term vanished while its
     row stayed and `link[f3]` was built as `take[f3] <= 0` — a row asserting
     something the model never said, with nothing anywhere reporting it.
     """
@@ -394,7 +394,7 @@ DANGLING_PAIR = {
 
 
 def test_at_through_a_pair_the_relation_leaves_out_takes_the_row_with_it():
-    """A pullback reads a *tuple* of labels, so one null anywhere leaves nothing.
+    """A lookup reads a *tuple* of labels, so one null anywhere leaves nothing.
 
     The single-column case above says a label mapping nowhere has no value to
     read. Reading two columns at once, a lane that joined `component` and
@@ -429,7 +429,7 @@ MASKED = DANGLING | {
 
 
 def test_at_over_a_masked_variable_takes_the_row_with_it():
-    """A pullback carries the mask under it, not only the relation's own gaps.
+    """A lookup carries the mask under it, not only the relation's own gaps.
 
     Two absences reach a fine coordinate through the same join and the engine
     used to report neither, so this answered 0.0 beside the null-relation case
@@ -445,7 +445,7 @@ def test_at_over_a_masked_variable_takes_the_row_with_it():
         assert run.engine.diagnostics().rows == 2, 'only the flows whose component has a level are asserted'
 
 
-#: A pullback's absence is one column wide — the fine dim — while the fragment
+#: A lookup's absence is one column wide — the fine dim — while the fragment
 #: it rides on carries every dim the operand had. `u` is what makes that
 #: difference observable: a shift along `t` reads the *other* dims off the
 #: presence to place its edge, and there are two of them here where the frame
@@ -478,8 +478,8 @@ DANGLING_SHIFTED = {
 }
 
 
-def test_a_pullbacks_absence_reaches_a_shift_that_spans_more_dims():
-    """The shift edge places itself over dims the pullback's presence omits.
+def test_a_lookups_absence_reaches_a_shift_that_spans_more_dims():
+    """The shift edge places itself over dims the lookup's presence omits.
 
     A presence keyed by one column is the cheap spelling — materialising the
     coordinate product to name an edge costs a fifth of build on a wide ramp —

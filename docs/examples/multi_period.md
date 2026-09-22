@@ -28,7 +28,7 @@ Grouping reads the relation one way:
 relation.
 
 `within_cap` reads it the other way. Capacity lives on `period` and binds at
-each `snapshot`, so a coarse quantity is pulled onto a fine one:
+each `snapshot`, so a coarse quantity is looked up at a fine one:
 
 ```yaml
 within_cap:
@@ -37,11 +37,11 @@ within_cap:
 ```
 
 `at` and `sum(by=)` take the same argument: the relation names one table, and
-the operator says which direction it is walked.
+the operator says which way it is joined.
 
 A per-period **parameter** needs neither: join it onto the snapshot index
 before the model sees it. `p_nom` is a **variable**, which no join can reach,
-so the pullback is a construct in the language.
+so the lookup is a construct in the language.
 
 <!-- math:begin -->
 <details markdown="1">

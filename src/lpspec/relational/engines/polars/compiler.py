@@ -51,7 +51,7 @@ from lpspec.relational.engines.polars.fragments import (
 )
 from lpspec.relational.engines.polars.predicates import Carrier, compile_predicate, falsy_if_null, masked
 from lpspec.relational.engines.polars.reindex import translate_fragment, window_fragment
-from lpspec.relational.engines.polars.relations import landed, mapping, walk_join
+from lpspec.relational.engines.polars.relations import grouped, join_relation, mapping
 from lpspec.relational.engines.polars.scope import UNIT, Scope
 
 if TYPE_CHECKING:
@@ -262,7 +262,7 @@ class PolarsCompiler:
             return CompiledExpression((), (join_pow(a.consts[0], b.consts[0]),))
 
         def shaped(
-            e: program.Sum | program.GroupSum | program.Pullback | program.Translate | program.WindowSum,
+            e: program.Sum | program.GroupSum | program.Lookup | program.Translate | program.WindowSum,
             rewrite: Callable[[TermFragment], TermFragment],
         ) -> CompiledExpression:
             """One shape operator applied to its compiled operand, absence pushed in by the node's own fan-in.
@@ -382,8 +382,8 @@ class PolarsCompiler:
                 return shaped(e, lambda p: self._sum_fragment(p, e.over, context))
             if isinstance(e, program.GroupSum):
                 return shaped(e, lambda p: self._group_fragment(p, e, context))
-            if isinstance(e, program.Pullback):
-                return shaped(e, lambda p: self._at_fragment(p, e, context))
+            if isinstance(e, program.Lookup):
+                return shaped(e, lambda p: self._lookup_fragment(p, e, context))
             if isinstance(e, program.Translate):
                 return shaped(e, lambda p: translate_fragment(self.scope, p, e, context))
             if isinstance(e, program.WindowSum):
@@ -538,7 +538,7 @@ class PolarsCompiler:
         return TermFragment(keep, frame, p.kind, region=region_over(p.region, keep), parameters=p.parameters)
 
     def _group_fragment(self, p: TermFragment, g: program.GroupSum, context: str) -> TermFragment:
-        """Relabel the dims the direction consumes to the ones it produces, through its relation.
+        """Join the operand to its relation, dropping the dims joined on and gaining the ones grouped by.
 
         No aggregate either: a keyed relation holds one row per key and its
         columns were checked for containment at build time, so the join
@@ -551,7 +551,7 @@ class PolarsCompiler:
 
         Several reads ride the same join.
         """
-        over = g.direction.consumed_dims
+        over = g.join.dropped_dims
         missing = [d for d in over if d not in p.dims]
         if missing:
             refuse_a_fragment_without_the_dims(p, missing, context, f'sum(by=) over {list(over)}')
@@ -577,7 +577,7 @@ class PolarsCompiler:
         Only for a constant part: an empty group contributes no *term*, and a
         row left with no terms is not built at all.
         """
-        into = g.direction.produced_dims
+        into = g.join.added_dims
         universe = self.scope.data.dimensions[into[0]].select(pl.col('val').alias(into[0]))
         for target in into[1:]:
             labels = self.scope.data.dimensions[target].select(pl.col('val').alias(target))
@@ -585,19 +585,19 @@ class PolarsCompiler:
         spanned = [d for d in p.dims if d not in into]
         if spanned:
             universe = p.frame.select(spanned).unique().join(universe, how='cross')
-        reached = landed(mapping(self.scope.data.relations, g.direction), g)
-        empty = universe.join(reached, on=[*g.direction.joined_dims, *into], how='anti')
+        reached = grouped(mapping(self.scope.data.relations, g.join), g)
+        empty = universe.join(reached, on=list(g.join.grouped_dims), how='anti')
         return empty.with_columns(pl.lit(0.0, dtype=pl.Float64).alias('cval')).select(*p.dims, *p.carried)
 
-    def _at_fragment(self, p: TermFragment, a: program.Pullback, context: str) -> TermFragment:
-        """Spread the consumed dims back out over the produced ones — the adjoint of a group.
+    def _lookup_fragment(self, p: TermFragment, a: program.Lookup, context: str) -> TermFragment:
+        """Spread the dims joined on back out over the ones grouped by — a group's join with no group-by.
 
         The same mapping table as :meth:`_group_fragment`, joined on the other
-        columns, so the join **fans out**: one row per consumed tuple lands on
-        every produced tuple sharing it. Still one equi-join against a table
+        columns, so the join **fans out**: one row per tuple joined on lands on
+        every grouped tuple sharing it. Still one equi-join against a table
         the frame holds, so the locality class does not move.
 
-        A pullback duplicates a label — the same ``var_label`` at every fine
+        A lookup duplicates a label — the same ``var_label`` at every fine
         coordinate of its component — so a later reduction can bring two copies
         into one row, where the terminal aggregate adds them.
 
@@ -605,13 +605,13 @@ class PolarsCompiler:
         pointwise, so what the fine coordinate has is whatever the coarse slot
         it reads has, and a slot with nothing has to take the row with it.
         """
-        absent = [d for d in a.direction.consumed_dims if d not in p.dims]
-        assert not absent, f'in {context}: a pullback through {absent}, which the expression does not span'
+        absent = [d for d in a.join.dropped_dims if d not in p.dims]
+        assert not absent, f'in {context}: a lookup joined on {absent}, which the expression does not span'
         remapped = self._remap_fragment(p, a)
-        return replace(remapped, presences=self._pulled_back_presences(p, a))
+        return replace(remapped, presences=self._looked_up_presences(p, a))
 
-    def _pulled_back_presences(self, p: TermFragment, a: program.Pullback) -> tuple[Presence, ...]:
-        """Where a pullback's variables exist, keyed by the fine dims they now span.
+    def _looked_up_presences(self, p: TermFragment, a: program.Lookup) -> tuple[Presence, ...]:
+        """Where a lookup's variables exist, keyed by the fine dims they now span.
 
         Two absences reach the fine coordinate and :meth:`_remap_fragment`'s
         inner join swallows both — the operand's own, and the **relation's**,
@@ -625,36 +625,35 @@ class PolarsCompiler:
         dims while this frame keeps the columns that matter — the hazard
         :class:`Presence` names.
         """
-        joined = a.direction.joined_dims
-        fine = (*joined, *a.direction.produced_dims)
-        table = mapping(self.scope.data.relations, a.direction)
-        reachable = landed(table, a).unique()
+        fine = a.join.grouped_dims
+        table = mapping(self.scope.data.relations, a.join)
+        reachable = grouped(table, a).unique()
         if not p.presences:
             total = math.prod(self.scope.data.cardinality[d] for d in fine)
             reached = reachable.select(pl.len()).collect().item()
             return () if reached == total else (Presence(reachable, fine),)
 
-        def pulled(presence: Presence) -> Presence:
+        def looked_up(presence: Presence) -> Presence:
             keys = presence.keys(p.dims)
             if not keys:
                 return Presence(presence.restrict(reachable, keys), fine)
-            carries_targets = all(i in keys for i in (*a.direction.consumed_dims, *joined))
+            carries_targets = all(i in keys for i in a.join.joined_dims)
             source, keys = (
                 (presence.frame, keys) if carries_targets else (self.scope.widen(presence.frame, keys, p.dims), p.dims)
             )
-            return Presence(*walk_join(source, table, a, keys))
+            return Presence(*join_relation(source, table, a, keys))
 
-        return tuple(pulled(x) for x in p.presences)
+        return tuple(looked_up(x) for x in p.presences)
 
-    def _remap_fragment(self, p: TermFragment, node: program.GroupSum | program.Pullback) -> TermFragment:
-        """Trade the dims *node*'s direction consumes for the ones it produces, through its relation.
+    def _remap_fragment(self, p: TermFragment, node: program.GroupSum | program.Lookup) -> TermFragment:
+        """Join the operand to *node*'s relation: the dims joined on go, the dims grouped by arrive.
 
-        One inner equi-join against :func:`mapping`, keyed as :func:`walk_join`
-        says. A group consumes the dims its direction is over
-        (:meth:`_group_fragment`); a pullback reads the same table backwards
-        (:meth:`_at_fragment`).
+        One inner equi-join against :func:`mapping`, keyed as
+        :func:`join_relation` says. A group sums the dims it joins on away
+        (:meth:`_group_fragment`); a lookup joins the same table the other way
+        (:meth:`_lookup_fragment`).
         """
-        frame, dims = walk_join(p.frame, mapping(self.scope.data.relations, node.direction), node, p.dims, p.carried)
+        frame, dims = join_relation(p.frame, mapping(self.scope.data.relations, node.join), node, p.dims, p.carried)
         return TermFragment(dims, frame, p.kind, region=region_over(p.region, dims), parameters=p.parameters)
 
 

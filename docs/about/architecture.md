@@ -366,8 +366,8 @@ absence has to be pushed into the operand before the rewrite consumes it
 | `Divide` | `x / p` | one-to-one | a **left** join, so a divisor with no value leaves a null to report |
 | `Power` | `p ** q` | one-to-one | an inner join and `pow` |
 | `Sum` | `sum(x)`, `sum(x, over=d)` | many-to-one | the summed dims projected away — no aggregate |
-| `GroupSum` | `sum(x, by=r, over=c, into=d)` | many-to-one | one inner join with the relation's table on the columns the direction consumes and joins on, the consumed dims traded for the produced ones; a bare relation fans a member out to every target |
-| `Pullback` | `at(x, by=r, over=d, into=c)` | one-to-one | the same table joined the other way, fanning out |
+| `GroupSum` | `sum(x, by=r, over=c, into=d)` | many-to-one | one inner join with the relation's table on the columns the call joins on, the dims joined on and not grouped by traded for the ones grouped by and not joined on; a bare relation fans a member out to every target |
+| `Lookup` | `at(x, by=r, over=d, into=c)` | one-to-one | the same table joined the other way, fanning out, with no group-by |
 | `Translate` | `shift(x, along=d, offset=n)` | one-to-one | a remap through the dimension's `ord`, modulo its size under `wrap` |
 | `WindowSum` | `sum_back(x, along=d, window=w)` | one-to-many | a row lands at every position whose window reaches it — no aggregate |
 | `Cases` | a named expression's `cases:` block | one-to-one | each region's value cut to its own mask and the fragment lists concatenated |
@@ -433,10 +433,10 @@ declarations build, and lands as CSR at assembly. CSR is `(col, coeff)` in
 row-major order plus a `row_starts` offset array: the same three arrays a solver
 takes, at 12 bytes per entry. Masks are **row absence**: no NaN sentinels, no
 `-1` labels. Broadcasting is a join. `sum` drops coordinate columns, and
-`sum(by=)` joins a declared relation's table and projects the columns the walk
-produces in place of the ones it consumes ([above](#the-plan-node-for-node)).
+`sum(by=)` joins a declared relation's table and projects the columns the call
+groups by in place of the ones it joins on ([above](#the-plan-node-for-node)).
 A relation's table is attached as declared, one column per column under its
-own name, so a walk reads any shape the language admits: a key of several
+own name, so a join reads any shape the language admits: a key of several
 columns, several value columns, a bare relation, two columns over one
 dimension, or a self-map.
 
@@ -553,7 +553,7 @@ is structure.
 | `strategy.py` | the driver above the runner: one plan per slice, folded — scenarios, rolling horizon, myopic pathways |
 | `relational/engines/polars/scope.py` | the scope a query is compiled in: the program, its attached data and the variable frames built so far; the product of its dimensions and the one row-major rule every index reads — what every helper takes, and the compiler holds |
 | `relational/engines/polars/compiler.py` | plan → lazy queries; pure, reads nothing |
-| `relational/engines/polars/relations.py` | a relation's table as a walk reads it, the one place a role becomes a column: the join a group or a pullback trades its dimensions through, and the grouping a partition ranks inside, the whole dimension being one group |
+| `relational/engines/polars/relations.py` | a relation's table as a call joins it, the one place a role becomes a column: the join a group or a lookup trades its dimensions through, and the grouping a partition ranks inside, the whole dimension being one group |
 | `relational/engines/polars/reindex.py` | `shift` and `sum_back`: a fragment's rows moved along one dimension's own order, and the edge |
 | `relational/engines/polars/predicates.py` | a `where:` mask as a boolean query over the coordinate product; the plan's predicate nodes and nothing else |
 | `relational/engines/polars/fragments.py` | what an expression compiles *to*: the additive pieces and the arithmetic over them; no state, no data |

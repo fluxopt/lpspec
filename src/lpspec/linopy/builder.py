@@ -289,14 +289,14 @@ def _eval(node: program.Expression, ctx: EvaluationContext) -> Any:
     if isinstance(node, program.GroupSum):
         return operator_grouped_sum(
             _eval(node.operand, ctx),
-            _walked_arrays(node, ctx),
-            into=node.direction.produced_dims,
-            joined=node.direction.joined_dims,
+            _read_arrays(node, ctx),
+            into=node.join.added_dims,
+            joined=node.join.kept_dims,
             labels=ctx.master_coords,
         )
 
-    if isinstance(node, program.Pullback):
-        return operator_at(_eval(node.operand, ctx), _walked_arrays(node, ctx), into=node.direction.consumed_dims)
+    if isinstance(node, program.Lookup):
+        return operator_at(_eval(node.operand, ctx), _read_arrays(node, ctx), into=node.join.dropped_dims)
 
     if isinstance(node, program.Translate):
         return operator_shift(
@@ -383,9 +383,9 @@ def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
     return absence.coefficient(ctx.dataset[amount]) if isinstance(amount, str) else amount
 
 
-def _walked_arrays(node: program.GroupSum | program.Pullback, ctx: EvaluationContext) -> tuple[Any, ...]:
-    """The relation's read columns as arrays over the dimensions its key names, in the order the direction writes them."""
-    return tuple(bound_relation(node.direction.name, column, ctx.relations) for column in read_column(node))
+def _read_arrays(node: program.GroupSum | program.Lookup, ctx: EvaluationContext) -> tuple[Any, ...]:
+    """The relation's read columns as arrays over the dimensions its key names, in the order the join writes them."""
+    return tuple(bound_relation(node.join.name, column, ctx.relations) for column in read_column(node))
 
 
 def _partition(node: program.Translate | program.WindowSum, ctx: EvaluationContext) -> Any:
@@ -398,6 +398,6 @@ def _partition(node: program.Translate | program.WindowSum, ctx: EvaluationConte
     """
     if node.partition is None:
         return None
-    (column,) = node.partition.group
+    (column,) = node.partition.grouped
     array = bound_relation(node.partition.name, column, ctx.relations)
     return array.rename(node.partition.dim(column))

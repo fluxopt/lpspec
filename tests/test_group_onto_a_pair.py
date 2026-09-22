@@ -244,8 +244,8 @@ def test_two_columns_lower_to_one_node_and_not_to_a_composition():
     (limit, _demand) = to_program(schema_of(SPEC)).constraints.values()
     assert isinstance(limit.lhs, GroupSum)
     assert limit.lhs.operand == Variable('p')
-    direction = limit.lhs.direction
-    assert (direction.consumed_dims, direction.name, direction.produced_dims) == (
+    join = limit.lhs.join
+    assert (join.dropped_dims, join.name, join.added_dims) == (
         ('generator',),
         'gen_placement',
         ('bus', 'technology'),

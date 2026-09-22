@@ -30,8 +30,8 @@ from math_spec.program import (
     Constant,
     ConstraintDeclaration,
     DimensionDeclaration,
-    Direction,
     GroupSum,
+    Join,
     Mask,
     Multiply,
     Negate,
@@ -216,10 +216,10 @@ WIRING = {
 }
 
 
-def _onto_bus(name: str) -> Direction:
+def _onto_bus(name: str) -> Join:
     """Relation *name* read the way a nodal balance reads it: out of its key, onto the bus."""
     relation = WIRING[name]
-    return Direction(name, relation, relation.key, relation.values, ())
+    return Join(name, relation, relation.key, relation.values)
 
 
 def transport_program() -> Program:
