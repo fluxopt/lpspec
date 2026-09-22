@@ -68,14 +68,9 @@ def sources(p_min: dict[str, float] | None = None, live: dict[tuple[str, int], b
     }
 
 
-def eager(built: dict[str, Any]) -> dict[str, Any]:
-    """The same sources in the shapes the eager lane takes."""
-    return {k: (v.to_pandas() if isinstance(v, pl.DataFrame) else v) for k, v in built.items()}
-
-
 def both(model: dict[str, Any], data: dict[str, Any]) -> float:
     """The objective both lanes reach, the harness having asserted they agree."""
-    with differential(model, eager(data)) as run:
+    with differential(model, data) as run:
         return float(run.result.objective)
 
 

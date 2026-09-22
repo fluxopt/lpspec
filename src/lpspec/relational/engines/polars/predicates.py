@@ -19,15 +19,14 @@ they go.
 from __future__ import annotations
 
 import itertools
-import operator
-from functools import reduce
 from typing import TYPE_CHECKING, assert_never
 
 import polars as pl
 from math_spec import program
 
 from lpspec.errors import DataError, position_out_of_range_message, short_groups_message
-from lpspec.relational.engines.polars.fragments import constant_scalar, join_on
+from lpspec.relational.engines.polars.fragments import join_on
+from lpspec.relational.engines.polars.reindex import translate_rows
 from lpspec.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE, Grouping
 
 if TYPE_CHECKING:
@@ -37,11 +36,6 @@ if TYPE_CHECKING:
     from polars._typing import JoinStrategy
 
     from lpspec.relational.engines.polars.scope import Scope
-
-#: The two columns a shift relabels through: a coordinate's target ordinal and
-#: the label sitting there. Spaces make them unrepresentable as declared names.
-_SHIFT_ORD = '__shift ord__'
-_SHIFT_TO = '__shift to__'
 
 
 class Carrier:
@@ -300,32 +294,21 @@ def _values(scope: Scope, side: program.Expression) -> tuple[pl.LazyFrame, tuple
     The expression compiler answers what the side is made of rather than a
     walk of its own here: a side is the whole expression language,
     translations and groupings included, and a second reading of it would
-    drift from the one the rows are built with.
-
-    **The additive pieces are added so that a null spreads**, which
-    :meth:`~lpspec.relational.engines.polars.compiler.PolarsCompiler.added`
-    does not: a row's constant side reads a parameter with no row as the zero
-    it multiplies by, and arithmetic under a ``where`` has no value wherever
-    an operand has none (the absence rules). Out of a summing operator it
-    does not spread, and there it does not reach here — a reduction is one
-    piece, already collapsed. A side with no value is the false
-    :func:`falsy_if_null` reads out of the null.
+    drift from the one the rows are built with. Its pieces are added so that
+    a null spreads, which a row's constant side reads as a zero instead; a
+    side with no value is the false :func:`falsy_if_null` reads out of it.
     """
     # in-function: the compiler imports this module
     from lpspec.relational.engines.polars.compiler import PolarsCompiler
 
-    compiled = PolarsCompiler(scope).expression(side, 'a where comparing expressions')
+    compiler = PolarsCompiler(scope)
+    compiled = compiler.expression(side, 'a where comparing expressions')
     assert not (compiled.terms or compiled.quads), (
         'a where compares expressions the language keeps every variable out of'
     )
     dims = scope.spanned(compiled.consts)
-    frame = masked(scope, dims, None)
-    pieces: list[pl.Expr] = []
-    for at, fragment in enumerate(compiled.consts):
-        piece = f'__side piece {at}__'
-        frame = join_on(frame, constant_scalar(fragment).rename({'cval': piece}), fragment.dims, 'left')
-        pieces.append(pl.col(piece))
-    return frame.select(*dims, reduce(operator.add, pieces).alias('cval')), dims
+    added = compiler.added(compiled.consts, masked(scope, dims, None), absent='spreads')
+    return added.select(*dims, 'cval'), dims
 
 
 def _counted(scope: Scope, p: program.CountComparison, alias: str) -> pl.LazyFrame:
@@ -347,24 +330,14 @@ def _counted(scope: Scope, p: program.CountComparison, alias: str) -> pl.LazyFra
 def _translated(scope: Scope, p: program.TranslatedPredicate, dims: tuple[str, ...], alias: str) -> pl.LazyFrame:
     """Where the operand holds *offset* coordinates back along ``along``, true-only.
 
-    A coordinate the operand admits at ordinal *k* is what the coordinate at
-    ``k + offset`` reads, so the shift relabels the surviving coordinates
-    rather than joining a neighbour onto each of them. The end the shift
-    vacates has no label to move to, which the inner join drops and a missing
-    row already reads as false.
+    The surviving coordinates are moved rather than a neighbour joined onto
+    each: a coordinate the operand admits at ordinal *k* is what the one at
+    ``k + offset`` reads, and the end the move vacates is a missing row,
+    which already reads as false.
     """
     assert p.along in dims, f"a shift along '{p.along}' is read at a frame carrying it"
-    labels = scope.data.dimensions[p.along]
-    steps = labels.select(pl.col('val').alias(p.along), (pl.col('ord') + p.offset).alias(_SHIFT_ORD)).join(
-        labels.select(pl.col('ord').alias(_SHIFT_ORD), pl.col('val').alias(_SHIFT_TO)), on=_SHIFT_ORD, how='inner'
-    )
-    moved = masked(scope, dims, p.operand).select(list(dims)).join(steps.select(p.along, _SHIFT_TO), on=p.along)
-    return (
-        moved.drop(p.along)
-        .rename({_SHIFT_TO: p.along})
-        .select(list(dims))
-        .with_columns(pl.lit(value=True).alias(alias))
-    )
+    admitted = masked(scope, dims, p.operand).select(*dims).with_columns(pl.lit(value=True).alias(alias))
+    return translate_rows(scope, admitted, dims, [alias], p.along, p.offset)
 
 
 def _certain_names(mask: program.Mask) -> frozenset[str]:

@@ -3,19 +3,14 @@
 Everything decidable without data is decided at load, and an ``assumptions:``
 entry is what is left over: a predicate only the numbers can answer. The
 language states each one — the predicate, the coordinates it is checked at,
-and the sentence :func:`~math_spec.program.assumption_message` refuses in — so
-what is decided here is whether the data holds it, and where it does not.
+and the sentence :func:`~math_spec.program.assumption_message` refuses in — and
+every condition a ``piecewise:`` method puts on its breakpoints arrives the
+same way. What is decided here is whether the data holds it, and where not.
 
-Every condition a ``piecewise:`` method puts on its breakpoints arrives the
-same way, because the language writes them into the same section: the curve
-guard is this module and nothing else.
-
-The mask walk answers, which is the relational engine's. A predicate means one
-thing, and a second reading of it at the door would drift from the one the rows
-are built with.
-
-Called from :func:`~lpspec.sources.tidy_sources`, so both lanes pass through it
-by entering the one door.
+The mask walk answers, which is the relational engine's: a second reading of a
+predicate at the door would drift from the one the rows are built with. Called
+from :func:`~lpspec.sources.tidy_sources`, so both lanes pass through it by
+entering the one door.
 """
 
 from __future__ import annotations
@@ -40,8 +35,9 @@ def validate_assumptions(program: Program, sources: Mapping[str, pl.LazyFrame]) 
     """Refuse data that does not hold what the model assumes of it.
 
     A model stating nothing pays nothing: the frames are shaped for the walk
-    only where there is an assumption to walk, and only where the door filled
-    every declaration one could read.
+    only where there is an assumption to walk. Nothing is assumed of a
+    parameter the door left unfilled — a ``piecewise:`` mask whose own source
+    cannot be read — which attaching refuses on its own terms.
 
     Args:
         program: The lowered spec — every assumption by the name a refusal
@@ -53,24 +49,13 @@ def validate_assumptions(program: Program, sources: Mapping[str, pl.LazyFrame]) 
         DataError: An assumption the data does not hold, in the language's own
             words, with one coordinate it fails at.
     """
-    if not program.assumptions or not _every_frame_is_there(program, sources):
+    if not program.assumptions or any(name not in sources for name in program.parameters):
         return
     scope = Scope(program, attach(program, sources), {})
     for name, assumption in program.assumptions.items():
         failing = _a_coordinate_it_fails_at(scope, assumption)
         if failing is not None:
             raise DataError(f'{assumption_message(name, assumption)}{failing}')
-
-
-def _every_frame_is_there(program: Program, sources: Mapping[str, pl.LazyFrame]) -> bool:
-    """Whether the door filled every declaration a predicate could read.
-
-    A ``piecewise:`` block can emit a mask whose own source cannot be read,
-    and the model is refused for it where the frames are attached, in the
-    message that knows what the declaration wanted. Nothing is assumed of data
-    that is not there.
-    """
-    return all(name in sources for name in (*program.parameters, *program.dimensions, *program.relations))
 
 
 def _a_coordinate_it_fails_at(scope: Scope, assumption: Assumption) -> str | None:
@@ -92,7 +77,6 @@ def _a_coordinate_it_fails_at(scope: Scope, assumption: Assumption) -> str | Non
     offending = masked(scope, dims, failing).head(1).collect()
     if not offending.height:
         return None
-    if not dims:
-        return ''
     row = offending.row(0, named=True)
-    return '\n  Not so at ' + ', '.join(f'{d}={row[d]!r}' for d in dims)
+    at = ', '.join(f'{d}={row[d]!r}' for d in dims)
+    return f'\n  Not so at {at}' if at else ''

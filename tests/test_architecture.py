@@ -832,7 +832,7 @@ def sources_annotations(doors: dict[str, Any]) -> set[str]:
     return {str(inspect.signature(door).parameters['sources'].annotation) for door in doors.values()}
 
 
-def test_every_way_a_piecewise_parameter_is_filled_is_read_by_the_curve_guard():
+def test_every_derivation_the_language_carries_is_filled_by_curves_py():
     """How an emitted parameter is filled is the language's; this repository is what fills it.
 
     ``Derivation`` is a closed union upstream, which is exactly what makes a
