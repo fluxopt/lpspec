@@ -350,9 +350,8 @@ two verdicts it still *raises* are its own: `DataError` about the data, and the
 build (#1137).
 
 **Fan-in** is the column the lanes *act* on. It says how an output row's slots
-relate to the input's. `math_spec.program.fan_in` answers it for every node, so
-a lane asks rather than keeping its own list of which kinds reshape anything.
-Anything but one-to-one mixes several input slots into one output row. So
+relate to the input's. `fragments.fan_in` answers it for every node, and the
+relational lane's compiler asks it. Anything but one-to-one mixes several input slots into one output row. So
 absence has to be pushed into the operand before the rewrite consumes it
 ([#1142](https://github.com/fluxopt/lpspec/issues/1142)).
 

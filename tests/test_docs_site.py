@@ -256,10 +256,12 @@ def test_the_plan_table_names_every_expression_node():
     The same rule the table above answers to, one layer down: a node with no
     row is a node whose two readings nobody wrote down, and the row is where a
     reader learns that the lanes agree at all. The fan-in cell is read back
-    off the language, since that column is one the compiler *acts* on rather
+    off :func:`fan_in`, since that column is one the compiler *acts* on rather
     than merely documents.
     """
     from math_spec import program
+
+    from lpspec.relational.engines.polars.fragments import fan_in
 
     page = (DOCS / 'about' / 'architecture.md').read_text()
     section = page.split('## The plan, node for node')[1].split('## The relational lane')[0]
@@ -294,5 +296,5 @@ def test_the_plan_table_names_every_expression_node():
         f'every expression node needs the two readings it becomes'
     )
     shown = {name: cell.strip() for name, cell in rows.items()}
-    declared = {name: program.fan_in(node) for name, node in nodes.items()}
-    assert shown == declared, f'the table calls these {shown}, the language answers {declared}'
+    declared = {name: fan_in(node) for name, node in nodes.items()}
+    assert shown == declared, f'the table calls these {shown}, the compiler answers {declared}'

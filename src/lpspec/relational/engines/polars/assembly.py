@@ -321,7 +321,9 @@ class Assembly:
         subject = f"constraint '{name}'"
         pieces = [p for p, _ in consts]
         coverage.refuse_null_constants(
-            coverage.narrowed_to_rows(frame, pieces), program.divisor_parameters(c.lhs, c.rhs), subject
+            coverage.narrowed_to_rows(frame, pieces),
+            program.parameters_of(*coverage.divisors_of(c.lhs, c.rhs)),
+            subject,
         )
         coverage.refuse_short_constants(self.scope, frame, pieces, c, subject, self.measured.sparse)
         rows = coverage.constant_side(self.scope, frame, consts, c, subject)

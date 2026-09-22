@@ -39,6 +39,7 @@ from lpspec.relational.engines.polars.fragments import (
     absence_restrictions,
     both_regions,
     constant_scalar,
+    fan_in,
     join_mul,
     join_on,
     join_pow,
@@ -269,11 +270,10 @@ class PolarsCompiler:
 
             An output row of a node that is not one-to-one mixes several input
             slots, so absence has to reach the operand before the rewrite
-            consumes it (:func:`propagate_absence`); the node declares which
-            (:data:`~math_spec.program.FanIn`).
+            consumes it (:func:`propagate_absence`); :func:`fan_in` says which.
             """
             inner = ev(e.operand)
-            if program.fan_in(e) != 'one-to-one':
+            if fan_in(e) != 'one-to-one':
                 inner = propagate_absence(inner)
             return map_fragments(inner, rewrite)
 

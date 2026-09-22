@@ -22,16 +22,16 @@ const fragment       ``dims…``, ``cval``
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Literal, NoReturn
+from typing import TYPE_CHECKING, Literal, NoReturn, assert_never
 
 import polars as pl
+from math_spec import program
 
 from lpspec.errors import LaneError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-    from math_spec import program
     from polars._typing import JoinStrategy, MaintainOrderJoin
 
 
@@ -251,6 +251,42 @@ def absence_restrictions(fragments: Sequence[TermFragment]) -> list[Presence]:
     return [Presence(x.frame, x.keys(p.dims)) for p in fragments for x in p.presences]
 
 
+#: How a node's output rows relate to its input slots, answered by
+#: :func:`fan_in` for every node.
+FanIn = Literal['one-to-one', 'many-to-one', 'one-to-many']
+
+
+def fan_in(expression: program.Expression) -> FanIn:
+    """How *expression*'s output rows relate to its input slots.
+
+    Both classes other than ``'one-to-one'`` sum several input slots into an
+    output row, so :func:`propagate_absence` runs before them.
+    """
+    if isinstance(expression, (program.Sum, program.GroupSum)):
+        return 'many-to-one'
+    if isinstance(expression, program.WindowSum):
+        return 'one-to-many'
+    if isinstance(
+        expression,
+        (
+            program.Constant,
+            program.Parameter,
+            program.Variable,
+            program.Dual,
+            program.Negate,
+            program.Add,
+            program.Multiply,
+            program.Power,
+            program.Divide,
+            program.Pullback,
+            program.Translate,
+            program.Cases,
+        ),
+    ):
+        return 'one-to-one'
+    assert_never(expression)
+
+
 def propagate_absence(compiled: CompiledExpression) -> CompiledExpression:
     """Restrict every fragment to where the *whole* expression exists.
 
@@ -265,8 +301,8 @@ def propagate_absence(compiled: CompiledExpression) -> CompiledExpression:
     Applied only where the key columns are dims the fragment carries: a
     restriction naming a dim a fragment lacks cannot speak about it.
 
-    **Which operators need it is decided by their fan-in**, which each shape
-    node declares (:data:`~math_spec.program.FanIn`) and the compiler reads.
+    **Which operators need it is decided by their fan-in** (:func:`fan_in`),
+    which the compiler reads.
     Many-to-one and one-to-many mix several input slots into an output row:
     the row-level intersection at assembly can say the *row* survives, never
     which of the slots behind it did, and a constant read from an absent slot
