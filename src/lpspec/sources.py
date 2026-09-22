@@ -8,8 +8,8 @@ about whether that data is usable — is it there, does it carry the declared
 columns, is it single-valued per coordinate, are its labels real, are its values
 present and of the declared type — is asked here, once.
 
-The guards that need the numbers rather than the shapes are
-:mod:`lpspec.curves`, which :func:`tidy_sources` calls on the way through.
+The guard that needs the numbers rather than the shapes is
+:mod:`lpspec.assumptions`, which :func:`tidy_sources` calls on the way through.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from lpspec.assumptions import validate_assumptions
-from lpspec.curves import derive_curve_sources
 from lpspec.errors import DataError, did_you_mean
 from lpspec.frames import as_frame, is_dense_array, is_multi_indexed
 from lpspec.relational.collect import polars_engine
@@ -34,16 +33,10 @@ if TYPE_CHECKING:
 def attachable(program: Program) -> dict[str, ParameterDeclaration | DimensionDeclaration | RelationDeclaration]:
     """Every name data may be attached to — declared parameters, dimensions and relations, one flat namespace.
 
-    A parameter a ``piecewise:`` expansion emitted is not one: it carries a
-    derivation saying how it is filled, and
-    :func:`~lpspec.curves.derive_curve_sources` fills it, so a caller neither
-    can nor need supply it.
+    Everything a ``piecewise:`` block needs is a parameter the file declared,
+    so an expansion adds no name here and takes none away.
     """
-    return {
-        **{name: p for name, p in program.parameters.items() if p.derivation is None},
-        **program.dimensions,
-        **program.relations,
-    }
+    return {**program.parameters, **program.dimensions, **program.relations}
 
 
 def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.LazyFrame]:
@@ -55,10 +48,9 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
     the table it declares, one column per column under the column's own name
     and one row per row it holds. Dimensions are read first, because the
     plain-Python parameter shapes :func:`_spread` accepts are spread over
-    their labels; a ``piecewise:`` block's derived parameters are filled next
-    (:func:`derive_curve_sources`), before the loop that reads the caller's
-    own. What the model assumes of all of it is checked last, once every frame
-    is there to check it against (:func:`~lpspec.assumptions.validate_assumptions`).
+    their labels. What the model assumes of all of it is checked last, once
+    every frame is there to check it against
+    (:func:`~lpspec.assumptions.validate_assumptions`).
 
     Args:
         program: The lowered spec.
@@ -91,16 +83,12 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
     _check_relations_hold_labels(program, relations, sources)
     sources |= relations
 
-    sources = derive_curve_sources(program, sources, data)
     for pname, pdef in program.parameters.items():
-        if pname in sources or pdef.derivation is not None:
-            continue
         if pname not in data:
             raise DataError(f"no data provided for parameter '{pname}'")
         sources[pname] = _parameter_frame(pname, pdef, data[pname], sources)
     for pname, pdef in program.parameters.items():
-        if pname in sources:
-            sources[pname] = _checked_parameter(pname, pdef, sources[pname], sources)
+        sources[pname] = _checked_parameter(pname, pdef, sources[pname], sources)
 
     for dname in program.dimensions:
         if dname not in sources:
@@ -108,17 +96,6 @@ def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.L
 
     validate_assumptions(program, sources)
     return sources
-
-
-def supplied(program: Program, frames: Mapping[str, pl.LazyFrame]) -> dict[str, pl.LazyFrame]:
-    """:func:`tidy_sources`' frames in the shape it takes back — what an archive holds.
-
-    One thing separates what it returns from what it accepts, and it is undone
-    here: a parameter a ``piecewise:`` block derived is filled rather than
-    supplied, so it is dropped.
-    """
-    takes = attachable(program)
-    return {name: frame for name, frame in frames.items() if name in takes}
 
 
 def unknown_source_keys_message(keys: Iterable[str], known: Iterable[str]) -> str:

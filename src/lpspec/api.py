@@ -61,7 +61,7 @@ from lpspec.relational.parquet import (
 from lpspec.relational.result import Result, evaluated
 from lpspec.relational.sinks import solver, writer
 from lpspec.relational.sinks.capabilities import lane_cannot_build_message, required
-from lpspec.sources import attachable, supplied, tidy_sources, unknown_source_keys_message
+from lpspec.sources import attachable, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -360,7 +360,7 @@ class Model:
             answer = answered.save(scratch)
             taken = self._engine.diagnostics().metrics()
             write_whole(pl.DataFrame([taken._asdict()], schema_overrides=METRICS_SCHEMA), answer / METRICS_FILE)
-            tables = supplied(self._program, tidy_sources(self._program, self._sources))
+            tables = tidy_sources(self._program, self._sources)
             write_archive(out, self._spec, self._sources, tables=tables, axis=None, answer=answer)
 
     def write(self, path: str | Path) -> None:

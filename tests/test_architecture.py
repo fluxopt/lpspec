@@ -832,33 +832,6 @@ def sources_annotations(doors: dict[str, Any]) -> set[str]:
     return {str(inspect.signature(door).parameters['sources'].annotation) for door in doors.values()}
 
 
-def test_every_derivation_the_language_carries_is_filled_by_curves_py():
-    """How an emitted parameter is filled is the language's; this repository is what fills it.
-
-    ``Derivation`` is a closed union upstream, which is exactly what makes a
-    member added there *silent* here: ``curves.py`` dispatches on
-    ``isinstance``, so a derivation nobody fills is an emitted parameter the
-    caller is asked for and cannot have. It shows up as neither a type error
-    nor a failing differential test — no model in the corpus exercises a
-    construct the language has only just gained. The same grep-level alarm as
-    the plan-node walk above, and for the same reason.
-
-    What a block *assumes* of its numbers needs no such alarm: it is one
-    ``Assumption`` kind evaluated as an ordinary mask, so a condition the
-    language adds is a where string this already walks.
-    """
-    from typing import get_args
-
-    from math_spec import program
-
-    source = (PKG / 'curves.py').read_text()
-    unread = [fact.__name__ for fact in get_args(program.Derivation) if fact.__name__ not in source]
-    assert not unread, (
-        f'derivations the language carries and curves.py never fills: {unread} — each is an emitted '
-        f'parameter the caller would be asked for and cannot have'
-    )
-
-
 def _gen_bus_direction(program: Any) -> Any:
     """One map read one way — the shape every operator below takes a `by=` in."""
     gen_bus = program.RelationDeclaration((('g', 'g'), ('bus', 'bus')), ('g',))

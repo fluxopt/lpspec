@@ -127,10 +127,10 @@ accept the same file, attach the same tables and refuse the same constructs.
 `evaluate`, and linopy solves and reads back. A second `Result` there would be a
 wrapper around linopy's own API.
 
-**Eleven modules sit outside a fence, and each is legitimately both halves**:
-`sources.py`, `curves.py`, `assumptions.py`, `api.py`, `strategy.py`,
-`lanes.py`, `frames.py`, `layout.py`, `archive.py`, `expressions.py` and
-`errors.py`. Size does not buy a place among them. A module only one lane reaches is that lane's, down to a
+**Ten modules sit outside a fence, and each is legitimately both halves**:
+`sources.py`, `assumptions.py`, `api.py`, `strategy.py`, `lanes.py`,
+`frames.py`, `layout.py`, `archive.py`, `expressions.py` and `errors.py`. Size
+does not buy a place among them. A module only one lane reaches is that lane's, down to a
 24-line contextmanager (`linopy/_notes.py`). See [What counts as
 language](#what-counts-as-language).
 
@@ -547,7 +547,6 @@ is structure.
 | `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `LANES`, what each lane can build, read by `check` without the extra |
 | `relational/collect.py` | which polars engine materialises a frame: the streaming one where this polars has it, asked once; a build without it, the browser's, gets the in-memory one |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
-| `curves.py` | the parameters a `piecewise:` expansion emitted, filled from the curve's own data — a mask the block's own breakpoints derive, and the two flags marking where each masked curve begins and ends |
 | `assumptions.py` | the one guard that needs numbers: every `assumptions:` entry the file wrote, and each condition a `piecewise:` method puts on its breakpoints, evaluated as the masks the language states them as |
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `lps.`; a wording lives here only where two modules raise it |
