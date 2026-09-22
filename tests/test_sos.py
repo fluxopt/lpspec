@@ -1,11 +1,12 @@
 """``sos:`` — one construct, three sinks, and one of them without the concept.
 
 The claim has two halves and they need different oracles. That the *language*
-means the same thing on both lanes is `differential`'s job as usual. That the
-**reformulation** is the same feasible set is not something either lane can
-say, since both would be reformulating: so the optimum is enumerated here
-(:func:`best`), which is tractable because a set over four options has nine
-admissible shapes, and asserted against every sink.
+means the same thing on both lanes is `differential`'s job as usual. That a
+set **written out** (``Spec.expand()``) is the same feasible set as a set a
+sink branches on is not something either lane can say, since both would be
+reading the expansion: so the optimum is enumerated here (:func:`best`), which
+is tractable because a set over four options has nine admissible shapes, and
+asserted against every sink.
 
 The model is purpose-built for that enumeration: two sites choosing among four
 sizes, values and caps varying enough that SOS1, SOS2 and the unrestricted LP
@@ -23,9 +24,8 @@ import pytest
 from math_spec import to_spec
 
 import lpspec as lps
-from lpspec.errors import DataError, LanguageError, LpspecError
-from lpspec.relational.sinks import sos as sos_sink
-from tests.conftest import EXAMPLES_DIR, solve_written_file
+from lpspec.errors import LanguageError, LpspecError
+from tests.conftest import EXAMPLES_DIR, expanded, solve_written_file
 
 SOS_YAML = EXAMPLES_DIR / 'sos.yaml'
 
@@ -165,24 +165,23 @@ def test_both_lanes_and_the_enumeration_agree(sos_type):
 
     The harness is imported **inside the test**: importing it is the
     ``[linopy]`` guard, and everything else here is the streaming lane's own
-    and has to keep running on the bare install. ``lp=False`` because HiGHS
-    reads the written file back and its parser refuses the section, which is
-    the capability finding rather than a defect (pinned below).
+    and has to keep running on the bare install. The harness hands both lanes
+    the set written out, so the file leg reads binaries HiGHS takes.
     """
     from tests.differential import differential
 
     eager = {'site': SITES, 'size': SIZES} | {
         name: _table(v).to_pandas() for name, v in (('value', VALUE), ('cap', CAP))
     }
-    with differential(spec(sos_type), eager) as run:
+    with differential(spec(sos_type), eager, lp=True) as run:
         assert run.result.objective == pytest.approx(best(sos_type)), 'the set does not restrict what it claims to'
 
 
 @pytest.mark.parametrize('sos_type', [1, 2], ids=['sos1', 'sos2'])
-def test_the_reformulated_solution_is_a_member_of_the_set(sos_type):
+def test_the_written_out_solution_is_a_member_of_the_set(sos_type):
     """An optimum can be right while the formulation admits shapes it should
     not, so the pattern itself is checked."""
-    result = lps.solve(spec(sos_type), DATA)
+    result = lps.solve(expanded(spec(sos_type)), DATA)
     taken = result.primal('take')
     for site in SITES:
         nonzero = taken.filter((pl.col('site') == site) & (pl.col('value') > 1e-9))['size'].to_list()
@@ -193,7 +192,7 @@ def test_the_reformulated_solution_is_a_member_of_the_set(sos_type):
 
 @pytest.mark.parametrize('sos_type', [1, 2], ids=['sos1', 'sos2'])
 def test_the_native_sink_reaches_the_same_optimum(sos_type):
-    """Gurobi branches on the set; HiGHS is handed binaries. One answer."""
+    """Gurobi branches on the set; HiGHS is handed the set written out. One answer."""
     pytest.importorskip('gurobipy', reason='the native SOS path needs the [gurobi] extra')
     assert lps.solve(spec(sos_type), DATA, 'gurobi').objective == pytest.approx(best(sos_type))
 
@@ -219,11 +218,11 @@ def test_the_lp_file_carries_the_set_and_a_reader_agrees(sos_type, tmp_path):
         read.dispose()
 
 
-def test_highs_refuses_the_written_section_which_is_why_it_reformulates(tmp_path):
+def test_highs_refuses_the_written_section_which_is_why_a_set_is_written_out_for_it(tmp_path):
     """The capability finding itself, pinned rather than described.
 
-    If HiGHS ever grows an SOS concept this fails, and the ``'sos':
-    'reformulated'`` in its capability descriptor is what should change.
+    If HiGHS ever grows an SOS concept this fails, and its capability
+    descriptor should then declare ``'sos': 'native'``.
     """
     path = lps.write(spec(1), DATA, tmp_path / 'model.lp')
     with pytest.raises(AssertionError):
@@ -231,43 +230,32 @@ def test_highs_refuses_the_written_section_which_is_why_it_reformulates(tmp_path
 
 
 # ---------------------------------------------------------------------------
-# the reformulation's own conditions
+# a sink with no concept of a set
 # ---------------------------------------------------------------------------
 
 
-#: ``cap`` with the north's first member left open, so a bound that *is* a
-#: parameter reaches the sink with no finite coefficient in it. The language
-#: cannot see this: it reads the declaration, and the declaration is ``cap``.
-OPEN_CAP = DATA | {'cap': _table(CAP | {('north', 0): float('inf')})}
+def test_a_set_on_a_sink_with_no_concept_is_refused_naming_the_expansion():
+    """Nothing is rewritten at the hand-off: the language writes a set out, and the refusal says so."""
+    with pytest.raises(LpspecError, match='special-ordered sets') as refusal:
+        lps.solve(spec(1), DATA)
+    assert 'expand()' in str(refusal.value) and 'gurobi' in str(refusal.value), (
+        'the way past the refusal is the expansion, or a sink that has the concept'
+    )
+    assert lps.solve(expanded(spec(1)), DATA).objective == pytest.approx(best(1)), (
+        'and the set written out restricts exactly what the set restricts'
+    )
 
 
-@pytest.mark.parametrize(
-    ('bounds', 'data', 'expected'),
-    [
-        pytest.param({'lower': 0, 'upper': 'cap'}, OPEN_CAP, 'no finite upper bound', id='nothing-to-link-with'),
-        pytest.param({'lower': -1, 'upper': 'cap'}, DATA, 'negative lower bound', id='a-member-that-can-go-negative'),
-    ],
-)
-def test_a_member_the_linking_rows_cannot_hold_at_zero_is_refused(bounds, data, expected):
+def test_a_member_that_may_go_negative_is_held_at_zero_from_below():
+    """The expansion links each member to its binary from both sides.
+
+    With every member allowed down to -1, an unpicked one still sits at zero
+    rather than dropping below it, so the optimum is the one the set alone
+    admits.
+    """
     raw = spec(1)
-    raw['variables'] = {'take': {'dims': ['site', 'size'], 'bounds': bounds}}
-    with pytest.raises(DataError, match=expected):
-        lps.solve(raw, data)
-
-
-def test_the_members_own_upper_bound_is_the_coefficient():
-    """``M_i = ub_i`` — the set carries no number of its own, so the bound is the only one there is."""
-    with lps.build(spec(1), DATA) as model:
-        tables = sos_sink.reformulated(model._engine._model.tables)
-    used = sorted({-coeff for coeff in tables.matrix['coeff'].to_list() if coeff < 0})
-    assert used == [1.0, 2.0, 3.0, 4.0, 6.0], 'the linking coefficients are not the caps, without repeats'
-
-
-def test_the_refusals_do_not_reach_the_sinks_that_need_neither(tmp_path):
-    """An unbounded member is a *reformulation* condition, not a language one."""
-    raw = spec(1)
-    lps.check(raw)
-    assert lps.write(raw, OPEN_CAP, tmp_path / 'unbounded.lp').read_text().count('S1 ::') == 2
+    raw['variables'] = {'take': {'dims': ['site', 'size'], 'bounds': {'lower': -1, 'upper': 'cap'}}}
+    assert lps.solve(expanded(raw), DATA).objective == pytest.approx(best(1))
 
 
 # ---------------------------------------------------------------------------
@@ -278,74 +266,33 @@ def test_the_refusals_do_not_reach_the_sinks_that_need_neither(tmp_path):
 def test_a_masked_member_leaves_the_set_and_its_neighbours_adjacent():
     """Membership is the variable's own, so a mask closes the gap it leaves.
 
-    With size 1 masked out at every site, SOS2 admits ``{0, 2}`` — consecutive
-    among the members that *exist* — which the unmasked model refuses.
+    With size 1 masked out at every site the members that exist are 0, 2 and
+    3. A weight orders the members and nothing more, so a sink branching on
+    the set reads ``{0, 2}`` as consecutive in the list it was handed, which
+    the unmasked model refuses.
     """
     raw = spec(2)
     raw['variables'] = {
         'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 'cap'}, 'where': 'size != 1'}
     }
-    assert lps.solve(raw, DATA).objective == pytest.approx(best(2, [0, 2, 3]))
+    with lps.build(raw, DATA) as model:
+        sets = model._engine._model.tables.sos
+    assert sets['weight'].to_list() == [1, 3, 4] * 2, 'the masked member is still in the list, or the order moved'
 
 
-def test_the_solution_reads_back_past_the_appended_columns():
-    """A declaration's share is a slice, and the binaries land after all of them."""
-    result = lps.solve(spec(2), DATA)
-    taken = result.primal('take')
-    assert taken.height == len(SITES) * len(SIZES), 'the read-back took the binaries for members'
-    assert taken['site'].to_list() == [s for s in SITES for _ in SIZES]
-    assert taken['size'].to_list() == SIZES * len(SITES)
-
-
-def test_a_reformulated_model_says_why_it_has_no_duals():
-    """The model declares no integrality, so the ordinary message would lie."""
-    result = lps.solve(spec(1), DATA)
-    with pytest.raises(LpspecError, match="no SOS concept, so 'pick' reached it as binaries"):
-        result.dual('total')
-
-
-def test_diagnostics_separate_the_built_model_from_what_the_sink_added():
-    """Two shapes, because a reformulating sink makes them differ.
-
-    The build is what the file declared; ``sink_*`` is the growth no
-    declaration accounts for — a binary per member, a linking row each, and
-    one cardinality row per set. Nothing else in a build reports it, so a
-    solve larger than the model would otherwise be invisible.
-    """
-    with lps.build(spec(1), DATA) as model:
-        assert (model.diagnostics().added_columns, model.diagnostics().added_rows) == (0, 0), (
-            'nothing has been handed to a sink yet'
-        )
-        model.solve()
-        report = model.diagnostics()
-        assert (report.columns, report.rows) == (len(SITES) * len(SIZES), 0), 'the model declares no rows of its own'
-        assert report.added_columns == len(SITES) * len(SIZES), 'a binary per member'
-        assert report.added_rows == len(SITES) * len(SIZES) + len(SITES), 'a linking row each, and one row per set'
-
-
-def test_a_sink_that_takes_the_set_reports_adding_nothing():
-    """The counterpart, and the reason the two numbers are separate at all."""
-    pytest.importorskip('gurobipy', reason='the native SOS path needs the [gurobi] extra')
-    with lps.build(spec(1), DATA) as model:
-        model.solve('gurobi')
-        assert (model.diagnostics().added_columns, model.diagnostics().added_rows) == (0, 0)
-
-
-def test_a_model_with_no_set_is_handed_over_as_built(tmp_path):
-    """And a writer never grows a model, whatever it carries."""
-    with lps.build(BASE, DATA) as model:
-        model.solve()
-        model.write(tmp_path / 'plain.lp')
-        assert (model.diagnostics().added_columns, model.diagnostics().added_rows) == (0, 0)
+def test_a_set_written_out_is_integrality_and_the_dual_message_names_it():
+    """Written out, a set is binaries the file never declared, and the ordinary message names them."""
+    result = lps.solve(expanded(spec(1)), DATA)
+    with pytest.raises(LpspecError, match="mixed-integer model: 'pick_seg'"):
+        result.dual('pick_pick')
 
 
 def test_a_sos2_set_of_one_member_restricts_nothing():
-    """A set with one member has no segment, so it has no formulation either.
+    """A set with one member has no segment, so it restricts nothing.
 
-    The member is left alone rather than linked to a binary that does not
-    exist — which is what it would be, at a coefficient of zero, pinning the
-    one member of the set to zero and quietly deleting it from the model.
-    linopy returns early on the same case.
+    The member is left alone rather than linked to a neighbour that does not
+    exist — which would pin the one member of the set to zero and quietly
+    delete it from the model.
 
     Masked down per site, so one set keeps three members and the other has
     one: a set that is dropped whole must also not shift the rows the sets
@@ -364,7 +311,9 @@ def test_a_sos2_set_of_one_member_restricts_nothing():
         for a, b in itertools.pairwise([0, 1, 2, 3])
     )
     south = VALUE['south', 0] * CAP['south', 0]
-    assert lps.solve(raw, live).objective == pytest.approx(north + south), 'the lone member was pinned to zero'
+    assert lps.solve(expanded(raw), live).objective == pytest.approx(north + south), (
+        'the lone member was pinned to zero'
+    )
 
 
 def test_regrouping_the_members_is_a_different_model_to_a_loaded_solver():
@@ -376,8 +325,7 @@ def test_regrouping_the_members_is_a_different_model_to_a_loaded_solver():
     not read the sets would call the second the model it already holds.
 
     Asserted on the digest rather than through a solver because only a sink
-    taking the set *natively* depends on it: the one that reformulates gets a
-    different matrix out of the rewrite and reloads either way.
+    taking the set *natively* depends on it.
     """
     raw = {
         'dimensions': {'site': {'dtype': 'str'}, 'size': {'dtype': 'int'}},
@@ -400,15 +348,12 @@ def test_regrouping_the_members_is_a_different_model_to_a_loaded_solver():
 
     with lps.build(raw, live(together)) as model:
         one_set = model._engine._model.tables
-        assert model.solve().objective == pytest.approx(5.0), 'two members of one set are both nonzero'
-
         model.update(live(apart))
         two_sets = model._engine._model.tables
         assert (one_set.cols.equals(two_sets.cols), one_set.column_count, one_set.row_count) == (True, 2, 0), (
             'the two binds differ in something other than their sets, so this proves nothing'
         )
         assert two_sets.structure != one_set.structure, 'the digest calls a regrouped set the same model'
-        assert model.solve().objective == pytest.approx(8.0), 'one member each, so both may be nonzero'
 
 
 def test_a_set_that_runs_along_a_leading_dim_still_arrives_grouped():
@@ -426,7 +371,6 @@ def test_a_set_that_runs_along_a_leading_dim_still_arrives_grouped():
         assert sets['set'].to_list() == [0, 0, 0, 0, 1, 1, 1, 1], 'the members of a set did not end up together'
         assert sets['weight'].to_list() == [1, 2, 3, 4] * 2, 'a set is not in weight order'
         assert sets['col'].to_list() == [0, 2, 4, 6, 1, 3, 5, 7], 'a member is not the column its coordinate got'
-        assert model.solve().objective == pytest.approx(best(1))
 
 
 @pytest.mark.parametrize('dims', [['site', 'size'], ['size', 'site']], ids=['over-last', 'over-first'])
@@ -527,7 +471,7 @@ def test_the_example_prices_on_the_curve_and_not_on_its_hull():
     stopped restricting anything would match the curve nowhere.
     """
     sources = _curve_sources()
-    result = lps.solve(SOS_YAML, sources)
+    result = lps.solve(expanded(SOS_YAML), sources)
     assert result.is_ok
 
     dispatched = result.primal('p')

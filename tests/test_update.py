@@ -25,7 +25,7 @@ from math_spec import to_program
 
 import lpspec as lps
 from lpspec.sources import attachable
-from tests.conftest import KNAPSACK, knapsack_sources, override, port_sources
+from tests.conftest import KNAPSACK, expanded, knapsack_sources, override, port_sources
 
 GENERATORS = ['wind', 'solar', 'gas']
 SNAPSHOTS = [0, 1, 2, 3]
@@ -319,12 +319,12 @@ def test_a_update_walk_answers_what_a_fresh_build_answers(port):
     program = to_program(port['spec'])
     given = _declared(port_sources(port['name']), program)
 
-    with lps.build(port['spec'], given) as model:
+    with lps.build(expanded(port['spec']), given) as model:
         model.solve()
         for step, factor in enumerate(WALK):
             change = _scaled(given, factor)
             where = f'{port["name"]} x{factor}'
-            with lps.solve(port['spec'], change) as reference:
+            with lps.solve(expanded(port['spec']), change) as reference:
                 got = model.update(change).solve()
 
                 assert got.termination_condition == reference.termination_condition, f'{where}: terminated differently'

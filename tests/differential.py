@@ -35,13 +35,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
-from math_spec import to_program
 
 import lpspec as lps
 from lpspec.errors import DataError
+from lpspec.lanes import lowered
 from lpspec.relational.engines.polars.engine import PolarsEngine
 from lpspec.sources import tidy_sources
-from tests.conftest import raw_of, schema_of, solve_written_file
+from tests.conftest import schema_of, solve_written_file
 from tests.oracle import linopy, lpspec_linopy
 
 if TYPE_CHECKING:
@@ -92,9 +92,10 @@ def differential(
 ) -> Iterator[Agreement]:
     """Build ``spec`` on both lanes with the same inputs; assert they agree.
 
-    ``spec`` is a ``Path`` to a file, the YAML text itself, or a raw dict —
-    the eager lane only takes paths, so text and dicts are written to a
-    temporary file here rather than in every caller.
+    ``spec`` is a ``Path`` to a file, the YAML text itself, or a raw dict.
+    Both lanes are handed it with every formulation written out
+    (``Spec.expand()``): the door builds no curve as written, and a set
+    reaches HiGHS as the binaries the language states rather than as a set.
 
     **Duals are not compared here, and cannot be.** An LP with alternative
     optima has many optimal dual solutions, and the two lanes hand HiGHS the
@@ -107,25 +108,19 @@ def differential(
     ``test_corpus_parity``'s job rather than this harness's.
 
     Set ``lp=True`` to also write and re-solve the LP file, the third opinion.
-    HiGHS reads that file, so a model carrying ``sos:`` must not ask for it:
-    HiGHS has no SOS concept and its parser refuses the section outright, which
-    is the same fact ``reformulate_sos='auto'`` handles on the eager side — a
-    no-op for every model that declares no set, and what lets the oracle solve
-    one that does.
     """
-    schema = schema_of(spec)
+    model = schema_of(spec).expand()
 
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
-        path = spec if isinstance(spec, Path) else _write(work / 'model.yaml', spec)
 
-        m = lpspec_linopy.build(path, dict(sources))
-        m.solve(solver_name='highs', output_flag=False, reformulate_sos='auto')
+        m = lpspec_linopy.build(model, dict(sources))
+        m.solve(solver_name='highs', output_flag=False)
         oracle = float(m.objective.value)
         if not np.isfinite(oracle):
             raise NoFiniteAnswerError('the eager oracle is infeasible or unbounded — fix the data, not the tolerance')
 
-        program = to_program(schema)
+        program = lowered(model)
         with PolarsEngine() as engine:
             engine.build(program, tidy_sources(program, dict(sources)))
             result = engine.solve()
@@ -154,12 +149,11 @@ def both_lanes_refuse(spec: str | Path | dict[str, Any], sources: Mapping[str, A
     data through would go unnoticed — which is the divergence a data check is
     most likely to have. The two are built apart, and their sentences compared.
     """
-    with tempfile.TemporaryDirectory() as tmp:
-        path = spec if isinstance(spec, Path) else _write(Path(tmp) / 'model.yaml', spec)
-        with pytest.raises(DataError, match=match) as relational:
-            lps.build(path, dict(sources)).close()
-        with pytest.raises(DataError, match=match) as eager:
-            lpspec_linopy.build(path, dict(sources))
+    model = schema_of(spec).expand()
+    with pytest.raises(DataError, match=match) as relational:
+        lps.build(model, dict(sources)).close()
+    with pytest.raises(DataError, match=match) as eager:
+        lpspec_linopy.build(model, dict(sources))
     assert str(relational.value) == str(eager.value), 'one defect, one sentence'
     return str(relational.value)
 
@@ -185,10 +179,3 @@ def _same_shape(diagnostics: Any, eager: Any) -> None:
     assert diagnostics.rows == eager.ncons, (
         f'the lanes disagree on how many rows this model has — relational {diagnostics.rows}, eager {eager.ncons}'
     )
-
-
-def _write(path: Path, spec: str | dict[str, Any]) -> Path:
-    import yaml as pyyaml
-
-    path.write_text(spec if isinstance(spec, str) else pyyaml.safe_dump(raw_of(spec)))
-    return path

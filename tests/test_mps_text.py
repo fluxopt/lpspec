@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 import pytest
-from math_spec import to_program
 
 import lpspec as lps
 from lpspec.errors import LpspecError
@@ -27,6 +26,7 @@ from lpspec.relational.sinks.writers import mps_file
 from tests.conftest import (
     DISPATCH_SPEC,
     PORT_REFERENCES,
+    expanded,
     port_sources,
     port_spec,
     schema_of,
@@ -133,13 +133,11 @@ def test_every_referenced_model_reaches_its_optimum_through_the_file(name: str, 
     what says the writer holds up on models nobody wrote it against — every
     construct the ports use, at their own sizes.
 
-    Sets are the exception and are checked above instead: HiGHS has no SOS
-    concept, so a port declaring one has no reader here.
+    Every formulation is written out first, so a port's set reaches the file
+    as the binaries HiGHS reads; the set as a section is checked above.
     """
-    if to_program(port_spec(name)).sos:
-        pytest.skip(f'{name} declares a set, and HiGHS reads no SOS section from a file')
     path = tmp_path / f'{name}.mps'
-    lps.write(port_spec(name), port_sources(name), path)
+    lps.write(expanded(port_spec(name)), port_sources(name), path)
     assert solve_written_file(path) == pytest.approx(PORT_REFERENCES[name]['objective'], rel=1e-6)
 
 
@@ -278,7 +276,7 @@ def test_a_construct_this_format_cannot_spell_is_refused_rather_than_written(spe
     arrived as empty ones, and Gurobi read the file back at 30.0 against the
     9.0 the model itself reaches. The declaration was already there — nothing
     on the write path asked it, where the solve path asks
-    ``ingestible`` and ``check(sink=)`` asks directly.
+    ``sinks.refusal`` and ``check(sink=)`` asks directly.
     """
     with pytest.raises(LpspecError, match=r"the '\.mps' sink cannot take a quadratic"):
         lps.write(spec, QUADRATIC_DATA, tmp_path / 'model.mps')

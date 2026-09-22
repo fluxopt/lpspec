@@ -109,8 +109,7 @@ class Tables:
     col, weight)`` in ``(set, weight)`` order, one row per member, empty for
     the models that declare none. It is the only frame a sink may be unable to
     ingest — SOS is a *sink capability*, not a property of the model — so a
-    solver without the concept states so and is handed
-    :func:`~lpspec.relational.sinks.sos.reformulated` tables instead.
+    solver without the concept states so and refuses a model carrying one.
 
     ``cols``, ``rows`` and ``matrix`` all arrive in the solver's own order —
     ``cols`` by column, the other two by row — which is what lets every dense
@@ -245,9 +244,7 @@ class Tables:
         A pair that appeared or moved is a model to load again; a coefficient
         that merely changed is pushed.
 
-        **A set is structure even though nothing about it is a coefficient.** A
-        reformulating sink's big-M *is* a matrix coefficient by the time this
-        is asked, so a bound that moved one reloads.
+        **A set is structure even though nothing about it is a coefficient.**
 
         Every vector read has an order contract — the label-ordered columns,
         the row-ordered matrix and rows — so two builds of one model agree.

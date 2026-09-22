@@ -227,7 +227,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/piecewise_conversion.yaml', sources) as solution:
+    with lps.solve(to_spec('examples/piecewise_conversion.yaml').expand(), sources) as solution:
         solution.objective  # 5990.0
     ```
 

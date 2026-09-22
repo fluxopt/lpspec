@@ -249,11 +249,6 @@ class Metrics(NamedTuple):
     columns: int
     rows: int
     nonzeros: int
-    #: What the last solve's **sink added** to that shape, and zero where it
-    #: added nothing: the binaries and linking rows that stand in for a set the
-    #: solver has no concept of. Not the sink's totals — the difference.
-    added_columns: int
-    added_rows: int
     #: How many solves the row covers, and how many of those loaded the solver
     #: from scratch. Read together with the clocks, which are cumulative over
     #: exactly these solves.

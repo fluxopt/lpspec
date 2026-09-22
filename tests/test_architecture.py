@@ -598,7 +598,6 @@ def test_every_sink_declares_what_it_can_ingest():
     from lpspec.relational.sinks import SOLVERS, WRITERS
     from lpspec.relational.sinks.capabilities import (
         CAPABILITIES,
-        REWRITTEN_AS_INTEGRALITY,
         Capabilities,
         Support,
     )
@@ -611,12 +610,6 @@ def test_every_sink_declares_what_it_can_ingest():
         assert not strangers, f'{sink} names capabilities the vocabulary has not got: {strangers}'
         answers = sorted(set(capabilities.supports.values()) - set(get_args(Support)))
         assert not answers, f'{sink} answers {answers}, which no comparison in the family reads as support'
-        spent = sorted(c for c in REWRITTEN_AS_INTEGRALITY if capabilities.support(c) == 'reformulated')
-        if spent:
-            assert capabilities.support('integrality') != 'absent', (
-                f'{sink} rewrites {spent} into binaries and linking rows, which is integrality it '
-                f'does not declare — the rewrite it promises is one it cannot perform'
-            )
         for combination in capabilities.excludes:
             unsupported = sorted(c for c in combination if capabilities.support(c) == 'absent')
             assert not unsupported, (

@@ -126,9 +126,7 @@ class Solver(ABC):
         #: The digest of everything a re-solve may not change, or ``None``
         #: before :meth:`structure` is first asked. Read through it, never here.
         self._structure: bytes | None = None
-        #: The loaded model's spans, read by :meth:`_takes` alone — of the
-        #: *ingested* tables, which on a reformulating sink are wider than what
-        #: was built.
+        #: The loaded model's spans, read by :meth:`_takes` alone.
         self._columns = tables.column_count
         self._rows = tables.row_count
 
@@ -138,7 +136,7 @@ class Solver(ABC):
 
     #: What this member can ingest, and what it refuses in combination. A
     #: member states it; the family acts on it
-    #: (:func:`~lpspec.relational.sinks.ingestible`).
+    #: (:func:`~lpspec.relational.sinks.refusal`).
     capabilities: ClassVar[Capabilities]
 
     #: What to tell a caller when :meth:`is_available` says no — which package

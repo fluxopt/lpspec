@@ -42,6 +42,7 @@ from lpspec.sources import attachable
 # keep importing all four from one place.
 from tests.fixtures import (  # noqa: F401
     DISPATCH_SPEC,
+    expanded,
     override,
     raw_of,
     schema_of,

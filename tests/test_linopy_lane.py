@@ -23,7 +23,7 @@ import pytest
 
 from lpspec.errors import DataError, LaneError, LanguageError, LpspecError
 from lpspec.sources import tidy_sources
-from tests.conftest import EXAMPLES_DIR, schema_of
+from tests.conftest import EXAMPLES_DIR, expanded, schema_of
 from tests.differential import differential
 from tests.oracle import builder, linopy, loader, lpspec_linopy, pd, where, xr
 from tests.piecewise_models import curve_frame
@@ -728,7 +728,7 @@ def test_a_named_expression_reads_off_a_masked_curve(yaml_file):
     path = yaml_file(MASKED_CURVE_YAML, 'masked_curve.yaml')
     with differential(path, MASKED_CURVE_DATA) as run:
         tidy = run.result.evaluate('spend')
-        eager = lpspec_linopy.evaluate(run.model, path, 'spend', dict(MASKED_CURVE_DATA))
+        eager = lpspec_linopy.evaluate(run.model, expanded(path), 'spend', dict(MASKED_CURVE_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
         assert got == pytest.approx(want), 'the two lanes disagree about a named expression over a masked curve'

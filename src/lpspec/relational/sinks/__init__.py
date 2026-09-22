@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING
 
 from lpspec.errors import LpspecError, unknown_name_message
 from lpspec.relational.sinks import capabilities as caps
-from lpspec.relational.sinks import sos
 from lpspec.relational.sinks.capabilities import spelled
 from lpspec.relational.sinks.solvers import SOLVERS, Solver, loaded, solver
 from lpspec.relational.sinks.tables import Tables
@@ -33,10 +32,8 @@ __all__ = [
     'WRITERS',
     'Solver',
     'Tables',
-    'ingestible',
     'loaded',
     'refusal',
-    'relaxations',
     'sink_capabilities',
     'solver',
     'writer',
@@ -104,78 +101,18 @@ def _sink_refuses_combination_message(sink: str, combination: Sequence[str], tak
 
 
 def _sink_refuses_message(sink: str, missing: Sequence[str], takers: Sequence[str]) -> str:
-    """A sink asked for a capability it does not have at all."""
-    return (
-        f'the {sink!r} sink cannot take {spelled(missing)}: it has no such concept, so there is '
-        f'nothing to hand the model to. {_instead(takers)}'
-    )
+    """A sink asked for a capability it does not have at all.
 
-
-def relaxations(program: program.Program, name: str) -> list[str]:
-    """What the sink called *name* would rewrite to take *program*.
-
-    Not refusals — the model solves — but it answers a question slightly
-    different from the one asked.
-
-    In :data:`~lpspec.relational.sinks.capabilities.CAPABILITIES` order.
+    A set is the one construct the language can write out, so the way past a
+    sink with no SOS concept is named beside the sinks that have one.
     """
-    table = sink_capabilities(name)
-    needed = caps.required(program)
-    return [
-        _sink_reformulates_message(
-            name,
-            c,
-            integrality_added=c in caps.REWRITTEN_AS_INTEGRALITY and 'integrality' not in needed,
-        )
-        for c in caps.CAPABILITIES
-        if c in needed and table.support(c) == 'reformulated'
-    ]
-
-
-def _sink_reformulates_message(sink: str, capability: str, *, integrality_added: bool) -> str:
-    """A sink meeting a capability by rewriting the model into one it takes.
-
-    *integrality_added* marks a model that declared no integrality of its own
-    and reaches the solver mixed-integer, so it comes back without duals.
-    """
-    cost = (
-        ' The model declared no integrality of its own and reaches the solver mixed-integer, '
-        'so it will come back without duals.'
-        if integrality_added
+    way_out = (
+        ' Or write the sets out: math_spec.to_spec(...).expand() states each as binaries and linking '
+        'rows, which every sink takes.'
+        if 'sos' in missing
         else ''
     )
     return (
-        f'the {sink!r} sink has no native support for {spelled([capability])} and '
-        f'will take it reformulated, so what reaches the solver is not what the file declares.{cost}'
+        f'the {sink!r} sink cannot take {spelled(missing)}: it has no such concept, so there is '
+        f'nothing to hand the model to. {_instead(takers)}{way_out}'
     )
-
-
-def ingestible(name: str, tables: Tables, program: program.Program | None = None) -> Tables:
-    """*tables* in the form the named solver can take it — sets included.
-
-    A solver that cannot ingest a special-ordered set is handed
-    :func:`~lpspec.relational.sinks.sos.reformulated` tables, so everything that
-    reads a solve back — the span check, the label slices — sees the one model
-    the solver actually holds.
-
-    *program* is what the refusal is decided on, and is optional. Given one, a
-    model this sink cannot take is refused **here**, before the load; without it
-    the refusal falls to the solver, which reports it as an error code from
-    inside a library.
-
-    Only ``reformulated`` capabilities are rewritten: a sink is never handed a
-    rewrite of a construct it declared it has no concept of.
-
-    Returns:
-        *tables* itself where nothing has to change, which is every model
-        declaring no sets.
-
-    Raises:
-        LpspecError: A *program* carrying a construct this sink has no concept
-            of, or a combination it refuses.
-    """
-    if program is not None and (refused := refusal(program, name)) is not None:
-        raise LpspecError(refused)
-    if tables.sos.height and sink_capabilities(name).support('sos') == 'reformulated':
-        return sos.reformulated(tables)
-    return tables

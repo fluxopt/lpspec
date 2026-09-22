@@ -29,7 +29,13 @@ import pytest
 import lpspec as lps
 from lpspec.errors import LpspecError
 from lpspec.relational.sinks.solvers.xpress import Xpress, build_xpress
-from tests.conftest import CASES, assert_agrees_with_highs, assert_infeasible_reports_both_axes, port_sources
+from tests.conftest import (
+    CASES,
+    assert_agrees_with_highs,
+    assert_infeasible_reports_both_axes,
+    expanded,
+    port_sources,
+)
 
 xpress = pytest.importorskip('xpress', reason='the xpress sink needs the [xpress] extra')
 
@@ -65,7 +71,7 @@ def test_every_port_reaches_its_reference_optimum_on_xpress(port: dict[str, Any]
     """
     if port['name'] in OVER_THE_XPRESS_LIMIT:
         pytest.skip(f'{port["name"]} exceeds the bundled xpress licence — see OVER_THE_XPRESS_LIMIT')
-    with lps.solve(port['spec'], port_sources(port['name']), solver_name='xpress') as solution:
+    with lps.solve(expanded(port['spec'], 'piecewise'), port_sources(port['name']), solver_name='xpress') as solution:
         assert solution.is_ok, f'{port["name"]} did not solve: {solution.status}'
         assert solution.objective == pytest.approx(port['objective'], rel=port['rtol'])
 
@@ -159,9 +165,8 @@ def test_build_xpress_loads_the_model_and_stops() -> None:
 
 
 def test_a_set_reaches_the_solver_natively() -> None:
-    """``sos = 'native'``, so the family hands the sets over rather than the
-    reformulation — asserted on the optimum a reformulation would also reach,
-    plus the count the solver itself reports."""
+    """``sos = 'native'``, so the family hands the sets over as sets — asserted
+    on the enumerated optimum, plus the count the solver itself reports."""
     from tests.test_sos import DATA, best, spec
 
     with lps.build(spec(2), DATA) as model:

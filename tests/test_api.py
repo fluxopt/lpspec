@@ -70,7 +70,7 @@ def test_a_points_parameter_supplied_as_a_parquet_path_keeps_its_own_curve_lengt
     was opened, so a curve supplied as a file was held to the full breakpoint grid and refused for
     the rows a shorter curve does not have.
     """
-    from tests.conftest import port_sources, port_spec
+    from tests.conftest import expanded, port_sources, port_spec
 
     frames = port_sources('piecewise_ragged')
     paths = {}
@@ -79,8 +79,8 @@ def test_a_points_parameter_supplied_as_a_parquet_path_keeps_its_own_curve_lengt
         paths[name] = str(tmp_path / f'{name}.parquet')
 
     with (
-        lps.solve(port_spec('piecewise_ragged'), paths) as from_paths,
-        lps.solve(port_spec('piecewise_ragged'), frames) as from_frames,
+        lps.solve(expanded(port_spec('piecewise_ragged')), paths) as from_paths,
+        lps.solve(expanded(port_spec('piecewise_ragged')), frames) as from_frames,
     ):
         assert from_paths.objective == pytest.approx(from_frames.objective, rel=1e-9), (
             'a curve read from a file is the curve read from a frame'

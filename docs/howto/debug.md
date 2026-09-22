@@ -13,9 +13,9 @@ lps.check('dispatch.yaml', sink='highs')
 ```
 
 `check` raises on a construct outside the language, and with `sink=` on one
-the solver cannot take. A warning names a rewrite the sink will make: an
-`sos:` set on `highs` arrives as binaries, so the solve comes back with no
-duals ([checking against a sink](../reference/api.md#checking-against-a-sink)).
+the solver cannot take: an `sos:` set on `highs`, which has no such concept,
+until `Spec.expand()` writes it out as binaries
+([checking against a sink](../reference/api.md#checking-against-a-sink)).
 
 ## 2. Read the shape the build produced
 

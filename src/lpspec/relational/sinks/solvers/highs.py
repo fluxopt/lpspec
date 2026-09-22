@@ -205,20 +205,15 @@ class Highs(Solver):
     requires = ('highspy',)
     unavailable_message = 'highspy ships with lpspec, so a build without it is broken rather than missing an extra'
 
-    #: No SOS concept at all, so a set arrives already written as binaries and
-    #: linking rows. A *convex* Hessian goes in through ``passHessian``, and
-    #: the pair is probed in ``test_sink_capability_probes.py``. A set cannot
-    #: stand beside a Hessian: the rewrite that gets one in here *is* binaries.
+    #: No SOS concept at all, so a set is written out before it gets here. A
+    #: *convex* Hessian goes in through ``passHessian``, and the pair is probed
+    #: in ``test_sink_capability_probes.py``.
     capabilities = Capabilities(
         supports={
             'integrality': 'native',
-            'sos': 'reformulated',
             'quadratic_objective': 'native',
         },
-        excludes=(
-            frozenset({'quadratic_objective', 'integrality'}),
-            frozenset({'quadratic_objective', 'sos'}),
-        ),
+        excludes=(frozenset({'quadratic_objective', 'integrality'}),),
     )
 
     def _load(self, tables: Tables, batch_rows: int | None) -> None:

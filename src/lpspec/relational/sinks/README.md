@@ -14,9 +14,6 @@ takes the tables and renders them to a file. Everything else follows.
 | registry | `SOLVERS`, closed, holding the classes | `WRITERS`, closed |
 | members | `highs.py` (`highspy`, ships), `gurobi.py` (`[gurobi]`: `gurobipy`, `scipy`), `xpress.py` (`[xpress]`), over `base.py` | `lp_file.py`, `mps_file.py` (nothing beyond polars), over `base.py` |
 
-`sos.py` belongs to neither, which is what it is for: see *the one uneven
-stream* below.
-
 ## Staying loaded
 
 `base.py` is what a solver **is**: a loaded model with a lifecycle, which is
@@ -123,30 +120,20 @@ every caller who never writes a file.
 
 Four of the five are the same question to every sink. `sos` is not: Gurobi
 branches on a set, `lp_file` writes it as text, and HiGHS has no such concept
-at all. So a sink **declares** how it satisfies one, in the descriptor
-*what a sink can ingest* below gives it —
+at all. A sink **declares** whether it takes one, in the descriptor *what a
+sink can ingest* below gives it —
 
 ```python
 'sos': 'native'  # gurobi: addSOS, no binaries and no bound to have
-'sos': 'reformulated'  # highs: binaries and linking rows instead
+                 # highs: absent, and the refusal names the way past it
 ```
 
-— and `sinks.ingestible(name, tables)` acts on the answer, before the load,
-handing a member that cannot take a set the `sos.py` rewrite of it. Two
-properties make that a family decision rather than a member's:
-
-- **Nothing below it knows.** `_load`, `push`, `_run` and the span check all
-  see one model — the one the solver actually holds — so a member is written
-  as though the fifth stream were never there.
-- **The digest follows.** `ingestible` runs before `loaded` compares
-  structures, and a big-M is a matrix coefficient by then, so an update that
-  moved a member's bound reloads instead of pushing numbers onto a model whose
-  coefficients they contradict.
-
-A *writer* needs none of this today: LP text carries a set, and so does MPS.
-`ingestible` is `sinks/`' function rather than `solvers/`' because the refusal
-it raises names the sinks that do take the construct, and those live in both
-families.
+— and `sinks.refusal(program, name)` answers before the load. Nothing is
+rewritten at the hand-off: the language writes a set out itself,
+`to_spec(...).expand()` stating each as binaries and linking rows, and that is
+the model a sink without the concept is given. `_load`, `push`, `_run` and the
+span check see one model, the one that was built, so a member is written as
+though the fifth stream were never there.
 
 ## How the three take the matrix
 
@@ -199,9 +186,9 @@ is the runner's business and not a sink's.
 
 Three callers read it, and between them a construct a sink has no spelling for
 cannot reach that sink by any door: `check(spec, sink=...)` before any data is
-attached, `ingestible` at the solve, and the engine's `write` — which asks without
-being asked, a file written without the section being a different model that
-parses and solves.
+attached, and the engine's `solve` and `write` — which ask without being asked,
+a file written without the section being a different model that parses and
+solves.
 
 ## Stable output
 

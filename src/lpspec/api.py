@@ -73,21 +73,16 @@ if TYPE_CHECKING:
 __all__ = ['build', 'check', 'evaluate', 'load_result', 'scan_result', 'solve', 'write']
 
 
-def _portability(program: Program, sink: str) -> tuple[str | None, list[str]]:
-    """*sink*'s reason for refusing *program*, and what it would rewrite to take it.
-
-    A lane rewrites nothing — everything it supports it builds natively — so
-    its second answer is empty.
-    """
+def _portability(program: Program, sink: str) -> str | None:
+    """*sink*'s reason for refusing *program*, or ``None`` where it takes it whole."""
     if (lane := LANES.get(sink)) is not None:
         missing = lane.missing(required(program))
-        return (lane_cannot_build_message(sink, missing) if missing else None), []
-    refused = sinks.refusal(program, sink)
-    return refused, [] if refused else sinks.relaxations(program, sink)
+        return lane_cannot_build_message(sink, missing) if missing else None
+    return sinks.refusal(program, sink)
 
 
 def check(spec: Buildable, sink: str | None = None) -> Program:
-    """Parse, expand, validate and lower a spec; attach no data.
+    """Parse, validate and lower a spec; attach no data.
 
     With *sink*, also: **will that sink take it?** Bare ``check`` says nothing
     about portability. The answer is read off a declared table with no data
@@ -115,17 +110,12 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
     Warns:
         LpspecWarning: Advice short of an error — a declared dimension nothing
             uses as an axis, a variable the objective drives to infinity with
-            nothing to stop it, a construct the named sink takes only
-            reformulated. Issued here and nowhere else.
+            nothing to stop it. Issued here and nowhere else.
     """
     program = lowered(spec)
-    notes = [str(note) for note in advice(program)]
-    refused: str | None = None
-    relaxed: list[str] = []
-    if sink is not None:
-        refused, relaxed = _portability(program, sink)
-    for note in (*notes, *relaxed):
-        warnings.warn(note, LpspecWarning, stacklevel=2)
+    refused = _portability(program, sink) if sink is not None else None
+    for note in advice(program):
+        warnings.warn(str(note), LpspecWarning, stacklevel=2)
     if refused is not None:
         raise LpspecError(refused)
     return program

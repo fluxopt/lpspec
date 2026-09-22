@@ -245,14 +245,6 @@ class Diagnostics:
     rows: int
     nonzeros: int
 
-    #: What the **last solve's sink** had to add on top of those to take the
-    #: model, and zero for every sink that took it as built. A sink with no
-    #: SOS concept is handed the sets as binaries and linking rows
-    #: (:mod:`lpspec.relational.sinks.sos`). Zero until something has been
-    #: solved: a *writer* is handed the model as built, and reports nothing.
-    added_columns: int
-    added_rows: int
-
     #: ``(constraint, rows_not_built)`` — every declared row that did not reach
     #: the solver (the absence rules), by either route: one emptied of all its
     #: terms, and one a **propagated absence** deleted while its other terms were
@@ -343,8 +335,6 @@ class Diagnostics:
             columns=self.columns,
             rows=self.rows,
             nonzeros=self.nonzeros,
-            added_columns=self.added_columns,
-            added_rows=self.added_rows,
             solves=self.solves,
             loads=self.loads,
             attach_seconds=clocks.get('attach', 0.0),
