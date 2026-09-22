@@ -832,7 +832,7 @@ def _gen_bus_direction(program: Any) -> Any:
 
 
 def test_every_shape_operator_declares_its_fan_in():
-    """The absence pass asks the language, so the language has to answer for each.
+    """The absence pass asks :func:`fan_in`, so it has to answer for each shape operator.
 
     The values are pinned as a truth table rather than derived: fan-in is a
     semantic claim about each operator (which the compiler's absence pass
@@ -842,9 +842,11 @@ def test_every_shape_operator_declares_its_fan_in():
     """
     from math_spec import program
 
+    from lpspec.relational.engines.polars.fragments import fan_in
+
     x = program.Variable('x')
     declared = {
-        type(node).__name__: program.fan_in(node)
+        type(node).__name__: fan_in(node)
         for node in (
             program.Sum(x, ('t',)),
             program.GroupSum(x, _gen_bus_direction(program)),

@@ -299,7 +299,7 @@ def expression_frame(name: str, expr: program.Expression, compiler: PolarsCompil
     context = f"named expression '{name}'"
     compiled = compiler.expression(expr, context)
 
-    divisors = [q.divisor for q in program.quotients(expr)]
+    divisors = coverage.divisors_of(expr)
     coverage.refuse_null_constants(
         [p.frame for p in compiled.consts],
         {*program.parameters_of(*divisors), *program.variables_of(*divisors)},

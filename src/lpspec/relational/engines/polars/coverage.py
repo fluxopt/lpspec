@@ -42,6 +42,11 @@ if TYPE_CHECKING:
     from lpspec.relational.engines.polars.scope import Scope
 
 
+def divisors_of(*expressions: program.Expression) -> tuple[program.Expression, ...]:
+    """Every divisor under *expressions*, in walk order."""
+    return tuple(node.divisor for node in program.walk(*expressions) if isinstance(node, program.Divide))
+
+
 def refuse_null_coefficients(stacked: pl.DataFrame, subject: str, *expressions: program.Expression) -> None:
     """A null coefficient in *stacked* means a divisor had no value where the model divided.
 
@@ -56,7 +61,7 @@ def refuse_null_coefficients(stacked: pl.DataFrame, subject: str, *expressions: 
     """
     undefined = int(stacked.get_column('coeff').null_count())
     if undefined:
-        params = sorted(program.divisor_parameters(*expressions))
+        params = sorted(program.parameters_of(*divisors_of(*expressions)))
         raise DataError(f'{subject}: {sparse_divisor_message(", ".join(params), undefined)}')
 
 
