@@ -11,7 +11,7 @@ expression where this one answers with an array.
 from __future__ import annotations
 
 import operator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import reduce
 from typing import TYPE_CHECKING, Any, assert_never
 
@@ -59,6 +59,11 @@ class EvaluationContext:
     #: variable is then its ``.solution`` and ``dual(c)`` the constraint's
     #: ``.dual`` — rather than built into it.
     solved: bool = False
+    #: How a parameter reads where the data has no row. A coefficient is zero
+    #: there, which is what the row multiplies by; the side of a where
+    #: comparison is absent there, which is the false the language states for
+    #: a comparison over a value that is not supplied.
+    absent_parameter: Callable[[Any], Any] = absence.coefficient
 
 
 def evaluate_where(mask: program.Mask | None, ctx: EvaluationContext) -> xr.DataArray:
@@ -112,6 +117,23 @@ def _eval_node(node: program.Predicate, ctx: EvaluationContext) -> xr.DataArray:
         result = _PREDICATE_OPS[node.op](arr, _as_the_axis_spells_it(arr, node.value))
         return result.fillna(False).astype(bool)
 
+    if isinstance(node, program.ExpressionComparison):
+        left, right = (_value(side, ctx) for side in (node.left, node.right))
+        defined = left.notnull() & right.notnull()
+        return (_PREDICATE_OPS[node.op](left, right) & defined).fillna(value=False).astype(bool)
+
+    if isinstance(node, program.ArithmeticComparison):
+        msg = 'lowering rewrites a comparison of arithmetic into one of expressions, so a program carries none'
+        raise AssertionError(msg)
+
+    if isinstance(node, program.CountComparison):
+        admitted = _along(evaluate(node.predicate.root), node.over, master_coords)
+        return _PREDICATE_OPS[node.op](admitted.sum(node.over), node.value).astype(bool)
+
+    if isinstance(node, program.TranslatedPredicate):
+        operand = _along(evaluate(node.operand.root), node.along, master_coords)
+        return operand.shift({node.along: node.offset}, fill_value=False)
+
     if isinstance(node, program.DimensionPosition):
         labels = master_coords[node.name]
         if node.partition is not None:
@@ -148,6 +170,35 @@ def _eval_node(node: program.Predicate, ctx: EvaluationContext) -> xr.DataArray:
         return evaluate(node.left) | evaluate(node.right)
 
     assert_never(node)
+
+
+def _value(side: program.Expression, ctx: EvaluationContext) -> xr.DataArray:
+    """One side of a comparison of expressions, as an array of its values.
+
+    The builder's own walk answers, so a translation or a grouping under a
+    ``where`` means what it means anywhere else. A parameter reads as absent
+    rather than as the zero a coefficient takes, which is the false the
+    language states for a comparison over a value that is not supplied.
+
+    A side of numbers alone comes back as one, and is wrapped so both sides
+    answer the same questions: ``0.5 <= p_max`` is a comparison of
+    expressions like any other.
+    """
+    # in-function: the builder imports this module
+    from lpspec.linopy.builder import _eval
+
+    value = _eval(side, replace(ctx, absent_parameter=lambda arr: arr))
+    return value if isinstance(value, xr.DataArray) else xr.DataArray(value)
+
+
+def _along(arr: xr.DataArray, dimension: str, master_coords: Mapping[str, pd.Index]) -> xr.DataArray:
+    """*arr* carrying *dimension*, broadcast over its labels where it does not.
+
+    A predicate reading none of the dimension's own data answers the same at
+    every coordinate of it, and counting or shifting along an axis the array
+    has never seen would otherwise drop the reduction the node *is*.
+    """
+    return arr if dimension in arr.dims else arr.expand_dims({dimension: master_coords[dimension]})
 
 
 def _defined(arr: xr.DataArray, dtype: str) -> xr.DataArray:

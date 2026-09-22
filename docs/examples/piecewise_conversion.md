@@ -200,7 +200,6 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
         variable: weight
         over: bp
         type: 2
-        big_m: 1
 
     constraints:
       one_operating_point:
@@ -277,9 +276,9 @@ relation does, and it is data.
 **The mask is the variable's own.** `where: bp_present` decides which weights
 exist, and an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set is over the
 members present, so the boiler's three-breakpoint curve and the CHP's four sit
-on one axis with nothing padded. A solver without SOS gets binaries and big-M
-rows for the same set; `big_m: 1` is the bound those rows use, because a weight
-is at most 1.
+on one axis with nothing padded. A solver without SOS gets binaries and linking
+rows for the same set, which multiply by the member's own upper bound — 1 here,
+because a weight is at most one.
 
 linopy's `add_piecewise_formulation` ties N expressions to one basis too, but
 its pairs are an argument list, so the linopy tab writes the arity out per

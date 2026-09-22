@@ -25,7 +25,6 @@ from tests.oracle import lpspec_linopy, pd  # skips the module without the [lino
     ('where', 'match'),
     [
         pytest.param('typo_name > 0', "'typo_name' not found", id='a-name-nothing-declares'),
-        pytest.param('p_max > cost', 'compares two parameters', id='two-parameters-compared'),
         pytest.param('generator == snapshot', 'compares against dimension', id='a-dimension-on-the-right'),
         pytest.param('nonexistent', "'nonexistent' not found", id='a-bare-name-nothing-declares'),
         pytest.param('snapshot', 'bare dimension name is true at every coordinate', id='a-bare-dimension-name'),
@@ -79,7 +78,20 @@ ACCEPTED = [
     #: The one position a literal survives to: alone, and false. `True` alone
     #: is no mask at all and arrives as `None`.
     'False',
+    #: The three that read past one comparison against a literal: two
+    #: parameters compared, with arithmetic on a side, a count reducing a
+    #: dimension away, and the same predicate read at the neighbouring
+    #: coordinate. Always-true for the reason above.
+    'p_max > cost',
+    'p_max >= 0.5 * p_max',
+    'count(load, over=snapshot) >= 1',
+    'p_max OR shift(p_max, along=generator, offset=1)',
 ]
+
+#: The one resolved predicate a lowered program never carries: lowering
+#: rewrites every comparison of arithmetic into one of expressions, so no lane
+#: is asked to read it and no where string produces one here.
+NEVER_LOWERED = {'ArithmeticComparison'}
 
 #: Predicates this sweep cannot host, with where they are checked instead. The
 #: sweep masks ``variables.p.where`` on the dispatch model, and a bare variable
@@ -136,7 +148,8 @@ def test_every_resolved_predicate_is_parity_tested():
 
     from math_spec import program, to_program
 
-    expected = set(get_args(program.Predicate))  # resolved-only: the Unresolved* nodes left the union with the parser
+    # resolved-only: the Unresolved* nodes left the union with the parser
+    expected = {t for t in get_args(program.Predicate) if t.__name__ not in NEVER_LOWERED}
     covered: set[type] = set()
 
     def walk(node):

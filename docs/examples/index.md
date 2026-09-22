@@ -101,13 +101,13 @@ A model here is one [spec](../reference/glossary.md) with its data attached.
 | [dispatch](dispatch.md) | **✔** 10500 | **✓** | · | · | · | · | **✓** | **✓** | · | · | · |
 | [monthly_budget](monthly_budget.md) | **✔** 9500 | **✓** | **✓** | · | · | · | · | **✓** | · | · | · |
 | [multi_period](multi_period.md) | **✔** 10020 | **✓** | · | **✓** | · | · | · | **✓** | · | · | · |
-| [piecewise](piecewise.md) | **✔** 3850 | **✓** | · | · | · | · | · | **✓** | **✓** | · | · |
+| [piecewise](piecewise.md) | **✔** 3850 | **✓** | · | · | **✓** | · | **✓** | **✓** | **✓** | · | · |
 | [piecewise_conversion](piecewise_conversion.md) | **✔** 5990 | **✓** | · | **✓** | · | · | **✓** | **✓** | · | **✓** | · |
 | [piecewise_lp](piecewise_lp.md) | **✔** 3850 | **✓** | · | · | **✓** | · | **✓** | **✓** | **✓** | · | · |
-| [piecewise_ragged](piecewise_ragged.md) | **✔** 426 | **✓** | · | · | · | · | **✓** | **✓** | **✓** | · | · |
+| [piecewise_ragged](piecewise_ragged.md) | **✔** 426 | **✓** | · | · | **✓** | · | **✓** | **✓** | **✓** | · | · |
 | [reserves](reserves.md) | **✔** 915 | **✓** | **✓** | **✓** | · | · | · | **✓** | · | · | · |
 | [seasons](seasons.md) | · | **✓** | · | · | · | **✓** | · | **✓** | · | · | · |
-| [sos](sos.md) | · | **✓** | · | · | · | · | · | **✓** | **✓** | **✓** | · |
+| [sos](sos.md) | · | **✓** | · | · | · | · | **✓** | **✓** | **✓** | **✓** | · |
 | [storage](storage.md) | **✔** 5650 | **✓** | · | · | · | **✓** | · | **✓** | · | · | · |
 | [transport](transport.md) | **✔** 4400 | **✓** | **✓** | · | · | · | · | **✓** | · | · | · |
 | [walkthrough](walkthrough.md) | · | **✓** | · | · | · | · | **✓** | **✓** | · | · | · |
@@ -142,7 +142,7 @@ A model here is one [spec](../reference/glossary.md) with its data attached.
 | [telephone_routing](telephone_routing.md) | **✔** 380 | **✓** | **✓** | · | · | · | · | **✓** | · | · | **✓** |
 | [transport_dantzig](transport_dantzig.md) | **✔** 153.675 | **✓** | · | · | · | · | · | **✓** | · | · | · |
 | [transport_modes](transport_modes.md) | **✔** 1715 | **✓** | **✓** | · | · | · | · | **✓** | · | · | · |
-| [transport_pwl](transport_pwl.md) | **✔** 8.78685 | **✓** | · | · | **✓** | · | · | **✓** | **✓** | · | **✓** |
+| [transport_pwl](transport_pwl.md) | **✔** 8.78685 | **✓** | · | · | **✓** | · | **✓** | **✓** | **✓** | · | **✓** |
 | [tsp_mtz](tsp_mtz.md) | **✔** 2085 | **✓** | **✓** | · | · | · | **✓** | **✓** | · | · | **✓** |
 <!-- constructs:end -->
 

@@ -13,7 +13,7 @@ import subprocess  # noqa: F401  — used by the typst compile check
 from pathlib import Path
 
 import pytest
-from math_spec import FORMATS, SymbolTable, to_latex, to_markdown, to_typst, typeset
+from math_spec import FORMATS, SymbolTable, to_latex, to_markdown, to_spec, to_typst, typeset
 
 from tests.conftest import SPEC_PATHS
 from tools import gallery_math
@@ -309,8 +309,13 @@ def test_the_latex_is_structurally_well_formed(path: Path):
 
 def test_a_generated_variable_carries_the_description_its_expander_gave_it():
     """`piecewise:` invents the λ weights, so nothing the author wrote can
-    describe them — the expander is the only thing that knows what they are."""
-    assert 'convex-combination weight on a breakpoint' in to_latex('examples/piecewise.yaml')
+    describe them — the expander is the only thing that knows what they are.
+
+    Asked of the expanded model, because a block left as written typesets as
+    the curve it states rather than as the rows that state it."""
+    expanded = to_spec('examples/piecewise.yaml').expand('piecewise')
+
+    assert 'convex-combination weight on a breakpoint' in to_latex(expanded)
 
 
 # ---------------------------------------------------------------------------
@@ -348,7 +353,8 @@ def test_a_committed_typst_table_compiles_beside_its_model(typst, tmp_path: Path
 
 
 def test_the_table_loads_from_a_file_and_the_committed_one_applies():
-    tex = to_latex('examples/piecewise.yaml', symbols='examples/symbols/piecewise.yaml')
+    expanded = to_spec('examples/piecewise.yaml').expand('piecewise')
+    tex = to_latex(expanded, symbols='examples/symbols/piecewise.yaml')
     assert r'\lambda_{' in tex
     assert r'k \in \mathcal{K}' in tex
     assert 'breakpoints of the cost curve' in tex

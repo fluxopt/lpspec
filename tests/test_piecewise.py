@@ -327,7 +327,7 @@ def test_convex_breakpoints_that_are_not_convex_are_refused(nonconvex_inputs, br
     data = nonconvex_inputs
     schema = schema_of(CONVEX_SPEC)
 
-    with pytest.raises(PiecewiseExpansionError, match=match):
+    with pytest.raises(DataError, match=match):
         tidy_sources(to_program(schema), {**data, **breakpoints})
 
 
@@ -340,7 +340,7 @@ def test_the_curvature_guard_also_fires_through_the_relational_adapter(nonconvex
     tidy_sources(to_program(schema), data)  # consistent (concave) curvature passes
 
     bad = {**data, 'bp_x': BACKWARDS_BP_X}
-    with pytest.raises(PiecewiseExpansionError, match='strictly increasing'):
+    with pytest.raises(DataError, match='strictly increasing'):
         tidy_sources(to_program(schema), bad)
 
 
@@ -412,7 +412,7 @@ def test_the_eager_lane_reads_the_curve_in_the_index_order(nonconvex_inputs, tmp
 
     lpspec_linopy.build(path, shuffled)  # a row order is not a breakpoint order
 
-    with pytest.raises(PiecewiseExpansionError, match='strictly increasing'):
+    with pytest.raises(DataError, match='strictly increasing'):
         lpspec_linopy.build(path, {**nonconvex_inputs, 'bp': pd.Index([2, 1, 0], name='bp')})
 
 
@@ -429,7 +429,7 @@ def test_a_breakpoint_index_that_runs_backwards_is_refused(nonconvex_inputs):
     backwards = {**nonconvex_inputs, 'bp': pd.Index([2, 1, 0], name='bp')}
     schema = schema_of(CONVEX_SPEC)
 
-    with pytest.raises(PiecewiseExpansionError, match='strictly increasing'):
+    with pytest.raises(DataError, match='strictly increasing'):
         tidy_sources(to_program(schema), backwards)
 
 
@@ -466,7 +466,7 @@ def test_a_curve_short_of_a_breakpoint_is_refused(ragged_inputs):
     """
     schema = schema_of(raw_of(TWO_DIM_YAML))
 
-    with pytest.raises(DataError, match=r"'bp_x' has no value at"):
+    with pytest.raises(DataError, match='every breakpoint the curve runs through needs a row'):
         tidy_sources(to_program(schema), dict(ragged_inputs))
 
 
@@ -475,7 +475,7 @@ def test_the_curve_guard_fires_on_the_eager_lane_too(ragged_inputs, tmp_path):
     path = tmp_path / 'two_dim.yaml'
     path.write_text(TWO_DIM_YAML)
 
-    with pytest.raises(DataError, match=r"'bp_x' has no value at"):
+    with pytest.raises(DataError, match='every breakpoint the curve runs through needs a row'):
         lpspec_linopy.build(path, dict(ragged_inputs))
 
 
@@ -511,7 +511,7 @@ def test_a_dict_shaped_curve_is_read_for_holes_too(ragged_inputs, tmp_path):
         'bp_y': {0: 0.0, 1: 50.0},
     }
 
-    with pytest.raises(DataError, match=r"'bp_x' has no value at"):
+    with pytest.raises(DataError, match='every breakpoint the curve runs through needs a row'):
         lpspec_linopy.build(path, data)
 
 
@@ -692,8 +692,16 @@ def test_a_mask_with_a_gap_in_it_is_refused(short_curve_inputs, present, match):
     The chord joins a breakpoint to the one before it and the upper domain row
     is written where the mask stops; across a gap both are wrong, and neither
     is wrong in a way the answer shows.
+
+    Both curves are supplied whole, so the shape of the mask is the only thing
+    left to refuse: a curve short of a row the mask admits is the other
+    refusal, and it would fire first.
     """
-    data = {**short_curve_inputs, 'bp_present': curve_frame(present)}
+    whole = {
+        'bp_x': {('A', 0): 0.0, ('A', 1): 10.0, ('A', 2): 20.0, ('B', 0): 10.0, ('B', 1): 20.0, ('B', 2): 30.0},
+        'bp_y': {('A', 0): 0.0, ('A', 1): 50.0, ('A', 2): 140.0, ('B', 0): 100.0, ('B', 1): 130.0, ('B', 2): 200.0},
+    }
+    data = {**short_curve_inputs, **{n: curve_frame(v) for n, v in whole.items()}, 'bp_present': curve_frame(present)}
     schema = schema_of(raw_of(SHORT_CURVE))
 
     with pytest.raises(DataError, match=match):
@@ -706,7 +714,7 @@ def test_values_missing_where_the_mask_says_present_are_still_refused(short_curv
     data = {**short_curve_inputs, 'bp_x': curve_frame(thin)}
     schema = schema_of(raw_of(SHORT_CURVE))
 
-    with pytest.raises(DataError, match=r"'bp_x' has no value at"):
+    with pytest.raises(DataError, match='every breakpoint the curve runs through needs a row'):
         tidy_sources(to_program(schema), data)
 
 
@@ -722,13 +730,12 @@ def test_the_hole_message_offers_the_mask_to_a_block_that_has_none(short_curve_i
     ragged = {k: v for k, v in short_curve_inputs.items() if k != 'bp_present'}
     without = schema_of(unmasked)
 
-    with pytest.raises(DataError, match='points: a mask over the curve') as offered:
+    with pytest.raises(DataError, match='declare points: to say how far the curve runs'):
         tidy_sources(to_program(without), ragged)
-    assert 'the *arity* is data' in str(offered.value), 'the arity escape is the other way out, and a different one'
 
     thin = {k: v for k, v in A_AND_SHORT_B['x'].items() if k != ('A', 2)}
     masked = schema_of(raw_of(SHORT_CURVE))
-    with pytest.raises(DataError, match=r"'bp_present' claims this breakpoint"):
+    with pytest.raises(DataError, match=r"narrow points: 'bp_present' to where the curve runs"):
         tidy_sources(to_program(masked), {**short_curve_inputs, 'bp_x': curve_frame(thin)})
 
 

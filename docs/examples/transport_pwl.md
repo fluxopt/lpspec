@@ -57,12 +57,8 @@ Dantzig's transportation problem with economies of scale — GAMS model library 
 |---|---|
 | $`\mathit{shipment}`$ | `shipment` over $`\mathcal{P} \times \mathcal{M}`$ — cases shipped from a plant to a market |
 | $`\mathit{scaled}`$ | `scaled` over $`\mathcal{P} \times \mathcal{M}`$ — what the objective is charged on — the square root of the shipment, read off the curve rather than computed |
-| $`\mathit{economies\_of\_scale\_lam}`$ | `economies_of_scale_lam` over $`\mathcal{P} \times \mathcal{M} \times \mathcal{B}`$ — convex-combination weight on a breakpoint |
-| $`\mathit{economies\_of\_scale\_seg}`$ | `economies_of_scale_seg` over $`\mathcal{P} \times \mathcal{M} \times \mathcal{B}`$ |
 
 Upright is what the model is given — a parameter such as $`\mathrm{capacity}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{shipment}`$. An index is italic too, being what a quantifier chooses, and a set is script.
-
-$`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`$ leaves the dimension (`shift(edge=v)`), so the row at that boundary is built and carries $`v`$ rather than being dropped.
 
 #### Objective
 
@@ -84,34 +80,10 @@ $`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`
 \sum_{p \in \mathcal{P}} \mathit{shipment}_{p,m} \ge \mathrm{demand}_{m} \qquad \forall\, m \in \mathcal{M}
 ```
 
-**`economies_of_scale_convexity`**
+**`economies_of_scale`**
 
 ```math
-\sum_{b \in \mathcal{B}} \mathit{economies\_of\_scale\_lam}_{p,m,b} = 1 \qquad \forall\, p \in \mathcal{P},\ m \in \mathcal{M}
-```
-
-**`economies_of_scale_link0`**
-
-```math
-\mathit{shipment}_{p,m} = \sum_{b \in \mathcal{B}} \mathit{economies\_of\_scale\_lam}_{p,m,b} \cdot \mathrm{bp\_x}_{b} \qquad \forall\, p \in \mathcal{P},\ m \in \mathcal{M}
-```
-
-**`economies_of_scale_link1`**
-
-```math
-\mathit{scaled}_{p,m} = \sum_{b \in \mathcal{B}} \mathit{economies\_of\_scale\_lam}_{p,m,b} \cdot \mathrm{bp\_y}_{b} \qquad \forall\, p \in \mathcal{P},\ m \in \mathcal{M}
-```
-
-**`economies_of_scale_pick`**
-
-```math
-\sum_{b \in \mathcal{B}} \mathit{economies\_of\_scale\_seg}_{p,m,b} = 1 \qquad \forall\, p \in \mathcal{P},\ m \in \mathcal{M}
-```
-
-**`economies_of_scale_adjacency`**
-
-```math
-\mathit{economies\_of\_scale\_lam}_{p,m,b} \le \mathit{economies\_of\_scale\_seg}_{p,m,b} + \mathit{economies\_of\_scale\_seg}_{p,m,b \boxminus_{0} 1} \qquad \forall\, p \in \mathcal{P},\ m \in \mathcal{M},\ b \in \mathcal{B}
+\left( \mathit{shipment}_{p,m},\ \mathit{scaled}_{p,m} \right) \in \mathrm{pwl}_{b \in \mathcal{B}}(\mathrm{bp\_x}_{b},\ \mathrm{bp\_y}_{b}) \qquad \forall\, p \in \mathcal{P},\ m \in \mathcal{M}
 ```
 
 #### Variable domains
@@ -128,16 +100,12 @@ $`t \boxminus_{v} k`$ denotes translation with $`v`$ standing where index $`t-k`
 \mathit{scaled}_{p,m} \ge 0 \qquad \forall\, p \in \mathcal{P},\ m \in \mathcal{M}
 ```
 
-**`economies_of_scale_lam`**
+#### Assumptions
+
+**`economies_of_scale_complete`**
 
 ```math
-0 \le \mathit{economies\_of\_scale\_lam}_{p,m,b} \le 1 \qquad \forall\, p \in \mathcal{P},\ m \in \mathcal{M},\ b \in \mathcal{B}
-```
-
-**`economies_of_scale_seg`**
-
-```math
-\mathit{economies\_of\_scale\_seg}_{p,m,b} \in \{0, 1\} \qquad \forall\, p \in \mathcal{P},\ m \in \mathcal{M},\ b \in \mathcal{B}
+\mathrm{bp\_x}_{b} \text{ is defined} \wedge \mathrm{bp\_y}_{b} \text{ is defined} \qquad \forall\, b \in \mathcal{B}
 ```
 
 </details>

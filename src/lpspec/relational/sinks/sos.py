@@ -5,7 +5,7 @@ Which sink needs this and why the family rather than a member decides it:
 
 The formulation is linopy's (``linopy/sos_reformulation.py``), member for
 member. For members :math:`x_1 … x_k` in weight order, with :math:`M_i` the
-tighter of the block's ``big_m`` and the member's own upper bound:
+member's own upper bound:
 
 - **SOS1** — a binary :math:`y_i` per member, :math:`x_i \le M_i y_i`, and
   :math:`\sum_i y_i \le 1`.
@@ -58,7 +58,7 @@ def reformulated(tables: Tables) -> Tables:
 
     Raises:
         DataError: A member with a negative lower bound or no finite upper
-            bound — neither is a set a big-M can stand in for.
+            bound — neither is a set this rewrite can state.
     """
     members = _members(tables)
     binaries = len(members.cardinality)
@@ -126,10 +126,10 @@ def _members(tables: Tables) -> _Members:
     asked before every array is compacted for the answer.
 
     Raises:
-        DataError: A member a big-M cannot stand in for.
+        DataError: A member this rewrite cannot state.
     """
     col = tables.sos.get_column('col').to_numpy()
-    magnitude = np.minimum(tables.cols.get_column('ub').to_numpy()[col], tables.sos.get_column('big_m').to_numpy())
+    magnitude = tables.cols.get_column('ub').to_numpy()[col]
     _refuse_unbounded(tables, col, magnitude)
 
     first, last = _edges(tables.sos.get_column('set').to_numpy())
@@ -168,11 +168,10 @@ def _edges(sets: npt.NDArray[Any]) -> tuple[Bools, Bools]:  # pyrefly: ignore[ex
 
 
 def _refuse_unbounded(tables: Tables, col: npt.NDArray[Any], magnitude: Floats) -> None:  # pyrefly: ignore[explicit-any] — a member column's dtype is the model's
-    """Refuse a member no finite big-M can stand in for — linopy's two conditions.
+    """Refuse a member no finite coefficient links to a binary — linopy's two conditions.
 
-    Asked of the big-M rather than of the bound: ``big_m:`` is declared
-    *because* the bound is open, so checking the bound first would refuse the
-    model ``big_m:`` was given for.
+    The language refuses a set whose member declares no upper bound, so what
+    reaches here is a bound that is a parameter the data left open.
 
     The first is asked of the whole model's bounds before the members: no
     member can have a negative lower bound where no column does.
@@ -185,14 +184,14 @@ def _refuse_unbounded(tables: Tables, col: npt.NDArray[Any], magnitude: Floats) 
         (
             int(np.count_nonzero(lb.to_numpy()[col] < 0)) if lb.lt(0).any() else 0,
             'a negative lower bound',
-            'A set says which members are nonzero, and the big-M form a sink without SOS is handed '
+            'A set says which members are nonzero, and the linking form a sink without SOS is handed '
             'can only say that of a non-negative variable. Give the variable `bounds: {lower: 0}`',
         ),
         (
             int(np.count_nonzero(np.isinf(magnitude))),
-            'no upper bound and no big_m',
-            'so there is no finite coefficient to link them to a binary with. Bound the variable, or '
-            'set `big_m:` on the sos block',
+            'no finite upper bound',
+            'so there is no coefficient to link them to a binary with. The set names a variable whose '
+            '`bounds.upper` is a parameter, and the data left it open; supply a finite value',
         ),
     ):
         if offending:

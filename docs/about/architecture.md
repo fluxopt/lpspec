@@ -51,8 +51,8 @@ and pandas is declared with `[linopy]` rather than as a runtime dependency. One
 reader for both lanes costs the linopy lane a copy of what a pandas caller
 passed (#1076).
 
-The `method: convex` curvature guard sits below the seam because it needs
-values rather than a schema. It lives in `curves.py`, which the door calls, so
+What a model assumes of its data sits below the seam because it needs values
+rather than a schema. It lives in `assumptions.py`, which the door calls, so
 neither lane can enter without it. Data goes no further **up** than here, so
 nothing above the seam has ever seen a value.
 
@@ -127,10 +127,10 @@ accept the same file, attach the same tables and refuse the same constructs.
 `evaluate`, and linopy solves and reads back. A second `Result` there would be a
 wrapper around linopy's own API.
 
-**Ten modules sit outside a fence, and each is legitimately both halves**:
-`sources.py`, `curves.py`, `api.py`, `strategy.py`, `lanes.py`, `frames.py`,
-`layout.py`, `archive.py`, `expressions.py` and `errors.py`. Size does not buy a
-place among them. A module only one lane reaches is that lane's, down to a
+**Eleven modules sit outside a fence, and each is legitimately both halves**:
+`sources.py`, `curves.py`, `assumptions.py`, `api.py`, `strategy.py`,
+`lanes.py`, `frames.py`, `layout.py`, `archive.py`, `expressions.py` and
+`errors.py`. Size does not buy a place among them. A module only one lane reaches is that lane's, down to a
 24-line contextmanager (`linopy/_notes.py`). See [What counts as
 language](#what-counts-as-language).
 
@@ -483,7 +483,7 @@ present.
 
 **Sinks are capped, explicitly.** Four streams and no more: `cols` (bounds,
 objective coefficients, integrality), `rows`, `A` in CSR, and `sos`, the
-special-ordered sets as `(set, type, col, weight, big_m)`. The upgrade path
+special-ordered sets as `(set, type, col, weight)`. The upgrade path
 from here is `genconstr`, plus a semi-continuous threshold on `cols`.
 
 **The fourth stream is the one that lands unevenly**, because its destination
@@ -547,7 +547,8 @@ is structure.
 | `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `LANES`, what each lane can build, read by `check` without the extra |
 | `relational/collect.py` | which polars engine materialises a frame: the streaming one where this polars has it, asked once; a build without it, the browser's, gets the in-memory one |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
-| `curves.py` | the one guard that needs numbers: is a `piecewise:` curve supplied everywhere it is built, monotone, and of the curvature its method is exact for |
+| `curves.py` | the parameters a `piecewise:` expansion emitted, filled from the curve's own data — a mask the block's own breakpoints derive, and the two flags marking where each masked curve begins and ends |
+| `assumptions.py` | the one guard that needs numbers: every `assumptions:` entry the file wrote, and each condition a `piecewise:` method puts on its breakpoints, evaluated as the masks the language states them as |
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `lps.`; a wording lives here only where two modules raise it |
 | `strategy.py` | the driver above the runner: one plan per slice, folded — scenarios, rolling horizon, myopic pathways |
@@ -613,10 +614,10 @@ again. Degree lives only in `math_spec.degree`. `math_spec.piecewise` is
 upstream by the same test: a formulation emits declarations, and declarations
 are language.
 
-The test also says what cannot follow. `curves.py` answers a question two
+The test also says what cannot follow. `assumptions.py` answers a question two
 consumers answering separately *would* be a bug, so by the rule it is language.
 It is here because the answer needs numbers, and the language has never seen
-one. The half that does not need them is upstream. A block's `assumptions` name
+one. The half that does not need them is upstream: a model's `assumptions` name
 each condition, `assumption_message` words the refusal, and the caller holding
 the values does the checking. A rule is only ours when data is what decides it,
 which is what the top level is *for* ([the ten above](#thesis)). A flat module

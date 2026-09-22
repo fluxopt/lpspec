@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, assert_never
+from typing import TYPE_CHECKING, Literal, assert_never
 
 import numpy as np
 import polars as pl
@@ -488,29 +488,34 @@ class PolarsCompiler:
         carrier = masked(self.scope, dims, None)
         for restriction in restrictions:
             carrier = restriction.restrict(carrier, restriction.keyed_by or ())
-        added = self.added(fragments, carrier, fill=False)
+        added = self.added(fragments, carrier, absent='hole')
         parameters = frozenset[str]().union(*(p.parameters for p in fragments))
         return CompiledExpression(
             (), (TermFragment(dims, added, 'const', presences=tuple(restrictions), parameters=parameters),)
         )
 
-    def added(self, fragments: Sequence[TermFragment], carrier: pl.LazyFrame, *, fill: bool) -> pl.LazyFrame:
+    def added(
+        self, fragments: Sequence[TermFragment], carrier: pl.LazyFrame, *, absent: Literal['zero', 'hole', 'spreads']
+    ) -> pl.LazyFrame:
         """Const *fragments* added per coordinate onto *carrier* — its columns, then ``cval``.
 
         *carrier* is the coordinate product the sum stands over, one row per
         coordinate of :meth:`spanned`, restricted by the caller to where every
         variable under the fragments exists — the rows a constraint over the
-        same expression would keep. A coordinate no fragment has a value at is
-        zero under *fill*, what a read reports, and null without, what a
-        divisor keeps so the hole is reported rather than divided by.
+        same expression would keep. *absent* is what a piece with no value at
+        a coordinate adds: ``zero``, what a read reports; ``hole``, the same
+        except null where no piece has a value, what a divisor keeps so the
+        hole is reported rather than divided by; ``spreads``, null wherever
+        any piece has none, what arithmetic under a ``where`` reads (the
+        absence rules).
         """
         assert fragments, 'an expression compiles to at least one fragment'
         assert all(p.kind == 'const' for p in fragments), 'a read compiles every variable to its value'
         columns = [f'__piece {i}__' for i in range(len(fragments))]
         for p, column in zip(fragments, columns, strict=True):
             carrier = join_on(carrier, constant_scalar(p).rename({'cval': column}), p.dims, 'left')
-        total = pl.sum_horizontal([pl.col(c).fill_null(0.0) for c in columns])
-        if not fill:
+        total = pl.sum_horizontal(columns, ignore_nulls=absent != 'spreads')
+        if absent == 'hole':
             total = pl.when(pl.any_horizontal([pl.col(c).is_not_null() for c in columns])).then(total).otherwise(None)
         return carrier.select(pl.exclude(columns), total.alias('cval'))
 
