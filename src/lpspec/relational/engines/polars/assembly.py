@@ -252,8 +252,8 @@ class Assembly:
         """
         held = self.variables[s.variable]
         cardinality = self.scope.data.cardinality
-        stride = math.prod(cardinality[d] for d in v.dims[v.dims.index(s.over) + 1 :])
-        span = cardinality[s.over] * stride
+        stride = math.prod(cardinality[d] for d in v.dims[v.dims.index(s.along) + 1 :])
+        span = cardinality[s.along] * stride
 
         if v.where is None:
             frame = pl.select(pl.int_range(held.height, dtype=pl.Int64).alias('#position')).lazy()
@@ -263,7 +263,7 @@ class Assembly:
             place, col = self.scope.row_major(v.dims, self.scope.ordinal_of), pl.col('var_label')
         placed = frame.select(
             ((place // span) * stride + place % stride).alias('#set position'),
-            ((place // stride) % cardinality[s.over] + 1).cast(_DTYPES['weight']).alias('weight'),
+            ((place // stride) % cardinality[s.along] + 1).cast(_DTYPES['weight']).alias('weight'),
             col.cast(_DTYPES['col']).alias('col'),
         ).collect(engine=polars_engine())
 
