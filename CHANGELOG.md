@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.351](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.350...v0.0.1-alpha.351) (2026-09-23)
+
+
+### Features
+
+* **language:** a special-ordered set names its dimension with along, the way math-spec 0.0.0-alpha.120 does ([#1720](https://github.com/fluxopt/lpspec/issues/1720)) ([fdc47c5](https://github.com/fluxopt/lpspec/commit/fdc47c51aa21b9f5ad6b9cd81b1a3381797bce1c))
+
 ## [0.0.1-alpha.350](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.349...v0.0.1-alpha.350) (2026-09-23)
 
 
