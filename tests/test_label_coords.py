@@ -289,6 +289,12 @@ NETWORK_SOURCES = {
         pytest.param('recv', ['loop', 'ring_a', 'ring_b'], id='a-bare-relation-is-the-partial-case'),
         pytest.param('NOT voltage == 220', ['ring_b', 'spur'], id='negated'),
         pytest.param('voltage == 380 AND send != recv', ['ring_b'], id='conjoined-with-a-pair-comparison'),
+        pytest.param(
+            "at(bus == 'north', by=send, over=bus, into=line)", ['loop', 'ring_a', 'spur'], id='a-predicate-read-at'
+        ),
+        pytest.param(
+            "at(bus == 'north', by=recv, over=bus, into=line)", ['loop', 'ring_b'], id='read-at-a-partial-relation'
+        ),
     ],
 )
 def test_a_where_reads_a_relation(where, kept):
@@ -318,6 +324,13 @@ def test_a_where_reads_a_relation(where, kept):
         # nowhere — where the relational lane drops it.
         pytest.param("recv != 'north'", 10.0, id='not-equal-over-a-null-value'),
         pytest.param('recv != send', 30.0, id='not-equal-between-two-relations'),
+        pytest.param("at(bus == 'north', by=send, over=bus, into=line)", 80.0, id='a-predicate-read-at'),
+        pytest.param(
+            "NOT at(bus == 'south', by=recv, over=bus, into=line)", 90.0, id='negated-read-at-a-partial-relation'
+        ),
+        pytest.param(
+            "at(bus == 'north', by=recv, over=bus, into=line) AND voltage == 220", 30.0, id='read-at-conjoined'
+        ),
     ],
 )
 def test_a_relation_where_agrees_with_the_oracle(where, objective):

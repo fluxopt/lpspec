@@ -19,7 +19,6 @@ from math_spec import (
     DimensionError,
     LanguageError,
     MathSpecError,
-    PiecewiseExpansionError,
     SchemaError,
     did_you_mean,
 )
@@ -77,7 +76,6 @@ __all__ = [
     'LpspecError',
     'LpspecWarning',
     'NoSolutionError',
-    'PiecewiseExpansionError',
     'SchemaError',
     'did_you_mean',
 ]

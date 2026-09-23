@@ -58,7 +58,7 @@ def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:
             )
 
 
-def read_column(node: program.GroupSum | program.Pullback) -> tuple[str, ...]:
+def read_column(node: program.GroupSum | program.Pullback | program.PulledBackPredicate) -> tuple[str, ...]:
     """The relation's columns a read takes at the key: what a group lands on, what a pullback reads from.
 
     Both are the far end of the direction, so one lookup serves the group and

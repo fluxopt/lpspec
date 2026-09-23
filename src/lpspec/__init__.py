@@ -33,7 +33,6 @@ from lpspec.errors import (
     LpspecError,
     LpspecWarning,
     NoSolutionError,
-    PiecewiseExpansionError,
     SchemaError,
 )
 from lpspec.relational.result import Result
@@ -51,7 +50,6 @@ __all__ = [
     'LpspecWarning',
     'Model',
     'NoSolutionError',
-    'PiecewiseExpansionError',
     'Result',
     'Runs',
     'SchemaError',
