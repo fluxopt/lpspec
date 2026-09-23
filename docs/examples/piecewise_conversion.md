@@ -198,7 +198,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
           at most two weights, and those two neighbours — which is what puts the
           operating point on a segment of the curve rather than anywhere in its hull
         variable: weight
-        over: bp
+        along: bp
         type: 2
 
     constraints:

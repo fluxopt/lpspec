@@ -67,7 +67,7 @@ BASE: dict[str, Any] = {
 
 def spec(sos_type: int) -> dict[str, Any]:
     """The base model with one set over ``take``'s ``size`` dim."""
-    return BASE | {'sos': {'pick': {'variable': 'take', 'over': 'size', 'type': sos_type}}}
+    return BASE | {'sos': {'pick': {'variable': 'take', 'along': 'size', 'type': sos_type}}}
 
 
 def best(sos_type: int | None, sizes: list[int] = SIZES) -> float:
@@ -118,28 +118,32 @@ OPEN_BELOW = {'variables': {'take': {'dims': ['site', 'size'], 'bounds': {'upper
     ('blocks', 'expected', 'also'),
     [
         pytest.param(
-            {'pick': {'variable': 'nope', 'over': 'size'}}, "'nope' is not a declared variable", {}, id='no-var'
+            {'pick': {'variable': 'nope', 'along': 'size'}}, "'nope' is not a declared variable", {}, id='no-var'
         ),
-        pytest.param({'pick': {'variable': 'take', 'over': 'site2'}}, "undeclared dimension 'site2'", {}, id='no-dim'),
+        pytest.param({'pick': {'variable': 'take', 'along': 'site2'}}, "undeclared dimension 'site2'", {}, id='no-dim'),
         pytest.param(
-            {'pick': {'variable': 'take', 'over': 'other'}},
-            "over 'other' is not a dim of variable 'take'",
+            {'pick': {'variable': 'take', 'along': 'other'}},
+            "along 'other' is not a dim of variable 'take'",
             UNCARRIED,
             id='a-dim-the-variable-does-not-carry',
         ),
         pytest.param(
-            {'pick': {'variable': 'take', 'over': 'size'}, 'again': {'variable': 'take', 'over': 'size', 'type': 2}},
+            {'pick': {'variable': 'take', 'along': 'size'}, 'again': {'variable': 'take', 'along': 'size', 'type': 2}},
             "already carries the set declared by 'pick'",
             {},
             id='two-sets-over-one-variable',
         ),
         pytest.param(
-            {'pick': {'variable': 'take', 'over': 'size', 'type': 3}}, 'sos type must be 1 or 2', {}, id='third-order'
+            {'pick': {'variable': 'take', 'along': 'size', 'type': 3}}, 'sos type must be 1 or 2', {}, id='third-order'
         ),
-        pytest.param({'pick': {'variable': 'take', 'over': 'size'}}, 'has no upper bound', OPEN_ABOVE, id='open-above'),
-        pytest.param({'pick': {'variable': 'take', 'over': 'size'}}, 'has no lower bound', OPEN_BELOW, id='open-below'),
         pytest.param(
-            {'pick': {'variable': 'take', 'over': 'size', 'kind': 1}}, "unknown key 'kind'", {}, id='unknown-key'
+            {'pick': {'variable': 'take', 'along': 'size'}}, 'has no upper bound', OPEN_ABOVE, id='open-above'
+        ),
+        pytest.param(
+            {'pick': {'variable': 'take', 'along': 'size'}}, 'has no lower bound', OPEN_BELOW, id='open-below'
+        ),
+        pytest.param(
+            {'pick': {'variable': 'take', 'along': 'size', 'kind': 1}}, "unknown key 'kind'", {}, id='unknown-key'
         ),
     ],
 )
@@ -331,7 +335,7 @@ def test_regrouping_the_members_is_a_different_model_to_a_loaded_solver():
         'dimensions': {'site': {'dtype': 'str'}, 'size': {'dtype': 'int'}},
         'parameters': {'worth': {'dims': ['site', 'size']}, 'live': {'dims': ['site', 'size'], 'dtype': 'bool'}},
         'variables': {'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 1}, 'where': 'live'}},
-        'sos': {'pick': {'variable': 'take', 'over': 'size', 'type': 1}},
+        'sos': {'pick': {'variable': 'take', 'along': 'size', 'type': 1}},
         'objective': {'sense': 'maximize', 'expression': 'sum(sum(take * worth, over=site), over=size)'},
     }
     worth = _table({('north', 0): 3.0, ('north', 1): 5.0, ('south', 0): 5.0, ('south', 1): 0.0})
