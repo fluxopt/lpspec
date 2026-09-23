@@ -300,11 +300,11 @@ def test_both_lanes_check_the_declarations_a_formulation_emits(tmp_path):
 
 
 def test_a_curve_left_as_written_is_refused_at_both_doors(tmp_path):
-    """A ``piecewise:`` block is refused rather than written out, and the refusal names the expansion.
+    """A ``piecewise:`` block is refused rather than expanded, and the refusal names the expansion.
 
     Both lanes read a model through one door, so both refuse the same file in
     the same words (hard rule 3), and neither expands it on the caller's
-    behalf: nothing writes a formulation out unasked, here or in the language.
+    behalf: nothing expands a formulation unasked, here or in the language.
     """
     path = tmp_path / 'as_written.yaml'
     path.write_text(NONCONVEX_YAML)

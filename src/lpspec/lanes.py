@@ -156,9 +156,9 @@ def lowered(spec: Buildable) -> Program:
     if program.piecewise:
         named = ', '.join(f"'{name}'" for name in program.piecewise)
         raise LanguageError(
-            f'piecewise: {named} is still a curve, and lpspec builds only the rows a curve is written out as. '
-            f"Write it out first: to_spec(spec).expand('piecewise') keeps every sos: block for a sink that "
-            f'takes a set, and to_spec(spec).expand() writes the sets out as binaries too.'
+            f'piecewise: {named} is still a curve, and lpspec builds only the rows a curve is expanded into. '
+            f"Expand it first: to_spec(spec).expand('piecewise') keeps every sos: block for a sink that "
+            f'takes a set, and to_spec(spec).expand() expands the sets into binaries too.'
         )
     if (refused := _case_collision(program)) is not None:
         raise LpspecError(refused)
