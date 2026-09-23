@@ -18,7 +18,7 @@ import numpy as np
 import polars as pl
 import pytest
 import yaml as pyyaml
-from math_spec import PiecewiseExpansionError, to_program
+from math_spec import DimensionError, to_program
 
 import lpspec as lps
 from lpspec.errors import DataError, LpspecError
@@ -290,12 +290,12 @@ def test_both_lanes_check_the_declarations_a_formulation_emits(tmp_path):
     )
     stray = r"link 1 values parameter 'bp_y' carries \['zone'\], which no link expression does"
 
-    with pytest.raises(PiecewiseExpansionError, match=stray):
+    with pytest.raises(DimensionError, match=stray):
         expanded(raw)
 
     path = tmp_path / 'stray_dim.yaml'
     path.write_text(pyyaml.safe_dump(raw))
-    with pytest.raises(PiecewiseExpansionError, match=stray):
+    with pytest.raises(DimensionError, match=stray):
         lpspec_linopy.build(expanded(path), {})
 
 

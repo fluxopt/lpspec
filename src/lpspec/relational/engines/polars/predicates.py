@@ -27,7 +27,7 @@ from math_spec import program
 from lpspec.errors import DataError, position_out_of_range_message, short_groups_message
 from lpspec.relational.engines.polars.fragments import join_on
 from lpspec.relational.engines.polars.reindex import translate_rows
-from lpspec.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE, Grouping
+from lpspec.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE, Grouping, mapping, walk_join
 
 if TYPE_CHECKING:
     import datetime
@@ -229,9 +229,6 @@ def compile_predicate(
                 join_reduction('value', lambda a, v=values: v.rename({'cval': a}), on) for values, on in (left, right)
             )
             return _COLUMN_COMPARISONS[p.op](pl.col(columns[0]), pl.col(columns[1]))
-        if isinstance(p, program.ArithmeticComparison):
-            msg = 'lowering rewrites a comparison of arithmetic into one of expressions, so a program carries none'
-            raise AssertionError(msg)
         if isinstance(p, program.CountComparison):
             keys = scope.in_declaration_order(p.dims)
             alias = join_reduction('count', lambda a: _counted(scope, p, a), keys)
@@ -239,6 +236,10 @@ def compile_predicate(
         if isinstance(p, program.TranslatedPredicate):
             on = scope.in_declaration_order(p.dims)
             alias = join_reduction(f'shift {p.along}', lambda a: _translated(scope, p, on, a), on)
+            return falsy_if_null(pl.col(alias))
+        if isinstance(p, program.PulledBackPredicate):
+            on = scope.in_declaration_order(p.dims)
+            alias = join_reduction(f'at {p.direction.name}', lambda a: _pulled_back(scope, p, a), on)
             return falsy_if_null(pl.col(alias))
         if isinstance(p, program.DimensionComparison):
             refuse_outside_frame(f"dimension '{p.name}'", p.name)
@@ -338,6 +339,19 @@ def _translated(scope: Scope, p: program.TranslatedPredicate, dims: tuple[str, .
     assert p.along in dims, f"a shift along '{p.along}' is read at a frame carrying it"
     admitted = masked(scope, dims, p.operand).select(*dims).with_columns(pl.lit(value=True).alias(alias))
     return translate_rows(scope, admitted, dims, [alias], p.along, p.offset)
+
+
+def _pulled_back(scope: Scope, p: program.PulledBackPredicate, alias: str) -> pl.LazyFrame:
+    """Where the operand holds at the coarse coordinate the relation maps each fine one to, true-only.
+
+    The coordinates the operand admits are walked through the relation as an
+    expression's ``at`` walks its rows, so a fine coordinate the relation has
+    no row for is a missing row, which already reads as false.
+    """
+    dims = scope.in_declaration_order(p.operand.dims)
+    admitted = masked(scope, dims, p.operand).select(*dims).with_columns(pl.lit(value=True).alias(alias))
+    read, _ = walk_join(admitted, mapping(scope.data.relations, p.direction), p, dims, [alias])
+    return read
 
 
 def _certain_names(mask: program.Mask) -> frozenset[str]:

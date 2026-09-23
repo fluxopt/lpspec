@@ -356,7 +356,7 @@ def test_error_hierarchy_is_one_catchable_tree():
     """One ``except`` covers the package, and the model/run split is real."""
     for cls in (lps.LanguageError, lps.DataError):
         assert issubclass(cls, lps.LpspecError)
-    for cls in (lps.SchemaError, lps.DimensionError, lps.PiecewiseExpansionError):
+    for cls in (lps.SchemaError, lps.DimensionError):
         assert issubclass(cls, lps.LanguageError)
     assert not issubclass(lps.DataError, lps.LanguageError)
     assert issubclass(lps.LpspecError, ValueError)

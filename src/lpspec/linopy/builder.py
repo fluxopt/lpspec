@@ -382,7 +382,9 @@ def _amount(amount: int | str, ctx: EvaluationContext) -> Any:
     return absence.coefficient(ctx.dataset[amount]) if isinstance(amount, str) else amount
 
 
-def _walked_arrays(node: program.GroupSum | program.Pullback, ctx: EvaluationContext) -> tuple[Any, ...]:
+def _walked_arrays(
+    node: program.GroupSum | program.Pullback | program.PulledBackPredicate, ctx: EvaluationContext
+) -> tuple[Any, ...]:
     """The relation's read columns as arrays over the dimensions its key names, in the order the direction writes them."""
     return tuple(bound_relation(node.direction.name, column, ctx.relations) for column in read_column(node))
 

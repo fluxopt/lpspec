@@ -88,17 +88,12 @@ ACCEPTED = [
     'p_max OR shift(p_max, along=generator, offset=1)',
 ]
 
-#: The one resolved predicate a lowered program never carries: lowering
-#: rewrites every comparison of arithmetic into one of expressions, so no lane
-#: is asked to read it and no where string produces one here.
-NEVER_LOWERED = {'ArithmeticComparison'}
-
 #: Predicates this sweep cannot host, with where they are checked instead. The
 #: sweep masks ``variables.p.where`` on the dispatch model, and a bare variable
 #: name fits neither slot: in a variable's own where it is a self-reference
 #: (rejected at load), and on ``balance`` it spans a dim the constraint does not
 #: (a DimensionError, correctly — reducing it needs an `all`-reduction, #469).
-#: The three relation predicates fit the slot but not the *model*: dispatch
+#: The four relation predicates fit the slot but not the *model*: dispatch
 #: declares no relation, and giving it one changes a fixture the rest of this
 #: file shares. They sweep a network carrying both relation kinds and a partial
 #: one, differentially against the same oracle.
@@ -108,6 +103,7 @@ COVERED_ELSEWHERE = {
     'RelationComparison': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
     'RelationPairComparison': 'tests/test_label_coords.py::test_a_relation_where_agrees_with_the_oracle',
     'RelationDefined': 'tests/test_label_coords.py::test_a_where_reads_a_relation',
+    'PulledBackPredicate': 'tests/test_label_coords.py::test_a_relation_where_agrees_with_the_oracle',
 }
 
 
@@ -149,7 +145,7 @@ def test_every_resolved_predicate_is_parity_tested():
     from math_spec import program, to_program
 
     # resolved-only: the Unresolved* nodes left the union with the parser
-    expected = {t for t in get_args(program.Predicate) if t.__name__ not in NEVER_LOWERED}
+    expected = set(get_args(program.Predicate))
     covered: set[type] = set()
 
     def walk(node):

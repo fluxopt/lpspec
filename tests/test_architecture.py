@@ -450,7 +450,6 @@ PUBLIC_API = {
         'DimensionError',
         'LayoutError',
         'SchemaError',
-        'PiecewiseExpansionError',
         'NoSolutionError',
         'LpspecWarning',
     },

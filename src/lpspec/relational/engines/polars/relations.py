@@ -84,7 +84,7 @@ def landed(mapping: pl.LazyFrame, node: program.GroupSum | program.Pullback) -> 
 def walk_join(
     frame: pl.LazyFrame,
     mapping: pl.LazyFrame,
-    node: program.GroupSum | program.Pullback,
+    node: program.GroupSum | program.Pullback | program.PulledBackPredicate,
     have: Sequence[str],
     columns: Sequence[str] = (),
 ) -> tuple[pl.LazyFrame, tuple[str, ...]]:

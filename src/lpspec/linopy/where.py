@@ -21,7 +21,7 @@ from math_spec import program
 
 from lpspec.errors import DataError, position_out_of_range_message, short_groups_message
 from lpspec.linopy import absence
-from lpspec.linopy.operators import _grouped
+from lpspec.linopy.operators import _grouped, operator_at
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -122,10 +122,6 @@ def _eval_node(node: program.Predicate, ctx: EvaluationContext) -> xr.DataArray:
         defined = left.notnull() & right.notnull()
         return (_PREDICATE_OPS[node.op](left, right) & defined).fillna(value=False).astype(bool)
 
-    if isinstance(node, program.ArithmeticComparison):
-        msg = 'lowering rewrites a comparison of arithmetic into one of expressions, so a program carries none'
-        raise AssertionError(msg)
-
     if isinstance(node, program.CountComparison):
         admitted = _along(evaluate(node.predicate.root), node.over, master_coords)
         return _PREDICATE_OPS[node.op](admitted.sum(node.over), node.value).astype(bool)
@@ -133,6 +129,9 @@ def _eval_node(node: program.Predicate, ctx: EvaluationContext) -> xr.DataArray:
     if isinstance(node, program.TranslatedPredicate):
         operand = _along(evaluate(node.operand.root), node.along, master_coords)
         return operand.shift({node.along: node.offset}, fill_value=False)
+
+    if isinstance(node, program.PulledBackPredicate):
+        return _pulled_back(node, ctx)
 
     if isinstance(node, program.DimensionPosition):
         labels = master_coords[node.name]
@@ -189,6 +188,23 @@ def _value(side: program.Expression, ctx: EvaluationContext) -> xr.DataArray:
 
     value = _eval(side, replace(ctx, absent_parameter=lambda arr: arr))
     return value if isinstance(value, xr.DataArray) else xr.DataArray(value)
+
+
+def _pulled_back(node: program.PulledBackPredicate, ctx: EvaluationContext) -> xr.DataArray:
+    """Where the operand holds at the coarse coordinate the relation maps each fine one to.
+
+    The expression ``at`` answers, so the predicate is read through the relation
+    as an array is. A fine coordinate the relation has no row for reads the
+    absence ``at`` leaves there, which is false in a mask.
+    """
+    # in-function: the builder imports this module
+    from lpspec.linopy.builder import _walked_arrays
+
+    operand = _eval_node(node.operand.root, ctx)
+    for dimension in node.direction.consumed_dims:
+        operand = _along(operand, dimension, ctx.master_coords)
+    read = operator_at(operand, _walked_arrays(node, ctx), into=node.direction.consumed_dims)
+    return read.fillna(value=False).astype(bool)
 
 
 def _along(arr: xr.DataArray, dimension: str, master_coords: Mapping[str, pd.Index]) -> xr.DataArray:
