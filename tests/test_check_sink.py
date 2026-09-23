@@ -12,7 +12,7 @@ import re
 import warnings
 
 import pytest
-from math_spec import to_program, to_spec
+from math_spec import to_spec
 
 import lpspec as lps
 from lpspec.errors import LpspecError, LpspecWarning
@@ -189,4 +189,4 @@ def test_a_refusal_does_not_swallow_the_solver_independent_advice(recwarn):
 
 def _program(spec):
     """The lowered plan a capability question is asked of."""
-    return to_program(to_spec(spec))
+    return to_spec(spec).program

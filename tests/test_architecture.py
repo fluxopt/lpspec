@@ -721,15 +721,15 @@ def test_every_plan_node_is_handled_by_the_compiler():
 
 
 def test_the_model_argument_is_what_the_language_takes_minus_the_lowered_form():
-    """Every verb here opens a model the way ``to_program`` does, less the one shape it refuses.
+    """Every verb here opens a model the way ``to_spec`` does, and a lowered ``Program`` is not one of them.
 
     ``Buildable`` is what ``check``, ``build``, ``solve``, ``write``,
     ``solve_over``, ``Model`` and both linopy-lane verbs annotate their first
-    argument with. It is upstream's union minus ``Program``: lowering has no
-    inverse, so an answer built from one could not name the document it came
-    from and nothing built from one could be archived. Checked here so the
-    copy cannot quietly narrow further, which would refuse a shape the
-    language accepts, or widen, which would promise one this package does not.
+    argument with. It is upstream's union, which holds no ``Program``: lowering
+    has no inverse, so an answer built from one could not name the document it
+    came from and nothing built from one could be archived. Checked here so the
+    copy cannot quietly narrow, which would refuse a shape the language
+    accepts, or widen, which would promise one this package does not.
 
     Textual, and deliberately: upstream's annotation is a string under
     ``from __future__ import annotations`` that ``get_type_hints`` cannot
@@ -741,16 +741,16 @@ def test_the_model_argument_is_what_the_language_takes_minus_the_lowered_form():
     """
     import inspect
 
-    from math_spec import to_program
+    from math_spec import to_spec
 
     def members(annotation: str) -> set[str]:
-        return {part.strip().removeprefix('program.') for part in annotation.split('|')}
+        return {part.strip() for part in annotation.split('|')}
 
-    upstream = members(str(inspect.signature(to_program).parameters['spec'].annotation))
+    upstream = members(str(inspect.signature(to_spec).parameters['model'].annotation))
     ours = members(type_alias_value(PKG / 'lanes.py', 'Buildable'))
-    assert upstream - ours == {'Program'}, (
+    assert upstream == ours and 'Program' not in ours, (
         f'the language takes {sorted(upstream)} and lpspec.lanes.Buildable takes {sorted(ours)} — '
-        f'the one shape this package refuses is the lowered Program, and it refuses no other'
+        f'every shape the language reads a model from, and not the lowered Program'
     )
 
 
@@ -796,24 +796,25 @@ def test_the_sources_argument_is_one_type_at_every_door():
 def test_both_lanes_lower_a_spec_through_one_function():
     """Neither lane accepts a file the other refuses, which is what ``lowered`` is for.
 
-    This package refuses names the language allows — two in one namespace
-    differing only by case — so lowering is where that verdict is reached. A
-    module calling ``to_program`` itself would reach a different one, and the
-    lanes would disagree about what loads while both docstrings claimed they
-    could not. ``lanes.py`` is the one caller because it is what sits above
-    both.
+    This package refuses what the language allows — two names in one
+    namespace differing only by case, and a ``piecewise:`` block not yet
+    written out — so lowering is where that verdict is reached. A module
+    reading ``.program`` straight off a model it just opened would reach a
+    different one, and the lanes would disagree about what loads while both
+    docstrings claimed they could not. ``lanes.py`` is the one reader because
+    it is what sits above both.
     """
     import ast
 
-    calling = {
+    reading = {
         path.relative_to(PKG).as_posix()
         for path in PKG.rglob('*.py')
         for node in ast.walk(ast.parse(path.read_text()))
-        if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'to_program'
+        if isinstance(node, ast.Attribute) and node.attr == 'program' and isinstance(node.value, ast.Call)
     }
-    assert calling == {'lanes.py'}, (
-        f'to_program is called in {sorted(calling)}; every lane lowers through lanes.lowered, which is '
-        f'what refuses a spec this package cannot write down'
+    assert reading == {'lanes.py'}, (
+        f'a program is read off a freshly opened model in {sorted(reading)}; every lane lowers through '
+        f'lanes.lowered, which is what refuses a spec this package cannot build or write down'
     )
 
 

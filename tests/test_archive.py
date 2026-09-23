@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 import yaml as pyyaml
-from math_spec import to_program, to_spec
+from math_spec import to_spec
 
 import lpspec as lps
 from lpspec.api import attach_readers
@@ -59,7 +59,7 @@ def _archived(spec, sources, out: Path) -> Path:
 
 @pytest.mark.parametrize('name', sorted(PORT_REFERENCES), ids=str)
 def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: str, tmp_path: Path) -> None:
-    program = to_program(expanded(port_spec(name)))
+    program = expanded(port_spec(name)).program
     sources = port_sources(name)
     archive = _archived(expanded(port_spec(name)), sources, tmp_path / 'model.zip')
     spec, unpacked = _question(lps.load_archive(archive, tmp_path / 'out'))
@@ -69,7 +69,7 @@ def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: s
         'and nothing a piecewise block derives'
     )
     before = tidy_sources(program, sources)
-    after = tidy_sources(to_program(spec), unpacked)
+    after = tidy_sources(to_spec(spec).program, unpacked)
     differing = [key for key in before if not before[key].collect().equals(after[key].collect())]
     assert not differing, (
         f'frames that came back changed: {differing} — the archive carries the labels, values and dtypes'
@@ -328,7 +328,7 @@ def test_an_archive_carries_the_answer_beside_the_question(
         loaded = lps.load_archive(tmp_path / 'case.zip', tmp_path / 'case')
 
         assert loaded.answer.objective == solved.objective
-        for name in to_program(to_spec(dispatch_yaml)).variables:
+        for name in to_spec(dispatch_yaml).program.variables:
             assert loaded.answer.primal(name).equals(solved.primal(name))
 
     with lps.solve(*_question(loaded)) as resolved:

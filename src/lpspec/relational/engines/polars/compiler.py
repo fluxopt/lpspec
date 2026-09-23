@@ -390,6 +390,8 @@ class PolarsCompiler:
                 return shaped(e, lambda p: window_fragment(self.scope, p, e, context))
             if isinstance(e, program.Cases):
                 return cases(e)
+            if isinstance(e, program.Named):
+                return ev(e.body)
             assert_never(e)
 
         return ev(expr)

@@ -58,7 +58,7 @@ fail CI on it.
 ## The spec argument
 
 **Every verb takes the spec as a path, a `str`, a `dict` or a `Spec`**: what
-`math_spec.to_program` takes, less the lowered `Program` it returns. So a
+`math_spec.to_spec` takes, which is never a lowered `Program`. So a
 framework that emits declarations never writes a temporary file to run them:
 
 ```python

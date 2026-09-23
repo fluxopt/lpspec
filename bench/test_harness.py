@@ -1310,7 +1310,7 @@ def test_the_generated_declaration_model_is_the_language(label: str, tmp_path: P
     Every arm parses the same YAML, so a generated file the validator refuses
     would kill every rung of the sweep at once, and only at run time.
     """
-    from math_spec import to_program, to_spec
+    from math_spec import to_spec
 
     case = CASES['declarations']
     shape = case.shape(label)
@@ -1318,7 +1318,6 @@ def test_the_generated_declaration_model_is_the_language(label: str, tmp_path: P
     n = shape.sizes['declaration']
     assert len(schema.variables) == n, 'one variable declaration per unit of the swept count'
     assert len(schema.constraints) == n + 1, 'a capacity constraint per declaration, plus one balance'
-    to_program(schema)
 
 
 def test_the_generated_declaration_model_builds(tmp_path: Path) -> None:
@@ -1459,9 +1458,9 @@ def test_the_milp_case_lowers_with_both_domains() -> None:
     and nothing downstream would notice — every sink handles an all-continuous
     model happily.
     """
-    from math_spec import to_program, to_spec
+    from math_spec import to_spec
 
-    program = to_program(to_spec(str(CASES['commitment'].spec)))
+    program = to_spec(str(CASES['commitment'].spec)).program
     domains = {n: v.domain for n, v in program.variables.items()}
     assert domains == {'u': 'binary', 'p': 'continuous'}, (
         'the MILP case must declare one binary and one continuous variable, or vtype streaming goes unmeasured'

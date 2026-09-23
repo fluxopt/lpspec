@@ -81,9 +81,8 @@ def _schema(dims=None, params=None) -> Spec:
 
 def _program(schema: Spec):
     """The plan the loader reads its declarations off, as a build makes one."""
-    from math_spec import to_program
 
-    return to_program(schema)
+    return schema.program
 
 
 def _master_coords(schema: Spec, sources=None) -> dict:
@@ -269,7 +268,7 @@ def _lowered(text, parameters=('p_max',), dimensions=('g',)):
     the language's, and a model with the right names in it is the only handle
     this side of the seam has on one predicate.
     """
-    from math_spec import to_program
+    from math_spec import to_spec
 
     spec = {
         'dimensions': {d: {'dtype': 'int' if d == 't' else 'str'} for d in dimensions},
@@ -277,7 +276,7 @@ def _lowered(text, parameters=('p_max',), dimensions=('g',)):
         'variables': {'x': {'dims': list(dimensions), 'where': text, 'bounds': {'lower': 0, 'upper': 1}}},
         'objective': {'sense': 'minimize', 'expression': 'sum(x)'},
     }
-    program = to_program(spec)
+    program = to_spec(spec).program
     return program, program.variables['x'].where
 
 
@@ -753,13 +752,13 @@ def test_the_lane_values_an_expression_the_file_never_declared(yaml_file):
 
 def test_the_lane_refuses_an_expression_against_a_lowered_program(yaml_file):
     """A Program is what a model lowered to, and lowering does not run backwards."""
-    from math_spec import to_program
+    from math_spec import to_spec
 
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
     m = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
     m.solve(solver_name='highs')
     with pytest.raises(LpspecError, match='lowered Program'):
-        lpspec_linopy.evaluate(m, to_program(path), 'total_gen', dict(EXPRESSION_DATA))
+        lpspec_linopy.evaluate(m, to_spec(path).program, 'total_gen', dict(EXPRESSION_DATA))
 
 
 def test_one_set_of_tables_reaches_both_lanes(dispatch_yaml, dispatch_frame_inputs, tmp_path):

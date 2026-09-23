@@ -122,7 +122,7 @@ call.
 ### The same language, and the same data
 
 **The lane accepts exactly the same language**, which is what makes the oracle
-an oracle. The equality is structural: both lanes run the same `to_program`
+an oracle. The equality is structural: both lanes run the same `lanes.lowered`
 gate. A construct one lane refuses, the other refuses in the same sentence,
 never with a redirection to the other lane.
 

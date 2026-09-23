@@ -21,7 +21,7 @@ from unittest import mock
 import numpy as np
 import polars as pl
 import pytest
-from math_spec import Spec, to_program, to_spec
+from math_spec import Spec, to_spec
 
 import lpspec as lps
 from lpspec.errors import DimensionError
@@ -280,7 +280,7 @@ def test_runtime_is_linopy_free(dispatch_yaml):
     ['path', 'str', 'dict', 'spec'],
 )
 def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispatch_frame_inputs, tmp_path, form):
-    """One first argument across the five verbs, and it is `to_program`'s own.
+    """One first argument across the five verbs, and it is `to_spec`'s own.
 
     A caller who has already read the file hands the `to_spec` back rather
     than the path, and every verb takes it. A lowered `Program` is the one
@@ -314,10 +314,10 @@ def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispa
     )
 
 
-def test_check_and_to_program_need_no_data(dispatch_yaml):
+def test_check_and_the_spec_program_need_no_data(dispatch_yaml):
     """The model stands for itself: the plan is read from the file when
     wanted, never carried on a built model."""
-    for program in (lps.check(dispatch_yaml), to_program(dispatch_yaml)):
+    for program in (lps.check(dispatch_yaml), to_spec(dispatch_yaml).program):
         assert program.variables['p'].dims == ('snapshot', 'generator')
         assert program.parameters['load'].dims == ('snapshot',)
 

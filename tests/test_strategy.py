@@ -1899,19 +1899,19 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     What a worker receives is the document already read, so no slice reads
     the YAML again. Counted at the language's own front door.
     """
-    from math_spec import Spec, lowering
+    from math_spec import Spec, validation
 
     from lpspec import lanes
 
     parsed: list[object] = []
-    original = lowering.to_spec
+    original = validation.to_spec
 
     def spy(model):
         if not isinstance(model, Spec):
             parsed.append(model)
         return original(model)
 
-    monkeypatch.setattr(lowering, 'to_spec', spy)
+    monkeypatch.setattr(validation, 'to_spec', spy)
     monkeypatch.setattr(lanes, 'to_spec', spy)
     with _entered(make_executor()) as executor:
         lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor)

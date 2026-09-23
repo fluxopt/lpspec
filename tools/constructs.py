@@ -19,7 +19,7 @@ twenty-three.
 **Constructs** are read off the **logical plan**, not the YAML text. Grepping
 for ``shift(`` would count a construct inside a macro that never expands, miss
 one a macro introduces, and disagree with itself about whether a bound written
-as ``0`` is a bound. ``to_program`` needs no data, so the plan is available
+as ``0`` is a bound. Lowering needs no data, so the plan is available
 for any model in the repo — and it is what the engine actually builds.
 
 **References** are read off ``examples/ports/references.json``, which is the
@@ -43,7 +43,7 @@ import yaml
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-from math_spec import program, to_program, to_spec
+from math_spec import program, to_spec
 
 ROOT = Path(__file__).resolve().parent.parent
 GALLERY = ROOT / 'docs' / 'examples'
@@ -96,7 +96,7 @@ def constructs(spec: Path) -> set[str]:
     declaration of its own, so it is read off the plan like the rest.
     """
     schema = to_spec(spec)
-    lowered = to_program(schema.expand('piecewise'))
+    lowered = schema.expand('piecewise').program
     nodes = list(walk(lowered))
     used: set[str] = set()
 

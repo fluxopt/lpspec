@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from math_spec import to_program, to_spec
+from math_spec import to_spec
 from math_spec.program import Program
 
-from lpspec.errors import LpspecError
+from lpspec.errors import LanguageError, LpspecError
 from lpspec.relational.sinks.capabilities import Capabilities
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ def declared(spec: Buildable) -> Spec:
             'a lowered Program is not a model this takes. Lowering has no inverse, so an answer from one '
             'could not say which document it came back from, and nothing built from one could be archived. '
             'Pass what it was lowered from — a path, a mapping, or math_spec.to_spec() of either, which is '
-            'the form worth keeping: reading a file costs about ten times what lowering it does. '
+            'the form worth keeping, since it carries its program. '
             'lps.check() still hands back the Program, for reading the plan.'
         )
     return to_spec(spec)
@@ -139,12 +139,12 @@ def _case_collision(program: Program) -> str | None:
 
 
 def lowered(spec: Buildable) -> Program:
-    """*spec* as a program, refusing what this package cannot keep apart.
+    """*spec* as a program, refusing what this package cannot build or keep apart.
 
     Every door lowers through here, so what :func:`check` refuses
-    :func:`build` and an archive refuse too. Nothing is expanded here: the
-    language lowers the model as it arrived, and refuses one still carrying a
-    ``piecewise:`` block naming ``Spec.expand``.
+    :func:`build` and an archive refuse too. Nothing is expanded here: a model
+    still carrying a ``piecewise:`` block is refused, naming ``Spec.expand``,
+    because which formulations to write out is the caller's to say.
 
     Raises:
         LanguageError: A construct outside the streaming language, or a
@@ -152,7 +152,15 @@ def lowered(spec: Buildable) -> Program:
         LpspecError: Two declarations of one namespace whose names differ only
             by case.
     """
-    program = to_program(declared(spec))
+    program = declared(spec).program
+    if program.piecewise:
+        named = ', '.join(f"'{name}'" for name in program.piecewise)
+        raise LanguageError(
+            f'piecewise: {named} states rows rather than being one, and a build reads the rows. Pass '
+            f"spec.expand('piecewise'), which writes each block out as the variables and constraints it states "
+            f'and keeps every sos: block for a sink that takes a set — or spec.expand(), which writes the '
+            f'sets out as binaries and linking rows too.'
+        )
     if (refused := _case_collision(program)) is not None:
         raise LpspecError(refused)
     return program

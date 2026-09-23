@@ -231,7 +231,7 @@ def committed(stem: str, spec: str, declared, sources: dict[str, object]) -> Non
     """
     folder = TABLES / stem
     folder.mkdir(parents=True)
-    for name, source in tidy_sources(math_spec.to_program(declared), sources).items():
+    for name, source in tidy_sources(declared.program, sources).items():
         frame = source.collect() if hasattr(source, 'collect') else source
         if len(frame) and name not in FIRST[spec]:
             frame.sort(frame.columns).with_columns(cs.float().round(12)).write_csv(folder / f'{name}.csv')
@@ -741,7 +741,7 @@ def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
         'attached_nonempty': sorted(
             name for name, table in sources.items() if not hasattr(table, '__len__') or len(table)
         ),
-        'conjuncts': conjunct_verdicts(built_model, math_spec.to_program(spec)),
+        'conjuncts': conjunct_verdicts(built_model, math_spec.to_spec(spec).program),
         'duals': duals(result, n, declared, gc_kinds, REASONS),
         'structure': {
             'rows': [
@@ -837,7 +837,7 @@ def coverage(stamped: dict[str, dict]) -> list[str]:
         gaps.extend(
             f'{name}: no rung feeds {unfed}' for unfed in sorted({*declared.parameters, *declared.relations} - fed)
         )
-        gaps.extend(untested_conjuncts(name, math_spec.to_program(CORPUS / 'examples' / name), stamps))
+        gaps.extend(untested_conjuncts(name, math_spec.to_spec(CORPUS / 'examples' / name).program, stamps))
     return gaps
 
 

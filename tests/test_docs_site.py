@@ -286,6 +286,7 @@ def test_the_plan_table_names_every_expression_node():
             program.Translate(x, 't', 1, wrap=False),
             program.WindowSum(x, 't', 3, wrap=False),
             program.Cases((program.Region(program.Mask(program.BooleanLiteral(True)), x),)),
+            program.Named('e', x),
         )
     }
     assert set(nodes) == {c.__name__ for c in get_args(program.Expression)}, (

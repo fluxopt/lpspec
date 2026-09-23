@@ -245,9 +245,9 @@ outflow.
 There is no adjacency matrix and no hand-written join: the topology is data on
 the dimension.
 
-The two halves of the balance are **named expressions**. Each is substituted
-into the constraint before either backend sees the model, so naming them costs
-nothing at build or solve. What it buys is a constraint that reads as a
+The two halves of the balance are **named expressions**. Each stands in the
+constraint as its name with its body under it, and both backends build the
+body where the name stands, so naming them costs nothing at build or solve. What it buys is a constraint that reads as a
 sentence, and a quantity the solution hands back: `expression('net_inflow')`
 is the net flow at each bus that the balance constrained. One definition serves
 the constraint and the report.

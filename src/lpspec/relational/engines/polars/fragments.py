@@ -262,6 +262,8 @@ def fan_in(expression: program.Expression) -> FanIn:
     Both classes other than ``'one-to-one'`` sum several input slots into an
     output row, so :func:`propagate_absence` runs before them.
     """
+    if isinstance(expression, program.Named):
+        return fan_in(expression.body)
     if isinstance(expression, (program.Sum, program.GroupSum)):
         return 'many-to-one'
     if isinstance(expression, program.WindowSum):

@@ -50,7 +50,7 @@ def build_model(
 
     This mutates *model* in-place, adding variables, constraints and the
     objective as declared in *program*. Nothing is re-checked here: a program
-    is trusted by construction, ``to_program`` having decided every rule the
+    is trusted by construction, loading having decided every rule the
     language can decide without data.
     """
     ctx = EvaluationContext(dataset, master_coords, model, relations, program)
@@ -318,6 +318,9 @@ def _eval(node: program.Expression, ctx: EvaluationContext) -> Any:
 
     if isinstance(node, program.Cases):
         return _cases(node, ctx)
+
+    if isinstance(node, program.Named):
+        return _eval(node.body, ctx)
 
     assert_never(node)
 
