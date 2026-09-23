@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.350](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.349...v0.0.1-alpha.350) (2026-09-23)
+
+
+### Features
+
+* **language:** a where may read a predicate through a relation with at() ([#1718](https://github.com/fluxopt/lpspec/issues/1718)) ([cfaa01b](https://github.com/fluxopt/lpspec/commit/cfaa01bfd880a8550c335e3ff4054992a6a56332))
+
 ## [0.0.1-alpha.349](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.348...v0.0.1-alpha.349) (2026-09-22)
 
 
