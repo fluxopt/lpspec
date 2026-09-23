@@ -10,7 +10,7 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, get_args
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
@@ -592,7 +592,6 @@ def test_every_sink_declares_what_it_can_ingest():
     ``'Native'`` on gurobi silently takes the big-M rewrite instead of the sets
     it branches on.
     """
-    from typing import get_args
 
     from lpspec.relational.sinks import SOLVERS, WRITERS
     from lpspec.relational.sinks.capabilities import (
@@ -621,30 +620,31 @@ def test_every_sink_declares_what_it_can_ingest():
 def test_the_door_gives_every_declared_dimension_dtype_a_column():
     """``sources._DECLARED`` spells the dtype set the language validates.
 
-    A dtype added to ``DIMENSION_DTYPES`` without a polars dtype here would
+    A dtype added to ``DimensionDtype`` without a polars dtype here would
     fail an empty index with a ``KeyError`` rather than at load with a
     sentence.
     """
-    from math_spec import DIMENSION_DTYPES
+    from math_spec.program import DimensionDtype
 
     from lpspec.sources import _DECLARED
 
-    assert set(_DECLARED) == set(DIMENSION_DTYPES), 'the two homes of the dimension dtype vocabulary disagree'
+    assert set(_DECLARED) == set(get_args(DimensionDtype)), 'the two homes of the dimension dtype vocabulary disagree'
 
 
 def test_the_door_accepts_the_declared_parameter_dtype_vocabulary():
     """Every declared dtype has a column table entry, and ``int`` for ``float`` is the only widening.
 
-    A dtype added to ``PARAMETER_DTYPES`` without an entry here would fail at
+    A dtype added to ``ParameterDtype`` without an entry here would fail at
     attach with a ``KeyError`` on the first parameter that declared it, rather
     than at load with a sentence.
     """
-    from math_spec import PARAMETER_DTYPES
+    from math_spec.program import ParameterDtype
 
     from lpspec.sources import _COLUMNS, ACCEPTED_VALUE_TYPES
 
-    assert set(_COLUMNS) == set(PARAMETER_DTYPES), 'the column table and the language disagree'
-    assert set(ACCEPTED_VALUE_TYPES) == set(PARAMETER_DTYPES), 'the accepted table and the language disagree'
+    declared = set(get_args(ParameterDtype))
+    assert set(_COLUMNS) == declared, 'the column table and the language disagree'
+    assert set(ACCEPTED_VALUE_TYPES) == declared, 'the accepted table and the language disagree'
 
     widened = {name: set(types) - set(_COLUMNS[name]) for name, types in ACCEPTED_VALUE_TYPES.items()}
     assert widened == {'float': set(_COLUMNS['int']), 'int': set(), 'bool': set(), 'str': set()}, (
