@@ -474,8 +474,8 @@ that has the concept. Reimplementing a reformulation pass inside the plan is
 rejected: the language writes a formulation out itself (`Spec.expand`), and a
 sink with no SOS concept is handed the model so written rather than a rewrite
 of the built tables. The same rule decides the door: a `piecewise:` block
-states rows nothing lowers, and the language refuses a model still carrying
-one, so a model arrives with its curves expanded, and the sets expanded or not
+states rows nothing lowers, and lpspec refuses a model still carrying one
+rather than writing it out unasked, so a model arrives with its curves expanded, and the sets expanded or not
 as the caller's sinks demand.
 
 **A frame is the boundary in both directions.** `frames.py` recognises a

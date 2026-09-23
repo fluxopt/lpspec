@@ -300,19 +300,18 @@ def test_both_lanes_check_the_declarations_a_formulation_emits(tmp_path):
 
 
 def test_a_curve_left_as_written_is_refused_at_both_doors(tmp_path):
-    """A ``piecewise:`` block states rows nothing here lowers, and the language's refusal names the expansion.
+    """A ``piecewise:`` block is refused rather than written out, and the refusal names the expansion.
 
     Both lanes read a model through one door, so both refuse the same file in
     the same words (hard rule 3), and neither expands it on the caller's
-    behalf: which formulations to write out is the caller's to say, a set
-    being one thing to a sink that takes it and another to one that does not.
+    behalf: nothing writes a formulation out unasked, here or in the language.
     """
     path = tmp_path / 'as_written.yaml'
     path.write_text(NONCONVEX_YAML)
 
-    with pytest.raises(LpspecError, match="piecewise: 'cost_curve' states rows") as relational:
+    with pytest.raises(LpspecError, match="piecewise: 'cost_curve' is still a curve") as relational:
         lps.check(path)
-    with pytest.raises(LpspecError, match="piecewise: 'cost_curve' states rows") as eager:
+    with pytest.raises(LpspecError, match="piecewise: 'cost_curve' is still a curve") as eager:
         lpspec_linopy.build(path, {})
     assert "expand('piecewise')" in str(relational.value) and str(relational.value) == str(eager.value), (
         'one refusal, naming the expansion, on both lanes'

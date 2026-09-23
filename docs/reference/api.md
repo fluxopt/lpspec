@@ -76,8 +76,8 @@ to_spec(spec).to_yaml()  # the review copy — a dict-built spec still gets a fi
 to a verb is not read again.
 
 **A formulation is written out before a verb reads it.** A `piecewise:` block
-states rows nothing lowers, so the language refuses a model still carrying
-one, at every verb, and names the way in: `to_spec(spec).expand('piecewise')` writes each
+states rows nothing lowers, so lpspec refuses a model still carrying one, at
+every verb, rather than writing it out unasked, and names the way in: `to_spec(spec).expand('piecewise')` writes each
 curve out as the variables and constraints it states and keeps every `sos:`
 block, for a sink that branches on a set; `to_spec(spec).expand()` writes the
 sets out too, as binaries and linking rows, which every sink takes. Which of
