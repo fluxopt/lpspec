@@ -2235,7 +2235,7 @@ def test_evaluate_across_a_sweep_refuses_an_expression_that_reads_a_carried_para
     sweep = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll')
     assert sweep.answer.evaluate('sum(p * cost)').height, 'an expression over static data evaluates per slice'
     with pytest.raises(lps.LpspecError, match='carried'):
-        sweep.answer.evaluate('sum(soc_initial)')
+        sweep.answer.evaluate('soc_initial')
 
 
 def test_evaluate_over_the_original_index_reindexes_like_primal(tmp_path):
