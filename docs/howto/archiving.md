@@ -23,7 +23,7 @@ case/
     sources/load.parquet
     …
     sources.parquet               (run, source, digest) — what each of them is
-    answer/objective.parquet      how it terminated, what it reached, when, and under what name
+    answer/record.parquet      how it terminated, what it reached, when, and under what name
     answer/metrics.parquet        what the build and its solves took
     answer/primal/p.parquet       one file per variable
     answer/dual/power_balance.parquet
@@ -152,7 +152,7 @@ archive's own name:
 ```python
 import polars as pl
 
-pl.read_parquet('runs/*/answer/objective.parquet').sort('solved_at')
+pl.read_parquet('runs/*/answer/record.parquet').sort('solved_at')
 ```
 
 The recipes are [reading a directory of runs](warehouse.md).

@@ -112,7 +112,7 @@ def main() -> None:
 
     print('myopic pathway — each period sees only itself, and inherits the last')
     print()
-    print(runs.objective.select('year', 'termination_condition', pl.col('objective').round(0)))
+    print(runs.records.select('year', 'termination_condition', pl.col('objective').round(0)))
     print()
 
     fleet = runs.primal('total', original_index=True).pivot('generator', index='year', values='value')

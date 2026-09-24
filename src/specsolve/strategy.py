@@ -314,9 +314,9 @@ class _Spill:
     """A sweep's answers on disk instead of in memory, one file per slice and name.
 
     Under ``directory``: ``<kind>/<name>/<position>.parquet`` for the frames,
-    the slice key a column of each; ``objective/`` and ``metrics/`` for
+    the slice key a column of each; ``record/`` and ``metrics/`` for
     the record, one row per position. Every file lands under its final name
-    only whole, and the objective file is written last: it is what marks a
+    only whole, and the record file is written last: it is what marks a
     slice done, so one interrupted part way is solved again rather than read
     back short. ``sweep.json`` names the key and the keys, so a directory
     answers for one sweep and another pointed at it is refused; it also
@@ -380,7 +380,7 @@ class _Spill:
         return under / f'{position:06d}.parquet'
 
     def done(self, position: int) -> bool:
-        return self._file('objective', position).exists()
+        return self._file('record', position).exists()
 
     def write(self, position: int, key: Label, answer: _Answer) -> _Answer:
         """*answer*'s frames and record on disk, and the answer with the frames released."""
@@ -390,7 +390,7 @@ class _Spill:
         write_whole(pl.DataFrame([{self.key_name: key, **answer.metrics._asdict()}]), self._file('metrics', position))
         write_whole(
             pl.DataFrame([{self.key_name: key, **answer.meta._asdict()}], schema_overrides=RECORD_SCHEMA),
-            self._file('objective', position),
+            self._file('record', position),
         )
         return replace(answer, primals={}, duals={}, expressions={})
 
@@ -401,7 +401,7 @@ class _Spill:
             LayoutError: A slice whose record or metrics is short of a column
                 or carries one nothing declares.
         """
-        row = pl.read_parquet(self._file('objective', position)).drop(self.key_name).row(0, named=True)
+        row = pl.read_parquet(self._file('record', position)).drop(self.key_name).row(0, named=True)
         held = pl.read_parquet(self._file('metrics', position)).drop(self.key_name).row(0, named=True)
         return _Answer(
             row_of(Record, row, self.directory), row_of(SliceMetrics, held, self.directory), {}, {}, {}, None, {}
@@ -723,7 +723,7 @@ class Runs:
     #: which document every slice answered. A slice that reached no objective
     #: holds null there rather than ``nan``, so the column aggregates over the
     #: slices that solved.
-    objective: pl.DataFrame
+    records: pl.DataFrame
     #: One :class:`~specsolve.relational.parquet.SliceMetrics` per slice, keyed
     #: and in slice order — :meth:`~specsolve.api.Model.diagnostics` one dimension
     #: wider, its counts and clocks only. ``loaded`` says the solver took the
@@ -806,7 +806,7 @@ class Runs:
                         into[name].append(_keyed(frame, key_name, key, key_dtype))
         return cls(
             key_name=key_name,
-            objective=pl.DataFrame(rows, schema_overrides=RECORD_SCHEMA),
+            records=pl.DataFrame(rows, schema_overrides=RECORD_SCHEMA),
             metrics=pl.DataFrame(taken),
             _primals=dict(primals),
             _duals=dict(duals),
@@ -820,7 +820,7 @@ class Runs:
 
     @property
     def keys(self) -> list[Label]:
-        return self.objective[self.key_name].to_list()
+        return self.records[self.key_name].to_list()
 
     def _read(
         self, held: Mapping[str, list[pl.DataFrame]], kind: str, name: str, absent: str | None = None
@@ -836,7 +836,7 @@ class Runs:
         """
         self._held_here()
         if name not in held:
-            raise SpecsolveError(absent or _nothing_to_read(kind, name, held, self.objective))
+            raise SpecsolveError(absent or _nothing_to_read(kind, name, held, self.records))
         return pl.concat(held[name])
 
     def _held_here(self) -> None:
@@ -872,14 +872,14 @@ class Runs:
         if frame is None:
             absent = {'primal': None, 'dual': self._no_duals, 'expression': self._no_expressions.get(name)}[kind]
             held = dict.fromkeys(self._spill.held(kind))
-            raise SpecsolveError(absent or _nothing_to_read(LABELS[kind], name, held, self.objective))
+            raise SpecsolveError(absent or _nothing_to_read(LABELS[kind], name, held, self.records))
         return self._reindexed(frame, original_index=original_index)
 
     def primal(self, name: str, *, original_index: bool = False) -> pl.DataFrame:
         """One variable's values across every slice, the slice key prepended.
 
         A slice that reached no solution contributes no rows, so this can be
-        shorter than the sweep; :attr:`objective` is one row per slice always.
+        shorter than the sweep; :attr:`records` is one row per slice always.
 
         Args:
             name: A variable the sweep's spec declares.
@@ -976,7 +976,7 @@ class Runs:
         if not isinstance(expression, str):
             return no_model
         return (
-            f'{_nothing_to_read(LABELS["expression"], expression, self._expression_names(), self.objective)} {no_model}'
+            f'{_nothing_to_read(LABELS["expression"], expression, self._expression_names(), self.records)} {no_model}'
         )
 
     def _reindexed(self, frame: _Frame, *, original_index: bool) -> _Frame:
@@ -1065,7 +1065,7 @@ class Runs:
 
         The same layout: ``<kind>/<name>/<position>.parquet`` for every
         primal, dual and expression, the slice key a column of each, with
-        ``objective/``, ``metrics/`` and the manifest beside them. So the
+        ``record/``, ``metrics/`` and the manifest beside them. So the
         directory is a spilled sweep: :meth:`scan` reads it, and the call
         that made this sweep, pointed at it with ``spill_to=``, reads it back
         without solving a slice.
@@ -1086,7 +1086,7 @@ class Runs:
             directory,
             self.key_name,
             self.keys,
-            self.objective[self.key_name].dtype,
+            self.records[self.key_name].dtype,
             self._original,
             self._hand_built,
         )
@@ -1096,7 +1096,7 @@ class Runs:
             for kind, held in zip(KINDS, (self._primals, self._duals, self._expressions), strict=True)
         }
         for position, key in enumerate(self.keys):
-            meta = Record(**self.objective.drop(self.key_name).row(position, named=True))
+            meta = Record(**self.records.drop(self.key_name).row(position, named=True))
             taken = SliceMetrics(**self.metrics.drop(self.key_name).row(position, named=True))
             frames = {
                 kind: {name: keyed[key] for name, keyed in names.items() if key in keyed}
@@ -1118,11 +1118,11 @@ class Runs:
         held = {'primal': self._primals, 'dual': self._duals, 'expression': self._expressions}[reader_kind(kind)]
         if not held:
             absent = self._no_duals if kind == 'dual' else None
-            raise SpecsolveError(absent or _nothing_to_read(LABELS[kind], 'anything', held, self.objective))
+            raise SpecsolveError(absent or _nothing_to_read(LABELS[kind], 'anything', held, self.records))
         return tuple(sorted(held))
 
     def __len__(self) -> int:
-        return self.objective.height
+        return self.records.height
 
 
 def _by_key(frames: Sequence[pl.DataFrame], key_name: str) -> dict[Label, pl.DataFrame]:
@@ -1135,24 +1135,24 @@ def _by_key(frames: Sequence[pl.DataFrame], key_name: str) -> dict[Label, pl.Dat
     return {frame[key_name][0]: frame.drop(key_name) for frame in frames if frame.height}
 
 
-def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], objective: pl.DataFrame) -> str:
+def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], records: pl.DataFrame) -> str:
     """The message for *name* having no frame.
 
     A sweep keeps everything every slice produced, so a declared name arrives
     here only when no slice produced it; an undeclared name arrives here too,
     and the two are told apart by what the sweep did hold.
     """
-    conditions = ', '.join(sorted(set(objective['termination_condition'].to_list())))
+    conditions = ', '.join(sorted(set(records['termination_condition'].to_list())))
     if held:
         listed = ', '.join(repr(k) for k in sorted(held))
         return (
             f'no {kind} {name!r} in this sweep — it holds {listed}. '
-            f'If the spec declares it, no slice produced one: all {objective.height} terminated {conditions}.'
+            f'If the spec declares it, no slice produced one: all {records.height} terminated {conditions}.'
         )
     return (
-        f'this sweep holds no {kind} frames at all — every one of its {objective.height} slices '
+        f'this sweep holds no {kind} frames at all — every one of its {records.height} slices '
         f'terminated {conditions}. The fold ran; the models did not solve. '
-        f'runs.objective carries the status of each slice.'
+        f'runs.records carries the status of each slice.'
     )
 
 
@@ -1165,7 +1165,7 @@ def load_runs(directory: str | Path) -> Runs:
     answer, and it owes *directory* nothing afterwards. A sweep larger than
     memory is :func:`scan_runs` instead.
 
-    :attr:`Runs.objective` and :attr:`Runs.metrics` are one row per slice
+    :attr:`Runs.records` and :attr:`Runs.metrics` are one row per slice
     either way, and ``original_index`` works on both, the manifest carrying the
     dimension a window sliced.
 
@@ -1218,11 +1218,11 @@ def scan_runs(directory: str | Path) -> Runs:
     original = found['original']
     no_duals, no_expressions = read_reasons(under)
     key_name = found['key_name']
-    objective = consolidated(under, RECORD_FILE)
+    records = consolidated(under, RECORD_FILE)
     metrics = consolidated(under, METRICS_FILE)
     return Runs(
         key_name=key_name,
-        objective=objective,
+        records=records,
         metrics=metrics,
         _no_duals=no_duals,
         _no_expressions=no_expressions,
@@ -1230,7 +1230,7 @@ def scan_runs(directory: str | Path) -> Runs:
         if original is None
         else _OriginalIndex(original['local'], original['dim'], pl.read_parquet(under / _OWNED_FILE)),
         _hand_built=found['hand_built'],
-        _spill=_Spill(under, key_name, objective[key_name].dtype),
+        _spill=_Spill(under, key_name, records[key_name].dtype),
     )
 
 
@@ -1473,7 +1473,7 @@ def _sweep_evaluator(
     it back per slice.
     """
     carried = set(carry)
-    key_dtype = runs.objective.schema[runs.key_name]
+    key_dtype = runs.records.schema[runs.key_name]
 
     def evaluate(expression: str | Mapping[str, object]) -> pl.DataFrame:
         _refuse_carried(carried, [expressions.lower(spec, expression)])
@@ -1760,7 +1760,7 @@ def _key_column(
 
     Two rules: an axis that cannot name its own key has to be told, and no key
     may be a column the frames already carry — a dimension the spec declares,
-    or one of the fixed names every reader and :attr:`Runs.objective` use. What
+    or one of the fixed names every reader and :attr:`Runs.records` use. What
     a class axis calls its key when it is not told is
     :meth:`EachCoordinate._key_name` and :meth:`EachWindow._key_name`.
 

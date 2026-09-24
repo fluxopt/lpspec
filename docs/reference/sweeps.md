@@ -12,7 +12,7 @@ fold.
 import specsolve as sps
 
 runs = sps.solve_over('spec.yaml', sources, sps.EachCoordinate('scenario'))
-runs.objective  # (scenario, status, termination_condition, objective, has_primal, spec_digest, solved_at, run)
+runs.records  # (scenario, status, termination_condition, objective, has_primal, spec_digest, solved_at, run)
 runs.primal('p')  # (scenario, snapshot, generator, value)
 ```
 
@@ -146,11 +146,11 @@ already hold: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 | Rule | |
 |---|---|
 | **everything a slice produced is kept** | Every variable's primals and every constraint's duals come back through `runs.primal(name)` and `runs.dual(name)`. Each slice's *model* is released as the loop goes, so build peak stays at one slice. |
-| **duals are keyed, never combined** | `runs.dual(name)` has the shape of `runs.primal(name)`; averaging, taking the last or reading one slice alone is yours to do. A slice whose model had an integer variable contributes no duals, and `runs.objective` says which slice. |
+| **duals are keyed, never combined** | `runs.dual(name)` has the shape of `runs.primal(name)`; averaging, taking the last or reading one slice alone is yours to do. A slice whose model had an integer variable contributes no duals, and `runs.records` says which slice. |
 | **expressions are evaluated per slice** | Every declared `expressions:` name is evaluated at each slice's solution and read through `runs.evaluate(name)`, and an expression the file never named through the same verb off a sweep archive. Under `original_index=True` only the rows each window owns survive, so summing the stitched table cannot double-count the lookahead. A quantity *reduced over* the sliced dimension is refused there, and the error names the per-slice read. |
-| **no aggregate objective** | `objective` is a table keyed by slice. Scenarios are a distribution, not a sum, and summing window objectives double-counts the overlap. |
+| **no aggregate objective** | `runs.records` is a table keyed by slice, the objective one of its columns. Scenarios are a distribution, not a sum, and summing window objectives double-counts the overlap. |
 | **the lookahead is `t >= step`** | Overlapping windows return every row they solved, lookahead included. What each window owns is `runs.primal('soc').filter(pl.col('t') < step)`. |
-| **a slice that did not solve contributes no rows** | A `primal` table can be shorter than the sweep. `objective` is always one row per slice and records which did not solve, holding null where a slice reached no objective. |
+| **a slice that did not solve contributes no rows** | A `primal` table can be shorter than the sweep. `records` is always one row per slice and says which did not solve, holding null where a slice reached no objective. |
 | **a window keys as `<dim>_start`** | `EachWindow('snapshot', …)` drops `snapshot` and re-indexes to `into`; the key column `snapshot_start` holds where each window began. |
 | **a hand-built axis names its own key** | A plain list cannot say what its keys are labels *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name on any axis. It is refused only when it collides with a column the tables already carry: a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective`. |
 | **`runs.metrics` says what each slice took** | One `SliceMetrics` per slice, `(key, columns, rows, nonzeros, loaded, attach_seconds, build_seconds, handoff_seconds, solve_seconds)` — the type names the columns ([row types](glossary.md#row-types)), and every clock names its unit. `model.diagnostics()` one dimension wider, its counts and clocks only. `loaded` says the solver took the model from scratch. A serial sweep loads once and pushes values after, so a later `True` is a slice whose data moved a mask; under `executor=` every slice loads. The clocks are that slice's own seconds. In an **archive** the table carries `run` too, so a warehouse of them says which run a slice's cost belongs to. |
@@ -173,8 +173,8 @@ runs.scan('balance', 'dual', original_index=True).collect()  # the same readers,
 | Rule | |
 |---|---|
 | **`scan` is the reader** | `runs.scan(name, kind='primal')` returns `primal`, `dual` or `expression` as a `LazyFrame` over the files, `original_index=` included. On a held sweep it is the same reader made lazy. The frame readers and the exports refuse a spilled sweep and name `scan`. |
-| **one file per slice and name** | `<kind>/<name>/<position>.parquet`, with the slice key a column of each, one type across every file a sweep writes. `objective/` and `metrics/` hold the record, one row per slice; `runs.objective` and `runs.metrics` stay in memory. An **archive** holds those two as one file each, `objective.parquet` and `metrics.parquet`. |
-| **every file lands whole** | A file is written beside its final name and renamed into place. The objective file is written last and marks a slice done, so a slice interrupted part way is solved again rather than read back short. |
+| **one file per slice and name** | `<kind>/<name>/<position>.parquet`, with the slice key a column of each, one type across every file a sweep writes. `record/` and `metrics/` hold the record, one row per slice; `runs.records` and `runs.metrics` stay in memory. An **archive** holds those two as one file each, `record.parquet` and `metrics.parquet`. |
+| **every file lands whole** | A file is written beside its final name and renamed into place. The record file is written last and marks a slice done, so a slice interrupted part way is solved again rather than read back short. |
 | **an interrupted sweep resumes** | Run the same call at the same directory. A slice already there is read back, and under a `carry` its state is read off its file. Only the unfinished slices are built. |
 | **a directory holds one sweep** | `sweep.json` records the key name and the keys, and a different sweep pointed at the directory is refused. Changed data or a changed model is not detected, so delete the directory to solve again. |
 | **the parent writes** | Under `executor=` a worker's answer crosses back to the parent, which writes it. |
@@ -206,7 +206,7 @@ keeping 24, not label 47 of the 48 it solved.
 | **the first slice needs a seed** | `carry` supplies the parameter from the second slice on. The first slice takes it from `sources`, and a sweep whose sources lack it is refused before a slice is taken. |
 | **a carry is checked before anything is read** | The dims come from the YAML and the axis is an argument, so a carry that cannot line up raises before the axis has scanned a source: collapsing two dimensions at once, a parameter over more dimensions than the variable, a dimension the axis does not advance along, no seed. `check` cannot answer this, because `carry` is an argument to the call, not part of the model. |
 | **the last slice carries nothing** | There is no next slice to read it. |
-| **a slice that leaves nothing to carry stops the sweep** | An infeasible window has no level to hand forward. The error names the slice, how it terminated, and the slice left waiting. A sweep without a carry records the slice in `objective` and goes on. |
+| **a slice that leaves nothing to carry stops the sweep** | An infeasible window has no level to hand forward. The error names the slice, how it terminated, and the slice left waiting. A sweep without a carry records the slice in `records` and goes on. |
 | **`carry` excludes `executor`** | A carried value makes slice *i+1* depend on slice *i*, so the call is refused. |
 
 ## Running slices in parallel

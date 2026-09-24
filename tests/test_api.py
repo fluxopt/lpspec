@@ -309,7 +309,7 @@ def test_every_verb_opens_a_model_the_way_the_language_does(dispatch_yaml, dispa
 
     runs = sps.solve_over(spec, dispatch_frame_inputs, [(0, dict(dispatch_frame_inputs))], key_name='draw')
     assert runs.keys == [0], 'a hand-built axis of one slice still runs, whatever the model arrived as'
-    assert runs.objective['objective'].to_list() == pytest.approx([expected], rel=1e-9), (
+    assert runs.records['objective'].to_list() == pytest.approx([expected], rel=1e-9), (
         'and the sweep reaches the answer the one-shot verbs do'
     )
 
@@ -527,7 +527,7 @@ def test_a_saved_solution_says_how_it_terminated(dispatch_solution, tmp_path):
     writes per slice, so a directory per case concatenates.
     """
     out = dispatch_solution.save(tmp_path / 'solution')
-    record = pl.read_parquet(out / 'objective.parquet')
+    record = pl.read_parquet(out / 'record.parquet')
     assert record.columns == [
         'status',
         'termination_condition',
@@ -574,9 +574,9 @@ def test_an_export_writes_the_kinds_the_solve_answered_with(tmp_path):
         'activity',
         'expression',
         'format.json',
-        'objective.parquet',
         'primal',
         'reasons.parquet',
+        'record.parquet',
     ], 'no dual/ — there are none to write, and reasons.parquet is where that is said'
     assert [p.name for p in (out / 'expression').iterdir()] == ['twice.parquet'], 'the one that evaluated'
     assert pl.read_parquet(out / 'expression' / 'twice.parquet')['value'].to_list() == [4.0, 6.0], (
@@ -696,7 +696,7 @@ def test_a_solve_that_left_no_values_loads_back_and_still_has_none(tmp_path):
 def test_a_directory_that_is_not_a_saved_answer_is_refused(tmp_path):
     empty = tmp_path / 'nothing'
     empty.mkdir()
-    with pytest.raises(sps.LayoutError, match=r'objective\.parquet'):
+    with pytest.raises(sps.LayoutError, match=r'record\.parquet'):
         sps.load_result(empty)
 
 

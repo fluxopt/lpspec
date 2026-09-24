@@ -296,9 +296,7 @@ result.to_dataarray('p')  # the same, labelled: .sel / resample / plot
 result.to_dataarray('power_balance', 'dual')  # a price, labelled — every bridge takes kind=
 result.to_dataset()  # every variable by default; names for a subset
 result.to_dataset(kind='dual')  # every dual; one kind per dataset
-result.save(
-    directory
-)  # the whole answer to disk: objective.parquet, primal/ dual/ activity/ expression/, reasons.parquet
+result.save(directory)  # the whole answer to disk: record.parquet, primal/ dual/ activity/ expression/, reasons.parquet
 sps.load_result(directory)  # and back whole, every reader answering what it answered
 sps.scan_result(directory)  # the same, read off the directory as you ask for it
 ```
@@ -321,7 +319,7 @@ xarray, from the `[linopy]` extra.
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
 | **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `save` |
 | **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default. One kind per call |
-| **`save` writes the whole answer** | `objective.parquet` says how the solve terminated — `status`, `termination_condition`, `objective`, `has_primal`, `spec_digest`, `solved_at`, `run` — in the columns a sweep keys per slice, so cases solved apart concatenate. `solved_at` is when the solver returned, in UTC; `run` is the archive's own name and is null until one is written, the name being the publisher's rather than the solve's. A solve that reached no objective writes null there rather than `nan`, so a mean over a set of cases is the mean over the ones that solved. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `activity/<name>.parquet` and `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out, and `reasons.parquet` says why |
+| **`save` writes the whole answer** | `record.parquet` says how the solve terminated — `status`, `termination_condition`, `objective`, `has_primal`, `spec_digest`, `solved_at`, `run` — in the columns a sweep keys per slice, so cases solved apart concatenate. `solved_at` is when the solver returned, in UTC; `run` is the archive's own name and is null until one is written, the name being the publisher's rather than the solve's. A solve that reached no objective writes null there rather than `nan`, so a mean over a set of cases is the mean over the ones that solved. Then `primal/<name>.parquet`, `dual/<name>.parquet`, `activity/<name>.parquet` and `expression/<name>.parquet`. A dual an integer variable made undefined, and an expression this data cannot evaluate, are left out, and `reasons.parquet` says why |
 | **`load_result` reads it back whole** | every reader answers what it answered, and an absence raises the sentence the solve gave. Two session facts do not survive: `kept` reads `nothing`, and a refusal carries the termination condition rather than the solver's verbatim wording. The frames are in memory when it returns, so the directory is free afterwards; `scan_result` is the same answer read as it is asked for, and that one the directory has to outlive ([loading or scanning](#loading-or-scanning)) |
 | **an archive checks itself before it is read against** | a saved answer records which model it answered — the document *and* the numbers — so an archive whose `sources/` were replaced since it was written is refused rather than read. The refusal arrives at the first `evaluate` of a quantity the file never named, which is where the model is rebuilt and the first point a value could come back. Every reader the save wrote is unaffected, being a frame read off disk |
 

@@ -622,7 +622,7 @@ def load_result(directory: str | Path) -> Result:
         on disk.
 
     Raises:
-        LayoutError: A directory holding no ``objective.parquet``, which is
+        LayoutError: A directory holding no ``record.parquet``, which is
             what every answer written there carries, or one whose layout has
             moved since it was written.
     """
