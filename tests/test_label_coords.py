@@ -60,8 +60,8 @@ def test_a_relation_names_the_columns_a_row_is_keyed_by_and_the_ones_they_determ
             'relations': {'gen_bus': {'key': 'generator', 'values': 'bus'}},
         }
     )
-    (declared,) = schema.relations_of('generator').values()
-    assert (declared.key_roles, declared.value_roles) == (('generator',), ('bus',)), (
+    (declared,) = schema.program.relations_of('generator').values()
+    assert (declared.key, declared.values) == (('generator',), ('bus',)), (
         'the declaration fixes which columns identify a row and which they determine, and no direction'
     )
 

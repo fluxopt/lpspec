@@ -49,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--rounds', type=int, default=9, help='timed builds per arm; the minimum is reported')
     args = parser.parse_args(argv)
 
-    from math_spec import to_program, to_spec
+    from math_spec import to_spec
 
     from lpspec.relational.engines.polars import engine as executor_module
     from lpspec.relational.engines.polars.assembly import Assembly
@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     case = bench_cases.CASES[args.case]
     shape = case.shape(args.size)
     schema = to_spec(str(case.spec_path(shape)))
-    program = to_program(schema)
+    program = schema.program
     sources = tidy_sources(program, dict(case.data(shape)))
 
     real_attach = executor_module.attach

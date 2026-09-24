@@ -142,7 +142,7 @@ def test_every_resolved_predicate_is_parity_tested():
     import dataclasses
     from typing import get_args
 
-    from math_spec import program, to_program
+    from math_spec import program, to_spec
 
     # resolved-only: the Unresolved* nodes left the union with the parser
     expected = set(get_args(program.Predicate))
@@ -158,7 +158,7 @@ def test_every_resolved_predicate_is_parity_tested():
                 walk(child)
 
     for where in ACCEPTED:
-        mask = to_program(override(DISPATCH_SPEC, **{'variables.p.where': where})).variables['p'].where
+        mask = to_spec(override(DISPATCH_SPEC, **{'variables.p.where': where})).program.variables['p'].where
         walk(None if mask is None else mask.root)
     covered |= {t for t in expected if t.__name__ in COVERED_ELSEWHERE}
 

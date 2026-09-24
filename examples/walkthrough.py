@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import polars as pl
-from math_spec import Spec, to_program, to_spec
+from math_spec import Spec, to_spec
 
 import lpspec as lps
 from lpspec.relational.engines.polars.engine import PolarsEngine
@@ -105,21 +105,21 @@ def validated_model() -> Spec:
 
 
 def expanded_ast(schema: Spec) -> None:
-    """Stage 2 — macros and named expressions substituted away.
+    """Stage 2 — macros substituted away, named expressions kept as nodes.
 
     Hard rule 1: the core AST is the whole language. Everything above it is
     pure substitution, which is why a macro costs nothing and cannot make the
     two lanes disagree — neither lane ever sees one. A named expression is
-    substituted the same way wherever a constraint uses it, but its name
-    survives on the model: stage 6 reads it back at the solution.
+    not substituted: it stands as one node wherever a constraint uses it, its
+    body under it, and stage 6 reads it back by name at the solution.
 
     Substitution is the language's own business, and so are the passes that do
     it: this asks ``math_spec`` for the finished AST rather than walking it
     through their stages, which are math-spec's to rearrange.
     """
-    banner(2, 'expand macros / named expressions -> core AST', 'math_spec.to_program')
+    banner(2, 'expand macros -> core AST', 'Spec.program')
     objective_text = schema.objective.expression
-    core = to_program(schema).objective.expression
+    core = schema.program.objective.expression
     print(f'    written      {objective_text!r}')
     print(f'    core AST     {core}')
     print('                 ^ the macro is gone: sum(p * cost, over=generator)')
@@ -133,8 +133,8 @@ def relational_ir(schema: Spec) -> Any:
     needs no data, which is what makes ``lps.check()`` a CI verb for spec
     repositories: compile the math, bind nothing.
     """
-    banner(3, 'a spec -> the program both lanes build from', 'math_spec.to_program')
-    program = to_program(schema)
+    banner(3, 'a spec -> the program both lanes build from', 'Spec.program')
+    program = schema.program
     print('    Program(')
     for name, decl in (*program.variables.items(), *program.constraints.items()):
         print(f'      {name}: {decl}')

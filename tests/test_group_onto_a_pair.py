@@ -30,7 +30,6 @@ model whose technologies are deliberately not alphabetical.
 from __future__ import annotations
 
 import pytest
-from math_spec import to_program
 from math_spec.program import GroupSum, Variable
 
 from lpspec.errors import SchemaError
@@ -241,7 +240,7 @@ def test_two_columns_lower_to_one_node_and_not_to_a_composition():
     A composition would consume `generator` twice, and the second pass would
     have nothing left to group.
     """
-    (limit, _demand) = to_program(schema_of(SPEC)).constraints.values()
+    (limit, _demand) = schema_of(SPEC).program.constraints.values()
     assert isinstance(limit.lhs, GroupSum)
     assert limit.lhs.operand == Variable('p')
     direction = limit.lhs.direction

@@ -20,10 +20,10 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 import pytest
-from math_spec import to_program
 from math_spec.program import (
     Add,
     GroupSum,
+    Named,
     Negate,
     Variable,
 )
@@ -79,11 +79,13 @@ def _flatten(expr):
         return _flatten(expr.left) + _flatten(expr.right)
     if isinstance(expr, Negate):
         return _flatten(expr.operand)
+    if isinstance(expr, Named):
+        return _flatten(expr.body)
     return [expr]
 
 
 def test_sum_lowers_to_one_node_per_injection_term():
-    program = to_program(schema_of(TRANSPORT_YAML))
+    program = schema_of(TRANSPORT_YAML).program
 
     (c,) = program.constraints.values()
     assert c.dims == ('snapshot', 'bus')
@@ -108,7 +110,7 @@ def test_sum_lowers_to_one_node_per_injection_term():
 
 def _relationally(data):
     schema = schema_of(TRANSPORT_YAML)
-    program = to_program(schema)
+    program = schema.program
     with PolarsEngine() as engine:
         engine.build(program, tidy_sources(program, data))
 

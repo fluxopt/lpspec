@@ -24,7 +24,7 @@ from dataclasses import replace
 import numpy as np
 import polars as pl
 import pytest
-from math_spec import Spec, to_program
+from math_spec import Spec
 from math_spec.program import (
     Add,
     Constant,
@@ -165,7 +165,7 @@ _CAP = pl.DataFrame({'f': ['a', 'b'], 'value': [5.0, 5.0]})
 
 
 #: A constant part beside a term, under each operator that acts along a dim the
-#: constant does not carry. `check` accepts every one, `to_program` passes it,
+#: constant does not carry. `check` accepts every one, lowering passes it,
 #: and the eager lane builds and solves it — so the file is sayable and only this
 #: lane is short. #1137, found on `sum(over=)` and true of four of them.
 CONSTANT_BESIDE_A_TERM = {
@@ -1039,7 +1039,7 @@ class TestWhatReachesTheSolverAsAnEntry:
         """
         spec, sources = _network(ends)
         with lps.build(spec, sources) as model:
-            program = to_program(Spec(**spec))
+            program = Spec(**spec).program
             built = model._engine._model
             compiler = PolarsCompiler(Scope(built.program, built.attached, built.variables))
             terms = compiler.expression(next(iter(program.constraints.values())).lhs, 'test').terms
@@ -1070,7 +1070,7 @@ class TestWhatReachesTheSolverAsAnEntry:
             'cost': pl.DataFrame({'i': [0, 1], 'value': [2.0, 3.0]}),
             'lb': pl.DataFrame({'i': [0, 1], 'value': [1.0, 1.0]}),
         }
-        assert _objective_table(to_program(Spec(**base)), sources) == (expected, 2)
+        assert _objective_table(Spec(**base).program, sources) == (expected, 2)
 
     def test_the_objective_aggregate_survives_a_reduction_that_hides_extra_rows(self):
         """A fragment's dims can match the variable's while its rows do not.
@@ -1098,7 +1098,7 @@ class TestWhatReachesTheSolverAsAnEntry:
             ),
             'load': pl.DataFrame({'snapshot': [0, 1], 'value': [5.0, 5.0]}),
         }
-        assert _objective_table(to_program(Spec(**spec)), sources) == ({0: 6.0, 1: 6.0}, 2), (
+        assert _objective_table(Spec(**spec).program, sources) == ({0: 6.0, 1: 6.0}, 2), (
             'one row per column, each carrying the summed price — not three rows of one'
         )
 
@@ -1702,7 +1702,7 @@ def _tidy_cap(names):
     wide = pd.DataFrame([(a, b, v) for (a, b), v in CAPS.items()], columns=[*names, 'value'])
     schema = Spec(**NETWORK)
     buses = {'from_bus': ['n1', 'n2'], 'to_bus': ['n1', 'n2']}
-    frame = tidy_sources(to_program(schema), {'cap': wide, **buses})['cap'].collect()
+    frame = tidy_sources(schema.program, {'cap': wide, **buses})['cap'].collect()
     table = frame.to_dict(as_series=False)
     return dict(zip(zip(table['from_bus'], table['to_bus'], strict=True), table['value'], strict=True))
 

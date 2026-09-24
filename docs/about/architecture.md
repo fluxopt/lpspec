@@ -64,7 +64,7 @@ flowchart TB
     subgraph MS["math-spec — another package, pinned in pyproject.toml: read · expand · resolve · judge · lower"]
         SPEC["<b>Spec</b> — what the file says<br/>fully resolved: names typed, dims checked, degree judged"]
         SPEC --> TS["typesetting/<br/>latex · typst · markdown<br/><i>a consumer, not a stage</i>"]
-        SPEC -->|"to_program"| PLAN["<b>Program</b> — what it means, the narrow waist<br/>the plan both lanes build from<br/>closed from both sides"]
+        SPEC -->|".program"| PLAN["<b>Program</b> — what it means, the narrow waist<br/>the plan both lanes build from<br/>closed from both sides"]
     end
 
     SPEC -->|"the declarations to attach against"| SRC
@@ -134,8 +134,8 @@ does not buy a place among them. A module only one lane reaches is that lane's, 
 24-line contextmanager (`linopy/_notes.py`). See [What counts as
 language](#what-counts-as-language).
 
-**Eligibility is decided by attempting the lowering.** `to_program` returns a
-`Program` or raises `lps.LanguageError`. Both lanes call it, so "neither lane
+**Eligibility is decided by attempting the lowering.** `lanes.lowered` returns
+a `Program` or raises `lps.LanguageError`. Both lanes call it, so "neither lane
 accepts a file the other refuses" is mechanical rather than maintained.
 `linopy/` asks only for the verdict and discards the plan. Errors split model
 from run. Everything under `LanguageError` is decidable without data,
@@ -220,8 +220,8 @@ back a `Program` and every verb accepts a `Spec`. Obtaining either means calling
 choosing to*: a `LanguageError` arrives unbidden out of `lps.solve`.
 
 **Nothing here reads a `Spec`.** Binding, the guards and both lanes take the
-`Program`. A `Spec` reaching a verb is passed straight to
-`math_spec.to_program`. The model *as written* is `math_spec`'s side of the
+`Program`. A verb reads a `Spec` only for the `Program` it carries, through
+`lanes.lowered`. The model *as written* is `math_spec`'s side of the
 line: editing it, dumping it and typesetting it.
 
 **What a verb hands back is part of its signature.** A caller that *wraps* this
@@ -303,7 +303,7 @@ the language's rulebook.
    language. What the engine raises through it is `DataError` and `LaneError`, a
    verdict about the *data* or about this lane's reach.
 3. **One language, two lanes, and they are not fast and slow versions of each
-   other.** Both pass the one `to_program` gate ([above](#thesis)). No operator
+   other.** Both pass the one `lanes.lowered` gate ([above](#thesis)). No operator
    registry exists that could create a divergence. A construct outside the
    language is a load error naming the construct and its rewrite, never a
    redirection to the other lane. What that equality buys is [the
@@ -372,6 +372,7 @@ absence has to be pushed into the operand before the rewrite consumes it
 | `Translate` | `shift(x, along=d, offset=n)` | one-to-one | a remap through the dimension's `ord`, modulo its size under `wrap` |
 | `WindowSum` | `sum_back(x, along=d, window=w)` | one-to-many | a row lands at every position whose window reaches it — no aggregate |
 | `Cases` | a named expression's `cases:` block | one-to-one | each region's value cut to its own mask and the fragment lists concatenated |
+| `Named` | the name of an `expressions:` entry | one-to-one | its body, compiled where the name stands |
 
 A `Cases` is the one node carrying a **mask in a value position**. It is also
 the one whose several values are alternatives rather than slots summed together.
@@ -473,8 +474,8 @@ that has the concept. Reimplementing a reformulation pass inside the plan is
 rejected: the language writes a formulation out itself (`Spec.expand`), and a
 sink with no SOS concept is handed the model so written rather than a rewrite
 of the built tables. The same rule decides the door: a `piecewise:` block
-states rows nothing lowers, and the language refuses a model still carrying
-one, so a model arrives with its curves expanded, and the sets expanded or not
+states rows nothing lowers, and lpspec refuses a model still carrying one
+rather than expanding it unasked, so a model arrives with its curves expanded, and the sets expanded or not
 as the caller's sinks demand.
 
 **A frame is the boundary in both directions.** `frames.py` recognises a
