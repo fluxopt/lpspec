@@ -33,7 +33,7 @@ from specsolve.errors import DataError, sparse_divisor_message, uncovered_consta
 from specsolve.relational.collect import polars_engine
 from specsolve.relational.engines.polars.fragments import constant_scalar, join_on
 from specsolve.relational.engines.polars.predicates import masked
-from specsolve.relational.sinks.tables import SENSE
+from specsolve.relational.sinks.handoff import SENSE
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Sequence

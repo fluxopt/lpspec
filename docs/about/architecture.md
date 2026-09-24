@@ -83,7 +83,7 @@ flowchart TB
             COMP["compiler.py<br/>plan → lazy queries · reads nothing"] --> ENGINE
             ATTACH["attaching.py<br/>→ AttachedSources, frozen"] --> ENGINE["assembly.py + labels.py<br/>assemble the model tables"]
         end
-        ENG --> TABLES["sinks/tables.py<br/>cols · obj · rows · A · sos"]
+        ENG --> TABLES["sinks/handoff.py<br/>cols · obj · rows · A · sos"]
         TABLES --> LPS["sinks/writers/<br/>a file, chosen by suffix<br/>lp_file · mps_file"]
         TABLES --> DIRECT["sinks/solvers/<br/>CSR batches → the solver, chosen by name<br/>highs (ships) · gurobi · xpress (extras)"]
         DIRECT --> SOL["result.py<br/>label join, never dense"]
@@ -420,7 +420,7 @@ declaration is built, and a constraint compiled afterwards has to see it. That
 is the one live registry in the lane, and it is visible in a signature.
 
 **What a build produces is a value too.** `BuiltModel` is frozen: the sink's
-`Tables`, held as one field rather than restated, and the label table each
+`Handoff`, held as one field rather than restated, and the label table each
 declaration owns. What fills during assembly lives on `Assembly`, discarded
 once it has frozen, the compiler with it. So the engine holds one field rather
 than seven, `close()` is one assignment, and a build that raises leaves no
@@ -509,7 +509,7 @@ resolves to. The split is a directory for the reason `engines/` is. **How many
 solvers there are will change; what a solver has to answer will not.** A new
 solver is a module named for it and a line in `SOLVERS`, and nothing above it
 changes. Members share the projection of `cols` and `obj` onto the solver's
-column index, which lives on `Tables`. So two solvers cannot drift into loading
+column index, which lives on `Handoff`. So two solvers cannot drift into loading
 different models. They never share hand-off code, for two reasons. The
 currencies differ: HiGHS and Xpress take the three CSR arrays, gurobipy a matrix
 object. And an optional package must stay off the import path of a caller who
@@ -568,7 +568,7 @@ is structure.
 | `relational/result.py` | what a solve returned: status, objective, the label joins that read values back, and the deferred expression readers |
 | `expressions.py` | expressions spliced into the model as written and lowered with it — what a reader values when the file never named the quantity |
 | `relational/parquet.py` | answers on disk: the `<kind>/<name>` layout a result and a sweep both write, and the writer that lands a file whole |
-| `relational/sinks/tables.py` | what every sink reads and no more: the five tables, the batching scalars, and their projection onto the solver's column index |
+| `relational/sinks/handoff.py` | what every sink reads and no more: the five tables, the batching scalars, and their projection onto the solver's column index |
 | `relational/sinks/capabilities.py` | what a sink can ingest — hard rule 3's *accepts ≠ builds* axis; `lanes.py` declares each **lane** in the same vocabulary |
 | `relational/sinks/` | how a built model leaves, in two families: `solvers/` (one module per solver, chosen by name) and `writers/` (one per format, chosen by suffix) — [README](https://github.com/fluxopt/specsolve/blob/main/src/specsolve/relational/sinks/README.md) |
 | `linopy/__init__.py` | the lane's two verbs: `build` constructing a `linopy.Model`, and `evaluate` valuing an expression at a solved one |

@@ -56,7 +56,7 @@ def test_a_row_with_no_terms_is_not_built_and_is_reported(solver_name, batch_row
     }
     data = {'t': [0, 1, 2], 'g': ['a', 'b'], 'load': pl.DataFrame({'t': [0, 1, 2], 'value': [5.0, 4.0, 6.0]})}
     with sps.build(spec, data) as model:
-        tables = model._engine._model.tables
+        tables = model._engine._model.handoff
         occupied = sorted(set(tables.matrix_block(0, tables.row_count)['row'].to_list()))
         assert occupied == [0, 1], 'the block closes up around the gap'
         assert model.diagnostics().omissions.to_dicts() == [{'constraint': 'balance', 'rows_not_built': 1}]

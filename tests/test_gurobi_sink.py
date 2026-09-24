@@ -1,6 +1,6 @@
 """The ``gurobi`` sink, against the sink that was already here.
 
-Two sinks loading one :class:`Tables` must produce the same model, so
+Two sinks loading one :class:`Handoff` must produce the same model, so
 HiGHS is the oracle for Gurobi the way linopy is the oracle for the math: the
 interesting assertions here are agreements, not values. Where a value *is*
 asserted it comes from ``examples/ports/references.json`` — somebody else's
@@ -85,7 +85,7 @@ def test_block_boundaries_do_not_move_the_answer() -> None:
     neighbouring row rather than dropping them."""
     with sps.build(*CASES['LP']) as model:
         whole = model.solve(solver_name='gurobi')
-        tables = model._engine._model.tables
+        tables = model._engine._model.handoff
         with build_gurobi(tables, batch_rows=1) as sink:
             ragged = sink.run(tables)
         assert ragged.objective == pytest.approx(whole.objective)
@@ -187,7 +187,7 @@ def test_solver_options_land_on_the_environment() -> None:
     """
     with (
         sps.build(*CASES['MIP']) as model,
-        build_gurobi(model._engine._model.tables, solver_options={'TimeLimit': 5.0}) as solver,
+        build_gurobi(model._engine._model.handoff, solver_options={'TimeLimit': 5.0}) as solver,
     ):
         assert solver.handle.Params.TimeLimit == 5.0
 
@@ -196,7 +196,7 @@ def test_build_gurobi_loads_the_model_and_stops() -> None:
     """`bench/`'s seam: the hand-off with no search behind it, so what it
     reports is what was loaded rather than what was solved."""
     with sps.build(*CASES['MIP']) as model:
-        tables = model._engine._model.tables
+        tables = model._engine._model.handoff
         with build_gurobi(tables) as solver:
             m = solver.handle
             assert (m.NumVars, m.NumConstrs) == (tables.column_count, tables.row_count)
@@ -216,7 +216,7 @@ def test_a_dropped_solver_disposes_the_model_it_holds() -> None:
     where a refcount could not have done it.
     """
     with sps.build(*CASES['MIP']) as model:
-        solver = build_gurobi(model._engine._model.tables)
+        solver = build_gurobi(model._engine._model.handoff)
         m = solver.handle
         del solver
         gc.collect()
@@ -227,7 +227,7 @@ def test_a_dropped_solver_disposes_the_model_it_holds() -> None:
 def test_close_disposes_a_model_the_caller_still_holds() -> None:
     """``close()`` is the release, not a hint to the collector — and it is idempotent."""
     with sps.build(*CASES['MIP']) as model:
-        solver = build_gurobi(model._engine._model.tables)
+        solver = build_gurobi(model._engine._model.handoff)
         m = solver.handle
         solver.close()
         solver.close()
@@ -256,7 +256,7 @@ def test_a_load_that_fails_releases_its_environment(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(sink, '_filled', lambda *args: (_ for _ in ()).throw(RuntimeError('mid-load')))
     with sps.build(*CASES['MIP']) as model:
         try:
-            build_gurobi(model._engine._model.tables)
+            build_gurobi(model._engine._model.handoff)
         except RuntimeError:
             events.append('error left')
     assert events[:2] == ['env disposed', 'error left'], (
@@ -268,7 +268,7 @@ def test_the_objective_constant_rides_on_the_model_not_the_answer() -> None:
     """Gurobi has ``ObjCon``, so the constant is part of the model it holds —
     which makes the build seam a complete hand-off rather than a model plus a
     number to remember."""
-    with sps.build(*CASES['MAX']) as model, build_gurobi(model._engine._model.tables) as solver:
+    with sps.build(*CASES['MAX']) as model, build_gurobi(model._engine._model.handoff) as solver:
         assert solver.handle.ObjCon == pytest.approx(5.0)
 
 

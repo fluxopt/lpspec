@@ -801,8 +801,8 @@ def test_a_second_solve_does_not_rewrite_the_first_result(dispatch_yaml, dispatc
         assert first.is_ok
 
         built = model._engine._model
-        negated = replace(built.tables, obj=built.tables.obj.with_columns(-pl.col('coeff')))
-        model._engine._built = replace(built, tables=negated)
+        negated = replace(built.handoff, obj=built.handoff.obj.with_columns(-pl.col('coeff')))
+        model._engine._built = replace(built, handoff=negated)
         second = model.solve()
 
         assert not second.primal('p').sort(key).equals(before), 'the second solve really moved'

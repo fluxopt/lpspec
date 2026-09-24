@@ -335,7 +335,7 @@ def test_sum_over_a_broadcast_dim_still_collapses_its_terms():
     is entitled to reject the whole model, and HiGHS does.
     """
     with sps.build(BROADCAST_GROUP_SUM, BROADCAST_SOURCES) as model:
-        tables = model._engine._model.tables
+        tables = model._engine._model.handoff
         matrix = tables.matrix_block(0, tables.row_count).sort('row', 'col')
         assert matrix.height == 4, 'a column appears twice on a row'
         assert matrix['coeff'].to_list() == [3.0, 5.0, 3.0, 5.0], 'the 1.0 and the 2.0 merged'
@@ -356,7 +356,7 @@ def test_sum_over_a_declared_dim_needs_no_such_collapse():
         },
     )
     with sps.build(spec, BROADCAST_SOURCES) as model:
-        tables = model._engine._model.tables
+        tables = model._engine._model.handoff
         matrix = tables.matrix_block(0, tables.row_count).sort('row', 'col')
         assert matrix.height == 6, 'one entry per (row, generator-on-that-bus), not one per bus'
         assert model.solve().termination_condition == 'optimal'
@@ -400,7 +400,7 @@ def test_an_objective_term_carrying_dims_is_still_summed_per_column():
     so this reads as a plausible answer to a model nobody wrote.
     """
     with sps.build(BROADCAST_OBJECTIVE, BROADCAST_OBJECTIVE_SOURCES) as model:
-        obj = model._engine._model.tables.obj.sort('col')
+        obj = model._engine._model.handoff.obj.sort('col')
         assert obj.height == 3, 'one row per column, not one per (bus, snapshot)'
         assert obj['coeff'].to_list() == [1111.0] * 3, 'sum(w), not w[-1]'
 
@@ -425,7 +425,7 @@ def test_an_objective_over_the_variables_own_dims_keeps_its_coefficients():
     """
     spec = override(BROADCAST_OBJECTIVE, **{'objective.expression': 'sum(y * floor)'})
     with sps.build(spec, BROADCAST_OBJECTIVE_SOURCES) as model:
-        obj = model._engine._model.tables.obj.sort('col')
+        obj = model._engine._model.handoff.obj.sort('col')
         assert obj.height == 3
         assert obj['coeff'].to_list() == [1.0, 2.0, 3.0], 'floor itself, un-summed'
 

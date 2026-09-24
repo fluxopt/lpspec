@@ -136,7 +136,7 @@ class Record(NamedTuple):
     #: halves of its name. Stamped when the archive is written and null until
     #: then.
     run: str | None = None
-    #: :attr:`~specsolve.relational.sinks.tables.Tables.contents` of the model this
+    #: :attr:`~specsolve.relational.sinks.handoff.Handoff.contents` of the model this
     #: answered — the spec *and* its data, where :attr:`spec_digest` is the
     #: document alone. ``None`` for an answer written before this column, and
     #: for one whose result was never asked for it.

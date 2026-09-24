@@ -129,11 +129,11 @@ class PolarsEngine:
         path = Path(path)
         suffix = path.suffix.lower()
         chosen = sinks.writer(suffix)
-        tables = self._model.tables
+        handoff = self._model.handoff
         if (refused := sinks.refusal(self._model.program, suffix)) is not None:
             raise SpecsolveError(refused)
         with _clocked(self._seconds, 'write'):
-            chosen.write(tables, path)
+            chosen.write(handoff, path)
 
     def solve(
         self,
@@ -180,7 +180,7 @@ class PolarsEngine:
         """
         if keep not in KEEPS:
             raise SpecsolveError(unknown_keep_message(keep))
-        tables = self._model.tables
+        handoff = self._model.handoff
         if (refused := sinks.refusal(self._model.program, solver_name)) is not None:
             raise SpecsolveError(refused)
         with _clocked(self._seconds, 'handoff'):
@@ -188,7 +188,7 @@ class PolarsEngine:
                 self._solver.close()
                 self._solver = None
             held = self._solver
-            self._solver = sinks.loaded(held, solver_name, tables, solver_options)
+            self._solver = sinks.loaded(held, solver_name, handoff, solver_options)
             kept: Keep = keep if self._solver is held else 'nothing'
             if kept == 'solver':
                 self._solver.forget()
@@ -196,7 +196,7 @@ class PolarsEngine:
         if self._solver is not held:
             self._loads += 1
         with _clocked(self._seconds, 'solve'):
-            answer = self._solver.run(tables)
+            answer = self._solver.run(handoff)
         assert answer.primal is not None or not answer.status.is_readable, (
             'a readable status must come with a primal vector'
         )
@@ -226,7 +226,7 @@ class PolarsEngine:
             _no_duals=no_duals,
             _dual_rays=rays,
             _no_dual_ray=None if answer.dual_ray is not None else _no_dual_ray_message(answer.status, solver_name),
-            _model_digest=lambda: tables.contents,
+            _model_digest=lambda: handoff.contents,
         )
 
     def contents(self) -> str:
@@ -237,7 +237,7 @@ class PolarsEngine:
         """
         if self._built is None:
             raise SpecsolveError(_no_built_model('to digest'))
-        return self._model.tables.contents
+        return self._model.handoff.contents
 
     def diagnostics(self) -> Diagnostics:
         """What this build and its solves did that the answer does not show.
