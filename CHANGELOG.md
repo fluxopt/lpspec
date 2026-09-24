@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.353](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.352...v0.0.1-alpha.353) (2026-09-24)
+
+
+### Documentation
+
+* data is attached to a spec everywhere, so bound only ever means a limit ([#1728](https://github.com/fluxopt/specsolve/issues/1728)) ([ecf1019](https://github.com/fluxopt/specsolve/commit/ecf1019a6ec1ea68180a2b78abf39671755bd0d1))
+
 ## [0.0.1-alpha.352](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.351...v0.0.1-alpha.352) (2026-09-24)
 
 
