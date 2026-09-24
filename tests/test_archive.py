@@ -599,6 +599,12 @@ def test_an_archive_stamps_its_own_name_and_when_the_solve_returned(
     record = pl.read_parquet(tmp_path / 'out' / 'answer' / 'record.parquet')
 
     assert record['run'].to_list() == ['nightly-2026-09-10'], "the archive's own name, suffix dropped"
+    answer = sps.load_archive(tmp_path / 'nightly-2026-09-10.zip').answer
+    assert answer.record.run == 'nightly-2026-09-10', (
+        'the answer read back carries the name its record was stamped with'
+    )
+    resaved = pl.read_parquet(answer.save(tmp_path / 'plain') / 'record.parquet')
+    assert resaved['run'].to_list() == [None], 'a plain save is not an archive, so it claims no run name'
     assert record['solved_at'].item() == reached, 'and when the solver returned, as the result reports it'
     assert before <= record['solved_at'].item() <= datetime.now(UTC), 'which is a real clock, not a placeholder'
 

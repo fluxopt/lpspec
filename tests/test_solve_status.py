@@ -187,6 +187,22 @@ def test_a_solve_that_left_no_values_writes_the_record_and_no_frames(tmp_path):
     assert record['objective'].to_list() == [None], 'no objective was reached, so the column holds none'
 
 
+@pytest.mark.parametrize('case', ['LP', 'MIP', 'INFEASIBLE'])
+def test_a_result_hands_back_the_row_its_save_writes(case, tmp_path):
+    """`result.record` is the record as a value, so reading it needs no save and no parquet.
+
+    The same row whichever side it is read from: the live result, the file
+    `save` wrote, and the result `load_result` reads back off that file.
+    """
+    with sps.solve(*CASES[case]) as solution:
+        record = solution.record
+        out = solution.save(tmp_path / case)
+    written = Record(**pl.read_parquet(out / 'record.parquet').row(0, named=True))
+    assert record == written, 'the property and the file are one row, not two readings of the solve'
+    assert sps.load_result(out).record == written, 'and a result read back hands back the row it was read from'
+    assert (record.objective is None) == (not record.has_primal), 'null where nothing was reached, never nan'
+
+
 def test_a_case_that_reached_no_objective_does_not_poison_the_others(tmp_path):
     """A directory per case is a table, and in a table an absent number is null.
 

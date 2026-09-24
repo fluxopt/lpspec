@@ -441,6 +441,10 @@ class Result:
     #: where neither: an answer written before the column, or one built by hand.
     #: Read through :meth:`model_digest`, never here.
     _model_digest: str | Callable[[], str] | None = None
+    #: The archive this answer was read back out of, as its record names it.
+    #: ``None`` for a live solve: the name is stamped when an archive is
+    #: written, not when the solver returns.
+    _run: str | None = None
 
     def model_digest(self) -> str | None:
         """Which model this answered — the document and the data it was attached to.
@@ -501,6 +505,24 @@ class Result:
         comparison is not left reading the timestamps of the files.
         """
         return self._solved_at
+
+    @property
+    def record(self) -> Record:
+        """How this solve terminated, as the one row :meth:`save` writes for it.
+
+        The fields above in one value, and the same row a sweep keeps per slice
+        in :attr:`~specsolve.strategy.Sweep.record`. ``objective`` is ``None``
+        rather than ``nan`` where there are no values. Asking computes
+        :meth:`model_digest` once, as a save does.
+        """
+        return Record.of(
+            self.termination_condition,
+            self.objective,
+            has_primal=self.has_primal,
+            spec_digest=self._spec_digest,
+            solved_at=self._solved_at,
+            model_digest=self.model_digest(),
+        )._replace(run=self._run)
 
     @property
     def kept(self) -> Keep:
@@ -766,14 +788,7 @@ class Result:
         out = Path(directory)
         clear_the_answer(out)
         write_format(out)
-        record = Record.of(
-            self.termination_condition,
-            self.objective,
-            has_primal=self.has_primal,
-            spec_digest=self._spec_digest,
-            solved_at=self._solved_at,
-            model_digest=self.model_digest(),
-        )
+        record = self.record._replace(run=None)
         write_whole(pl.DataFrame([record._asdict()], schema_overrides=RECORD_SCHEMA), out / RECORD_FILE)
         if not self._status.is_readable:
             return out

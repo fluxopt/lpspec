@@ -670,6 +670,7 @@ def _answer_under(out: Path, read: Reading) -> Result:
         '_spec_digest': record.spec_digest,
         '_solved_at': record.solved_at,
         '_model_digest': record.model_digest,
+        '_run': record.run,
     }
     if not status.is_readable:
         return Result(status, objective, {}, {}, {}, 'nothing', **carried)

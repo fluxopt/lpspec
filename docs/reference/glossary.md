@@ -217,7 +217,8 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 : The three saved rows, each a `NamedTuple` that names its own columns. Where
   a column is nullable, the type also derives the schema it is written with,
   so an all-null column keeps its own type instead of the one a single row
-  infers. **Record** is how a solve terminated, one per solve. **Metrics** is
+  infers. **Record** is how a solve terminated, one per solve, and what
+  `result.record` hands back. **Metrics** is
   what it took — the sizes, what the sink added to them, the counters and the
   clocks, every clock naming its unit — and is what `archive.metrics` hands
   back ([the attributes](api.md#diagnostics)). **SliceMetrics** is one slice of
@@ -225,9 +226,10 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   `sweep.metrics`.
 
   A **row** is a value and gets a type; a **table** stays a
-  [Table](#the-data). So `Record` and `SliceMetrics` are the rows behind
-  `sweep.record` and `sweep.metrics` rather than what those hand back, and
-  a reader that wants one row of a table asks the frame for it.
+  [Table](#the-data). So a result hands back its one `Record`, while
+  `Record` and `SliceMetrics` are the rows behind `sweep.record` and
+  `sweep.metrics` rather than what those hand back, and a reader that wants
+  one row of a table asks the frame for it.
 
 ## `bound` means one thing
 
