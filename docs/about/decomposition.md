@@ -228,7 +228,7 @@ write this**, which is what [#596](https://github.com/fluxopt/specsolve/issues/5
 settled on.
 
 Each spec is read once above the loop **and built once**, because a cut is a row
-in a parameter table rather than an edit to a file. `sps.build` binds the data
+in a parameter table rather than an edit to a file. `sps.build` attaches the data
 and `update` puts the next iteration's numbers on the model that is already
 there ([glossary](../reference/glossary.md#the-chain)), so parsing, validation
 and the build are paid once per run rather than three times an iteration. The

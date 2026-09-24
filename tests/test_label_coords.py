@@ -452,7 +452,7 @@ def test_a_relation_compares_against_a_label_the_target_lacks():
 def test_a_relation_orders_bytewise_not_by_declaration():
     """Labels order bytewise, whatever order the dimension declared them.
 
-    Binding casts a relation column to the target's `Enum`, which orders by
+    Attaching casts a relation column to the target's `Enum`, which orders by
     *declaration*, so an ordering comparison read off it would answer a
     different question — and silently, since both readings return a mask.
     `south` is declared first here precisely so the two disagree.

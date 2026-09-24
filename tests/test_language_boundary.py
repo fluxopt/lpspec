@@ -76,7 +76,7 @@ def test_outside_the_language_is_a_load_error(patch, match):
     there is the language's inventory and is swept in math-spec's own
     ``test_degree.py``. Asked of ``sps.check`` rather than of
     ``Spec.program``, because the verb is the claim: the affine guard once
-    needed data bound, so ``check`` accepted the model and it blew up at build
+    needed data attached, so ``check`` accepted the model and it blew up at build
     time — useless as a CI verb for exactly the rules it should enforce first.
     A named expression is the same argument one construct along: it is checked
     where the math reads it, so a dual smuggled into the objective through one

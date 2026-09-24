@@ -219,7 +219,7 @@ back a `Program` and every verb accepts a `Spec`. Obtaining either means calling
 **The errors are the only exception**, because a caller meets them *without
 choosing to*: a `LanguageError` arrives unbidden out of `sps.solve`.
 
-**Nothing here reads a `Spec`.** Binding, the guards and both lanes take the
+**Nothing here reads a `Spec`.** Attaching, the guards and both lanes take the
 `Program`. A verb reads a `Spec` only for the `Program` it carries, through
 `lanes.lowered`. The model *as written* is `math_spec`'s side of the
 line: editing it, dumping it and typesetting it.
