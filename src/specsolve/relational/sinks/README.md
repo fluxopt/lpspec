@@ -4,12 +4,12 @@ How a built model leaves the engine — the boxes downstream of the engine in
 [docs/about/architecture.md](../../../../docs/about/architecture.md)'s pipeline, which
 carries the argument for the split. This page is the membership list.
 
-**Two families.** A **solver** takes the tables and runs them; a **writer**
-takes the tables and renders them to a file. Everything else follows.
+**Two families.** A **solver** takes the handoff and runs it; a **writer**
+takes the handoff and renders it to a file. Everything else follows.
 
 | | solvers/ | writers/ |
 |---|---|---|
-| answers | a `Solver` subclass holding one model | `(tables, path) -> None` |
+| answers | a `Solver` subclass holding one model | `(handoff, path) -> None` |
 | chosen by | **name**, at the call — `solver_name='gurobi'` | **suffix**, from the output — `tables.lp` |
 | registry | `SOLVERS`, closed, holding the classes | `WRITERS`, closed |
 | members | `highs.py` (`highspy`, ships), `gurobi.py` (`[gurobi]`: `gurobipy`, `scipy`), `xpress.py` (`[xpress]`), over `base.py` | `lp_file.py`, `mps_file.py` (nothing beyond polars), over `base.py` |
@@ -24,7 +24,7 @@ below, and sharing through it is what stops one leaf importing the other.
 
 The split is by who can answer. `solvers.loaded(held, name, …)` is the whole of
 **reuse or load again**: it keeps a held solver exactly when it is the named
-class whose recorded digest and options match the new tables — and then pushes
+class whose recorded digest and options match the new handoff — and then pushes
 the new numbers onto it — closing and replacing it otherwise. The base records
 that evidence at the load; a subclass owns **the hand-off**:
 
@@ -43,7 +43,7 @@ that evidence at the load; a subclass owns **the hand-off**:
 
 The first three are the family's and identical for everyone; the last seven are a
 member's, and are its own library's shape. Nothing above the family decides
-which solver to keep or checks what one returned — an engine hands over tables
+which solver to keep or checks what one returned — an engine hands over a `Handoff`
 and is given an answer.
 
 So a model rebuilt with new numbers (`model.update`) has them pushed onto what
@@ -75,32 +75,32 @@ re-solved after gaining a cut, gains a *row*, so the span check refuses it by
 construction. [#382](https://github.com/fluxopt/specsolve/issues/382) holds what
 has to be answered before this reaches a caller.
 
-The guard is `Tables.structure` — a digest of everything a re-solve may
-not change, recorded by the solver at its load and cached on the tables. **Values are re-pushed, not diffed**: linopy's persistent layer
+The guard is `Handoff.structure` — a digest of everything a re-solve may
+not change, recorded by the solver at its load and cached on the handoff. **Values are re-pushed, not diffed**: linopy's persistent layer
 (`persistent/diff.py`) computes a delta against a snapshot of the previous
 model, where here the previous model is released before the new one exists, that
 release being what keeps an updated build at one model's peak. What a diff would
 need is exactly what is not kept.
 
-`tables.py` is what both read. Neither family imports the other and no member
+`handoff.py` is what both read. Neither family imports the other and no member
 imports a sibling — `tests/test_architecture.py` reads all of that off the
 path, which is what keeps `gurobipy` off the import path of a caller who
 solves with HiGHS.
 
 ## The contract
 
-A sink takes a `Tables` and nothing else: the frames `cols`
+A sink takes a `Handoff` and nothing else: the frames `cols`
 (col, lb, ub, vtype), `obj` (col, coeff), `rows` (row, sense, rhs), `matrix`
 (row, col, coeff) and `sos` (set, type, col, weight), plus the counts it
 chunks by and the objective's sense and constant — those last two live outside
-the tables because a constant has no column to attach to.
+the frames because a constant has no column to attach to.
 
-A sink never learns how the tables were filled, and the engine never learns
-how they are drained. That is the point: `mps_file.py` is a module beside
+A sink never learns how the handoff was filled, and the engine never learns
+how it is drained. That is the point: `mps_file.py` is a module beside
 `lp_file.py`, not another method on `PolarsEngine`.
 
 The one thing sinks may share is a *projection* of those frames, never a step
-of the work — `Tables.dense_columns`, which every solver reads — or a
+of the work — `Handoff.dense_columns`, which every solver reads — or a
 family `base`, which holds no member's own answer: `solvers/base.py` is the
 lifecycle without a solver in it, `writers/base.py` the three renderings
 without a format in them.

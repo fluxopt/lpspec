@@ -157,12 +157,12 @@ def model_frames(engine: PolarsEngine, schema: Spec, program: Any) -> None:
     """
     banner(4, 'plan + data -> the model frames', 'relational/engines/polars/engine.py')
     engine.build(program, tidy_sources(program, SOURCES))
-    tables = engine._model.tables
+    handoff = engine._model.handoff
     for name, frame in (
-        ('cols', tables.cols),
-        ('obj', tables.obj),
-        ('rows', tables.rows),
-        ('A', tables.matrix),
+        ('cols', handoff.cols),
+        ('obj', handoff.obj),
+        ('rows', handoff.rows),
+        ('A', handoff.matrix),
     ):
         print(f'    {name:<20} {frame.height:>4} rows')
     print('\n    cols/rows/A/obj = the LP itself, in COO form:')

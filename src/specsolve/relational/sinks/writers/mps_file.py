@@ -22,11 +22,11 @@ import numpy as np
 import polars as pl
 
 from specsolve.relational.sinks.capabilities import Capabilities
-from specsolve.relational.sinks.tables import SENSE_CODES, ranges
+from specsolve.relational.sinks.handoff import SENSE_CODES, ranges
 from specsolve.relational.sinks.writers.base import chunk_key, digits, number, sink
 
 if TYPE_CHECKING:
-    from specsolve.relational.sinks.tables import Tables
+    from specsolve.relational.sinks.handoff import Handoff
 
 
 #: The sections this writer emits, and nothing beyond them. MPS spells a
@@ -48,45 +48,45 @@ _MARKER = "    MARKER 'MARKER' '{}'"
 EMIT_BUDGET = 500_000
 
 
-def write_mps_file(tables: Tables, path: str | Path) -> None:
+def write_mps_file(handoff: Handoff, path: str | Path) -> None:
     """Write the model as MPS text.
 
     ``COLUMNS`` streams a column range at a time off the sorted matrix; every
     other section streams straight off the frame it renders, sorting nothing.
     """
     path = Path(path)
-    entries, starts = _column_major(tables)
+    entries, starts = _column_major(handoff)
 
     with open(path, 'wb') as f:
         f.write(b'NAME\n')
-        if tables.objective_sense == 'maximize':
+        if handoff.objective_sense == 'maximize':
             f.write(b'OBJSENSE\n    MAX\n')
 
         f.write(b'ROWS\n N  obj\n')
-        sink(_row_lines(tables), f)
+        sink(_row_lines(handoff), f)
 
         f.write(b'COLUMNS\n')
-        width = tables.matrix.height / max(1, tables.column_count)
-        for lo, hi in ranges(tables.column_count, EMIT_BUDGET, width):
+        width = handoff.matrix.height / max(1, handoff.column_count)
+        for lo, hi in ranges(handoff.column_count, EMIT_BUDGET, width):
             owned = entries.slice(int(starts[lo]), int(starts[hi] - starts[lo]))
-            sink(_column_lines(tables, lo, hi, owned), f)
+            sink(_column_lines(handoff, lo, hi, owned), f)
 
         f.write(b'RHS\n')
-        if tables.objective_constant:
-            f.write(f'    rhs obj {-tables.objective_constant!r}\n'.encode())
-        sink(_rhs_lines(tables), f)
+        if handoff.objective_constant:
+            f.write(f'    rhs obj {-handoff.objective_constant!r}\n'.encode())
+        sink(_rhs_lines(handoff), f)
 
         f.write(b'BOUNDS\n')
-        _write_bounds(tables, f)
+        _write_bounds(handoff, f)
 
-        if tables.sos.height:
+        if handoff.sos.height:
             f.write(b'SOS\n')
-            sink(_set_lines(tables), f)
+            sink(_set_lines(handoff), f)
 
         f.write(b'ENDATA\n')
 
 
-def _column_major(tables: Tables) -> tuple[pl.DataFrame, np.ndarray[tuple[int, ...], np.dtype[np.int64]]]:
+def _column_major(handoff: Handoff) -> tuple[pl.DataFrame, np.ndarray[tuple[int, ...], np.dtype[np.int64]]]:
     """The matrix in ``(col, row)`` order, and where each column's entries begin.
 
     This module's own CSR, by column — computed rather than asked of the
@@ -96,14 +96,14 @@ def _column_major(tables: Tables) -> tuple[pl.DataFrame, np.ndarray[tuple[int, .
     The sort is the format's: a column's entries have to reach consecutive
     lines.
     """
-    entries = tables.matrix_block(0, tables.row_count).sort('col', 'row')
-    counts = np.bincount(entries['col'].to_numpy(), minlength=tables.column_count)
+    entries = handoff.matrix_block(0, handoff.row_count).sort('col', 'row')
+    counts = np.bincount(entries['col'].to_numpy(), minlength=handoff.column_count)
     return entries, np.concatenate(([0], np.cumsum(counts)))
 
 
-def _row_lines(tables: Tables) -> pl.LazyFrame:
+def _row_lines(handoff: Handoff) -> pl.LazyFrame:
     """One ``ROWS`` entry per constraint row, after the objective's ``N``."""
-    return tables.rows.lazy().select(
+    return handoff.rows.lazy().select(
         pl.concat_str(
             pl.lit(' '),
             pl.col('sense').replace_strict(_MPS_SENSE, return_dtype=pl.String),
@@ -113,14 +113,14 @@ def _row_lines(tables: Tables) -> pl.LazyFrame:
     )
 
 
-def _rhs_lines(tables: Tables) -> pl.LazyFrame:
+def _rhs_lines(handoff: Handoff) -> pl.LazyFrame:
     """Each row's right-hand side, in row order."""
-    return tables.rows.lazy().select(
+    return handoff.rows.lazy().select(
         pl.concat_str(pl.lit('    rhs c'), digits(pl.col('row')), pl.lit(' '), number(pl.col('rhs')))
     )
 
 
-def _column_lines(tables: Tables, lo: int, hi: int, entries: pl.DataFrame) -> pl.LazyFrame:
+def _column_lines(handoff: Handoff, lo: int, hi: int, entries: pl.DataFrame) -> pl.LazyFrame:
     """Every ``COLUMNS`` line for columns ``[lo, hi)``, one sorted stream.
 
     The LP writer's key trick, transposed: a column's lines occupy ``slots``
@@ -131,20 +131,20 @@ def _column_lines(tables: Tables, lo: int, hi: int, entries: pl.DataFrame) -> pl
     **Every column gets an objective line, coefficient or not**: a column MPS
     never names is a column the reader does not have.
     """
-    slots = tables.row_count + 3
+    slots = handoff.row_count + 3
 
     def _key(within: pl.Expr) -> pl.Expr:
         return chunk_key(pl.col('col'), lo, slots, within)
 
     columns = (
-        tables.cols.lazy()
+        handoff.cols.lazy()
         .slice(lo, hi - lo)
         .with_row_index('col', offset=lo)
         .with_columns(pl.col('col').cast(pl.Int64))
     )
     integral = columns.filter(pl.col('vtype') != 'continuous')
     name = pl.concat_str(pl.lit('    x'), digits(pl.col('col')))
-    cost = columns.join(tables.obj.lazy().with_columns(pl.col('col').cast(pl.Int64)), on='col', how='left').select(
+    cost = columns.join(handoff.obj.lazy().with_columns(pl.col('col').cast(pl.Int64)), on='col', how='left').select(
         _key(pl.lit(1, dtype=pl.Int64)),
         pl.concat_str(name, pl.lit(' obj '), number(pl.col('coeff').fill_null(0.0))).alias('line'),
     )
@@ -165,7 +165,7 @@ def _column_lines(tables: Tables, lo: int, hi: int, entries: pl.DataFrame) -> pl
     return pl.concat([*markers, cost, terms]).sort('key').select('line')
 
 
-def _write_bounds(tables: Tables, f: IO[bytes]) -> None:
+def _write_bounds(handoff: Handoff, f: IO[bytes]) -> None:
     """Every column's lower bound, then every column's upper.
 
     Lower bounds are written first: a reader given every lower bound does not
@@ -174,7 +174,7 @@ def _write_bounds(tables: Tables, f: IO[bytes]) -> None:
     for keyword, unbounded, column in (('LO', 'MI', 'lb'), ('UP', 'PL', 'ub')):
         name = pl.concat_str(pl.lit(' bnd x'), digits(pl.col('col')))
         sink(
-            tables.cols.lazy()
+            handoff.cols.lazy()
             .with_row_index('col')
             .select(
                 pl.when(pl.col(column).is_infinite())
@@ -185,7 +185,7 @@ def _write_bounds(tables: Tables, f: IO[bytes]) -> None:
         )
 
 
-def _set_lines(tables: Tables) -> pl.LazyFrame:
+def _set_lines(handoff: Handoff) -> pl.LazyFrame:
     """Each special-ordered set as its header line and one line per member.
 
     The stream arrives grouped by set and ascending in weight, so a set's
@@ -195,7 +195,7 @@ def _set_lines(tables: Tables) -> pl.LazyFrame:
 
     Written even where the reader may refuse it.
     """
-    members = tables.sos.lazy().with_row_index('ord').with_columns(pl.col('ord').cast(pl.Int64))
+    members = handoff.sos.lazy().with_row_index('ord').with_columns(pl.col('ord').cast(pl.Int64))
     headers = (
         members.group_by('set', maintain_order=True)
         .agg(pl.col('type').first(), pl.col('ord').min())

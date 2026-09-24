@@ -1,11 +1,11 @@
 """Sinks: how a built model leaves the engine. See README.md.
 
-**Two families.** A *solver* takes the tables and runs them (``solvers/``,
-chosen by name); a *writer* renders them to a file (``writers/``, chosen by
+**Two families.** A *solver* takes the handoff and runs it (``solvers/``,
+chosen by name); a *writer* renders it to a file (``writers/``, chosen by
 suffix). They are directories, so ``tests/test_architecture.py`` reads
 membership off the path.
 
-``tables.py`` is what both read, and neither family imports the other.
+``handoff.py`` is what both read, and neither family imports the other.
 ``capabilities.py`` is what both *declare*, and the functions below are where
 a caller's model meets those declarations — the only place the two families are
 asked one question together.
@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING
 from specsolve.errors import SpecsolveError, unknown_name_message
 from specsolve.relational.sinks import capabilities as caps
 from specsolve.relational.sinks.capabilities import spelled
+from specsolve.relational.sinks.handoff import Handoff
 from specsolve.relational.sinks.solvers import SOLVERS, Solver, loaded, solver
-from specsolve.relational.sinks.tables import Tables
 from specsolve.relational.sinks.writers import WRITERS, writer
 
 if TYPE_CHECKING:
@@ -30,8 +30,8 @@ if TYPE_CHECKING:
 __all__ = [
     'SOLVERS',
     'WRITERS',
+    'Handoff',
     'Solver',
-    'Tables',
     'loaded',
     'refusal',
     'sink_capabilities',

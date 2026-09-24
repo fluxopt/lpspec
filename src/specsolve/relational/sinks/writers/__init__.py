@@ -1,7 +1,7 @@
-"""The writer family: the tables in, a file out. See ../README.md.
+"""The writer family: the handoff in, a file out. See ../README.md.
 
 One module per format, chosen by the output's **suffix** — the caller names an
-output, not a writer. Each answers ``(tables, path) -> None``, and streams.
+output, not a writer. Each answers ``(handoff, path) -> None``, and streams.
 """
 
 from __future__ import annotations
@@ -18,9 +18,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from specsolve.relational.sinks.capabilities import Capabilities
-    from specsolve.relational.sinks.tables import Tables
+    from specsolve.relational.sinks.handoff import Handoff
 
-    Write = Callable[[Tables, Path], None]
+    Write = Callable[[Handoff, Path], None]
 
 __all__ = ['WRITERS', 'Writer', 'writer']
 

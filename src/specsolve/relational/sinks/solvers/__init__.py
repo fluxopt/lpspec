@@ -7,7 +7,7 @@ plus ``build_<name>``, the load-only seam `bench/` measures.
 
 What a solver holds between solves, and the rule for keeping it, is
 :mod:`~specsolve.relational.sinks.solvers.base` — the one module a member may read
-besides ``tables.py``.
+besides ``handoff.py``.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from typing import Any
 
-    from specsolve.relational.sinks.tables import Tables
+    from specsolve.relational.sinks.handoff import Handoff
 
 __all__ = ['SOLVERS', 'Solver', 'loaded', 'solver']
 
@@ -60,25 +60,25 @@ def solver(name: str) -> type[Solver]:
 def loaded(
     held: Solver | None,
     name: str,
-    tables: Tables,
+    handoff: Handoff,
     solver_options: Mapping[str, Any] | None = None,
 ) -> Solver:
-    """The solver to run *tables* on — *held* where it may keep what it holds.
+    """The solver to run *handoff* on — *held* where it may keep what it holds.
 
     The whole of "reuse or load again": a caller keeps the solver it is
     handed and nothing else.
 
     *held* is kept exactly when it is the named class holding a model that
     differs from this one in nothing but numbers — same
-    :attr:`~specsolve.relational.sinks.tables.Tables.structure`, same options — and
+    :attr:`~specsolve.relational.sinks.handoff.Handoff.structure`, same options — and
     then the new numbers are pushed onto it.
 
     A solver being replaced is closed here. *name* is resolved first.
     """
     wanted = solver(name)
     if held is not None:
-        if type(held) is wanted and held.keeps(tables, solver_options):
-            held.push(tables)
+        if type(held) is wanted and held.keeps(handoff, solver_options):
+            held.push(handoff)
             return held
         held.close()
-    return wanted(tables, None, solver_options)
+    return wanted(handoff, None, solver_options)

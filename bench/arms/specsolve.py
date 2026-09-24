@@ -59,13 +59,14 @@ def prepare(
     return case.spec_path(case.shape(size)), checked_sources(case, size, paths)
 
 
-def _tables(handle: Any) -> Any:
+def _handoff(handle: Any) -> Any:
     """The built model's frames, wherever the checkout under test keeps them.
 
     ``build`` returns a handle *over* the engine; a checkout from before it
     returned the engine itself, one from before ``BuiltModel`` kept the
-    frames on the engine rather than on a value, and one from before it held
-    the sink's ``Tables`` as a field built them on demand. Written the tolerant way for
+    frames on the engine rather than on a value, one from before it held
+    them as a field built them on demand, and one from before ``handoff``
+    names that field ``tables``. Written the tolerant way for
     the same reason the nonzero count below is optional — the ladder is run
     across checkouts, and a comparison that cannot reach the older one measures
     nothing.
@@ -74,8 +75,8 @@ def _tables(handle: Any) -> Any:
     built = getattr(engine, '_model', None)
     if built is None:
         return engine._tables()
-    tables = built.tables
-    return tables() if callable(tables) else tables
+    handoff = getattr(built, 'handoff', None) or built.tables
+    return handoff() if callable(handoff) else handoff
 
 
 def _counts(tables: Any, *, nonzeros: bool) -> Counts:
@@ -114,13 +115,13 @@ def build_and_emit(sink: str, prepared: tuple[Path, dict[str, str]]) -> Counts:
         elif sink == 'gurobi':
             from specsolve.relational.sinks.solvers.gurobi import build_gurobi
 
-            build_gurobi(_tables(model)).close()
+            build_gurobi(_handoff(model)).close()
         else:
             from specsolve.relational.sinks.solvers.highs import build_highs
 
-            build_highs(_tables(model)).close()
+            build_highs(_handoff(model)).close()
 
-        return _counts(_tables(model), nonzeros=True)
+        return _counts(_handoff(model), nonzeros=True)
 
 
 def _loaded(sink: str, model: Any) -> Any:
@@ -128,10 +129,10 @@ def _loaded(sink: str, model: Any) -> Any:
     if sink == 'gurobi':
         from specsolve.relational.sinks.solvers.gurobi import build_gurobi
 
-        return build_gurobi(_tables(model))
+        return build_gurobi(_handoff(model))
     from specsolve.relational.sinks.solvers.highs import build_highs
 
-    return build_highs(_tables(model))
+    return build_highs(_handoff(model))
 
 
 def window_setup(sink: str, prepared: tuple[Path, dict[str, str]]) -> tuple[tuple[Any, ...], dict[str, Any]]:
@@ -171,8 +172,8 @@ def window(model: Any, solver: Any, sources: dict[str, str]) -> Counts:
     matches either way, so the path taken is the one a driver takes.
     """
     model.update(sources)
-    solver.push(_tables(model))
-    return _counts(_tables(model), nonzeros=True)
+    solver.push(_handoff(model))
+    return _counts(_handoff(model), nonzeros=True)
 
 
 def build_only(prepared: tuple[Path, dict[str, str]]) -> Counts:
@@ -181,7 +182,7 @@ def build_only(prepared: tuple[Path, dict[str, str]]) -> Counts:
 
     spec, sources = prepared
     with sps.build(spec, sources) as model:
-        return _counts(_tables(model), nonzeros=False)
+        return _counts(_handoff(model), nonzeros=False)
 
 
 def objective(prepared: tuple[Path, dict[str, str]]) -> float:
