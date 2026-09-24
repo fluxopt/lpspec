@@ -36,7 +36,7 @@ from specsolve.errors import (
     SpecsolveWarning,
 )
 from specsolve.relational.result import Result
-from specsolve.strategy import EachCoordinate, EachWindow, Runs, load_runs, scan_runs, solve_over
+from specsolve.strategy import EachCoordinate, EachWindow, Sweep, load_sweep, scan_sweep, solve_over
 
 __all__ = [
     'DataError',
@@ -49,21 +49,21 @@ __all__ = [
     'Model',
     'NoSolutionError',
     'Result',
-    'Runs',
     'SchemaError',
     'SolveArchive',
     'SpecsolveError',
     'SpecsolveWarning',
+    'Sweep',
     'SweepArchive',
     'build',
     'check',
     'evaluate',
     'load_archive',
     'load_result',
-    'load_runs',
+    'load_sweep',
     'scan_archive',
     'scan_result',
-    'scan_runs',
+    'scan_sweep',
     'solve',
     'solve_over',
     'write',

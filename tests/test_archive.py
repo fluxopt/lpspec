@@ -666,7 +666,7 @@ def test_a_loaded_archive_owes_the_members_nothing_and_a_scanned_one_owes_them_e
 def test_a_loaded_sweep_archive_answers_the_frame_readers(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    """A `Runs` out of an archive is held or spilled for the reason one out of a fold is.
+    """A `Sweep` out of an archive is held or spilled for the reason one out of a fold is.
 
     `scan_archive` gives the spilled sweep the extracted directory is, which
     is what serves the study too large to hold. `load_archive` gives the held
@@ -681,7 +681,7 @@ def test_a_loaded_sweep_archive_answers_the_frame_readers(
     scanned = sps.scan_archive(tmp_path / 'study.zip', tmp_path / 'study')
 
     assert loaded.answer.primal('p').equals(scanned.answer.scan('p').collect()), 'the same study, read two ways'
-    with pytest.raises(sps.SpecsolveError, match=r'runs\.scan'):
+    with pytest.raises(sps.SpecsolveError, match=r'sweep\.scan'):
         scanned.answer.primal('p')
 
 

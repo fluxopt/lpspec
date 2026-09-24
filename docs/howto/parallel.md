@@ -19,8 +19,8 @@ import specsolve as sps
 def main():
     ctx = multiprocessing.get_context('spawn')  # or 'forkserver'
     with ProcessPoolExecutor(4, mp_context=ctx) as pool:
-        runs = sps.solve_over('spec.yaml', sources, sps.EachCoordinate('scenario'), executor=pool)
-    print(runs.records)
+        sweep = sps.solve_over('spec.yaml', sources, sps.EachCoordinate('scenario'), executor=pool)
+    print(sweep.records)
 
 
 if __name__ == '__main__':  # spawn re-imports your module; without this it recurses
@@ -38,7 +38,7 @@ the sources to a filesystem the workers mount and pass the paths:
 
 ```python
 sources = {'load': '/shared/load.parquet', 'cost': '/shared/cost.parquet', 'p_max': '/shared/p_max.parquet'}
-runs = sps.solve_over('spec.yaml', sources, sps.EachCoordinate('scenario'), executor=client, workers_share_fs=True)
+sweep = sps.solve_over('spec.yaml', sources, sps.EachCoordinate('scenario'), executor=client, workers_share_fs=True)
 ```
 
 `workers_share_fs=True` says the mount is there; without it the paths are
@@ -46,12 +46,12 @@ read here and shipped.
 
 ## Read the sweep back
 
-`runs` reads as it does for a serial sweep, one column wider:
+`sweep` reads as it does for a serial sweep, one column wider:
 
 ```python
-runs.records  # (scenario, status, termination_condition, objective, has_primal, spec_digest)
-runs.primal('p')  # (scenario, snapshot, generator, value)
-runs.metrics  # one row per slice; every slice loaded its own solver
+sweep.records  # (scenario, status, termination_condition, objective, has_primal, spec_digest)
+sweep.primal('p')  # (scenario, snapshot, generator, value)
+sweep.metrics  # one row per slice; every slice loaded its own solver
 ```
 
 A sweep with a `carry` cannot run in parallel, because each slice reads the

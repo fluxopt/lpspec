@@ -103,7 +103,7 @@ def sources() -> dict[str, object]:
 
 
 def main() -> None:
-    runs = sps.solve_over(
+    sweep = sps.solve_over(
         MODEL,
         sources(),
         sps.EachCoordinate('year'),
@@ -112,11 +112,11 @@ def main() -> None:
 
     print('myopic pathway — each period sees only itself, and inherits the last')
     print()
-    print(runs.records.select('year', 'termination_condition', pl.col('objective').round(0)))
+    print(sweep.records.select('year', 'termination_condition', pl.col('objective').round(0)))
     print()
 
-    fleet = runs.primal('total', original_index=True).pivot('generator', index='year', values='value')
-    built = runs.primal('build', original_index=True).pivot('generator', index='year', values='value')
+    fleet = sweep.primal('total', original_index=True).pivot('generator', index='year', values='value')
+    built = sweep.primal('build', original_index=True).pivot('generator', index='year', values='value')
     print('fleet after each period (MW)')
     print(fleet.select('year', pl.col(GENERATORS).round(1)))
     print()
@@ -124,19 +124,19 @@ def main() -> None:
     print(built.select('year', pl.col(GENERATORS).round(1)))
     print()
 
-    _check_the_carry_moved_the_fleet(runs)
+    _check_the_carry_moved_the_fleet(sweep)
     assert fleet['solar'].to_list() == sorted(fleet['solar'].to_list()), 'nothing retires'
     print(f'each period starts from the fleet the last one left, across {len(YEARS)} periods')
 
 
-def _check_the_carry_moved_the_fleet(runs: sps.Runs) -> None:
+def _check_the_carry_moved_the_fleet(sweep: sps.Sweep) -> None:
     """Period *i+1* inherited exactly the fleet period *i* ended with.
 
     `existing` is never read back — it is a parameter, not a variable — so the
     check is on what the model did with it: `total - build` is what the period
     started from, and it must equal the previous period's `total`.
     """
-    totals, builds = runs.primal('total'), runs.primal('build')
+    totals, builds = sweep.primal('total'), sweep.primal('build')
 
     def per_year(frame: pl.DataFrame, year: int) -> list[float]:
         return frame.filter(pl.col('year') == year).sort('generator')['value'].to_list()

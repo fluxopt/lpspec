@@ -34,11 +34,11 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `archive=` on `sps.solve`, `model.solve`, `sps.solve_over` | write the spec, its data and this answer as one zip: [Archiving a model](#archiving-a-model) |
 | `sps.load_archive(path, into=None)` | an archive back whole as a `SolveArchive`, or a `SweepArchive` where its sources were cut |
 | `sps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
-| `sps.load_runs(directory)` | a sweep `runs.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Runs` |
-| `sps.scan_archive` / `scan_result` / `scan_runs` | the same three left on disk and read as they are asked for: [loading or scanning](#loading-or-scanning) |
+| `sps.load_sweep(directory)` | a sweep `sweep.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Sweep` |
+| `sps.scan_archive` / `scan_result` / `scan_sweep` | the same three left on disk and read as they are asked for: [loading or scanning](#loading-or-scanning) |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
 | `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
-| `sps.Model` / `sps.Result` / `sps.Runs` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` |
+| `sps.Model` / `sps.Result` / `sps.Sweep` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` |
 
 ## Errors and warnings
 
@@ -428,7 +428,7 @@ sps.solve(case.spec, case.sources)  # the same question, asked again
 
 **An archive is the spec, its data and its answer**: `model.yaml`,
 `sources/<key>.parquet` for every key the file declares, `sources.parquet`
-digesting those members, `answer/` holding what `result.save` or `runs.save`
+digesting those members, `answer/` holding what `result.save` or `sweep.save`
 writes plus `answer/metrics.parquet`, and `axis.json` for a sweep.
 
 **The suffix decides the container**, as `sps.write`'s does. `.zip` packs the
@@ -462,12 +462,12 @@ The recipes are [archiving a solve](../howto/archiving.md) and
 | **the sources are digested, one row each** | `archive.source_digests` is `(run, source, digest)` for every member of `sources/`, held as `sources.parquet`. Two archives of one document over different numbers agree on `spec_digest` and differ here, and the rows that differ name the input that moved. The digest is of the parquet bytes the archive holds, so two polars versions can write one table to different digests. Reading an archive does not verify them |
 | **the metrics are the solve's, not `save`'s** | `archive.metrics` is a `Metrics` ([the attributes](#diagnostics)), held as `answer/metrics.parquet`. `result.save` writes none: the counters cover the model's whole life, and `solves` says how many solves that is. A sweep's are `archive.answer.metrics`, a `SliceMetrics` per slice |
 | **every row is stamped with `run`** | the archive's own name, on the record, the metrics and the digest table, so a directory of archives reads as one table without parsing paths |
-| **a sweep's archive carries its axis** | as `axis.json`, with the `carry` that chained its slices. `load_archive` returns a `SweepArchive` where the archive carries one and a `SolveArchive` where it does not; `sweep.answer` is a `Runs` and `case.answer` a `Result` |
+| **a sweep's archive carries its axis** | as `axis.json`, with the `carry` that chained its slices. `load_archive` returns a `SweepArchive` where the archive carries one and a `SolveArchive` where it does not; `archived.answer` is a `Sweep` and `case.answer` a `Result` |
 | **a sliced source is archived whole** | one copy carrying every slice's rows, the column the axis cuts on included |
 | **`spill_to=` and `archive=` compose** | the spill is what the archive packs, so a sweep too large to hold is archived without being held |
 | **a hand-built axis is refused** | a list of `(key, sources)` is a set of sources per slice. Archive one solve each. Refused before the first slice is solved |
 | **whether a model can be sliced stays `solve_over`'s question** | asked when the sweep is run, not when it is archived |
-| **a sweep's answer is held or spilled, as the reader says** | `load_archive` reads every slice's frames in, so `runs.primal(name)` answers; `scan_archive` leaves them in the extracted directory for `runs.scan(name)`. `original_index` works on both |
+| **a sweep's answer is held or spilled, as the reader says** | `load_archive` reads every slice's frames in, so `sweep.primal(name)` answers; `scan_archive` leaves them in the extracted directory for `sweep.scan(name)`. `original_index` works on both |
 
 ## Loading or scanning
 
@@ -485,13 +485,13 @@ case = sps.scan_archive('case.zip', 'case/')  # read as asked for, off 'case/'
 | | `load_` | `scan_` |
 |---|---|---|
 | a `Result`'s frames | in memory | a `scan_parquet` per name |
-| a `Runs` | held, so `primal` answers | spilled, so `scan` does and `primal` refuses |
+| a `Sweep` | held, so `primal` answers | spilled, so `scan` does and `primal` refuses |
 | an archive's `sources` | the table each member holds | the path to it |
 | an archive's `into=` | optional; a scratch directory without one | required for a zip, and kept |
 | the directory afterwards | free | has to stay |
 
 **The pairs are `load_archive` / `scan_archive`, `load_result` / `scan_result`
-and `load_runs` / `scan_runs`.** Each pair takes the same arguments, hands back
+and `load_sweep` / `scan_sweep`.** Each pair takes the same arguments, hands back
 the same type, and refuses the same things: a directory holding no answer, and
 an archive whose answer names another model. The one difference is the `into=`
 a zip needs, which the table above gives.
@@ -519,7 +519,7 @@ any of them.
 | `seconds` | cumulative wall-clock seconds per phase, keyed by phase name: `attach`, `build`, `handoff`, `solve`, `write`. `write` is `model.write(path)`'s stream, absent on a model that wrote no file. An archive's own write is no phase of a build and is not clocked |
 
 **`diagnostics()` answers after `close()` too.** A sweep's diagnostics are
-`runs.metrics`, one row per slice ([sweeps](sweeps.md#reading-a-sweep)).
+`sweep.metrics`, one row per slice ([sweeps](sweeps.md#reading-a-sweep)).
 
 **`metrics()` is the scalars as one row**, a `Metrics`. The frames are not in
 it — a range is a table per declaration, which does not fold into a row beside
