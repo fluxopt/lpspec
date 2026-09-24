@@ -76,7 +76,7 @@ SOURCES = {
 }
 
 
-def full_foresight() -> sps.Runs:
+def full_foresight() -> sps.Sweep:
     """One window over the whole horizon — the answer rolling is measured against."""
     return sps.solve_over(
         MODEL,
@@ -85,7 +85,7 @@ def full_foresight() -> sps.Runs:
     )
 
 
-def rolling(steps: int, lookahead: int) -> sps.Runs:
+def rolling(steps: int, lookahead: int) -> sps.Sweep:
     """Windows keeping *steps* coordinates and seeing *lookahead* beyond them.
 
     The carry names no coordinate: `soc` is over `(t)` and `soc_initial` over
@@ -101,7 +101,7 @@ def rolling(steps: int, lookahead: int) -> sps.Runs:
     )
 
 
-def cost_of(runs: sps.Runs) -> float:
+def cost_of(sweep: sps.Sweep) -> float:
     """What the schedule cost, summed over the snapshots each window owns.
 
     A window objective covers its lookahead too, so summing them double-counts.
@@ -109,7 +109,7 @@ def cost_of(runs: sps.Runs) -> float:
     keeps only the rows a window owns — the same quantity the objective
     minimises, never restated in a second language.
     """
-    return float(runs.evaluate('spend', original_index=True)['value'].sum())
+    return float(sweep.evaluate('spend', original_index=True)['value'].sum())
 
 
 def main() -> None:
@@ -121,16 +121,16 @@ def main() -> None:
     print()
 
     for lookahead in (0, 4, 8):
-        runs = rolling(STEP, lookahead)
-        stitched = runs.primal('soc', original_index=True)
+        sweep = rolling(STEP, lookahead)
+        stitched = sweep.primal('soc', original_index=True)
         assert stitched['snapshot'].to_list() == list(range(PERIODS)), 'the stitch must cover the horizon'
 
-        cost = cost_of(runs)
+        cost = cost_of(sweep)
         assert cost >= best - 1e-6, 'rolling cannot beat full foresight'
         assert stitched['value'].max() > 0, 'the store must be used in every schedule'
         print(
             f'rolling  steps={STEP:<3} lookahead={lookahead:<3} '
-            f'windows {len(runs):>2}   cost {cost:>9.2f}   peak soc {stitched["value"].max():>6.1f}'
+            f'windows {len(sweep):>2}   cost {cost:>9.2f}   peak soc {stitched["value"].max():>6.1f}'
             f'   +{100 * (cost - best) / best:>5.1f}%'
         )
 

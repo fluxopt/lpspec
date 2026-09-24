@@ -50,7 +50,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 
 **Answer**
 : What came back, whichever verb asked: a `Result` for one solve, a
-  [`Runs`](#sweeps) for a sweep. `save` writes one as a directory —
+  [`Sweep`](#sweeps) for a sweep. `save` writes one as a directory —
   `record.parquet` for how it terminated, then `primal/`, `dual/`,
   `activity/` and `expression/` — and an archive holds that directory as
   `answer/`.
@@ -86,9 +86,9 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   only what changed. A change that moves a mask rebuilds and solves cold.
 
 **load** · **scan**
-: The two ways a saved answer is read back. `load_result`, `load_runs` and
+: The two ways a saved answer is read back. `load_result`, `load_sweep` and
   `load_archive` read **whole**, so the directory is free afterwards.
-  `scan_result`, `scan_runs` and `scan_archive` read each frame at the call
+  `scan_result`, `scan_sweep` and `scan_archive` read each frame at the call
   that asks for it, so the files have to outlive the value
   ([loading or scanning](api.md#loading-or-scanning)). Never "open".
 
@@ -190,7 +190,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 
 **solve_over** (a sweep)
 : Solve one spec once per slice of an axis and fold the answers into a
-  `Runs`, releasing each slice's model as it goes. A sweep, never a "study"
+  `Sweep`, releasing each slice's model as it goes. A sweep, never a "study"
   ([sweeps](sweeps.md)).
 
 **Axis** · **slice** · **key**
@@ -200,7 +200,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   solved as one model, and its key is the [label](#the-verbs) its rows are
   prefixed with in every table the sweep hands back.
 
-**Runs**
+**Sweep**
 : A sweep's answer: `Result`'s readers one dimension wider, the key column
   first. `original_index=True` reads a table back over the sliced
   dimension's own labels.
@@ -211,10 +211,10 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 
 **held** · **spilled**
 : Where a sweep's frames are. A **held** sweep carries them in memory, and
-  `runs.primal(name)` and the exports — the **frame readers**, the ones that
+  `sweep.primal(name)` and the exports — the **frame readers**, the ones that
   hand back a table — answer off them. A **spilled** sweep left them in a
-  directory, which is what `spill_to=` writes and what `scan_runs` reads: there
-  `runs.scan(name)` is the reader and the frame readers refuse
+  directory, which is what `spill_to=` writes and what `scan_sweep` reads: there
+  `sweep.scan(name)` is the reader and the frame readers refuse
   ([spilling](sweeps.md#spilling-a-sweep-to-disk)).
 
 ## Row types
@@ -228,11 +228,11 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   clocks, every clock naming its unit — and is what `archive.metrics` hands
   back ([the attributes](api.md#diagnostics)). **SliceMetrics** is one slice of
   a sweep's share of that, in its own columns, and is the row behind
-  `runs.metrics`.
+  `sweep.metrics`.
 
   A **row** is a value and gets a type; a **table** stays a
   [Table](#the-data). So `Record` and `SliceMetrics` are the rows behind
-  `runs.record` and `runs.metrics` rather than what those hand back, and
+  `sweep.record` and `sweep.metrics` rather than what those hand back, and
   a reader that wants one row of a table asks the frame for it.
 
 ## `bound` means one thing

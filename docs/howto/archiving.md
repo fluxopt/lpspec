@@ -67,8 +67,8 @@ refuses an `into=`.
 and each frame is read off disk at the call that asks for it:
 
 ```python
-sweep = sps.scan_archive('sweep.zip', 'sweep/')
-sweep.answer.scan('p')  # read at the collect, one name at a time
+archived = sps.scan_archive('sweep.zip', 'sweep/')
+archived.answer.scan('p')  # read at the collect, one name at a time
 ```
 
 Scan the archive that does not fit in memory, and the one you will read
@@ -80,7 +80,7 @@ keep.
 |---|---|---|
 | a source | the table the member holds | the path to it |
 | the answer | frames in memory | read at the call that asks |
-| a sweep's answer | held: `runs.primal('p')` | spilled: `runs.scan('p')` |
+| a sweep's answer | held: `sweep.primal('p')` | spilled: `sweep.scan('p')` |
 | a zip's `into=` | optional, and scratch without one | required, and kept |
 
 ## Read what a solve cost
@@ -107,7 +107,7 @@ with sps.build('dispatch.yaml', sources) as model:
     model.solve(archive='second/')  # solves: 2, and the clocks cover both
 ```
 
-A sweep records each slice's own metrics as `runs.metrics` instead
+A sweep records each slice's own metrics as `sweep.metrics` instead
 ([sweeps](../reference/sweeps.md)).
 
 ## Keep the answer an update produced
@@ -134,14 +134,14 @@ sps.solve_over('dispatch.yaml', sources, axis, spill_to='work/', archive='sweep/
 The archive carries the axis, so the sweep runs again from the file alone:
 
 ```python
-sweep = sps.scan_archive('sweep/')
+archived = sps.scan_archive('sweep/')
 
-sweep.answer.scan('p')  # keyed by scenario, read at the collect
-sps.solve_over(sweep.spec, sweep.sources, sweep.axis)
+archived.answer.scan('p')  # keyed by scenario, read at the collect
+sps.solve_over(archived.spec, archived.sources, archived.axis)
 ```
 
 `scan_archive` reads a sweep back spilled, as `spill_to=` left it.
-`load_archive` reads it back held, where it fits, and `runs.primal('p')`
+`load_archive` reads it back held, where it fits, and `sweep.primal('p')`
 answers on that one.
 
 ## Read a directory of them
