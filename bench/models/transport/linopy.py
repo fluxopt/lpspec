@@ -10,7 +10,7 @@ script keeps one idiom for both halves.
 
 **The incidence matrices are dense**, which is the cost this case exists to
 show: the product they multiply through is bus x generator x snapshot, and at
-the upper rungs that is the eager lane's materialisation problem rather than a
+the upper rungs that is the linopy lane's materialisation problem rather than a
 mistake in the formulation.
 """
 

@@ -8,7 +8,7 @@ across both lanes while `a + b` and `b + a` quietly mean different things.
 Two kinds of case here, and the second is the point:
 
 **Laws** — spellings that must produce the same model. Each is solved through
-``differential`` (eager lane, relational lane, and the LP file re-solve), so a
+``differential`` (linopy lane, relational lane, and the LP file re-solve), so a
 law holding is six numbers agreeing rather than two.
 
 **Non-laws** — spellings that are equal in ordinary algebra and are *not* equal
@@ -471,7 +471,7 @@ def test_a_sparse_divisor_written_as_a_power_is_named_and_refused_on_both_lanes(
 
     `program.children` had no branch for a power, so `d ** 2` hid `d` from every
     walk this package asks the language for a divisor's names. The relational
-    lane named the divisor `''`, and the eager lane found no divisor to check,
+    lane named the divisor `''`, and the linopy lane found no divisor to check,
     filled the missing row with a zero coefficient and built `inf` into the
     matrix with no refusal at all — the two lanes disagreed, and neither answer
     was usable. energy-models/math-spec#403 fixed the walk upstream; this pins

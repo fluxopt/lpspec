@@ -9,7 +9,7 @@ about the laws rather than a second unrelated fact.
 
 Two claims, and the second is the one the curated file could not make:
 
-**Agreement** — each expression builds to one model on the eager lane and the
+**Agreement** — each expression builds to one model on the linopy lane and the
 relational one, over shapes no model in the corpus writes.
 
 **Invariance** — a rewrite that must not change the meaning does not change the
@@ -56,7 +56,7 @@ CENSUS_STEP = 20
 #: Of the 56 cases that samples, what answered and what a lane refused when the
 #: floor and the ceiling were measured (#1213). Every refusal today is the
 #: asymmetry #1137 settled — a `sum` acting along a dimension a constant part of
-#: the expression does not carry, which the eager lane builds and the relational
+#: the expression does not carry, which the linopy lane builds and the relational
 #: one refuses by name. That is decided, so the ceiling is a ratchet against it
 #: spreading rather than a countdown to closing it.
 ANSWERS = 38

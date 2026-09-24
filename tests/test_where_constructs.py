@@ -3,7 +3,7 @@
 Three node kinds arrived together and each reduces something the frame does
 not carry: a comparison of two expressions reads arithmetic, a count reduces a
 dimension away, and a shift reads a predicate at the neighbouring coordinate.
-Every one has two implementations — an array in the eager lane, a query in the
+Every one has two implementations — an array in the linopy lane, a query in the
 streaming one — so each is asserted through the differential harness rather
 than against either lane alone.
 

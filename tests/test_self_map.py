@@ -71,7 +71,7 @@ def test_a_pullback_through_a_self_map_reads_the_representative():
 
     Was: the walk named its value column after the dimension it lands on, which
     for a self-map is the name the key column already holds, so the relational
-    lane met polars' `DuplicateError`; and the eager lane left the labels it
+    lane met polars' `DuplicateError`; and the linopy lane left the labels it
     read as the coordinate, so a row landed at the snapshot it read rather than
     at the one that read it, and linopy refused the mismatch (#1652). Both
     happened after `check` passed, which is what made it a bug rather than a
@@ -93,7 +93,7 @@ def test_a_group_through_a_self_map_sums_the_snapshots_it_represents():
 
     The adjoint of the pullback above, and the direction the two lanes
     disagreed on before the fix (#1652): the relational one raised where the
-    eager one built, so nothing here was checking that what it built was right.
+    linopy one built, so nothing here was checking that what it built was right.
     """
     spec = override(
         raw_of(SPEC),

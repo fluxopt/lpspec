@@ -1,7 +1,7 @@
 # The scaling twin of examples/storage.yaml: `store` takes its members from data
 # instead of the single battery the example carries, so the self-join scales on
 # both axes. The math is the example's — dispatch, plus a cyclic state-of-charge
-# recurrence, which is the one locality class whose relational cost has no eager
+# recurrence, which is the one locality class whose relational cost has no linopy
 # analogue: xarray shifts an array, we join on `snapshot.ord - 1`.
 dimensions:
   snapshot:

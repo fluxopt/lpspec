@@ -341,7 +341,7 @@ def test_at_through_a_null_relation_takes_the_row_with_it():
     returned a result over a short `flow` and linopy v1 refused the next
     combination with a coordinate mismatch.
 
-    Eager-lane only, and the oracle is imported in the body: the differential
+    Linopy-lane only, and the oracle is imported in the body: the differential
     case below carries the relational lane, and reads the same answer off the
     row count as well as the objective.
     """

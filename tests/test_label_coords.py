@@ -189,12 +189,12 @@ def test_a_relation_may_target_a_dimension_nothing_spans_yet(month, extra):
         assert solution.objective == pytest.approx(10.0), 'each period caps its snapshots at 5, so the model builds'
 
 
-@pytest.mark.parametrize('lane', ['relational', 'eager'])
+@pytest.mark.parametrize('lane', ['relational', 'linopy'])
 def test_an_unused_target_still_checks_containment(lane):
     """A map into a dimension no constraint groups by is checked all the same.
 
     On both lanes, because the check now runs where the map is read rather than
-    where each engine holds one — the eager lane never spans `month` either,
+    where each engine holds one — the linopy lane never spans `month` either,
     and used to reach this only through its own copy.
     """
     from tests.oracle import specsolve_linopy
@@ -205,7 +205,7 @@ def test_an_unused_target_still_checks_containment(lane):
         build(_unused_target_spec({'dtype': 'str'}), _unused_target_sources() | short)
 
 
-@pytest.mark.parametrize('lane', ['relational', 'eager'])
+@pytest.mark.parametrize('lane', ['relational', 'linopy'])
 def test_an_unused_target_without_an_index_is_refused_with_the_true_reason(lane):
     """The old message blamed missing data the caller may well have supplied (#488)."""
     from tests.oracle import specsolve_linopy
@@ -217,7 +217,7 @@ def test_an_unused_target_without_an_index_is_refused_with_the_true_reason(lane)
 
 
 def test_both_lanes_read_the_same_index():
-    """The `period_of` relation is read the same way on the eager lane too —
+    """The `period_of` relation is read the same way on the linopy lane too —
     both lanes reach the 6.0 the relational test above asserts.
 
     The oracle is imported in the body rather than at module scope: every other
@@ -318,9 +318,9 @@ def test_a_where_reads_a_relation(where, kept):
     [
         pytest.param('send != recv', 30.0, id='the-two-ring-lines-survive'),
         pytest.param('NOT send != recv', 70.0, id='negated-over-a-partial-relation'),
-        # The two probes for the eager lane's explicit null exclusion. Only a
+        # The two probes for the linopy lane's explicit null exclusion. Only a
         # `!=` reaches it: numpy answers `None != 'north'` with True, so
-        # without it the eager lane keeps exactly `spur` — the line that maps
+        # without it the linopy lane keeps exactly `spur` — the line that maps
         # nowhere — where the relational lane drops it.
         pytest.param("recv != 'north'", 10.0, id='not-equal-over-a-null-value'),
         pytest.param('recv != send', 30.0, id='not-equal-between-two-relations'),
@@ -337,7 +337,7 @@ def test_a_relation_where_agrees_with_the_oracle(where, objective):
     """Both lanes, one answer — the differential half of #553.
 
     A mask reading a relation is a join on the dim table in the relational lane
-    and an array read in the eager one; nothing but this shows they agree on
+    and an array read in the linopy one; nothing but this shows they agree on
     which rows survive, since a wrong mask still solves.
     """
     from tests.differential import differential
@@ -408,7 +408,7 @@ def test_two_relations_into_different_label_sets_cannot_be_compared(extra, where
     """One dimension is necessary but not sufficient — the targets must match too.
 
     A bus label is never a zone label, so the predicate could only mask
-    everything out. It does not even do that consistently: the eager lane
+    everything out. It does not even do that consistently: the linopy lane
     answers `!=` True at every row while polars refuses the Enum mismatch, so
     both lanes accepted the model and then disagreed about it.
     """
@@ -654,7 +654,7 @@ def test_a_supplied_map_does_not_say_which_labels_exist():
         sps.solve(SUPPLIED, {**BASE_SOURCES, 'gen_bus': _RELATION})
 
 
-@pytest.mark.parametrize('lane', ['relational', 'eager'])
+@pytest.mark.parametrize('lane', ['relational', 'linopy'])
 def test_a_supplied_relation_is_refused_the_same_way_on_both_lanes(lane):
     """One defect, one sentence: the checks live in the door both lanes enter."""
     from tests.oracle import specsolve_linopy

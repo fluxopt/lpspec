@@ -2,7 +2,7 @@
 
 examples/storage.yaml is dispatch plus a cyclic battery:
 soc == shift(soc, along=snapshot, offset=1, edge='wrap') + charge * 0.9 - discharge.
-The eager backend implements `edge='wrap'` with linopy's circular .roll(); the
+The linopy backend implements `edge='wrap'` with linopy's circular .roll(); the
 relational backend lowers it to program.Translate — a pointwise ord-join remap.
 """
 
@@ -102,7 +102,7 @@ def test_shift_drops_the_row_it_has_no_predecessor_for_on_both_lanes(storage_inp
     A model that wants one now says so, which is what the declaration rules'
     storage example
     already did with a complementary ``where``. Both lanes are asserted because
-    they reach the drop differently — the eager lane from linopy's absence
+    they reach the drop differently — the linopy lane from linopy's absence
     propagation, the relational one from the vacated coordinates leaving the
     presence set.
     """
@@ -158,7 +158,7 @@ def test_a_forward_shift_with_a_zero_edge_keeps_the_far_row_on_both_lanes(storag
 
 #: A mask that removes one interior coordinate, so the operand's own absence
 #: sits where no edge is. `edge: 0` may fill the boundary and nothing else, and
-#: the two are one call to `fillna` apart on the eager lane (#987).
+#: the two are one call to `fillna` apart on the linopy lane (#987).
 MASKED_INTERIOR = masked_operand_spec('link', 'take <= shift(level, along=t, offset=1, edge=0)')
 
 
@@ -271,7 +271,7 @@ def test_a_coordinate_the_relation_sends_nowhere_is_absent_rather_than_vacated()
     (#969, `sum(by=)`, `at()`), and filling it asserts `take <= 0` where the
     model said nothing.
 
-    Before #1061 the eager lane filled it and the relational one did not, so
+    Before #1061 the linopy lane filled it and the relational one did not, so
     the lanes reported 4 rows and 3 for the same file.
     """
     with differential(IN_GROUPS_UNMASKED, GROUPLESS_SOURCES, lp=True) as run:
@@ -496,7 +496,7 @@ def test_a_where_on_dimension_coordinates_means_the_same_on_both_lanes():
     """ROADMAP 5b: `where: "snapshot > 0"` must mean the same on both lanes.
 
     The README's ramp example uses exactly this — a time-coupling constraint
-    that skips the first snapshot. It used to be eager-only: lowering refused
+    that skips the first snapshot. It used to be linopy-only: lowering refused
     dimension comparisons, so the same file built two different models.
     """
     n_s = 12
@@ -516,7 +516,7 @@ def test_a_where_on_dimension_coordinates_means_the_same_on_both_lanes():
         active = int((run.model.constraints['ramp_up'].labels != -1).sum())
         assert active == (n_s - 1) * 2, (
             'the mask must bite: the first snapshot is dropped per generator, and a masked row on '
-            'the eager lane carries label -1'
+            'the linopy lane carries label -1'
         )
 
 
@@ -684,7 +684,7 @@ def test_a_nested_shift_agrees_with_the_oracle(rhs: str):
     """A shift over a shift, in every arrangement of edge and dimension.
 
     `shift` takes any node of the right dim set (the operator rules), so nesting is inside
-    what the language accepts — and the eager lane always built it. The
+    what the language accepts — and the linopy lane always built it. The
     relational lane raised a raw `polars.ColumnNotFoundError` instead, because
     an acyclic inner shift leaves a presence narrower than the fragment and the
     outer one projected the fragment's dims onto it.

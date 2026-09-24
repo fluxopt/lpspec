@@ -37,7 +37,7 @@ OPTIMUM = 915.0
 
 def test_both_lanes_and_the_lp_file_reach_the_hand_derived_optimum():
     with differential(RESERVES_YAML, port_sources('reserves'), lp=True) as run:
-        assert run.oracle == pytest.approx(OPTIMUM, rel=RTOL), 'the eager lane disagrees with the hand derivation'
+        assert run.oracle == pytest.approx(OPTIMUM, rel=RTOL), 'the linopy lane disagrees with the hand derivation'
 
 
 def _drop_line(sources: dict, line: str) -> dict:
@@ -112,7 +112,7 @@ def test_the_instance_actually_holds_every_shape():
 def test_the_offer_cap_is_two_pullbacks_through_two_legs():
     """A per-offer number assembled from two other dimensions' parameters —
     ``at()`` through ``tranche_of`` times ``at()`` through ``gen_of`` — priced
-    into the eager lane's own solution: o4 sits exactly at 0.25 * 80."""
+    into the linopy lane's own solution: o4 sits exactly at 0.25 * 80."""
     with differential(RESERVES_YAML, port_sources('reserves')) as run:
         r = run.result.primal('r')
         assert r.filter(pl.col('offer') == 'o4')['value'][0] == pytest.approx(20.0, rel=RTOL), (

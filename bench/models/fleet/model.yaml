@@ -13,7 +13,7 @@
 # rest of the ladder is the number of declarations, and nothing else: no mask,
 # one density, one dimension product.
 #
-# The eager lane pays here too — a `linopy.Model` accumulates a container per
+# The linopy lane pays here too — a `linopy.Model` accumulates a container per
 # declaration — so this is not a shape chosen to suit us. It is the shape that
 # says whether either engine's fixed cost per *declaration* matters once there
 # are enough of them.

@@ -1,7 +1,7 @@
 """Shared fixtures and schema helpers for specsolve tests.
 
 Everything here is linopy-free *and pandas-free at import*, so it loads on a
-bare install. On a bare install (no [linopy] extra) the eager/oracle modules
+bare install. On a bare install (no [linopy] extra) the linopy/oracle modules
 skip themselves: they reach the oracle through ``tests.oracle``, whose
 ``importorskip`` guard fires at collection. There is no list of filenames to
 keep in sync here — a module that needs the extra says so by importing it. The
@@ -245,7 +245,7 @@ def dispatch_spec_inputs():
 
 
 def dispatch_spec_path(directory: Path, **patch: Any) -> Path:
-    """``DISPATCH_SPEC``, varied and written to disk — the eager lane only takes a path."""
+    """``DISPATCH_SPEC``, varied and written to disk — the linopy lane only takes a path."""
     path = directory / 'model.yaml'
     path.write_text(pyyaml.safe_dump(override(DISPATCH_SPEC, **patch)))
     return path

@@ -2,7 +2,7 @@
 
 None of these facts belongs to a lane. ``Buildable`` and ``Source`` are what
 every verb in the package takes; ``LANES`` is read by ``check`` with no extra
-installed and by the eager lane when it refuses.
+installed and by the linopy lane when it refuses.
 """
 
 from __future__ import annotations

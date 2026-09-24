@@ -29,7 +29,7 @@ def _in_linopy_lane(path: Path) -> bool:
     xarray at module level (they load only via ``import specsolve.linopy``).
 
     Structural, not a filename allowlist: membership is "lives under
-    ``linopy/``". A new eager-lane module therefore cannot land outside the
+    ``linopy/``". A new linopy-lane module therefore cannot land outside the
     fence by being spelled differently.
     """
     return 'linopy' in path.relative_to(PKG).parts
@@ -183,7 +183,7 @@ def test_the_lane_fences_see_running_code_and_only_running_code():
 
 
 def test_runtime_lane_never_imports_linopy_or_xarray():
-    """Hard rule 3: linopy is the eager/oracle lane only — never a runtime import."""
+    """Hard rule 3: linopy is the oracle lane only — never a runtime import."""
     offenders = {}
     for path in _all_modules():
         if _in_linopy_lane(path):
@@ -199,14 +199,14 @@ def test_runtime_lane_never_imports_linopy_or_xarray():
 
 #: Modules outside the linopy lane that may reach the oracle *lazily*, with
 #: the reason. Empty, and that is the claim: nothing the streaming lane runs
-#: needs the eager lane's libraries.
+#: needs the linopy lane's libraries.
 LAZY_ORACLE_ALLOWED: dict[str, str] = {}
 
 
 def test_lazy_oracle_imports_stay_on_the_allowlist():
     """Hard rule 3, the half a module-level check cannot see.
 
-    A lazy ``import xarray`` inside a function is still eager-lane code, and
+    A lazy ``import xarray`` inside a function is still linopy-lane code, and
     it hides in a module the streaming lane imports. Every one has to be
     declared, so adding another is a decision rather than an accident.
     """
@@ -516,7 +516,7 @@ def test_the_linopy_lane_stays_two_verbs():
     """The lane constructs a model, and values an expression at its solution.
 
     ``build`` makes a model and ``evaluate`` values an expression at its
-    solution — the eager half of a reader both lanes owe (hard rule 3), pure
+    solution — the linopy half of a reader both lanes owe (hard rule 3), pure
     like the producer. What is refused here is a verb that
     *attaches* to a model something else built: a file references only what it
     declares (hard rule 5), and the verb that made an exception of that is
@@ -699,7 +699,7 @@ def test_every_plan_node_is_handled_by_the_compiler():
 
     Each base is checked against every module that walks it, not against one:
     an expression node answered only in ``predicates.py`` would be as wrong as
-    one answered nowhere, and since the eager lane was moved onto the plan
+    one answered nowhere, and since the linopy lane was moved onto the plan
     there are *two* expression walkers — a node the linopy builder cannot
     evaluate is one lane silently refusing at build.
     """
@@ -934,7 +934,7 @@ def test_both_lanes_dispatch_on_every_plan_node():
     ``FunctionCallNode``, because each lane read them separately and could
     disagree: measured on ``sum(x, over=t, where=…)`` against a language that
     declared ``where``, the relational lane never read the key and built as
-    though the clause were not written, while the eager one raised ``TypeError``
+    though the clause were not written, while the linopy one raised ``TypeError``
     out of a function signature — a silent wrong answer on one lane, a library
     exception on the other, and nothing red.
 
@@ -942,7 +942,7 @@ def test_both_lanes_dispatch_on_every_plan_node():
     names: lowering reads the surface once and turns it into a plan node both
     lanes dispatch on, so the way they can still disagree is a node kind one of
     them does not handle — an operator lowered to a new node, built by the
-    engine, and unanswered by the eager evaluator.
+    engine, and unanswered by the linopy evaluator.
 
     **Node kinds, not their fields.** A field census reads as stricter and is
     not: matching ``ast.Attribute`` by name credits ``Translate.fill`` for
@@ -984,7 +984,7 @@ def test_both_lanes_dispatch_on_every_plan_node():
 
     lanes = {
         'relational': dispatched_on(*(PKG / 'relational' / 'engines' / 'polars').glob('*.py')),
-        'eager': dispatched_on(*(PKG / 'linopy').glob('*.py')),
+        'linopy': dispatched_on(*(PKG / 'linopy').glob('*.py')),
     }
     for lane, handled in lanes.items():
         assert not declared - handled, (

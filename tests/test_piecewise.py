@@ -1,7 +1,7 @@
 """piecewise costs: the λ-formulation block, and the epigraph that needs none.
 
 The ``piecewise:`` expansion is the language's and the caller's, run before
-either backend, so eager and relational receive identical affine declarations. Nonconvex correctness is
+either backend, so linopy and relational receive identical affine declarations. Nonconvex correctness is
 verified by checking the linked primals lie ON the curve (adjacency binaries
 at work) against a numpy interpolation; the ``convex:`` flag is verified to
 produce the hull instead.
@@ -311,9 +311,9 @@ def test_a_curve_left_as_written_is_refused_at_both_doors(tmp_path):
 
     with pytest.raises(SpecsolveError, match="piecewise: 'cost_curve' is still a curve") as relational:
         sps.check(path)
-    with pytest.raises(SpecsolveError, match="piecewise: 'cost_curve' is still a curve") as eager:
+    with pytest.raises(SpecsolveError, match="piecewise: 'cost_curve' is still a curve") as linopy_lane:
         specsolve_linopy.build(path, {})
-    assert "expand('piecewise')" in str(relational.value) and str(relational.value) == str(eager.value), (
+    assert "expand('piecewise')" in str(relational.value) and str(relational.value) == str(linopy_lane.value), (
         'one refusal, naming the expansion, on both lanes'
     )
 
@@ -352,7 +352,7 @@ def test_convex_breakpoints_that_are_not_convex_are_refused(nonconvex_inputs, br
 
 def test_the_curvature_guard_also_fires_through_the_relational_adapter(nonconvex_inputs):
     """`tidy_sources` is the streaming lane's only door for data, so the guard
-    has to live behind it too — not only in the eager loader."""
+    has to live behind it too — not only in the linopy loader."""
     data = nonconvex_inputs
     schema = schema_of(CONVEX_SPEC)
 
@@ -381,7 +381,7 @@ def test_a_curve_written_out_of_order_is_the_same_curve(nonconvex_inputs):
     them left behind; what orders the breakpoints is the `bp` index, which is
     ascending here. The guard read the rows as they arrived and refused this
     table as backwards (#1122), where the engine joins it by label and the
-    eager lane builds and solves it.
+    linopy lane builds and solves it.
     """
     shuffled = {
         **nonconvex_inputs,
@@ -413,7 +413,7 @@ def test_a_breakpoint_dimension_with_no_index_keeps_its_own_message(nonconvex_in
         tidy_sources(schema.expand('piecewise').program, orphaned)
 
 
-def test_the_eager_lane_reads_the_curve_in_the_index_order(nonconvex_inputs, tmp_path):
+def test_the_linopy_lane_reads_the_curve_in_the_index_order(nonconvex_inputs, tmp_path):
     """Which of the two lanes is right, pinned — the loader lays the values out first.
 
     So the order the guard walks is the dimension's, and the row order the
@@ -489,7 +489,7 @@ def test_a_curve_short_of_a_breakpoint_is_refused(ragged_inputs):
         tidy_sources(schema.expand('piecewise').program, dict(ragged_inputs))
 
 
-def test_the_curve_guard_fires_on_the_eager_lane_too(ragged_inputs, tmp_path):
+def test_the_curve_guard_fires_on_the_linopy_lane_too(ragged_inputs, tmp_path):
     """Both lanes take the same sources, so both refuse the same table (hard rule 3)."""
     path = tmp_path / 'two_dim.yaml'
     path.write_text(TWO_DIM_YAML)
@@ -514,7 +514,7 @@ def test_a_curve_supplied_at_every_breakpoint_passes(ragged_inputs):
 
 
 def test_a_dict_shaped_curve_is_read_for_holes_too(ragged_inputs, tmp_path):
-    """The eager lane takes the caller's mapping unspread, so the guard reads that spelling.
+    """The linopy lane takes the caller's mapping unspread, so the guard reads that spelling.
 
     A ``{label: value}`` curve is the one plain-Python shape that can be short:
     a sequence and a single number are dense against the labels they spread
@@ -623,7 +623,7 @@ def test_both_lanes_agree_on_a_masked_curve(short_curve_inputs, method, tmp_path
     `lp` is the one whose rows the mask reaches directly, and the one whose
     domain rows sit on each curve's own first and last breakpoint rather than
     the axis'. Testing only the default method left that pair unbuilt on the
-    eager lane, where the constant-side coverage guard refuses a curve its
+    linopy lane, where the constant-side coverage guard refuses a curve its
     breakpoints stop short of.
     """
     raw = override(raw_of(SHORT_CURVE), **{'piecewise.cost_curve.method': method})
