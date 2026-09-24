@@ -576,11 +576,11 @@ def test_every_archive_holds_one_objective_file_whatever_wrote_it(
             pass
 
     answer = out / 'answer'
-    assert (answer / 'objective.parquet').is_file(), 'the record is one file, whichever verb wrote it'
+    assert (answer / 'record.parquet').is_file(), 'the record is one file, whichever verb wrote it'
     assert not (answer / 'objective').exists(), 'and not a directory beside it'
     assert (answer / METRICS_FILE).is_file(), 'the metrics go the same way'
     assert not (answer / 'metrics').exists(), 'and not a directory beside it either'
-    assert pl.read_parquet(answer / 'objective.parquet').height == (3 if sweep else 1), 'one row per slice'
+    assert pl.read_parquet(answer / 'record.parquet').height == (3 if sweep else 1), 'one row per slice'
 
 
 def test_an_archive_stamps_its_own_name_and_when_the_solve_returned(
@@ -596,7 +596,7 @@ def test_an_archive_stamps_its_own_name_and_when_the_solve_returned(
     with sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'nightly-2026-09-10.zip') as solved:
         reached = solved.solved_at
     sps.load_archive(tmp_path / 'nightly-2026-09-10.zip', tmp_path / 'out')
-    record = pl.read_parquet(tmp_path / 'out' / 'answer' / 'objective.parquet')
+    record = pl.read_parquet(tmp_path / 'out' / 'answer' / 'record.parquet')
 
     assert record['run'].to_list() == ['nightly-2026-09-10'], "the archive's own name, suffix dropped"
     assert record['solved_at'].item() == reached, 'and when the solver returned, as the result reports it'
@@ -617,7 +617,7 @@ def test_a_run_named_directory_stamps_the_name_and_not_the_segment(
     with sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out):
         pass
 
-    record = pl.read_parquet(out / ANSWER_DIR / 'objective.parquet')
+    record = pl.read_parquet(out / ANSWER_DIR / 'record.parquet')
     values = pl.read_parquet(str(tmp_path / 'runs' / '*' / ANSWER_DIR / 'primal' / 'p.parquet'), hive_partitioning=True)
 
     assert record['run'].to_list() == ['nightly-2026-09-10'], 'the name the directory holds, not the whole segment'
@@ -633,7 +633,7 @@ def test_a_saved_answer_that_was_never_archived_names_no_run(
     written, so the two concatenate.
     """
     with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
-        record = pl.read_parquet(solved.save(tmp_path / 'answer') / 'objective.parquet')
+        record = pl.read_parquet(solved.save(tmp_path / 'answer') / 'record.parquet')
     assert record['run'].to_list() == [None], 'nothing published it, so nothing named it'
     assert record.schema['run'] == pl.String, 'and the column is a string either way, never an all-null one'
 
@@ -699,15 +699,15 @@ def test_a_scenario_sweep_is_an_archive_and_runs_again(
     study = sps.load_archive(tmp_path / 'study.zip', tmp_path / 'study')
 
     assert study.axis == axis, 'the axis comes back as the value it went in as'
-    assert study.answer.objective.drop('run').equals(runs.objective.drop('run'))
-    assert study.answer.objective['run'].unique().to_list() == ['study'], (
+    assert study.answer.record.drop('run').equals(runs.record.drop('run'))
+    assert study.answer.record['run'].unique().to_list() == ['study'], (
         'and the archive stamped its own name on every slice, which the sweep in memory had none of'
     )
     assert study.sources['load'].equals(sources['load']), (
         'the sliced source is archived whole, the column the axis cuts on included'
     )
     again = sps.solve_over(study.spec, study.sources, study.axis)
-    assert again.objective['objective'].to_list() == pytest.approx(runs.objective['objective'].to_list()), (
+    assert again.record['objective'].to_list() == pytest.approx(runs.record['objective'].to_list()), (
         'the archive re-runs to the sweep it recorded, slice for slice'
     )
 
@@ -770,8 +770,8 @@ def test_every_slice_of_a_sweep_names_the_model_it_answered(
     runs = sps.solve_over(dispatch_yaml, sources, sps.EachCoordinate('scenario'))
     alone = sps.solve(dispatch_yaml, dispatch_frame_inputs)
 
-    assert runs.objective['spec_digest'].null_count() == 0, 'no slice is left without the document it answered'
-    assert runs.objective['spec_digest'].unique().to_list() == [alone.spec_digest], (
+    assert runs.record['spec_digest'].null_count() == 0, 'no slice is left without the document it answered'
+    assert runs.record['spec_digest'].unique().to_list() == [alone.spec_digest], (
         'and it is the same digest one solve of the same file carries'
     )
 
@@ -848,7 +848,7 @@ def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispat
     for name, spec in (('base', dispatch_yaml), ('capped', other)):
         with sps.solve(spec, dispatch_frame_inputs) as solved:
             out = solved.save(tmp_path / name)
-        records.append(pl.read_parquet(out / 'objective.parquet').select(pl.lit(name).alias('case'), pl.all()))
+        records.append(pl.read_parquet(out / 'record.parquet').select(pl.lit(name).alias('case'), pl.all()))
 
     table = pl.concat(records)
     assert table['spec_digest'].n_unique() == 2, 'two models, so the table is not comparing like with like'

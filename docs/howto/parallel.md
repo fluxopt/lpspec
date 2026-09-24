@@ -20,7 +20,7 @@ def main():
     ctx = multiprocessing.get_context('spawn')  # or 'forkserver'
     with ProcessPoolExecutor(4, mp_context=ctx) as pool:
         runs = sps.solve_over('spec.yaml', sources, sps.EachCoordinate('scenario'), executor=pool)
-    print(runs.objective)
+    print(runs.record)
 
 
 if __name__ == '__main__':  # spawn re-imports your module; without this it recurses
@@ -49,7 +49,7 @@ read here and shipped.
 `runs` reads as it does for a serial sweep, one column wider:
 
 ```python
-runs.objective  # (scenario, status, termination_condition, objective, has_primal, spec_digest)
+runs.record  # (scenario, status, termination_condition, objective, has_primal, spec_digest)
 runs.primal('p')  # (scenario, snapshot, generator, value)
 runs.metrics  # one row per slice; every slice loaded its own solver
 ```

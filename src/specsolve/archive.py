@@ -153,7 +153,7 @@ def _read(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
     manifest = json.loads(axis_member.read_text())
     axis, carry = axis_from(manifest), manifest.get('carry', {})
     answer = attach_sweep_readers((load_runs if whole else scan_runs)(saved), spec, sources, axis, carry)
-    _check_the_pairing(spec, answer.objective['spec_digest'].to_list())
+    _check_the_pairing(spec, answer.record['spec_digest'].to_list())
     return SweepArchive(spec, sources, axis, carry, answer, digests)
 
 

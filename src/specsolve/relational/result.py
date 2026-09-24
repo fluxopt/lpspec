@@ -719,7 +719,7 @@ class Result:
     def save(self, directory: str | Path) -> Path:
         """Every kind this solve answered with, one file per name, into *directory*.
 
-        ``objective.parquet`` holds the
+        ``record.parquet`` holds the
         :class:`~specsolve.relational.parquet.Record` — how the solve terminated
         and what it reached, in the columns a sweep keys and folds. A solve
         that reached no objective writes null there rather than ``nan``, so a

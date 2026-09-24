@@ -12,14 +12,14 @@ glob. Nothing is loaded and no schema is maintained:
 ```python
 import polars as pl
 
-answers = pl.read_parquet('runs/*/answer/objective.parquet')
+answers = pl.read_parquet('runs/*/answer/record.parquet')
 metrics = pl.read_parquet('runs/*/answer/metrics.parquet')
 inputs = pl.read_parquet('runs/*/sources.parquet')
 ```
 
 | glob | one row per | says |
 |---|---|---|
-| `answer/objective.parquet` | solve, or sweep slice | how it terminated, what it reached, when, under what name |
+| `answer/record.parquet` | solve, or sweep slice | how it terminated, what it reached, when, under what name |
 | `answer/metrics.parquet` | the same | what the build and its solves spent, and how big the model was |
 | `sources.parquet` | source per archive | what each input's bytes digest to |
 
@@ -41,7 +41,7 @@ Union by name instead. The columns one side lacks come back null:
 from glob import glob
 
 answers = pl.concat(
-    [pl.read_parquet(file) for file in sorted(glob('runs/*/answer/objective.parquet'))],
+    [pl.read_parquet(file) for file in sorted(glob('runs/*/answer/record.parquet'))],
     how='diagonal',
 )
 ```
@@ -84,7 +84,7 @@ warehouse queried where it lies is a directory of directories.
 still order:
 
 ```python
-table = pl.read_parquet('runs/*/answer/objective.parquet')
+table = pl.read_parquet('runs/*/answer/record.parquet')
 table.sort('solved_at').select('run', 'status', 'objective')
 ```
 
