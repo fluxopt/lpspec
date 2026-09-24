@@ -15,7 +15,7 @@ alignment and broadcasting decide which coefficient lands in which row. pandas
 is only a floor: it holds the instance's tables and reshapes the recorded
 duals.
 
-It reads the same instance the port binds and builds the network with PyPSA's
+It reads the same instance the port attaches and builds the network with PyPSA's
 own objects. Nothing here imports specsolve.
 
 **A bound on energy, not on power.** ``e_sum_min`` and ``e_sum_max`` reduce a

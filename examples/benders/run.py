@@ -18,12 +18,12 @@ infeasible solve leaves, which says which combination of rows cannot hold. A
 fourth model standing in for the ray is what this example used to carry.
 
 The master's cuts are **data**. It declares ``cut`` and ``fcut`` with members
-from data (the data-binding rules) and never changes; an iteration appends rows to their
+from data (the data contract) and never changes; an iteration appends rows to their
 parameter tables. No YAML is written at runtime, so the spec a reviewer reads
 is the spec that runs — which is the point of writing specs in YAML at all.
 
 Because no file changes, each spec is parsed **once** above the loop and
-*built* once: ``sps.build`` binds the data and ``update`` puts the next
+*built* once: ``sps.build`` attaches the data and ``update`` puts the next
 iteration's numbers on the model that is already there, where a path would
 re-parse a spec that cannot have moved and a rebuild would re-derive a model
 that did not change. The subproblem's ``cap_hat`` reaches its rows as a
@@ -70,7 +70,7 @@ def slice_for(spec, **extra):
 
     One bag of data and three models, each taking its own slice — the master
     reads an `invest` that `sub` does not, and `sub` reads a `load` the master
-    has never heard of. Binding refuses a name a spec does not declare, so a
+    has never heard of. Attaching refuses a name a spec does not declare, so a
     driver over several models says which slice it means; that refusal is what
     turns a misspelled key into an error instead of a table nobody read.
     """

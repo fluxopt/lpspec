@@ -261,7 +261,7 @@ def _grouped_sources():
     """One mapping both lanes take, the relation arriving as a column of the index.
 
     Arrow tables rather than pandas: a partial relation read out of a pandas frame
-    arrives as ``float64`` beside an ``i64`` target, which is a binding question
+    arrives as ``float64`` beside an ``i64`` target, which is an attaching question
     of its own and not the one under test here.
     """
     return {

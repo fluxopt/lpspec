@@ -183,7 +183,7 @@ You produce the `month_of` relation before the model, by whatever rule you want:
 month_of = pl.DataFrame({'snapshot': hours}).with_columns(pl.col('snapshot').dt.strftime('%Y-%m').alias('month'))
 ```
 
-That produces the table the model binds under `month_of`: every snapshot
+That produces the table the model attaches under `month_of`: every snapshot
 beside the month it falls in, and nothing else:
 
 ```text

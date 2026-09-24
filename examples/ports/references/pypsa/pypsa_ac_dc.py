@@ -9,7 +9,7 @@
 
 Pinned to the versions that produced the number in ``references.json`` and run
 out of band — PyPSA is not a dependency of this project. It reads the same
-instance the port binds and builds the network with PyPSA's own objects.
+instance the port attaches and builds the network with PyPSA's own objects.
 Nothing here imports specsolve.
 
 **Two coordinates on one dimension.** Every model before it put a

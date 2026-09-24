@@ -14,7 +14,7 @@ the number, is theirs jointly; xarray because it is linopy's data model, where
 alignment and broadcasting decide which coefficient lands in which row; pandas
 holds the instance's tables and performs the pivot below.
 
-It reads the same instance the port binds. The port holds the link-to-bus
+It reads the same instance the port attaches. The port holds the link-to-bus
 relation as one incidence table — a ``(link, bus, value)`` row per link end,
 ``-1`` at the input, ``+efficiency`` at each output — and PyPSA holds it wide:
 ``bus0`` is the input, ``bus1``/``bus2`` the outputs,

@@ -15,7 +15,7 @@ therefore deterministic.
 
 The point it is trying to make is the thesis in docs/about/architecture.md: a YAML math
 spec is a closed AST known before any data is touched. Stages 1-3 happen with
-no data bound at all; only stage 4 sees a number.
+no data attached at all; only stage 4 sees a number.
 """
 
 from __future__ import annotations
@@ -131,7 +131,7 @@ def relational_ir(schema: Spec) -> Any:
     This is where the language's boundary is *decided*, by attempting the
     lowering, so eligibility can never drift from what the backend supports. It
     needs no data, which is what makes ``sps.check()`` a CI verb for spec
-    repositories: compile the math, bind nothing.
+    repositories: compile the math, attach nothing.
     """
     banner(3, 'a spec -> the program both lanes build from', 'Spec.program')
     program = schema.program
@@ -220,7 +220,7 @@ def refusals() -> None:
     its rewrite. Never a silent fallback, never a redirect to the other lane —
     both lanes accept exactly the same language (hard rule 3).
 
-    Each spec is run through ``sps.check()`` — stages 1-3, no data bound — and
+    Each spec is run through ``sps.check()`` — stages 1-3, no data attached — and
     then, only if that passes, through a build. Both are caught by ``check()``,
     which is what makes it a CI verb: a spec repository can compile-check its
     math with no data in the runner. The build arm stays because which stage

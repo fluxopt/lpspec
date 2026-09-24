@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import spine
 
-#: This rung binds a file of its own.
+#: This rung builds a file of its own.
 MODEL = 'pypsa_quadratic.yaml'
 
 

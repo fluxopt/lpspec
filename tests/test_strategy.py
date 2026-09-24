@@ -1576,7 +1576,7 @@ NARROWED = [
 
 @pytest.mark.parametrize('second', NARROWED)
 def test_a_hand_built_slice_that_names_less_does_not_inherit_the_last_one(second):
-    """A slice says what the whole model binds, whichever way the sweep runs.
+    """A slice says what the whole model attaches, whichever way the sweep runs.
 
     A serial fold updates, and an update is partial by construction — it keeps
     what the last slice attached. So a slice naming fewer sources, or no index,

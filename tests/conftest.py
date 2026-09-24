@@ -82,7 +82,7 @@ def port_sources(name: str) -> dict[str, Any]:
     The file carries what the upstream framework dumped — `pypsa_kvl` ships a
     `reactance` the ported model reads through `cycle_incidence` instead, and
     `pypsa_ac_dc` six more of that kind. Keeping them is the point: they are the
-    provenance of the instance. Binding refuses a name the model does not
+    provenance of the instance. Attaching refuses a name the model does not
     declare, so the filter belongs here, where a dump becomes a call.
     """
     data = json.loads((PORTS_DIR / 'data' / f'{name}.json').read_text())

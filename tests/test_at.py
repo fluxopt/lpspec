@@ -318,7 +318,7 @@ FLOWS, COMPONENTS = ['f1', 'f2', 'f3'], ['c1', 'c2']
 
 
 def _dangling_sources(map_: list | None = None, **extra):
-    """The three flows and two components every case here binds, the map under its own key."""
+    """The three flows and two components every case here attaches, the map under its own key."""
     from tests.oracle import pd
 
     return {

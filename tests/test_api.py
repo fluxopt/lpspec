@@ -789,7 +789,7 @@ def test_a_second_solve_does_not_rewrite_the_first_result(dispatch_yaml, dispatc
     Was: the values lived on the engine and every reader went back to them,
     so `objective` was a snapshot while `primal` was live — one result
     disagreeing with itself after a second solve, silently and with plausible
-    numbers. Nothing supported re-binds data yet, so the bound has to be moved
+    numbers. Nothing supported re-attaches data yet, so the bound has to be moved
     the way the planned in-place update will (#382: `changeColsBounds`
     against labels that are already solver indices).
     """
