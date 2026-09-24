@@ -177,7 +177,7 @@ The bar, and it is checkable:
 1. **One idea per sentence.** Median at or under 20 words; over 25 is where a
    newcomer re-reads.
 2. **Active voice, with a real subject.** "The loader refuses it before any
-   data binds", not "the refusal comes before any data binds". An abstract
+   data attaches", not "the refusal comes before any data attaches". An abstract
    noun as subject is the single biggest reason technical prose reads
    expert-only.
 3. **State the rule in things, then in abstractions.** "One generator at one

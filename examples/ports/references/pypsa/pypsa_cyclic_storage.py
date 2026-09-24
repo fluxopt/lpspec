@@ -18,7 +18,7 @@ duals, and
 whose NA handling changed in 3.0. The floor is checked rather than assumed —
 this script emits byte-identical output on either side of that change.
 
-It reads the same instance the port binds and builds the network with PyPSA's
+It reads the same instance the port attaches and builds the network with PyPSA's
 own objects. Nothing here imports specsolve.
 
 Storage with ``cyclic_state_of_charge``. The first

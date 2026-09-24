@@ -365,8 +365,8 @@ than tangents. Secants lie above a convex curve where tangents lie below, so
 they overestimate the losses these underestimate. PyPSA emits the identical
 rows, one half-plane per segment per sign of the flow. Only the coefficients
 differ, and how many there are. So the secant mode gets no model
-file of its own. `test_the_two_loss_approximations_are_one_model` binds this
-model to the secant coefficients and reaches PyPSA's secant optimum.
+file of its own. `test_the_two_loss_approximations_are_one_model` solves this
+model with the secant coefficients and reaches PyPSA's secant optimum.
 
 The parameters are therefore `loss_slope` and `loss_offset`, with nothing
 tangent-specific in the name, and the coefficients are dumped from PyPSA

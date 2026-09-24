@@ -782,7 +782,7 @@ def _nominated_mask_spec():
 
 
 def test_a_curve_masked_by_its_own_breakpoints_asks_for_nothing_extra():
-    """`points:` naming a values parameter declares no second name to bind.
+    """`points:` naming a values parameter declares no second name to attach.
 
     The block masks the weights by a parameter the file already wrote, so what
     the caller attaches is exactly what the file declares and the curve still

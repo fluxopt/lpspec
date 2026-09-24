@@ -14,7 +14,7 @@ the number, is theirs jointly; xarray because it is linopy's data model, where
 alignment and broadcasting decide which coefficient lands in which row. pandas
 is only a floor: it holds the instance's tables and reshapes the recorded duals.
 
-It reads the same instance the port binds and builds the network with PyPSA's
+It reads the same instance the port attaches and builds the network with PyPSA's
 own objects. Nothing here imports specsolve.
 
 **A row of data that is present pins its variable; one that is absent leaves it

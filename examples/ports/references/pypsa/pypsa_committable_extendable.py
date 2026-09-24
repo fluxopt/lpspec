@@ -15,7 +15,7 @@ alignment and broadcasting decide which coefficient lands in which row. pandas
 is only a floor: it holds the instance's tables; nothing recorded here is
 reshaped with it.
 
-It reads the same instance the port binds and builds the network with PyPSA's
+It reads the same instance the port attaches and builds the network with PyPSA's
 own objects. Nothing here imports specsolve.
 
 **A committed unit whose capacity is also being built needs a big-M.**

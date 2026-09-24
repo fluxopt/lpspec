@@ -323,7 +323,7 @@ def test_a_sos2_set_of_one_member_restricts_nothing():
 def test_regrouping_the_members_is_a_different_model_to_a_loaded_solver():
     """A set is structure, and it is the one structure nothing else reports.
 
-    Two binds differ in *nothing a solver was handed* — two columns, the same
+    Two builds differ in *nothing a solver was handed* — two columns, the same
     bounds, no rows, no matrix — except which sets those columns fall into:
     two members of one set against one member each of two. A digest that did
     not read the sets would call the second the model it already holds.
@@ -355,7 +355,7 @@ def test_regrouping_the_members_is_a_different_model_to_a_loaded_solver():
         model.update(live(apart))
         two_sets = model._engine._model.tables
         assert (one_set.cols.equals(two_sets.cols), one_set.column_count, one_set.row_count) == (True, 2, 0), (
-            'the two binds differ in something other than their sets, so this proves nothing'
+            'the two builds differ in something other than their sets, so this proves nothing'
         )
         assert two_sets.structure != one_set.structure, 'the digest calls a regrouped set the same model'
 

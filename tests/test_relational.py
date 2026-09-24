@@ -1707,9 +1707,9 @@ def _tidy_cap(names):
     return dict(zip(zip(table['from_bus'], table['to_bus'], strict=True), table['value'], strict=True))
 
 
-def test_a_named_column_binds_by_name_not_position():
+def test_a_named_column_attaches_by_name_not_position():
     """Two dims over the same label space make a transposed source type-check
-    and cover every coordinate, so nothing downstream can catch it. Binding by
+    and cover every coordinate, so nothing downstream can catch it. Attaching by
     name is what makes the transposition visible instead.
     """
     assert _tidy_cap(['from_bus', 'to_bus']) == CAPS
