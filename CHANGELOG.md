@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.352](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.351...v0.0.1-alpha.352) (2026-09-24)
+
+
+### Refactoring
+
+* **api:** the package is named specsolve, installed and imported under that name ([#1726](https://github.com/fluxopt/specsolve/issues/1726)) ([a9aea61](https://github.com/fluxopt/specsolve/commit/a9aea61df5e5a60db76912e2fe5ab196c11ebe97))
+
 ## [0.0.1-alpha.351](https://github.com/fluxopt/lpspec/compare/v0.0.1-alpha.350...v0.0.1-alpha.351) (2026-09-23)
 
 
