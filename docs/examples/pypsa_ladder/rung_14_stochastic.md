@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **9267.386667** on both sides; structure ≠ `Generator-ext-p_nom-lower` 2 vs 1 — PyPSA writes the build's floor once per scenario, each row over the one capacity variable; the file states it once — capacity is chosen before the future is known, and a copy per future is the same row again.; `Generator-ext-p_nom-upper` 2 vs 1 — PyPSA writes the build's cap once per scenario, each row over the one capacity variable; the file states it once — capacity is chosen before the future is known, and a copy per future is the same row again.; size ≠ 87 vs 85 rows · ✔ 37 columns · ≠ 148 vs 146 nonzeros; duals ≠ 87 rows, `Generator-ext-p_nom-upper` off by 36.714666667 — two copies of one binding row are degenerate — the solver may put the cap's whole price on either copy, so PyPSA's per-scenario duals are shares of the file's one.; **model for model**: 17 blocks equal, 0 documented splits, 2 recorded deviations.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 16 | 16 |
 | `CVaR-def` | 1 | 1 |
@@ -24,7 +24,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `Link-fix-p-lower` | 8 | 8 |
 | `Link-fix-p-upper` | 8 | 8 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `CVaR` | 1 | 1 |
 | `CVaR-a` | 2 | 2 |
@@ -216,7 +216,7 @@ CVaR \in \mathbb{R}
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_14_stochastic.yaml` — the file projected onto what this rung builds:
 
@@ -480,7 +480,7 @@ CVaR \in \mathbb{R}
         'Load_p_set': varying(n, 'Load', 'p_set'),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_14_stochastic.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_14_stochastic.yaml', sources) as solution:
         solution.objective  # 9267.386667
     ```
 

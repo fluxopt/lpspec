@@ -16,7 +16,7 @@ is only a floor: it holds the instance's tables; nothing recorded here is
 reshaped with it.
 
 It reads the same instance the port binds and builds the network with PyPSA's
-own objects. Nothing here imports lpspec.
+own objects. Nothing here imports specsolve.
 
 **A limit that couples one period to the one before it.** ``Carrier.max_growth``
 caps the capacity of a carrier *first becoming active* in a period, and
@@ -60,7 +60,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
 def build(tables: dict[str, pd.DataFrame], growth_limit: bool = True) -> pypsa.Network:
     """The port's tables as a PyPSA network, column for column.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
     ``growth_limit=False`` drops the two carrier attributes, which is how
     ``main`` measures what the limit is worth. The port's ``build_period`` relation

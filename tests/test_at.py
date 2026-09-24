@@ -26,7 +26,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-import lpspec as lps
+import specsolve as sps
 from tests.conftest import EXAMPLES_DIR, by_coord, relation
 
 MULTI_PERIOD = EXAMPLES_DIR / 'multi_period.yaml'
@@ -66,7 +66,7 @@ def test_the_multi_period_page_number():
     two periods must be able to differ — which is the claim the table on the
     page makes and this holds.
     """
-    with lps.solve(MULTI_PERIOD, _sources()) as result:
+    with sps.solve(MULTI_PERIOD, _sources()) as result:
         nominal = result.primal('p_nom').sort('period', 'generator')
         assert result.objective == pytest.approx(750.0)
 
@@ -88,10 +88,10 @@ def test_a_period_bound_actually_binds():
     and the objective unchanged, which is the failure this rules out. The cap
     is applied by making 2050 capacity ruinously expensive.
     """
-    with lps.solve(MULTI_PERIOD, _sources()) as unbounded:
+    with sps.solve(MULTI_PERIOD, _sources()) as unbounded:
         base = unbounded.objective
 
-    with lps.solve(MULTI_PERIOD, _sources(capex_2050_wind=80.0)) as dearer:
+    with sps.solve(MULTI_PERIOD, _sources(capex_2050_wind=80.0)) as dearer:
         assert dearer.objective > base, 'the per-period capacity bound is not reaching the snapshots'
 
 
@@ -135,7 +135,7 @@ def test_one_binary_gates_every_flow_of_its_component():
         'cost': pl.DataFrame({'flow': flows, 'value': [1.0, 2.0, 1.5]}),
         'oncost': pl.DataFrame({'component': components, 'value': [5.0, 7.0]}),
     }
-    with lps.solve(COMPONENT_GATE, sources) as result:
+    with sps.solve(COMPONENT_GATE, sources) as result:
         assert result.objective == pytest.approx(38.0)
         running = by_coord(result, 'on', 'component', 't')
         rates = by_coord(result, 'rate', 'flow', 't')
@@ -287,7 +287,7 @@ def test_a_window_whose_length_is_read_from_data_is_an_incidence_table():
         'tf': pl.DataFrame({'tf': hours}),
         'same_moment': relation('tf', 't', hours, hours),
     }
-    with lps.solve(spec, sources) as solution:
+    with sps.solve(spec, sources) as solution:
         assert solution.objective == pytest.approx(13.0), (
             'the slow unit runs and is held up its own three hours; 11.0 would mean the window read nothing'
         )
@@ -345,9 +345,9 @@ def test_at_through_a_null_relation_takes_the_row_with_it():
     case below carries the relational lane, and reads the same answer off the
     row count as well as the objective.
     """
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import specsolve_linopy
 
-    built = lpspec_linopy.build(DANGLING, _dangling_sources())
+    built = specsolve_linopy.build(DANGLING, _dangling_sources())
     labels = built.constraints['link'].labels.to_series().to_dict()
     assert labels['f3'] == -1, 'a flow mapping nowhere has no row, and -1 is how linopy spells one that was not built'
     assert labels['f1'] != -1 and labels['f2'] != -1, 'the flows that do map keep theirs'

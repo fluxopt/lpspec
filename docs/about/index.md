@@ -15,5 +15,5 @@ and where it is going. Nothing here is needed to write or run a model.
 | [Changelog](changelog.md) | every release |
 
 Contributing is
-[CONTRIBUTING.md](https://github.com/fluxopt/lpspec/blob/main/CONTRIBUTING.md)
-and [AGENTS.md](https://github.com/fluxopt/lpspec/blob/main/AGENTS.md).
+[CONTRIBUTING.md](https://github.com/fluxopt/specsolve/blob/main/CONTRIBUTING.md)
+and [AGENTS.md](https://github.com/fluxopt/specsolve/blob/main/AGENTS.md).

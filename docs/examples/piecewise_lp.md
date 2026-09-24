@@ -240,4 +240,4 @@ Compare [sos](sos.md), the other one-line variant, which moves the restriction
 
 ---
 
-[`examples/piecewise_lp.yaml`](https://github.com/fluxopt/lpspec/blob/main/examples/piecewise_lp.yaml) · back to [all models](index.md)
+[`examples/piecewise_lp.yaml`](https://github.com/fluxopt/specsolve/blob/main/examples/piecewise_lp.yaml) · back to [all models](index.md)

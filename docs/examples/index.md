@@ -158,7 +158,7 @@ combination with others.
 
 ## Does it get the right answer?
 
-**✔ means the optimum did not come from lpspec.** It came from a figure
+**✔ means the optimum did not come from specsolve.** It came from a figure
 published with the model or from a reference implementation hand-written on
 another stack. The provenance column says which. Every model on this page runs
 in the test suite, so a test alone distinguishes nothing. The badge marks the
@@ -226,23 +226,23 @@ nodal price. A dual vector is where two implementations most often disagree
 quietly: which side of a constraint the price belongs to, and what sign an
 inequality carries. [Dantzig transport](transport_dantzig.md) is checked
 because both of its constraints are inequalities pointing opposite ways. A
-MILP has no dual solution, and lpspec does not invent one; those are the `·`
+MILP has no dual solution, and specsolve does not invent one; those are the `·`
 rows.
 
 Adding a port is four files and five rules:
-[CONTRIBUTING.md](https://github.com/fluxopt/lpspec/blob/main/CONTRIBUTING.md#adding-a-ported-model).
+[CONTRIBUTING.md](https://github.com/fluxopt/specsolve/blob/main/CONTRIBUTING.md#adding-a-ported-model).
 
 ## PyPSA, one feature at a time
 
 **[The PyPSA ladder](pypsa_ladder.md) is the conformance instrument.** It
 holds sixteen networks, each carrying what the one below it did not. Each
-is solved through PyPSA and through lpspec and compared four ways: the
+is solved through PyPSA and through specsolve and compared four ways: the
 objective, the constraint and variable names, the size of the model handed to
 the solver, and every constraint's dual. A difference needs a recorded reason
 or the run is red. The numbers are there.
 
 **The PyPSA pages above are the gallery.** Each shows one idiom, held by a
-test to an optimum that did not come from lpspec. A page shows how something
+test to an optimum that did not come from specsolve. A page shows how something
 is *said*; the ladder shows that it is said *exactly*. What could not be said
 is a row in [the ledger](#ledger--what-a-port-could-not-say).
 
@@ -256,12 +256,12 @@ coordinates on one dimension. Each page says what it shows.
 ## Ledger — what a port could not say
 
 Each row feeds [the roadmap](../about/roadmap.md) with the verdict
-[AGENTS.md](https://github.com/fluxopt/lpspec/blob/main/AGENTS.md) asks for:
+[AGENTS.md](https://github.com/fluxopt/specsolve/blob/main/AGENTS.md) asks for:
 macro, primitive, formulation, or refused.
 
 | Port | What could not be said | Worked around by | Verdict |
 |---|---|---|---|
-| PyPSA transport model | a bound of `-rating` — PyPSA's `p_min_pu = -1` | shipping `neg_rating` as data | **primitive**: bounds as expressions, [#31](https://github.com/fluxopt/lpspec/issues/31). A second model asking for it |
+| PyPSA transport model | a bound of `-rating` — PyPSA's `p_min_pu = -1` | shipping `neg_rating` as data | **primitive**: bounds as expressions, [#31](https://github.com/fluxopt/specsolve/issues/31). A second model asking for it |
 | Travelling salesman | subtour cuts **generated lazily** inside branch-and-cut, which is how every serious TSP code works | [MTZ](tsp_mtz.md), O(n²) and static | **refused, and correctly**: a solve loop is an algorithm, not a model |
 
 [Minimum up and down times](pypsa_min_up_down.md) says `min_up_time` as

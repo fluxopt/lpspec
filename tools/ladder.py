@@ -3,11 +3,11 @@
     pixi run python -m tools.ladder           # rewrite docs/examples/pypsa_ladder.md and docs/examples/pypsa_ladder/*.md
     pixi run python -m tools.ladder --check   # fail if any has drifted
 
-A rung's page is its projected spec as math, then `lpspec` beside `PyPSA`:
+A rung's page is its projected spec as math, then `specsolve` beside `PyPSA`:
 the projected YAML, the prep that makes its tables from the network, and
 the solve — against the PyPSA script that builds the same network and
 optimises it. Below: the tables the rung is the first to declare, the rows
-lpspec built, and how deep the comparison went. Every fence is a committed
+specsolve built, and how deep the comparison went. Every fence is a committed
 file under ``differential/pypsa/`` (the projection, the script, the tables)
 or derived from one (the prep slice, from ``prep.py``); the runner wrote
 them from the pinned math-spec and the ``PyPSA parity`` workflow holds them
@@ -77,17 +77,17 @@ def prep_slice(declared: list[str]) -> str:
     )
 
 
-def lpspec_tab(stem: str, projection: dict, record: dict) -> str:
+def specsolve_tab(stem: str, projection: dict, record: dict) -> str:
     declared = [*projection['dimensions'], *projection.get('relations', {}), *projection['parameters']]
     spec = (RUNGS / f'{stem}.yaml').read_text().rstrip()
     prep = prep_slice(declared)
     call = (
         f'{prep}\n\n'
-        f"with lps.solve('differential/pypsa/rungs/{stem}.yaml', sources) as solution:\n"
-        f'    solution.objective  # {record["parity"]["lpspec_objective"]!r}'
+        f"with sps.solve('differential/pypsa/rungs/{stem}.yaml', sources) as solution:\n"
+        f'    solution.objective  # {record["parity"]["specsolve_objective"]!r}'
     )
     return (
-        '=== "lpspec"\n\n'
+        '=== "specsolve"\n\n'
         f'{_indent(f"The spec, `differential/pypsa/rungs/{stem}.yaml` — the file projected onto what this rung builds:")}\n\n'
         f'{_indent(f"```yaml{chr(10)}{spec}{chr(10)}```")}\n\n'
         f'{_indent("The prep — every table the spec declares, from the network — and the solve:")}\n\n'
@@ -124,24 +124,24 @@ def _verdict(record: dict) -> str:
         f'**model for model**: {len(structural["equal"])} blocks equal, {len(structural["region"])} documented splits'
         + (f', {len(structural["recorded"])} recorded deviations' if structural.get('recorded') else '')
         if 'equal' in structural
-        else f'objective only — `lpspec.linopy` stops at `{structural["error"]}`'
+        else f'objective only — `specsolve.linopy` stops at `{structural["error"]}`'
     )
     shape = parity['structure']['per_name']
     differing = parity['structure']['differences']
     rows = '\n'.join(
-        f'| `{name}` | {c["pypsa"]} | {"≠ " if name in differing else ""}{_counts(c["lpspec"])} |'
+        f'| `{name}` | {c["pypsa"]} | {"≠ " if name in differing else ""}{_counts(c["specsolve"])} |'
         for name, c in shape['rows'].items()
     )
     columns = '\n'.join(
-        f'| `{name}` | {c["pypsa"]} | {"≠ " if name in differing else ""}{_counts(c["lpspec"])} |'
+        f'| `{name}` | {c["pypsa"]} | {"≠ " if name in differing else ""}{_counts(c["specsolve"])} |'
         for name, c in shape['columns'].items()
     )
     return (
-        f'> {"✔" if parity["matches"] else "✘"} Verified against pypsa 1.3.0 — objective **{parity["lpspec_objective"]}**'
+        f'> {"✔" if parity["matches"] else "✘"} Verified against pypsa 1.3.0 — objective **{parity["specsolve_objective"]}**'
         f' on both sides; structure {_cell_structure(parity)}; size {_cell_size(parity)}; duals {priced}; {proof}.\n\n'
-        '<details markdown="1">\n<summary>Rows and columns, PyPSA against lpspec, name for name</summary>\n\n'
-        f'| row | PyPSA | lpspec |\n| --- | ---: | ---: |\n{rows}\n\n'
-        f'| column | PyPSA | lpspec |\n| --- | ---: | ---: |\n{columns}\n\n</details>'
+        '<details markdown="1">\n<summary>Rows and columns, PyPSA against specsolve, name for name</summary>\n\n'
+        f'| row | PyPSA | specsolve |\n| --- | ---: | ---: |\n{rows}\n\n'
+        f'| column | PyPSA | specsolve |\n| --- | ---: | ---: |\n{columns}\n\n</details>'
     )
 
 
@@ -177,7 +177,7 @@ def page(stem: str, record: dict) -> str:
         f' this network builds, attached to that network, and held to what PyPSA solves it to.\n\n'
         f'{_verdict(record)}\n\n'
         f'## The model\n\n<details markdown="1">\n<summary>The same model, as math</summary>\n\n{math}\n</details>\n\n'
-        f'{lpspec_tab(stem, projection, record)}\n'
+        f'{specsolve_tab(stem, projection, record)}\n'
         f'{pypsa_tab(stem, record)}\n'
         f'## The data\n\n{_tables(stem)}\n'
     )
@@ -190,7 +190,7 @@ def _short(stem: str) -> str:
 
 
 def _cell_objective(parity: dict) -> str:
-    return f'{"✔" if parity["matches"] else "✘"} `{parity["lpspec_objective"]}`'
+    return f'{"✔" if parity["matches"] else "✘"} `{parity["specsolve_objective"]}`'
 
 
 def _cell_duals(parity: dict) -> str:
@@ -212,7 +212,7 @@ def _counts(blocks: dict[str, int]) -> str:
 
 
 def _cell_size(parity: dict) -> str:
-    theirs, ours = parity['structure']['solver']['pypsa'], parity['structure']['solver']['lpspec']
+    theirs, ours = parity['structure']['solver']['pypsa'], parity['structure']['solver']['specsolve']
     return ' · '.join(
         f'✔ {theirs[k]} {k}' if theirs[k] == ours[k] else f'≠ {theirs[k]} vs {ours[k]} {k}'
         for k in ('rows', 'columns', 'nonzeros')
@@ -225,7 +225,7 @@ def _cell_structure(parity: dict) -> str:
     if not names:
         return f'✔ {len(shape["per_name"]["rows"])} constraints · {len(shape["per_name"]["columns"])} variables, name for name'
     reasons = '; '.join(
-        f'`{n}` {d["pypsa"]} vs {_counts(d["lpspec"])} — {d["reason"] or "UNEXPLAINED"}' for n, d in names.items()
+        f'`{n}` {d["pypsa"]} vs {_counts(d["specsolve"])} — {d["reason"] or "UNEXPLAINED"}' for n, d in names.items()
     )
     return f'≠ {reasons}'
 
@@ -243,7 +243,7 @@ def _deviations(stamped: dict) -> str:
     if not seen:
         return 'None recorded.'
     rows = '\n'.join(f'| `{n}` | {r} | {", ".join(dict.fromkeys(rungs))} |' for n, (r, rungs) in sorted(seen.items()))
-    return f'| PyPSA name (comparison) | why lpspec differs | on rungs |\n| --- | --- | --- |\n{rows}'
+    return f'| PyPSA name (comparison) | why specsolve differs | on rungs |\n| --- | --- | --- |\n{rows}'
 
 
 def _cell_lane(structural: dict) -> str:
@@ -274,7 +274,7 @@ def index(stamped: dict) -> str:
         '# The PyPSA ladder\n\n'
         '<!-- generated by tools/ladder.py from differential/pypsa — do not edit -->\n\n'
         f'[math-spec states PyPSA in one file]({CORPUS_PAGE}), grown a rung at a time. Each rung here is that file'
-        ' projected onto what its network builds, shown as lpspec builds it beside the PyPSA code that builds the'
+        ' projected onto what its network builds, shown as specsolve builds it beside the PyPSA code that builds the'
         " same network, and compared with PyPSA four ways. The `PyPSA parity` workflow regenerates every page's"
         ' sources from the pinned math-spec on each run and fails on a diff.\n\n'
         '**objective** — one number, both solves · **structure** — the same constraint and variable names, one block each · **size** — the same solver rows, columns and nonzeros'
@@ -284,8 +284,8 @@ def index(stamped: dict) -> str:
         f'{rows}\n\n'
         '## The four comparisons\n\n'
         "Both sides start from one object, the network the rung's script builds. PyPSA solves it directly;"
-        ' lpspec solves the file attached to the tables `prep.py` makes of it.\n\n'
-        '| column | lpspec | PyPSA | identical means |\n'
+        ' specsolve solves the file attached to the tables `prep.py` makes of it.\n\n'
+        '| column | specsolve | PyPSA | identical means |\n'
         '| --- | --- | --- | --- |\n'
         '| **objective** | `result.objective` | `n.objective + n.objective_constant` | equal, relative 1e-9 |\n'
         '| **structure** | `len(result.activity(block))`, `len(result.primal(variable))` | rows and columns of'
@@ -295,9 +295,9 @@ def index(stamped: dict) -> str:
         ' the model handed to HiGHS is the same size on both sides |\n'
         "| **duals** | `result.dual(block)` | `n.model.constraints[name].dual` | every row's dual equal, absolute"
         ' 1e-6 — against the negative where the file writes the row negated; an integer model has none |\n'
-        '| **linopy lane** | `lpspec.linopy.build(file)` | `n.optimize.create_model()` | label for label:'
+        '| **linopy lane** | `specsolve.linopy.build(file)` | `n.optimize.create_model()` | label for label:'
         ' coefficients, sense, right-hand side, bounds, integrality, objective terms |\n\n'
-        "Both sides solve one object, the network the rung's script builds — PyPSA directly, lpspec through the"
+        "Both sides solve one object, the network the rung's script builds — PyPSA directly, specsolve through the"
         ' file attached to the tables `prep.py` makes of it. A difference in structure, duals or the linopy lane is allowed only'
         ' with a reason in `differential/pypsa/deviations.yaml`; the runner fails on one recorded nowhere and on a reason'
         ' no rung needs. A rung the linopy lane cannot build yet names the blocker instead. Not compared: primals'
@@ -319,7 +319,7 @@ def index(stamped: dict) -> str:
 def rendered() -> dict[Path, str]:
     stamped = json.loads((LADDER / 'references.json').read_text())
     for s in stems():
-        stamped[s]['pypsa_objective'] = stamped[s]['parity']['lpspec_objective']
+        stamped[s]['pypsa_objective'] = stamped[s]['parity']['specsolve_objective']
     return {INDEX: index(stamped), **{PAGES / f'{s}.md': page(s, stamped[s]) for s in stems() if s in stamped}}
 
 

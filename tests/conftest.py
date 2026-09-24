@@ -1,4 +1,4 @@
-"""Shared fixtures and schema helpers for lpspec tests.
+"""Shared fixtures and schema helpers for specsolve tests.
 
 Everything here is linopy-free *and pandas-free at import*, so it loads on a
 bare install. On a bare install (no [linopy] extra) the eager/oracle modules
@@ -33,8 +33,8 @@ import polars as pl
 import pytest
 import yaml as pyyaml
 
-from lpspec.relational.sinks import SOLVERS
-from lpspec.sources import attachable
+from specsolve.relational.sinks import SOLVERS
+from specsolve.sources import attachable
 
 # The language's own tests own these (#1150); the noqa marks the two this file
 # re-exports without using, so the forty-odd tests on the other side of the cut
@@ -574,7 +574,7 @@ INFEASIBLE = {
 }
 
 #: Each case is the ``(model, data)`` pair a call site unpacks:
-#: ``lps.solve(*CASES['MIP'])``.
+#: ``sps.solve(*CASES['MIP'])``.
 CASES: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
     'LP': (
         LP,
@@ -611,9 +611,9 @@ def assert_agrees_with_highs(solver_name: str, case: str, variable: str, constra
     solvers *and* two derivations; it holds on the MIP too, being gated on
     ``has_primal`` alone where duals are not.
     """
-    import lpspec as lps
+    import specsolve as sps
 
-    with lps.solve(*CASES[case]) as highs, lps.solve(*CASES[case], solver_name=solver_name) as other:
+    with sps.solve(*CASES[case]) as highs, sps.solve(*CASES[case], solver_name=solver_name) as other:
         assert other.termination_condition == highs.termination_condition
         assert other.objective == pytest.approx(highs.objective)
 
@@ -631,10 +631,10 @@ def assert_agrees_with_highs(solver_name: str, case: str, variable: str, constra
 
 def assert_infeasible_reports_both_axes(solver_name: str) -> None:
     """The status pair, and the solver's own word for it where a user reads it."""
-    import lpspec as lps
-    from lpspec.errors import NoSolutionError
+    import specsolve as sps
+    from specsolve.errors import NoSolutionError
 
-    with lps.solve(*CASES['INFEASIBLE'], solver_name=solver_name) as solution:
+    with sps.solve(*CASES['INFEASIBLE'], solver_name=solver_name) as solution:
         assert solution.status == 'warning'
         assert solution.termination_condition == 'infeasible'
         assert not solution.has_primal

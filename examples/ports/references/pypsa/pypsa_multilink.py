@@ -21,7 +21,7 @@ relation as one incidence table — a ``(link, bus, value)`` row per link end,
 ``efficiency``/``efficiency2`` their deratings, an empty ``bus2`` where a link
 has only two ends. ``build`` opens with that pivot, so the two formulations
 stay independent while the data stays one instance. Nothing here imports
-lpspec.
+specsolve.
 
 Beside the ladder rather than on it: a multi-link is the one PyPSA construct
 whose *schema* grows with the data — every arity adds a column pair — so the
@@ -47,7 +47,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
 def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
     """The port's tables as a PyPSA network.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``; only
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``; only
     the incidence table changes shape on the way in, pivoted from one row per
     link end into PyPSA's one row per link. The input end is the one with the
     negative value — PyPSA fixes its share at -1, so the pivot asserts it: a

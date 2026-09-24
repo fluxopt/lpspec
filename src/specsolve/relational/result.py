@@ -1,0 +1,814 @@
+"""What a caller reads back — a solve's :class:`Result`, a build's :class:`Diagnostics`.
+
+The objects ``sps.solve`` and ``model.diagnostics()`` hand back, so they are
+the pieces of this subpackage a reader meets without going looking. A
+:class:`Result` holds one finished frame per declaration, its values already
+laid out over the build's coordinates, so no reader ever goes back to the
+engine.
+
+Named for linopy's envelope (``Result`` = status + solution + report).
+"""
+
+from __future__ import annotations
+
+import importlib.util
+from dataclasses import dataclass
+from datetime import datetime  # noqa: TC003  — a Record annotation this module writes
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
+
+from specsolve.errors import (
+    NoSolutionError,
+    SpecsolveError,
+    no_model_behind_this_answer_message,
+    unknown_name_message,
+)
+from specsolve.relational.collect import polars_engine
+from specsolve.relational.parquet import (
+    RECORD_FILE,
+    RECORD_SCHEMA,
+    Metrics,
+    Record,
+    clear_the_answer,
+    reader_kind,
+    write_format,
+    write_reasons,
+    write_whole,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping, Sequence
+
+    import pandas as pd
+    import polars as pl
+    import xarray as xr
+
+    from specsolve.relational.status import SolveStatus
+
+
+#: How much of the session a solve keeps, as a request to
+#: :meth:`specsolve.api.Model.solve` and as the report in
+#: :attr:`Result.kept`. The two things a session holds — the solver with the
+#: model on it, and the work that solver did — can only be dropped in that
+#: order: there is no carrying on from a solver that was closed, so the fourth
+#: combination does not exist.
+Keep = Literal['nothing', 'solver', 'progress']
+
+#: What each word keeps, in the order of how much that is. About provenance
+#: and not mechanism: whether *progress* is a basis, an incumbent or a sink's
+#: own notion is the sink's business.
+KEEPS: Mapping[Keep, str] = {
+    'nothing': 'the model is handed to a fresh solver, which has nothing to begin from',
+    'solver': 'the solver already holding the model is reused, and the work the last solve did is discarded',
+    'progress': 'the solver is reused and carries on from where the last solve got to',
+}
+
+
+def unknown_keep_message(keep: object) -> str:
+    """The message for a *keep* outside the three."""
+    options = '\n'.join(f'  {name}: {what}' for name, what in KEEPS.items())
+    return f'unknown keep {keep!r}. A solve may keep:\n{options}'
+
+
+#: What the bridges out say when the environment cannot serve them, ``{module}``
+#: being pandas or xarray.
+_NEEDS_THE_EXTRA = (
+    '{module} ships with the [linopy] extra rather than with the engine, so this build cannot bridge out '
+    'to it: pip install "specsolve[linopy]". A result needs nothing added to be read as it stands — primal() '
+    'and dual() return polars frames, and save() writes one file per declaration.'
+)
+
+
+def tidy_to_pandas(frame: pl.DataFrame) -> pd.DataFrame:
+    """A tidy polars frame as pandas, column by column.
+
+    Raises:
+        ModuleNotFoundError: On an install without pandas, naming the extra.
+    """
+    try:
+        import pandas as pd
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(_NEEDS_THE_EXTRA.format(module='pandas')) from exc
+
+    return pd.DataFrame({column: frame[column].to_numpy() for column in frame.columns})
+
+
+def tidy_to_dataarray(frame: pd.DataFrame, name: str) -> xr.DataArray:
+    """The same, labelled by its non-``value`` columns.
+
+    A scalar declaration has none and comes back 0-dimensional.
+
+    Probed rather than imported: an ``import xarray`` anywhere under
+    ``relational/`` is what hard rule 2 forbids (``tests/test_architecture.py``).
+
+    Raises:
+        ModuleNotFoundError: On an install without xarray, naming the extra.
+    """
+    if importlib.util.find_spec('xarray') is None:
+        raise ModuleNotFoundError(_NEEDS_THE_EXTRA.format(module='xarray'))
+
+    dims = [column for column in frame.columns if column != 'value']
+    if not dims:
+        return frame['value'].to_xarray().rename(name)
+    return frame.set_index(dims).to_xarray()['value'].rename(name)
+
+
+def tidy_to_dataset(names: Sequence[str], one: Callable[[str], xr.DataArray]) -> xr.Dataset:
+    """*names* as one dataset, each array built by *one*."""
+    first, *rest = names
+    dataset = one(first).to_dataset(name=first)
+    for name in rest:
+        dataset[name] = one(name)
+    return dataset
+
+
+def _number(value: float, *, sign: bool = False) -> str:
+    """*value* as the shortest string that reads back as itself.
+
+    Shortest round-trip, never rounded. A trailing ``.0`` is dropped, as linopy
+    prints ``+50``.
+    """
+    text = repr(float(value))
+    text = text.removesuffix('.0')
+    return f'+{text}' if sign and not text.startswith('-') else text
+
+
+def _bracket(labels: str) -> str:
+    """``[1, wind]``, or nothing at all for a declaration over no dims.
+
+    A scalar is ``z``, not ``z[]`` — linopy's spelling.
+    """
+    return f'[{labels}]' if labels else ''
+
+
+@dataclass(frozen=True)
+class ConstraintRow:
+    """One built constraint row, spelled back out — what :meth:`~specsolve.api.Model.row` returns.
+
+    The row a model actually built at one coordinate: every term with its
+    coefficient, and the comparison and right-hand side it was built against.
+    Read off the built model, so it needs no solve — and it is the *built*
+    row, after ``where`` masking, after any term whose variable was absent
+    dropped out, and after a coefficient the data made exactly zero stopped
+    being a term at all
+    (:func:`~specsolve.relational.engines.polars.assembly._without_zeros`). Those
+    three are why a row can be shorter than the file suggests, and why reading
+    one is worth it when a model says something other than what its author
+    wrote.
+
+    Printing it gives the row as one line of math, which is what reading a row
+    usually means; :attr:`terms` is the same content as a frame, for the row
+    too wide to read and for anything that filters or joins.
+
+    Attributes:
+        name: The constraint this row belongs to.
+        coordinate: Where in that declaration it sits.
+        terms: ``(variable, coordinate, coefficient)``, one row per term, in
+            the solver's own column order. ``coordinate`` is the term's labels
+            in its variable's dim order — what goes in the brackets — rendered
+            rather than spread across dim columns, since two terms of one row
+            may come from variables with different dims and so cannot share
+            them.
+        sense: ``<=``, ``>=`` or ``==``.
+        rhs: What the left-hand side is compared against.
+    """
+
+    name: str
+    coordinate: Mapping[str, object]
+    terms: pl.DataFrame
+    sense: str
+    rhs: float
+
+    #: How many terms a line spells out before it summarises instead.
+    display_terms = 12
+
+    def __str__(self) -> str:
+        """The row as one line: ``balance[snapshot=1]: +1 p[…] +50 p[…] >= 60``.
+
+        linopy's shape for the same job. A row wider than :attr:`display_terms`
+        summarises rather than truncating.
+        """
+        return f'{self.name}{_bracket(self._where())}: {self._body()} {self.sense} {_number(self.rhs)}'
+
+    #: The line, not the field-by-field dataclass dump.
+    __repr__ = __str__
+
+    def _where(self) -> str:
+        """``snapshot=1, g=gas`` — the coordinate, in the declaration's dim order."""
+        return ', '.join(f'{dim}={label}' for dim, label in self.coordinate.items())
+
+    def _body(self) -> str:
+        """The terms, spelled out or summarised — the part that depends on width."""
+        if not self.terms.height:
+            return '(no terms)'
+        if self.terms.height <= self.display_terms:
+            return ' '.join(
+                f'{_number(coefficient, sign=True)} {variable}{_bracket(coordinate)}'
+                for variable, coordinate, coefficient in self.terms.iter_rows()
+            )
+        return f'{self.terms.height} terms — {self._per_declaration()}'
+
+    def _per_declaration(self) -> str:
+        """``p: 300 (|coef| 1…50)`` per variable, in the row's own term order.
+
+        The two things a row too wide to read shows: how much of it each
+        declaration contributes, and whether its coefficients span an order of
+        magnitude.
+        """
+        import polars as pl
+
+        grouped = self.terms.group_by('variable', maintain_order=True).agg(
+            pl.len().alias('terms'),
+            pl.col('coefficient').abs().min().alias('low'),
+            pl.col('coefficient').abs().max().alias('high'),
+        )
+        return ', '.join(
+            f'{variable}: {terms} (|coef| {_number(low)})'
+            if low == high
+            else f'{variable}: {terms} (|coef| {_number(low)}…{_number(high)})'
+            for variable, terms, low, high in grouped.iter_rows()
+        )
+
+
+@dataclass(frozen=True)
+class Diagnostics:
+    """What a build and its solves did that the answer does not show.
+
+    Advisory, all of it: no answer depends on any field. Read them when a loop
+    is slower or smaller than it should be.
+    """
+
+    #: The shape the build produced: columns, rows, and matrix entries. The
+    #: thing to report when a model is bigger than its author expected — a
+    #: broadcast that multiplied rows shows up here first.
+    columns: int
+    rows: int
+    nonzeros: int
+
+    #: ``(constraint, rows_not_built)`` — every declared row that did not reach
+    #: the solver (the absence rules), by either route: one emptied of all its
+    #: terms, and one a **propagated absence** deleted while its other terms were
+    #: still live. Empty for a model whose every declared row was built — a
+    #: recurrence's first coordinate counting as a row it declared and did not
+    #: get, so a ``shift`` against the horizon's edge reports here and is the
+    #: boundary rather than a fault. Counts rather than coordinates: the label
+    #: of an unbuilt row does not exist.
+    omissions: pl.DataFrame
+
+    #: ``(parameter, coordinates, rows, missing)`` — one row per parameter whose
+    #: source is short of the coordinates its dims reach, in declaration order,
+    #: and **empty where every one is complete**. Sparsity is the ordinary case
+    #: here — absence is how a model masks — so this reports it rather than
+    #: judging it: what a missing row means is the absence rules', and whether
+    #: it was meant is the caller's to say.
+    #:
+    #: A parameter over no dims has one coordinate and attaching already refuses
+    #: a source that does not carry exactly one row for it, so it is never
+    #: here.
+    sparse_parameters: pl.DataFrame
+
+    #: ``(constraint, smallest, largest)`` — the coefficient **magnitudes** each
+    #: constraint block put in the matrix, one row per block that kept a term,
+    #: in build order. A solver's own ``Matrix range`` line answers this for the
+    #: whole model; what it cannot say, and what a caller can act on, is which
+    #: *declaration* holds the outlier. ``largest / smallest`` over the frame is
+    #: the conditioning to compare against the solver's. A block whose every row
+    #: went (the absence rules) has no entry, the same way it has no rows.
+    coefficient_range: pl.DataFrame
+
+    #: ``(variable, smallest, largest)`` — the **bound** magnitudes each variable
+    #: block put on its columns, one row per block that declared a finite one.
+    #: The axis a solver reports and does not repair: HiGHS prints a ``Bound``
+    #: range beside its ``Matrix`` one, equilibrates the matrix automatically,
+    #: and answers the bounds with ``Consider scaling the bounds by …`` — so a
+    #: model can be clean on :attr:`coefficient_range` and still be the one the
+    #: solver is complaining about. Zero and infinity are excluded, an
+    #: unbounded side and a ``lower: 0`` being nothing the solver represents. A
+    #: large ``largest`` is usually a big number standing in for "uncapped", and
+    #: wants no upper bound at all rather than a rounder one.
+    bound_range: pl.DataFrame
+
+    #: ``(constraint, smallest, largest)`` — the same for each block's
+    #: right-hand sides, over the rows that survived. The fourth of the four
+    #: ranges a solver reports, and the last of them this can answer per
+    #: declaration rather than per model.
+    rhs_range: pl.DataFrame
+
+    #: The same pair for the objective's coefficients, or ``None`` where the
+    #: model declares no objective and where every term of one cancelled.
+    objective_range: tuple[float, float] | None
+
+    #: How many times this model has been solved, and how many of those solves
+    #: loaded the solver from scratch instead of pushing values onto one that
+    #: already held it. Read together: ``loads == 1`` is a driver on the fast
+    #: path — the first solve had nothing to keep — and ``loads == solves`` on
+    #: an iterating driver is the difference between "specsolve is slow" and
+    #: "this model masks on a parameter that varies", unless the driver asked
+    #: for ``keep='nothing'``, which loads by construction. ``loads`` ticks on
+    #: exactly the solves that report :attr:`Result.kept` of ``nothing`` —
+    #: the same event, counted here and named there.
+    solves: int
+    loads: int
+
+    #: Cumulative wall-clock seconds per phase, keyed by the phase's name:
+    #: ``attach`` (the caller's sources onto the plan), ``build`` (declarations
+    #: into the model frames), ``handoff`` (the built model into a solver),
+    #: ``solve`` (the solver's own run), ``write`` (the built model to a
+    #: file). A phase that never ran has no key; one that ran again holds the
+    #: sum — an update's attach and build land on top of the first's, the way
+    #: ``solves`` keeps counting. Clocks rather than a profile: enough to say
+    #: which phase a slow loop spends its time in, not why.
+    seconds: Mapping[str, float]
+
+    def metrics(self) -> Metrics:
+        """The sizes, counters and clocks as one value — the row an archive records.
+
+        What ``archive=`` records beside the answer, and what a caller feeding
+        its own store reads off a model it solved. Which fields reach it and
+        what it means cumulatively are
+        :class:`~specsolve.relational.parquet.Metrics`'s to say; a phase this
+        build never entered reads zero there. ``run`` is null: the name is the
+        publisher's, and nothing has published this yet.
+        """
+        clocks = self.seconds
+        return Metrics(
+            columns=self.columns,
+            rows=self.rows,
+            nonzeros=self.nonzeros,
+            solves=self.solves,
+            loads=self.loads,
+            attach_seconds=clocks.get('attach', 0.0),
+            build_seconds=clocks.get('build', 0.0),
+            handoff_seconds=clocks.get('handoff', 0.0),
+            solve_seconds=clocks.get('solve', 0.0),
+            write_seconds=clocks.get('write', 0.0),
+        )
+
+
+def _named(frames: Mapping[str, pl.LazyFrame], name: str, kind: str) -> pl.LazyFrame:
+    try:
+        return frames[name]
+    except KeyError:
+        raise KeyError(unknown_name_message(kind, name, frames)) from None
+
+
+def evaluated(
+    declared: Mapping[str, Callable[[], pl.DataFrame]],
+    evaluator: Callable[[str | Mapping[str, object]], pl.DataFrame] | None,
+    expression: str | Mapping[str, object],
+) -> pl.DataFrame:
+    """*expression* valued: by the declared reader that holds it, else lowered by *evaluator*.
+
+    The one rule every ``evaluate`` shares. A declared name is served by its own
+    reader first, so it costs no lowering and answers off an archive that
+    retains no model; anything else is what *evaluator* lowers, and where there
+    is none the refusal says so.
+
+    Raises:
+        SpecsolveError: *expression* is not a declared name and *evaluator* is
+            ``None``.
+    """
+    if isinstance(expression, str) and expression in declared:
+        return declared[expression]()
+    if evaluator is None:
+        raise SpecsolveError(no_model_behind_this_answer_message())
+    return evaluator(expression)
+
+
+@dataclass
+class Result:
+    """What a solve returned — the outcome, and access to any values.
+
+    Returned whatever the solve concluded: test :attr:`has_primal` before
+    reading values, or catch :class:`~specsolve.errors.NoSolutionError`. The
+    values are this result's own, so a later solve on the same model does not
+    rewrite them, and there is no lifetime to manage — :meth:`close` releases
+    what this result holds early, and nothing breaks without it.
+
+    An update is no exception. A result owns everything it reads — one finished
+    frame per declaration, its own values already laid out over the label frames
+    of the build it answered — so it outlives anything done to the model
+    afterwards: an update, another solve, ``model.close()``. What retaining one
+    costs is those label frames staying alive, which matters once a caller keeps
+    several, as a sweep, a rolling horizon and Benders all do.
+    """
+
+    _status: SolveStatus
+    _objective: float
+    #: One ``(dims…, value)`` frame per declaration, lazy and in label order —
+    #: a read is a collect. ``None`` is what :meth:`close` leaves behind, and
+    #: the primal's absence is what "closed" means: both go together, and an
+    #: empty mapping is a solve that left nothing, which the status reports.
+    _primals: Mapping[str, pl.LazyFrame] | None
+    _duals: Mapping[str, pl.LazyFrame] | None
+    #: The constraints' left-hand sides at the solution, laid out exactly as
+    #: :attr:`_duals` — same frames, same row order — and present whenever the
+    #: primals are: unlike a dual, an activity exists at any incumbent.
+    _activities: Mapping[str, pl.LazyFrame] | None
+    #: How much of the session this solve kept, read off what actually ran —
+    #: never off what was asked for.
+    _kept: Keep
+    #: One deferred reader per declared named expression, and the ad-hoc
+    #: evaluator — what :meth:`evaluate` reads through and what :meth:`save`
+    #: writes. Nothing is compiled until a reader is called; the pair is
+    #: composed above the lane so the evaluator may read the model as written
+    #: (hard rule 2). ``_evaluate`` is ``None`` where there is no such model —
+    #: a build off an already-lowered ``Program``, or an answer read back off
+    #: disk. Released with the primals by :meth:`close`, since each holds this
+    #: build's frames and values.
+    _expressions: Mapping[str, Callable[[], pl.DataFrame]] | None = None
+    _evaluate: Callable[[str | Mapping[str, object]], pl.DataFrame] | None = None
+    #: Why there are no duals, when a solve that left values still has none.
+    #: ``None`` whenever :attr:`_duals` holds them.
+    _no_duals: str | None = None
+    #: One ``(dims…, value)`` frame per constraint, laid out exactly as
+    #: :attr:`_duals`, carrying the certificate an infeasible solve left.
+    #: Empty on every solve that was not infeasible, and released by
+    #: :meth:`close` with the rest.
+    _dual_rays: Mapping[str, pl.LazyFrame] | None = None
+    #: Why there is no certificate — the status, or the solver setting that
+    #: would have produced one. ``None`` whenever :attr:`_dual_rays` holds it.
+    _no_dual_ray: str | None = None
+    #: Which spec this answered, as :func:`~specsolve.relational.parquet.digest_of`
+    #: names it. Attached by the model that solved, so a solve run off a
+    #: lowered program — which has no document — leaves it ``None``.
+    _spec_digest: str | None = None
+    #: When the solver returned, in UTC. Attached by the model that solved.
+    _solved_at: datetime | None = None
+    #: The built model's digest — the spec *and* its data — as the value an
+    #: answer read off disk carries, or as the callable a live solve is given
+    #: so that nothing is hashed unless :meth:`model_digest` is asked. ``None``
+    #: where neither: an answer written before the column, or one built by hand.
+    #: Read through :meth:`model_digest`, never here.
+    _model_digest: str | Callable[[], str] | None = None
+
+    def model_digest(self) -> str | None:
+        """Which model this answered — the document and the data it was attached to.
+
+        :attr:`spec_digest` names the document alone, so two scenarios of one
+        spec share that and differ here. Computed on the first ask and kept,
+        which is what keeps a solve that never asks free of it.
+        """
+        if callable(self._model_digest):
+            self._model_digest = self._model_digest()
+        return self._model_digest
+
+    @property
+    def status(self) -> str:
+        """Coarse outcome: ``ok`` / ``warning`` / ``error`` / ``aborted`` / ``unknown``."""
+        return self._status.status
+
+    @property
+    def termination_condition(self) -> str:
+        """What the solver said — ``optimal``, ``infeasible``, ``time_limit`` and so on."""
+        return self._status.termination_condition
+
+    @property
+    def is_ok(self) -> bool:
+        """The linopy rollup: not an error, an abort or a refusal."""
+        return self._status.is_ok
+
+    @property
+    def has_primal(self) -> bool:
+        """Whether there are values to read — what the accessors gate on.
+
+        Narrower than :attr:`is_ok`: a run stopped at a time limit before any
+        incumbent is ``ok`` with nothing to read.
+        """
+        return self._status.is_readable
+
+    @property
+    def objective(self) -> float:
+        """The objective value, or ``nan`` when there is no solution."""
+        return self._objective
+
+    @property
+    def spec_digest(self) -> str | None:
+        """Which spec this answered — a digest of the file, not its name.
+
+        Two answers carrying one digest answered the same document, so a table
+        of saved cases says whether it is comparing like with like. The *data*
+        may differ entirely: two scenarios of one spec share this. ``None``
+        where the solve ran off a lowered program, which has no document.
+        """
+        return self._spec_digest
+
+    @property
+    def solved_at(self) -> datetime | None:
+        """When the solver returned, in UTC — ``None`` where the solve carried no clock.
+
+        What orders a table concatenated from runs solved apart, so that a
+        comparison is not left reading the timestamps of the files.
+        """
+        return self._solved_at
+
+    @property
+    def kept(self) -> Keep:
+        """How much of the session this solve kept — one of :data:`KEEPS`.
+
+        What *happened*, not what was asked: ``keep=`` is a preference, and a
+        first solve or a structure that moved keeps ``nothing`` whatever it
+        requested, the solver having been loaded again. So a driver that asked
+        to keep ``progress`` and reads ``nothing`` back is being told its
+        labels moved. Advisory, like :class:`Diagnostics`: no answer depends
+        on it.
+        """
+        return self._kept
+
+    def _unclosed(self, what: str) -> Mapping[str, pl.LazyFrame]:
+        """The primals, or why nothing here can be read: this result was closed.
+
+        The closed check is read off the primals whichever mapping the caller
+        wants: :meth:`close` releases them together.
+        """
+        if self._primals is None:
+            raise SpecsolveError(
+                f'cannot read {what}: this result was closed, and closing releases its values and its '
+                f'hold on the coordinates they lay out over. Frames already read stay valid — they are '
+                f'their own data — so read what you need before close(), or drop the `with` and close '
+                f'when you are done.'
+            )
+        return self._primals
+
+    def _readable(self, frames: Mapping[str, pl.LazyFrame] | None, what: str) -> Mapping[str, pl.LazyFrame]:
+        """*frames*, or why they cannot be read — closed first, then the status."""
+        self._unclosed(what)
+        if not self._status.is_readable:
+            wording = f' ({self._status.solver_wording})' if self._status.solver_wording else ''
+            raise NoSolutionError(
+                f'cannot read {what}: the solve terminated {self.termination_condition!r}'
+                f'{wording}, so there are no values to read. Test '
+                f'`has_primal` first. This raises rather than returning, because the solver '
+                f'hands back a full-length vector of zeros either way and it is '
+                f'indistinguishable from an answer.'
+            )
+        assert frames is not None, 'close() releases the primal, dual and activity frames together'
+        return frames
+
+    def primal(self, name: str) -> pl.DataFrame:
+        """The tidy solution of variable *name* — ``(dims…, value)``.
+
+        Rows come back in label order, row-major over the variable's coordinate
+        product, so two reads and two runs agree.
+
+        Raises:
+            NoSolutionError: The solve left no values to read.
+            SpecsolveError: This result was closed.
+            KeyError: No variable is called *name*.
+        """
+        frames = self._readable(self._primals, f"the primal of '{name}'")
+        return _named(frames, name, 'variable').collect(engine=polars_engine())
+
+    def dual(self, name: str) -> pl.DataFrame:
+        """Shadow prices of constraint *name* — ``(dims…, value)``.
+
+        :meth:`primal`'s shape and order, over constraint rows.
+
+        Raises:
+            NoSolutionError: The solve left no values at all.
+            SpecsolveError: This result was closed, or it left primals but no
+                duals — an integer variable makes them undefined.
+            KeyError: No constraint is called *name*.
+        """
+        frames = self._readable(self._duals, f"the dual of '{name}'")
+        if self._no_duals is not None:
+            raise SpecsolveError(self._no_duals)
+        return _named(frames, name, 'constraint').collect(engine=polars_engine())
+
+    def dual_ray(self, name: str) -> pl.DataFrame:
+        """Constraint *name*'s share of the certificate that this model has no solution — ``(dims…, value)``.
+
+        The one thing an infeasible solve has to say, and the only reader that
+        answers on one: :meth:`primal`, :meth:`dual` and :meth:`activity` all
+        raise there, because there is no solution behind them. Weight every
+        row by its value here and add them together, and the combined row
+        demands more than the columns can deliver inside their bounds — which
+        is the proof that nothing satisfies all of them at once. That is what
+        a Benders feasibility cut is built from, and it is why a driver no
+        longer needs a second model to ask *how far from feasible* a
+        subproblem was.
+
+        :meth:`dual`'s shape and order. **The sign is the row's own**, one
+        convention across every sink, so a driver never asks who solved — a
+        sink whose solver signs the other way negates what it reads. Where
+        every column is held only by a lower bound of zero, as a dispatch
+        variable is, the bounds deliver nothing and the proof is the simpler
+        ``Σ weight * right-hand side > 0``.
+
+        Raises:
+            SpecsolveError: This result was closed; or the solve was not
+                infeasible, so there is nothing to certify; or the sink
+                produced no ray, in which case the message names the solver
+                option that would have.
+            KeyError: No constraint is called *name*.
+
+        Example:
+            >>> answer.dual_ray('balance')  # doctest: +SKIP
+            shape: (4, 2)
+            ┌──────────┬───────┐
+            │ snapshot ┆ value │
+            ╞══════════╪═══════╡
+            │ 0        ┆ 1.0   │
+            └──────────┴───────┘
+        """
+        self._unclosed(f"the dual ray of '{name}'")
+        if self._no_dual_ray is not None:
+            raise SpecsolveError(self._no_dual_ray)
+        assert self._dual_rays is not None, 'a ray is released with the primals, which _unclosed just checked'
+        return _named(self._dual_rays, name, 'constraint').collect(engine=polars_engine())
+
+    def activity(self, name: str) -> pl.DataFrame:
+        """The left-hand side of constraint *name* at the solution — ``(dims…, value)``.
+
+        :meth:`dual`'s shape and order, and the other half of a row's story:
+        how far each row's ``Σ aᵢxᵢ`` sits from its bound. The solver's own
+        number, not a recomputation. Readable whenever there is a solution —
+        unlike :meth:`dual` it is well-defined on a mixed-integer model. On an
+        ``==`` row it equals the right-hand side up to solver tolerance by
+        construction.
+
+        Raises:
+            NoSolutionError: The solve left no values to read.
+            SpecsolveError: This result was closed.
+            KeyError: No constraint is called *name*.
+        """
+        frames = self._readable(self._activities, f"the activity of '{name}'")
+        return _named(frames, name, 'constraint').collect(engine=polars_engine())
+
+    def evaluate(self, expression: str | Mapping[str, object]) -> pl.DataFrame:
+        """The value of *expression* at this solution — ``(dims…, value)``.
+
+        *expression* is what one ``expressions:`` entry takes: a name the file
+        declares, an expression string, or the mapping carrying ``cases:``
+        with ``dims:`` and ``otherwise:``. It may use every name the model
+        declares and only those. The value is aggregated to the expression's
+        own dims, in declaration order, rows in label order over them —
+        :meth:`primal`'s shape and order.
+
+        A declared name is served by its own reader, compiled on this call and
+        never lowered again, so a model whose expressions go unread compiles
+        none of them. Anything else lowers the model as written, which costs
+        what ``check`` costs.
+
+        Raises:
+            NoSolutionError: The solve left no values to read.
+            SpecsolveError: This result was closed; the model was built from an
+                already-lowered ``Program`` or read back off disk, so there is
+                nothing to lower an undeclared expression against; or a divisor
+                with no value where the expression divides.
+            LanguageError: A construct outside the language, or a name the
+                model does not declare.
+        """
+        self._readable(self._primals, 'an expression')
+        return evaluated(self._expressions or {}, self._evaluate, expression)
+
+    def _frame(self, name: str, kind: str) -> pl.DataFrame:
+        """*name* through the reader *kind* names — the dispatch every bridge shares."""
+        reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.evaluate}[reader_kind(kind)]
+        return reader(name)
+
+    def _names(self, kind: str) -> tuple[str, ...]:
+        """Every name of *kind* this result can read — what a bridge takes by default.
+
+        Raises:
+            NoSolutionError: The solve left no values to read.
+            SpecsolveError: This result was closed, or *kind* is ``dual`` and
+                the duals are undefined.
+        """
+        if reader_kind(kind) == 'primal':
+            return tuple(self._readable(self._primals, 'the solution'))
+        if kind == 'dual':
+            frames = self._readable(self._duals, 'the duals')
+            if self._no_duals is not None:
+                raise SpecsolveError(self._no_duals)
+            return tuple(frames)
+        self._readable(self._primals, 'the expressions')
+        return tuple(self._expressions or {})
+
+    def to_pandas(self, name: str, kind: str = 'primal') -> pd.DataFrame:
+        """One name's values as a tidy :class:`pandas.DataFrame`.
+
+        Args:
+            name: A variable, a constraint or a named expression, as *kind*
+                says.
+            kind: ``primal``, ``dual`` or ``expression`` — the reader this
+                stands in for.
+        """
+        return tidy_to_pandas(self._frame(name, kind))
+
+    def to_dataarray(self, name: str, kind: str = 'primal') -> xr.DataArray:
+        """One name's values as a labelled :class:`xarray.DataArray`, :meth:`to_pandas`'s arguments.
+
+        Dense over the name's dims: a masked coordinate comes back NaN.
+        """
+        return tidy_to_dataarray(self.to_pandas(name, kind), name)
+
+    def to_dataset(self, *names: str, kind: str = 'primal') -> xr.Dataset:
+        """The named values of one *kind* as one :class:`xarray.Dataset`; all of that kind by default.
+
+        One kind per call: a dual and a variable of the same name would
+        collide, and mean something else per row. Each arrives dense over its
+        own dims, all at once — on a large model name the few you need.
+
+        Args:
+            names: What to include; none means every name of *kind*.
+            kind: ``primal``, ``dual`` or ``expression``.
+        """
+        return tidy_to_dataset(names or self._names(kind), lambda name: self.to_dataarray(name, kind))
+
+    def save(self, directory: str | Path) -> Path:
+        """Every kind this solve answered with, one file per name, into *directory*.
+
+        ``objective.parquet`` holds the
+        :class:`~specsolve.relational.parquet.Record` — how the solve terminated
+        and what it reached, in the columns a sweep keys and folds. A solve
+        that reached no objective writes null there rather than ``nan``, so a
+        directory per case is a table an aggregate reads. Then
+        ``primal/<name>.parquet`` for every variable, ``dual/<name>.parquet``
+        for every constraint where the duals are defined, and
+        ``expression/<name>.parquet`` for every named expression this data
+        can evaluate — an integer variable leaves the duals out, and an
+        expression that fails on this data is left out, :meth:`evaluate`
+        still saying why. The primals are streamed to disk in
+        :meth:`primal`'s order, so the same model and data write the same
+        bytes.
+
+        ``activity/<name>.parquet`` goes beside them for every constraint,
+        which no ``kind=`` names — a sweep folds three kinds and never holds
+        these, so a saved result carries them under a name of their own.
+
+        ``reasons.parquet`` holds ``(kind, name, reason)`` for whatever is
+        deliberately not here, and is absent when everything is: one row per
+        expression that failed, and one with an empty *name* for the duals,
+        whose absence is never per-constraint. Written because a directory
+        that simply lacks a file cannot tell "there is none, and here is why"
+        from "no such name", which is the one thing :meth:`dual` and
+        :meth:`evaluate` do say.
+
+        A solve that left no values writes the record and nothing else. A run
+        that came back infeasible is an answer a set of saved cases needs on
+        disk, rather than a directory that does not exist.
+
+        **The directory holds this answer and no other.** Whatever a previous
+        save left there is removed first, so a re-run cannot leave one model's
+        frames beside another's record. Files that are not part of the layout
+        are left alone.
+
+        Returns:
+            The directory.
+
+        Raises:
+            SpecsolveError: This result was closed.
+        """
+        import polars as pl
+
+        primals = self._unclosed('the solution')
+        out = Path(directory)
+        clear_the_answer(out)
+        write_format(out)
+        record = Record.of(
+            self.termination_condition,
+            self.objective,
+            has_primal=self.has_primal,
+            spec_digest=self._spec_digest,
+            solved_at=self._solved_at,
+            model_digest=self.model_digest(),
+        )
+        write_whole(pl.DataFrame([record._asdict()], schema_overrides=RECORD_SCHEMA), out / RECORD_FILE)
+        if not self._status.is_readable:
+            return out
+        for name, frame in primals.items():
+            write_whole(frame, out / 'primal' / f'{name}.parquet')
+        for name, frame in (self._duals or {}).items():
+            write_whole(frame, out / 'dual' / f'{name}.parquet')
+        for name, frame in (self._activities or {}).items():
+            write_whole(frame, out / 'activity' / f'{name}.parquet')
+        no_expressions: dict[str, str] = {}
+        for name, reader in (self._expressions or {}).items():
+            try:
+                evaluated = reader()
+            except SpecsolveError as absent:
+                no_expressions[name] = str(absent)
+                continue
+            write_whole(evaluated, out / 'expression' / f'{name}.parquet')
+        write_reasons(out, self._no_duals, no_expressions)
+        return out
+
+    def close(self) -> None:
+        """Release what this result holds early. Optional.
+
+        Its frames, which carry both its own values and its hold on the label
+        frames of the build it answered. Frames already read stay valid. Never
+        the model or the solver, which are the
+        :class:`~specsolve.api.Model`'s to close.
+        """
+        self._primals = self._duals = self._activities = self._expressions = None
+        self._dual_rays = None
+        self._evaluate = None
+
+    def __enter__(self) -> Result:
+        return self
+
+    def __exit__(self, *exc: object) -> Literal[False]:
+        self.close()
+        return False

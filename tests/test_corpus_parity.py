@@ -25,7 +25,7 @@ from typing import Any
 import polars as pl
 import pytest
 
-from lpspec.errors import LaneError
+from specsolve.errors import LaneError
 from tests.conftest import PORT_REFERENCES, PORTS_DIR, port_sources, port_spec
 from tests.differential import differential
 

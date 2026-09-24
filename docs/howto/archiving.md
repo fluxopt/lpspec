@@ -8,9 +8,9 @@ to someone else. The reference is
 ## Archive as you solve
 
 ```python
-import lpspec as lps
+import specsolve as sps
 
-lps.solve('dispatch.yaml', sources, archive='case/')
+sps.solve('dispatch.yaml', sources, archive='case/')
 ```
 
 That writes `model.yaml`, one `sources/<key>.parquet` per key the file
@@ -33,20 +33,20 @@ case/
 directory, as above. `.zip` packs the same members into one file:
 
 ```python
-lps.solve('dispatch.yaml', sources, archive='case.zip')
+sps.solve('dispatch.yaml', sources, archive='case.zip')
 ```
 
-**`lps.solve`, `model.solve` and `lps.solve_over` take `archive=`.** Nothing
+**`sps.solve`, `model.solve` and `sps.solve_over` take `archive=`.** Nothing
 else writes one.
 
 ## Read it back
 
 ```python
-case = lps.load_archive('case/')
+case = sps.load_archive('case/')
 
 case.answer.objective  # what it reached
 case.answer.primal('p')  # the values it came back with
-lps.solve(case.spec, case.sources)  # the same question, asked again
+sps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
 **`load_archive` reads it whole.** The sources come back as tables, the
@@ -54,7 +54,7 @@ answer's frames are in memory, and nothing has to be kept alive afterwards. A
 zip unpacks to a scratch directory that is gone when the call returns:
 
 ```python
-case = lps.load_archive('case.zip')
+case = sps.load_archive('case.zip')
 ```
 
 Pass `into=` when you want the extracted tree as well, to query it with an
@@ -67,7 +67,7 @@ refuses an `into=`.
 and each frame is read off disk at the call that asks for it:
 
 ```python
-sweep = lps.scan_archive('sweep.zip', 'sweep/')
+sweep = sps.scan_archive('sweep.zip', 'sweep/')
 sweep.answer.scan('p')  # read at the collect, one name at a time
 ```
 
@@ -90,7 +90,7 @@ cover, and wall-clock seconds in each phase, as one value
 ([the attributes](../reference/api.md#diagnostics)).
 
 ```python
-case = lps.load_archive('case/')
+case = sps.load_archive('case/')
 
 case.metrics.rows  # how big the model was
 case.metrics.solves  # how many solves the clocks cover
@@ -98,11 +98,11 @@ case.metrics.build_seconds  # turning declarations into frames
 ```
 
 **The row covers the model's whole life, and `solves` says how long that is.**
-`lps.solve` builds the model it solves, so its archive reads `solves` of 1. A
+`sps.solve` builds the model it solves, so its archive reads `solves` of 1. A
 model solved more than once before it was archived carries the sum:
 
 ```python
-with lps.build('dispatch.yaml', sources) as model:
+with sps.build('dispatch.yaml', sources) as model:
     model.solve()
     model.solve(archive='second/')  # solves: 2, and the clocks cover both
 ```
@@ -116,7 +116,7 @@ An updated model answers the merged data, so archive it where it is
 answered:
 
 ```python
-with lps.build('dispatch.yaml', sources) as model:
+with sps.build('dispatch.yaml', sources) as model:
     model.update({'p_max': doubled}).solve(archive='case/')
 ```
 
@@ -127,17 +127,17 @@ one slice at a time. `archive=` packs the whole sweep. Pass both and the spill
 is what the archive packs, so the sweep is archived without ever being held:
 
 ```python
-axis = lps.EachCoordinate('scenario')
-lps.solve_over('dispatch.yaml', sources, axis, spill_to='work/', archive='sweep/')
+axis = sps.EachCoordinate('scenario')
+sps.solve_over('dispatch.yaml', sources, axis, spill_to='work/', archive='sweep/')
 ```
 
 The archive carries the axis, so the sweep runs again from the file alone:
 
 ```python
-sweep = lps.scan_archive('sweep/')
+sweep = sps.scan_archive('sweep/')
 
 sweep.answer.scan('p')  # keyed by scenario, read at the collect
-lps.solve_over(sweep.spec, sweep.sources, sweep.axis)
+sps.solve_over(sweep.spec, sweep.sources, sweep.axis)
 ```
 
 `scan_archive` reads a sweep back spilled, as `spill_to=` left it.

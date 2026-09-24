@@ -10,14 +10,14 @@ and `lifecycle.md`, at the root), how-to guides (`howto/`), reference
 (`reference/`, and the model pages in `examples/`) and explanation
 (`about/`). The rules each kind
 has to meet are
-[the docs-writing skill](https://github.com/fluxopt/lpspec/blob/main/.claude/skills/docs-writing/SKILL.md).
+[the docs-writing skill](https://github.com/fluxopt/specsolve/blob/main/.claude/skills/docs-writing/SKILL.md).
 The language is a dependency documented with itself, so the nav links out to
 math-spec.
 
 **Two link rules**, enforced by `tests/test_docs_site.py`: inside `docs/`,
 link relatively; outside it, write the full GitHub URL, because the relative
 form 404s on the site. This page follows them too. The rest is
-[CONTRIBUTING.md](https://github.com/fluxopt/lpspec/blob/main/CONTRIBUTING.md#the-docs).
+[CONTRIBUTING.md](https://github.com/fluxopt/specsolve/blob/main/CONTRIBUTING.md#the-docs).
 
 **Generated, so do not hand-edit:** the catalogue, construct matrix and
 reference table in [examples/index.md](examples/index.md)

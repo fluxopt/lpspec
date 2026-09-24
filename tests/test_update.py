@@ -23,8 +23,8 @@ import polars as pl
 import pytest
 from math_spec import to_spec
 
-import lpspec as lps
-from lpspec.sources import attachable
+import specsolve as sps
+from specsolve.sources import attachable
 from tests.conftest import KNAPSACK, expanded, knapsack_sources, override, port_sources
 
 GENERATORS = ['wind', 'solar', 'gas']
@@ -161,7 +161,7 @@ RUNGS = [
 @pytest.fixture
 def model(dispatch_yaml):
     """The example dispatch on its own data, built and open for the test's duration."""
-    with lps.build(dispatch_yaml, sources() | COORDS) as model:
+    with sps.build(dispatch_yaml, sources() | COORDS) as model:
         yield model
 
 
@@ -187,8 +187,8 @@ def test_a_update_answers_what_a_fresh_build_answers(dispatch_yaml, rung, solver
     spec, given = _case(rung, dispatch_yaml)
     program = to_spec(spec).program
     with (
-        lps.solve(spec, {**given, **rung.change}, solver_name=solver_name) as reference,
-        lps.build(spec, given) as model,
+        sps.solve(spec, {**given, **rung.change}, solver_name=solver_name) as reference,
+        sps.build(spec, given) as model,
     ):
         model.solve(solver_name=solver_name)
         updated = model.update(rung.change).solve(solver_name=solver_name)
@@ -275,7 +275,7 @@ def _prices(result: Any, program: Any) -> dict[str, pl.DataFrame] | None:
     """
     try:
         return {name: result.dual(name) for name in program.constraints}
-    except lps.LpspecError:
+    except sps.SpecsolveError:
         return None
 
 
@@ -319,12 +319,12 @@ def test_a_update_walk_answers_what_a_fresh_build_answers(port):
     program = expanded(port['spec']).program
     given = _declared(port_sources(port['name']), program)
 
-    with lps.build(expanded(port['spec']), given) as model:
+    with sps.build(expanded(port['spec']), given) as model:
         model.solve()
         for step, factor in enumerate(WALK):
             change = _scaled(given, factor)
             where = f'{port["name"]} x{factor}'
-            with lps.solve(expanded(port['spec']), change) as reference:
+            with sps.solve(expanded(port['spec']), change) as reference:
                 got = model.update(change).solve()
 
                 assert got.termination_condition == reference.termination_condition, f'{where}: terminated differently'
@@ -361,7 +361,7 @@ def test_only_a_update_that_moves_a_label_loads_the_solver_again(dispatch_yaml, 
     stay loaded.
     """
     spec, given = _case(rung, dispatch_yaml)
-    with lps.build(spec, given) as model:
+    with sps.build(spec, given) as model:
         model.solve(solver_name=solver_name)
         assert model.diagnostics().loads == 1, 'the first solve has nothing loaded to keep'
 
@@ -377,7 +377,7 @@ def test_only_a_update_that_moves_a_label_loads_the_solver_again(dispatch_yaml, 
 
 def _tables(spec: Any) -> Any:
     """*model*'s solver tables, read off it built on the reach data."""
-    with lps.build(spec, reach_sources()) as built:
+    with sps.build(spec, reach_sources()) as built:
         return built._engine._model.tables
 
 
@@ -438,7 +438,7 @@ def _hashes(monkeypatch) -> list[int]:
     A plain property in place of the `cached_property`, so one object asked
     twice counts twice. Each count below is one object asked once.
     """
-    from lpspec.relational.sinks import tables as tables_module
+    from specsolve.relational.sinks import tables as tables_module
 
     taken: list[int] = []
     real = tables_module.Tables.structure.func
@@ -544,7 +544,7 @@ def test_a_solve_asking_for_other_options_loads_the_model_again(model, solver_na
 def test_a_update_takes_a_change_at_a_time_and_keeps_the_rest(dispatch_yaml, model):
     """Partial by construction: what is not named keeps what `build` bound."""
     every = {**sources(), 'load': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [1.0, 2.0, 3.0, 4.0]})}
-    with lps.solve(dispatch_yaml, every | COORDS) as reference:
+    with sps.solve(dispatch_yaml, every | COORDS) as reference:
         updated = model.update({'load': every['load']}).solve()
         assert updated.objective == pytest.approx(reference.objective)
 
@@ -606,7 +606,7 @@ def test_a_update_refuses_a_name_the_model_does_not_declare(model, call, unknown
     a driver cannot see: it re-solves the numbers already attached and reports the
     answer. `build` needs no such check — it attaches every declared name or
     fails."""
-    with pytest.raises(lps.DataError, match=unknown):
+    with pytest.raises(sps.DataError, match=unknown):
         call(model)
 
 
@@ -660,10 +660,10 @@ def test_a_update_can_grow_a_dimension():
         }
 
     with (
-        lps.solve(
+        sps.solve(
             master, {'invest': invest, **cuts(3)} | {'cut': [0, 1, 2], 'generator': ['wind', 'gas']}
         ) as reference,
-        lps.build(master, {'invest': invest, **cuts(1)} | {'cut': [0], 'generator': ['wind', 'gas']}) as model,
+        sps.build(master, {'invest': invest, **cuts(1)} | {'cut': [0], 'generator': ['wind', 'gas']}) as model,
     ):
         model.solve()
         grown = model.update(cuts(3) | {'cut': [0, 1, 2]}).solve()
@@ -691,10 +691,10 @@ def test_a_update_that_cannot_build_leaves_nothing_half_built(model):
     of two, which is worse than having nothing to answer with.
     """
     model.solve()
-    with pytest.raises(lps.DataError):
+    with pytest.raises(sps.DataError):
         model.update({'load': pl.DataFrame({'snapshot': [0, 0, 1], 'value': [1.0, 2.0, 3.0]})})
 
-    with pytest.raises(lps.LpspecError, match='no built model to hand over'):
+    with pytest.raises(sps.SpecsolveError, match='no built model to hand over'):
         model.solve()
 
 
@@ -705,7 +705,7 @@ def test_diagnostics_report_the_shape_the_solver_was_handed(dispatch_yaml):
     *survived* the mask rather than what the declarations multiply out to —
     which is the whole reason it is read off the built model.
     """
-    with lps.build(dispatch_yaml, sources() | COORDS) as model:
+    with sps.build(dispatch_yaml, sources() | COORDS) as model:
         model.solve()
         seen = model.diagnostics()
 
@@ -719,7 +719,7 @@ def test_diagnostics_report_the_shape_the_solver_was_handed(dispatch_yaml):
 def test_a_mask_that_removes_a_column_removes_it_from_the_shape(dispatch_yaml):
     """Read off the built model, so a mask that moved moves the counts with it."""
     zeroed = {**sources(), 'p_max': pl.DataFrame({'generator': GENERATORS, 'value': [100.0, 60.0, 0.0]})}
-    with lps.build(dispatch_yaml, zeroed | COORDS) as model:
+    with sps.build(dispatch_yaml, zeroed | COORDS) as model:
         assert model.diagnostics().columns == len(SNAPSHOTS) * (len(GENERATORS) - 1)
 
 
@@ -734,7 +734,7 @@ def test_a_cost_falling_to_zero_shrinks_the_objective_and_keeps_the_solver():
     another's name, and every answer after it would be confidently wrong.
     """
     given = reach_sources()
-    with lps.build(REACH, given) as model:
+    with sps.build(REACH, given) as model:
         model.solve()
         before = model._engine._model.tables.obj.height
         assert model.diagnostics().loads == 1, 'the first solve has nothing loaded to keep'
@@ -747,7 +747,7 @@ def test_a_cost_falling_to_zero_shrinks_the_objective_and_keeps_the_solver():
         )
         assert model.diagnostics().loads == 1, 'a cost is pushed, so a cost falling to zero may not reload'
 
-    with lps.build(REACH, {**given, 'cost': zeroed}) as fresh:
+    with sps.build(REACH, {**given, 'cost': zeroed}) as fresh:
         assert updated.objective == fresh.solve().objective, (
             'the pushed cost vector disagrees with the one a cold build hands over'
         )

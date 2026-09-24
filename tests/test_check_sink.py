@@ -14,12 +14,12 @@ import warnings
 import pytest
 from math_spec import to_spec
 
-import lpspec as lps
-from lpspec.errors import LpspecError, LpspecWarning
-from lpspec.relational import sinks
-from lpspec.relational.sinks.capabilities import Capabilities
-from lpspec.relational.sinks.solvers import SOLVERS
-from lpspec.relational.sinks.writers import WRITERS
+import specsolve as sps
+from specsolve.errors import SpecsolveError, SpecsolveWarning
+from specsolve.relational import sinks
+from specsolve.relational.sinks.capabilities import Capabilities
+from specsolve.relational.sinks.solvers import SOLVERS
+from specsolve.relational.sinks.writers import WRITERS
 
 #: A pure LP: every sink takes it whole, so it is what "silent" is measured
 #: against.
@@ -46,8 +46,8 @@ WITH_A_QUADRATIC_ROW = PLAIN | {
 def _warnings(spec, **kwargs) -> list[str]:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
-        lps.check(spec, **kwargs)
-    return [str(w.message) for w in caught if issubclass(w.category, LpspecWarning)]
+        sps.check(spec, **kwargs)
+    return [str(w.message) for w in caught if issubclass(w.category, SpecsolveWarning)]
 
 
 @pytest.mark.parametrize('sink', ['highs', 'gurobi', '.lp'])
@@ -63,8 +63,8 @@ def test_bare_check_says_nothing_about_portability():
 
 def test_a_set_on_highs_is_refused_naming_the_expansion():
     """Nothing is rewritten at the hand-off, so the refusal names the language's own way out."""
-    with pytest.raises(LpspecError, match="'highs' sink cannot take special-ordered sets") as refusal:
-        lps.check(WITH_A_SET, sink='highs')
+    with pytest.raises(SpecsolveError, match="'highs' sink cannot take special-ordered sets") as refusal:
+        sps.check(WITH_A_SET, sink='highs')
     assert 'gurobi' in str(refusal.value), 'the sinks that take a set are named'
     assert 'expand()' in str(refusal.value), 'and so is the expansion that writes one out for the sinks that do not'
 
@@ -77,8 +77,8 @@ def test_a_set_is_silent_on_the_sinks_that_carry_one(sink):
 
 
 def test_an_unknown_sink_names_the_ones_there_are():
-    with pytest.raises(LpspecError, match='unknown sink') as refused:
-        lps.check(PLAIN, sink='cplex')
+    with pytest.raises(SpecsolveError, match='unknown sink') as refused:
+        sps.check(PLAIN, sink='cplex')
     assert re.search(r'\.lp, \.mps, gurobi, highs, xpress', str(refused.value)), (
         'the refusal lists every sink there is, so a reader picks one instead of guessing'
     )
@@ -182,8 +182,8 @@ def test_a_refusal_does_not_swallow_the_solver_independent_advice(recwarn):
         patch.setitem(SOLVERS, 'stub', Stub)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always')
-            with pytest.raises(LpspecError):
-                lps.check(unused | {'sos': {'pick': {'variable': 'p', 'along': 'g', 'type': 1}}}, sink='stub')
+            with pytest.raises(SpecsolveError):
+                sps.check(unused | {'sos': {'pick': {'variable': 'p', 'along': 'g', 'type': 1}}}, sink='stub')
         assert [str(w.message) for w in caught] == bare, 'the advice a bare check gives is issued before the raise'
 
 

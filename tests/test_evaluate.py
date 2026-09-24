@@ -1,4 +1,4 @@
-"""`lps.evaluate(spec, sources, expression)`: a spec's arithmetic, with no solver.
+"""`sps.evaluate(spec, sources, expression)`: a spec's arithmetic, with no solver.
 
 A spec with no variables is a calculation, not an optimisation — dimensions,
 parameters, relations and ``expressions:`` — so each expression has a value with
@@ -19,9 +19,9 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LanguageError, LpspecError
-from lpspec.relational.engines.polars.compiler import PolarsCompiler
+import specsolve as sps
+from specsolve.errors import LanguageError, SpecsolveError
+from specsolve.relational.engines.polars.compiler import PolarsCompiler
 
 SPEC = {
     'dimensions': {
@@ -63,7 +63,7 @@ def sources() -> dict[str, object]:
 
 
 def evaluate(expression: str | dict) -> pl.DataFrame:
-    return lps.evaluate(SPEC, sources(), expression)
+    return sps.evaluate(SPEC, sources(), expression)
 
 
 def test_a_scalar_expression_is_the_arithmetic_the_data_implies():
@@ -143,8 +143,8 @@ def test_a_name_the_spec_does_not_declare_is_refused():
 )
 def test_a_spec_that_declares_a_decision_is_refused_and_names_solve(decision, names):
     spec = {**SPEC, **decision}
-    with pytest.raises(LpspecError, match=r'lps\.solve') as caught:
-        lps.evaluate(spec, sources(), 'total_cost')
+    with pytest.raises(SpecsolveError, match=r'sps\.solve') as caught:
+        sps.evaluate(spec, sources(), 'total_cost')
     assert names in str(caught.value), 'the refusal names the decision it found, so the author sees what to drop'
 
 

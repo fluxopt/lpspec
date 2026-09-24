@@ -20,11 +20,11 @@ import pytest
 import yaml as pyyaml
 from math_spec import to_spec
 
-import lpspec as lps
-from lpspec.api import attach_readers
-from lpspec.layout import ANSWER_DIR, _staging_for
-from lpspec.relational.parquet import METRICS_FILE, Metrics, digest_of_file
-from lpspec.sources import attachable, tidy_sources
+import specsolve as sps
+from specsolve.api import attach_readers
+from specsolve.layout import ANSWER_DIR, _staging_for
+from specsolve.relational.parquet import METRICS_FILE, Metrics, digest_of_file
+from specsolve.sources import attachable, tidy_sources
 from tests.conftest import (
     DISPATCH_COST,
     DISPATCH_GENERATORS,
@@ -46,14 +46,14 @@ if TYPE_CHECKING:
     from math_spec import Spec
 
 
-def _question(archive: lps.SolveArchive | lps.SweepArchive) -> tuple[Spec, Mapping[str, object]]:
+def _question(archive: sps.SolveArchive | sps.SweepArchive) -> tuple[Spec, Mapping[str, object]]:
     """The pair every verb takes, read off an archive."""
     return archive.spec, archive.sources
 
 
 def _archived(spec, sources, out: Path) -> Path:
     """The archive a solve writes, which is the only way one is made."""
-    with lps.solve(spec, sources, archive=out):
+    with sps.solve(spec, sources, archive=out):
         return out
 
 
@@ -62,7 +62,7 @@ def test_what_attaches_from_the_archive_is_what_attached_from_the_tables(name: s
     program = expanded(port_spec(name)).program
     sources = port_sources(name)
     archive = _archived(expanded(port_spec(name)), sources, tmp_path / 'model.zip')
-    spec, unpacked = _question(lps.load_archive(archive, tmp_path / 'out'))
+    spec, unpacked = _question(sps.load_archive(archive, tmp_path / 'out'))
 
     assert set(unpacked) == set(attachable(program)), (
         'the archive holds one member per attachable key — every declared parameter, dimension and relation, '
@@ -81,8 +81,8 @@ def test_the_round_trip_solves_to_the_same_objective(
 ) -> None:
     archive = _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'dispatch.zip')
     with (
-        lps.solve(dispatch_yaml, dispatch_frame_inputs) as direct,
-        lps.solve(*_question(lps.load_archive(archive, tmp_path / 'out'))) as unpacked,
+        sps.solve(dispatch_yaml, dispatch_frame_inputs) as direct,
+        sps.solve(*_question(sps.load_archive(archive, tmp_path / 'out'))) as unpacked,
     ):
         assert unpacked.objective == pytest.approx(direct.objective, rel=1e-9), (
             'the archive builds the model the tables did'
@@ -99,7 +99,7 @@ def test_plain_python_shapes_are_written_as_the_tables_they_stand_for(dispatch_y
         'generator': list(DISPATCH_GENERATORS),
     }
     archive = _archived(dispatch_yaml, sources, tmp_path / 'dispatch.zip')
-    _, unpacked = _question(lps.scan_archive(archive, tmp_path / 'out'))
+    _, unpacked = _question(sps.scan_archive(archive, tmp_path / 'out'))
     cost = pl.read_parquet(unpacked['cost'])
     snapshot = pl.read_parquet(unpacked['snapshot'])
 
@@ -145,7 +145,7 @@ def test_unpack_lays_the_archive_out_in_the_directory(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     archive = _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'dispatch.zip')
-    spec, sources = _question(lps.scan_archive(archive, tmp_path / 'out'))
+    spec, sources = _question(sps.scan_archive(archive, tmp_path / 'out'))
 
     assert sources == {k: tmp_path / 'out' / 'sources' / f'{k}.parquet' for k in dispatch_frame_inputs}, (
         'every source comes back as the path it was extracted to, one per key'
@@ -157,8 +157,8 @@ def test_unpack_lays_the_archive_out_in_the_directory(
 
 def test_a_refused_model_writes_nothing(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
     out = tmp_path / 'dispatch.zip'
-    with pytest.raises(lps.DataError, match="no data provided for parameter 'cost'"):
-        lps.solve(dispatch_yaml, {k: v for k, v in dispatch_frame_inputs.items() if k != 'cost'}, archive=out)
+    with pytest.raises(sps.DataError, match="no data provided for parameter 'cost'"):
+        sps.solve(dispatch_yaml, {k: v for k, v in dispatch_frame_inputs.items() if k != 'cost'}, archive=out)
     assert not out.exists(), 'a model that cannot be built writes no archive'
 
 
@@ -175,8 +175,8 @@ def test_a_zip_outside_the_layout_is_refused(members: dict[str, bytes], says: st
     with zipfile.ZipFile(path, 'w') as zipped:
         for name, data in members.items():
             zipped.writestr(name, data)
-    with pytest.raises(lps.LayoutError) as excinfo:
-        _question(lps.load_archive(path, tmp_path / 'out'))
+    with pytest.raises(sps.LayoutError) as excinfo:
+        _question(sps.load_archive(path, tmp_path / 'out'))
     assert says in str(excinfo.value), 'the message names what was found, and the layout archive= writes'
     assert not (tmp_path / 'out').exists(), 'nothing is extracted from a zip that is not an archive'
 
@@ -190,18 +190,18 @@ def test_a_directory_archive_holds_what_the_zip_holds_and_is_read_where_it_lies(
     only thing that changes is whether anything has to be unpacked before a
     scan can see the parquet files.
     """
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip')
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip')
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
 
     with zipfile.ZipFile(tmp_path / 'case.zip') as zipped:
         packed = sorted(zipped.namelist())
     spread = sorted(f.relative_to(tmp_path / 'case').as_posix() for f in (tmp_path / 'case').rglob('*') if f.is_file())
     assert spread == packed, 'the same members, laid out instead of packed'
 
-    loose = lps.load_archive(tmp_path / 'case')
-    unpacked = lps.load_archive(tmp_path / 'case.zip', tmp_path / 'out')
+    loose = sps.load_archive(tmp_path / 'case')
+    unpacked = sps.load_archive(tmp_path / 'case.zip', tmp_path / 'out')
     assert loose.answer.objective == unpacked.answer.objective
-    assert lps.scan_archive(tmp_path / 'case').sources['load'].parent.parent == tmp_path / 'case', (
+    assert sps.scan_archive(tmp_path / 'case').sources['load'].parent.parent == tmp_path / 'case', (
         'a directory archive is scanned where it lies, so there is no second copy to keep alive'
     )
 
@@ -209,13 +209,13 @@ def test_a_directory_archive_holds_what_the_zip_holds_and_is_read_where_it_lies(
 @pytest.mark.parametrize(
     ('read', 'suffix', 'into', 'says'),
     [
-        pytest.param(lps.scan_archive, '.zip', None, 'needs somewhere to unpack', id='scan-a-zip-with-no-into'),
-        pytest.param(lps.scan_archive, '', 'anywhere', 'read where it lies', id='scan-a-directory-with-an-into'),
-        pytest.param(lps.load_archive, '', 'anywhere', 'read where it lies', id='load-a-directory-with-an-into'),
+        pytest.param(sps.scan_archive, '.zip', None, 'needs somewhere to unpack', id='scan-a-zip-with-no-into'),
+        pytest.param(sps.scan_archive, '', 'anywhere', 'read where it lies', id='scan-a-directory-with-an-into'),
+        pytest.param(sps.load_archive, '', 'anywhere', 'read where it lies', id='load-a-directory-with-an-into'),
     ],
 )
 def test_into_is_asked_for_exactly_where_something_must_be_unpacked_and_kept(
-    read: Callable[..., lps.SolveArchive | lps.SweepArchive],
+    read: Callable[..., sps.SolveArchive | sps.SweepArchive],
     suffix: str,
     into: str | None,
     says: str,
@@ -231,8 +231,8 @@ def test_into_is_asked_for_exactly_where_something_must_be_unpacked_and_kept(
     them, so an `into` would have nothing to do — whichever reader is asking.
     """
     out = tmp_path / f'case{suffix}'
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out)
-    with pytest.raises(lps.LayoutError, match=says):
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out)
+    with pytest.raises(sps.LayoutError, match=says):
         read(out, None if into is None else tmp_path / into)
 
 
@@ -245,10 +245,10 @@ def test_loading_a_zip_needs_nowhere_to_unpack_and_leaves_nothing_behind(
     could still be read from afterwards, and there is no afterwards here: the
     answer and the sources are in memory by the time the call returns.
     """
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip')
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip')
     beside_it = sorted(path.name for path in tmp_path.iterdir())
 
-    case = lps.load_archive(tmp_path / 'case.zip')
+    case = sps.load_archive(tmp_path / 'case.zip')
 
     assert case.answer.primal('p').height > 0, 'the answer came back with no directory named to read it off'
     assert sorted(path.name for path in tmp_path.iterdir()) == beside_it, (
@@ -267,18 +267,18 @@ def test_a_directory_that_already_holds_something_is_refused(
     out = tmp_path / 'case'
     out.mkdir()
     (out / 'mine.txt').write_text('not an archive')
-    with pytest.raises(lps.LayoutError, match='already holds something'):
-        lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out)
+    with pytest.raises(sps.LayoutError, match='already holds something'):
+        sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out)
     assert sorted(f.name for f in out.iterdir()) == ['mine.txt'], 'and what was there is untouched'
 
 
 @pytest.mark.parametrize(
     'verb',
     [
-        pytest.param(lambda spec, sources: lps.build(spec, sources), id='build'),
-        pytest.param(lambda spec, sources: lps.solve(spec, sources), id='solve'),
+        pytest.param(lambda spec, sources: sps.build(spec, sources), id='build'),
+        pytest.param(lambda spec, sources: sps.solve(spec, sources), id='solve'),
         pytest.param(
-            lambda spec, sources: lps.solve_over(spec, sources, lps.EachCoordinate('generator')), id='solve_over'
+            lambda spec, sources: sps.solve_over(spec, sources, sps.EachCoordinate('generator')), id='solve_over'
         ),
     ],
 )
@@ -290,8 +290,8 @@ def test_a_lowered_program_is_not_a_model_any_verb_takes(verb, dispatch_yaml: Pa
     one function, so the sentence is written once and arrives before anything
     is built.
     """
-    with pytest.raises(lps.LpspecError, match='lowered Program is not a model this takes'):
-        verb(lps.check(dispatch_yaml), dispatch_frame_inputs)
+    with pytest.raises(sps.SpecsolveError, match='lowered Program is not a model this takes'):
+        verb(sps.check(dispatch_yaml), dispatch_frame_inputs)
 
 
 def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path, monkeypatch) -> None:
@@ -311,7 +311,7 @@ def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp
     monkeypatch.setattr(Spec, 'to_yaml', fails)
     later = tmp_path / 'later.zip'
     with pytest.raises(RuntimeError, match='went away'):
-        lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=later)
+        sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=later)
     assert not list(tmp_path.glob('later*')), 'a write that did not finish leaves nothing under either name'
 
 
@@ -324,14 +324,14 @@ def test_an_archive_carries_the_answer_beside_the_question(
     model alone has to be re-solved to be read. One file holds both, and the
     two cannot drift apart or be paired up wrongly.
     """
-    with lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip') as solved:
-        loaded = lps.load_archive(tmp_path / 'case.zip', tmp_path / 'case')
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip') as solved:
+        loaded = sps.load_archive(tmp_path / 'case.zip', tmp_path / 'case')
 
         assert loaded.answer.objective == solved.objective
         for name in to_spec(dispatch_yaml).program.variables:
             assert loaded.answer.primal(name).equals(solved.primal(name))
 
-    with lps.solve(*_question(loaded)) as resolved:
+    with sps.solve(*_question(loaded)) as resolved:
         assert resolved.objective == pytest.approx(loaded.answer.objective, rel=1e-9), (
             'the question in the archive is the one its answer answered'
         )
@@ -349,9 +349,9 @@ def test_two_archives_of_one_spec_over_different_numbers_are_told_apart(
     halved = pl.DataFrame(
         {'snapshot': dispatch_frame_inputs['load']['snapshot'], 'value': dispatch_frame_inputs['load']['value'] * 0.5}
     )
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'base').close()
-    lps.solve(dispatch_yaml, {**dispatch_frame_inputs, 'load': halved}, archive=tmp_path / 'halved').close()
-    base, other = lps.load_archive(tmp_path / 'base'), lps.load_archive(tmp_path / 'halved')
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'base').close()
+    sps.solve(dispatch_yaml, {**dispatch_frame_inputs, 'load': halved}, archive=tmp_path / 'halved').close()
+    base, other = sps.load_archive(tmp_path / 'base'), sps.load_archive(tmp_path / 'halved')
 
     assert base.answer.spec_digest == other.answer.spec_digest, 'one document, so the spec digest cannot separate them'
     moved = (
@@ -370,8 +370,8 @@ def test_the_digest_table_names_every_source_the_archive_holds(
     A table short of one key would leave that input outside the claim while
     reading as a complete one.
     """
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case').close()
-    case = lps.load_archive(tmp_path / 'case')
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case').close()
+    case = sps.load_archive(tmp_path / 'case')
 
     assert case.source_digests.columns == ['run', 'source', 'digest'], (
         "the archive it came from, the key, and what that key's bytes digest to"
@@ -399,10 +399,10 @@ def test_a_sweep_archive_digests_the_sources_it_was_cut_from(
     slice's rows.
     """
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
-    lps.solve_over(dispatch_yaml, sources, lps.EachCoordinate('scenario'), archive=tmp_path / 'study')
-    study = lps.load_archive(tmp_path / 'study')
+    sps.solve_over(dispatch_yaml, sources, sps.EachCoordinate('scenario'), archive=tmp_path / 'study')
+    study = sps.load_archive(tmp_path / 'study')
 
-    assert isinstance(study, lps.SweepArchive), 'the archive carries an axis, or this is testing the other type'
+    assert isinstance(study, sps.SweepArchive), 'the archive carries an axis, or this is testing the other type'
     assert study.source_digests['source'].to_list() == sorted(study.sources), 'one row per source, as for one solve'
     assert study.source_digests['run'].unique().to_list() == ['study'], (
         'stamped with the archive name as a solve archive is, the sweep key belonging to the slices and not the data'
@@ -419,11 +419,11 @@ def test_an_archive_records_what_reaching_its_answer_cost(
     """The one part of an archive that re-solving cannot recover.
 
     Everything else it holds is reproducible by construction — that is what
-    `lps.solve(case.spec, case.sources)` is for. The clocks are of the machine
+    `sps.solve(case.spec, case.sources)` is for. The clocks are of the machine
     that ran them, so unless the solve writes them down nothing does.
     """
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
-    taken = lps.load_archive(tmp_path / 'case').metrics
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
+    taken = sps.load_archive(tmp_path / 'case').metrics
 
     assert isinstance(taken, Metrics), 'the row comes back as the value its columns declare, not a frame of one'
     assert Metrics._fields == (
@@ -443,7 +443,7 @@ def test_an_archive_records_what_reaching_its_answer_cost(
     assert written.columns == list(Metrics._fields), "and the file carries the type's columns, in its order"
     assert written.height == 1, 'one solve writes one row'
     assert (taken.solves, taken.loads) == (1, 1), (
-        'lps.solve builds the model it solves, so the row covers that one solve and its one load'
+        'sps.solve builds the model it solves, so the row covers that one solve and its one load'
     )
     assert taken.build_seconds > 0.0, 'the build ran, so its clock is not the zero that says a phase did not'
 
@@ -458,11 +458,11 @@ def test_the_cost_row_says_how_many_solves_its_clocks_cover(
     before carries clocks covering every one of those solves, and the column
     saying so is what stops it from reading as this answer's own.
     """
-    with lps.build(dispatch_yaml, dispatch_frame_inputs) as model:
+    with sps.build(dispatch_yaml, dispatch_frame_inputs) as model:
         model.solve()
         model.solve(archive=tmp_path / 'second')
 
-    assert lps.load_archive(tmp_path / 'second').metrics.solves == 2, (
+    assert sps.load_archive(tmp_path / 'second').metrics.solves == 2, (
         'two solves ran before the archive was written, and the row it carries counts both'
     )
 
@@ -476,13 +476,13 @@ def test_a_case_that_wrote_a_file_and_one_that_did_not_are_still_one_table(
     that entered different phases would otherwise write different schemas, and
     a concat over the directory would fail on whichever one differed.
     """
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'solved')
-    with lps.build(dispatch_yaml, dispatch_frame_inputs) as model:
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'solved')
+    with sps.build(dispatch_yaml, dispatch_frame_inputs) as model:
         model.write(tmp_path / 'model.lp')
         model.solve(archive=tmp_path / 'written')
 
     cases = ('solved', 'written')
-    rows = [lps.load_archive(tmp_path / case).metrics for case in cases]
+    rows = [sps.load_archive(tmp_path / case).metrics for case in cases]
     assert [row.write_seconds == 0.0 for row in rows] == [True, False], (
         'the first case never wrote a file and the second did, or the two schemas were never in question'
     )
@@ -500,12 +500,12 @@ def test_an_archive_whose_metrics_are_short_of_a_column_is_refused_by_name(
     missing a field — a `TypeError` naming an argument, from inside a reader
     the caller did not call.
     """
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
     metrics = tmp_path / 'case' / ANSWER_DIR / METRICS_FILE
     pl.read_parquet(metrics).drop('write_seconds').write_parquet(metrics)
 
-    with pytest.raises(lps.LayoutError, match=r"Metrics row that is short of \['write_seconds'\]") as excinfo:
-        lps.load_archive(tmp_path / 'case')
+    with pytest.raises(sps.LayoutError, match=r"Metrics row that is short of \['write_seconds'\]") as excinfo:
+        sps.load_archive(tmp_path / 'case')
     assert 'solve the model again' in str(excinfo.value), 'and the message names the way out'
 
 
@@ -517,7 +517,7 @@ def test_every_phase_a_build_clocks_has_a_column_to_travel_in(
     The row is written off `seconds`, whose keys are whatever the engine
     clocked, and a key with no column of its own simply does not travel.
     """
-    with lps.build(dispatch_yaml, dispatch_frame_inputs) as model:
+    with sps.build(dispatch_yaml, dispatch_frame_inputs) as model:
         model.write(tmp_path / 'model.lp')
         model.solve()
         clocked = set(model.diagnostics().seconds)
@@ -543,13 +543,13 @@ def test_an_updated_model_archives_the_data_it_actually_answered(
     halved = pl.DataFrame(
         {'snapshot': dispatch_frame_inputs['load']['snapshot'], 'value': dispatch_frame_inputs['load']['value'] * 0.5}
     )
-    with lps.build(dispatch_yaml, dispatch_frame_inputs) as model:
+    with sps.build(dispatch_yaml, dispatch_frame_inputs) as model:
         before = model.solve().objective
         after = model.update({'load': halved}).solve(archive=tmp_path / 'updated.zip')
         assert after.objective != pytest.approx(before, rel=1e-9), 'the update moved the answer, or this proves nothing'
 
-    loaded = lps.load_archive(tmp_path / 'updated.zip', tmp_path / 'updated')
-    with lps.solve(*_question(loaded)) as resolved:
+    loaded = sps.load_archive(tmp_path / 'updated.zip', tmp_path / 'updated')
+    with sps.solve(*_question(loaded)) as resolved:
         assert resolved.objective == pytest.approx(after.objective, rel=1e-9), (
             'the archived question is the updated one, so it re-solves to the answer it carries'
         )
@@ -570,9 +570,9 @@ def test_every_archive_holds_one_objective_file_whatever_wrote_it(
     out = tmp_path / 'run'
     if sweep:
         sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high', 'mid'])}
-        lps.solve_over(dispatch_yaml, sources, lps.EachCoordinate('scenario'), archive=out)
+        sps.solve_over(dispatch_yaml, sources, sps.EachCoordinate('scenario'), archive=out)
     else:
-        with lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out):
+        with sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out):
             pass
 
     answer = out / 'answer'
@@ -593,9 +593,9 @@ def test_an_archive_stamps_its_own_name_and_when_the_solve_returned(
     paths is parsing a convention rather than reading data.
     """
     before = datetime.now(UTC)
-    with lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'nightly-2026-09-10.zip') as solved:
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'nightly-2026-09-10.zip') as solved:
         reached = solved.solved_at
-    lps.load_archive(tmp_path / 'nightly-2026-09-10.zip', tmp_path / 'out')
+    sps.load_archive(tmp_path / 'nightly-2026-09-10.zip', tmp_path / 'out')
     record = pl.read_parquet(tmp_path / 'out' / 'answer' / 'objective.parquet')
 
     assert record['run'].to_list() == ['nightly-2026-09-10'], "the archive's own name, suffix dropped"
@@ -614,7 +614,7 @@ def test_a_run_named_directory_stamps_the_name_and_not_the_segment(
     one name spelled two ways across tables a warehouse joins.
     """
     out = tmp_path / 'runs' / 'run=nightly-2026-09-10'
-    with lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out):
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=out):
         pass
 
     record = pl.read_parquet(out / ANSWER_DIR / 'objective.parquet')
@@ -632,7 +632,7 @@ def test_a_saved_answer_that_was_never_archived_names_no_run(
     The column is still there: one schema whether or not an archive was
     written, so the two concatenate.
     """
-    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
         record = pl.read_parquet(solved.save(tmp_path / 'answer') / 'objective.parquet')
     assert record['run'].to_list() == [None], 'nothing published it, so nothing named it'
     assert record.schema['run'] == pl.String, 'and the column is a string either way, never an all-null one'
@@ -649,9 +649,9 @@ def test_a_loaded_archive_owes_the_members_nothing_and_a_scanned_one_owes_them_e
     extracted members are scratch; what `scan_archive` buys is the archive
     that does not fit in memory, at the price of keeping them.
     """
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip')
-    loaded = lps.load_archive(tmp_path / 'case.zip', tmp_path / 'out')
-    scanned = lps.scan_archive(tmp_path / 'case.zip', tmp_path / 'out')
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case.zip')
+    loaded = sps.load_archive(tmp_path / 'case.zip', tmp_path / 'out')
+    scanned = sps.scan_archive(tmp_path / 'case.zip', tmp_path / 'out')
     expected = loaded.answer.primal('p')
 
     assert isinstance(loaded.sources['load'], pl.DataFrame), 'a loaded source is the table the member holds'
@@ -673,15 +673,15 @@ def test_a_loaded_sweep_archive_answers_the_frame_readers(
     one, so `primal` answers rather than naming `scan` — the difference a
     caller meets first.
     """
-    axis = lps.EachCoordinate('scenario')
+    axis = sps.EachCoordinate('scenario')
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
-    lps.solve_over(dispatch_yaml, sources, axis, archive=tmp_path / 'study.zip')
+    sps.solve_over(dispatch_yaml, sources, axis, archive=tmp_path / 'study.zip')
 
-    loaded = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'study')
-    scanned = lps.scan_archive(tmp_path / 'study.zip', tmp_path / 'study')
+    loaded = sps.load_archive(tmp_path / 'study.zip', tmp_path / 'study')
+    scanned = sps.scan_archive(tmp_path / 'study.zip', tmp_path / 'study')
 
     assert loaded.answer.primal('p').equals(scanned.answer.scan('p').collect()), 'the same study, read two ways'
-    with pytest.raises(lps.LpspecError, match=r'runs\.scan'):
+    with pytest.raises(sps.SpecsolveError, match=r'runs\.scan'):
         scanned.answer.primal('p')
 
 
@@ -693,10 +693,10 @@ def test_a_scenario_sweep_is_an_archive_and_runs_again(
     They carry the column it slices on, which the model does not declare, and
     the archive holds them **whole** — one copy, not one per slice.
     """
-    axis = lps.EachCoordinate('scenario')
+    axis = sps.EachCoordinate('scenario')
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
-    runs = lps.solve_over(dispatch_yaml, sources, axis, archive=tmp_path / 'study.zip')
-    study = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'study')
+    runs = sps.solve_over(dispatch_yaml, sources, axis, archive=tmp_path / 'study.zip')
+    study = sps.load_archive(tmp_path / 'study.zip', tmp_path / 'study')
 
     assert study.axis == axis, 'the axis comes back as the value it went in as'
     assert study.answer.objective.drop('run').equals(runs.objective.drop('run'))
@@ -706,7 +706,7 @@ def test_a_scenario_sweep_is_an_archive_and_runs_again(
     assert study.sources['load'].equals(sources['load']), (
         'the sliced source is archived whole, the column the axis cuts on included'
     )
-    again = lps.solve_over(study.spec, study.sources, study.axis)
+    again = sps.solve_over(study.spec, study.sources, study.axis)
     assert again.objective['objective'].to_list() == pytest.approx(runs.objective['objective'].to_list()), (
         'the archive re-runs to the sweep it recorded, slice for slice'
     )
@@ -721,11 +721,11 @@ def test_a_rolling_horizon_keeps_the_way_back_to_the_dimension_it_sliced(tmp_pat
     """
     from tests.test_strategy import WINDOW, horizon_sources
 
-    axis = lps.EachWindow('snapshot', steps=4, lookahead=2, into='t')
+    axis = sps.EachWindow('snapshot', steps=4, lookahead=2, into='t')
     sources = horizon_sources(12)
-    runs = lps.solve_over(WINDOW, sources, axis, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll.zip')
+    runs = sps.solve_over(WINDOW, sources, axis, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll.zip')
     stitched = runs.primal('soc', original_index=True)
-    loaded = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll')
+    loaded = sps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll')
 
     assert loaded.axis == axis
     assert loaded.answer.scan('soc', original_index=True).collect().equals(stitched), (
@@ -749,9 +749,9 @@ def test_an_archive_whose_answer_names_another_model_is_refused(
         for name in held.namelist():
             edited.writestr(name, pyyaml.safe_dump(other) if name == 'model.yaml' else held.read(name))
 
-    with pytest.raises(lps.LpspecError, match='came back from a different model'):
-        lps.load_archive(tampered, tmp_path / 'out')
-    assert lps.load_archive(archive, tmp_path / 'fine').spec == to_spec(dispatch_yaml), (
+    with pytest.raises(sps.SpecsolveError, match='came back from a different model'):
+        sps.load_archive(tampered, tmp_path / 'out')
+    assert sps.load_archive(archive, tmp_path / 'fine').spec == to_spec(dispatch_yaml), (
         'and the archive as written reads back as the model it holds'
     )
 
@@ -767,8 +767,8 @@ def test_every_slice_of_a_sweep_names_the_model_it_answered(
     nothing to compare.
     """
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
-    runs = lps.solve_over(dispatch_yaml, sources, lps.EachCoordinate('scenario'))
-    alone = lps.solve(dispatch_yaml, dispatch_frame_inputs)
+    runs = sps.solve_over(dispatch_yaml, sources, sps.EachCoordinate('scenario'))
+    alone = sps.solve(dispatch_yaml, dispatch_frame_inputs)
 
     assert runs.objective['spec_digest'].null_count() == 0, 'no slice is left without the document it answered'
     assert runs.objective['spec_digest'].unique().to_list() == [alone.spec_digest], (
@@ -785,12 +785,12 @@ def test_a_sweep_archive_whose_answer_names_another_model_is_refused(
     not fire at all, so a swapped `model.yaml` loaded happily.
     """
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
-    lps.solve_over(dispatch_yaml, sources, lps.EachCoordinate('scenario'), archive=tmp_path / 'study')
+    sps.solve_over(dispatch_yaml, sources, sps.EachCoordinate('scenario'), archive=tmp_path / 'study')
     other = override(raw_of(dispatch_yaml), **{'variables.p.bounds.upper': 1.0})
     (tmp_path / 'study' / 'model.yaml').write_text(pyyaml.safe_dump(other))
 
-    with pytest.raises(lps.LpspecError, match='came back from a different model'):
-        lps.load_archive(tmp_path / 'study')
+    with pytest.raises(sps.SpecsolveError, match='came back from a different model'):
+        sps.load_archive(tmp_path / 'study')
 
 
 def test_saving_an_answer_twice_leaves_only_the_second(
@@ -807,14 +807,14 @@ def test_saving_an_answer_twice_leaves_only_the_second(
     renamed['constraints']['power_balance']['expression'] = 'sum(q, over=generator) == load'
     renamed['objective']['expression'] = 'sum(q * cost)'
 
-    lps.solve(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'shared')
-    out = lps.solve(renamed, dispatch_frame_inputs).save(tmp_path / 'shared')
+    sps.solve(dispatch_yaml, dispatch_frame_inputs).save(tmp_path / 'shared')
+    out = sps.solve(renamed, dispatch_frame_inputs).save(tmp_path / 'shared')
 
     assert sorted(f.stem for f in (out / 'primal').glob('*.parquet')) == ['q'], (
         "only the second model's variable is left"
     )
     with pytest.raises(KeyError, match='unknown variable'):
-        lps.load_result(out).primal('p')
+        sps.load_result(out).primal('p')
 
 
 def test_saving_an_answer_into_an_unpacked_archive_takes_its_metrics_row_with_it(
@@ -827,11 +827,11 @@ def test_saving_an_answer_into_an_unpacked_archive_takes_its_metrics_row_with_it
     different machine spent would otherwise sit beside it, readable through a
     reader that reports this answer's digest.
     """
-    lps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
+    sps.solve(dispatch_yaml, dispatch_frame_inputs, archive=tmp_path / 'case')
     answer = tmp_path / 'case' / ANSWER_DIR
     assert (answer / METRICS_FILE).is_file(), 'the archive wrote one, or this proves nothing'
 
-    lps.solve(dispatch_yaml, dispatch_frame_inputs).save(answer)
+    sps.solve(dispatch_yaml, dispatch_frame_inputs).save(answer)
 
     assert not (answer / METRICS_FILE).exists(), 'and a saved answer carries no metrics, so none is left behind'
 
@@ -846,13 +846,13 @@ def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispat
     other = override(raw_of(dispatch_yaml), **{'variables.p.bounds.upper': 1000.0})
     records = []
     for name, spec in (('base', dispatch_yaml), ('capped', other)):
-        with lps.solve(spec, dispatch_frame_inputs) as solved:
+        with sps.solve(spec, dispatch_frame_inputs) as solved:
             out = solved.save(tmp_path / name)
         records.append(pl.read_parquet(out / 'objective.parquet').select(pl.lit(name).alias('case'), pl.all()))
 
     table = pl.concat(records)
     assert table['spec_digest'].n_unique() == 2, 'two models, so the table is not comparing like with like'
-    assert lps.load_result(tmp_path / 'base').spec_digest == table.filter(pl.col('case') == 'base')['spec_digest'][0], (
+    assert sps.load_result(tmp_path / 'base').spec_digest == table.filter(pl.col('case') == 'base')['spec_digest'][0], (
         'and a loaded answer carries the digest its record holds'
     )
 
@@ -868,16 +868,16 @@ def test_an_answer_in_another_layout_is_refused_by_name(
     what it catches is an answer written before there was one; a number is
     written here to reach the sentence from the other side too.
     """
-    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
         out = solved.save(tmp_path / 'solution')
     (out / 'format.json').write_text(json.dumps({'answer': 1}))
 
-    with pytest.raises(lps.LayoutError, match='solve the model again and save it'):
-        lps.load_result(out)
+    with pytest.raises(sps.LayoutError, match='solve the model again and save it'):
+        sps.load_result(out)
 
     (out / 'format.json').unlink()
-    with pytest.raises(lps.LayoutError, match='layout None'):
-        lps.load_result(out)
+    with pytest.raises(sps.LayoutError, match='layout None'):
+        sps.load_result(out)
 
 
 def test_a_hand_built_axis_is_refused(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
@@ -888,8 +888,8 @@ def test_a_hand_built_axis_is_refused(dispatch_yaml: Path, dispatch_frame_inputs
     each rather than inventing a layout for them.
     """
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
-    with pytest.raises(lps.LpspecError, match='archive one solve each'):
-        lps.solve_over(dispatch_yaml, sources, [('a', sources)], key_name='case', archive='never.zip')
+    with pytest.raises(sps.SpecsolveError, match='archive one solve each'):
+        sps.solve_over(dispatch_yaml, sources, [('a', sources)], key_name='case', archive='never.zip')
 
 
 def _by_scenario(names: list[str]) -> pl.DataFrame:
@@ -906,8 +906,8 @@ def _by_scenario(names: list[str]) -> pl.DataFrame:
 def test_a_sweep_refuses_a_lowered_program_before_it_solves_a_slice(dispatch_yaml: Path, dispatch_frame_inputs) -> None:
     """A sweep refuses it at the same door, and before the first slice is taken."""
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
-    with pytest.raises(lps.LpspecError, match='was lowered from'):
-        lps.solve_over(lps.check(dispatch_yaml), sources, lps.EachCoordinate('scenario'), archive='never.zip')
+    with pytest.raises(sps.SpecsolveError, match='was lowered from'):
+        sps.solve_over(sps.check(dispatch_yaml), sources, sps.EachCoordinate('scenario'), archive='never.zip')
 
 
 def test_two_writers_to_one_target_stage_in_separate_places(tmp_path: Path) -> None:
@@ -947,7 +947,7 @@ def test_a_solve_that_never_saves_hashes_nothing(dispatch_yaml: Path, dispatch_f
     It is held as the callable the engine handed over until something asks, so
     the common case — solve, read the values, drop the result — pays none of it.
     """
-    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
         solved.primal('p')
         assert callable(solved._model_digest), 'reading values must not hash the model'
         assert isinstance(solved.model_digest(), str), 'and asking for it produces one'
@@ -961,13 +961,13 @@ def test_two_builds_of_one_model_digest_the_same(dispatch_yaml: Path, dispatch_f
     builds lay its rows out differently, and reading it in place would refuse an
     answer against the very data it came back from.
     """
-    with lps.build(dispatch_yaml, dispatch_frame_inputs) as one, lps.build(dispatch_yaml, dispatch_frame_inputs) as two:
+    with sps.build(dispatch_yaml, dispatch_frame_inputs) as one, sps.build(dispatch_yaml, dispatch_frame_inputs) as two:
         assert one._model_digest() == two._model_digest(), (
             'one model, one digest, however its sparse frames are laid out'
         )
 
     halved = dispatch_frame_inputs | {'cost': dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 0.5)}
-    with lps.build(dispatch_yaml, dispatch_frame_inputs) as base, lps.build(dispatch_yaml, halved) as other:
+    with sps.build(dispatch_yaml, dispatch_frame_inputs) as base, sps.build(dispatch_yaml, halved) as other:
         assert base._model_digest() != other._model_digest(), 'and data that moved a cost is a different model'
 
 
@@ -981,14 +981,14 @@ def test_an_archive_whose_data_was_replaced_is_refused_at_the_rebuild(
     which is also the first moment a value could be handed back.
     """
     _archived(dispatch_yaml, dispatch_frame_inputs, tmp_path / 'case')
-    intact = lps.load_archive(tmp_path / 'case')
+    intact = sps.load_archive(tmp_path / 'case')
     want = intact.answer.evaluate(_UNDECLARED)['value'].sum()
 
     moved = dispatch_frame_inputs['cost'].with_columns(pl.col('value') * 99)
     moved.write_parquet(tmp_path / 'case' / 'sources' / 'cost.parquet')
 
-    tampered = lps.load_archive(tmp_path / 'case')
-    with pytest.raises(lps.LpspecError, match='came back from another model') as refused:
+    tampered = sps.load_archive(tmp_path / 'case')
+    with pytest.raises(sps.SpecsolveError, match='came back from another model') as refused:
         tampered.answer.evaluate(_UNDECLARED)
     assert 'what differs is the data' in str(refused.value), 'and the refusal says which half moved'
     assert want == pytest.approx(intact.answer.evaluate(_UNDECLARED)['value'].sum(), rel=1e-9), (
@@ -1000,11 +1000,11 @@ def test_an_answer_naming_no_model_is_taken_as_given(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     """An answer written before the column has no digest to compare, and is not refused for it."""
-    with lps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
         want = solved.evaluate(_UNDECLARED)['value'].sum()
         solved.save(tmp_path / 'answer')
 
-    older = replace(lps.load_result(tmp_path / 'answer'), _model_digest=None)
+    older = replace(sps.load_result(tmp_path / 'answer'), _model_digest=None)
     read = attach_readers(older, dispatch_yaml, dispatch_frame_inputs)
     assert read.evaluate(_UNDECLARED)['value'].sum() == pytest.approx(want, rel=1e-9), (
         'an answer carrying no model digest reads against the data it is handed'

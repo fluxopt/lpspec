@@ -16,9 +16,9 @@ import polars as pl
 import pytest
 from math_spec.program import Add, Constant, Parameter, Power, Variable
 
-import lpspec as lps
-from lpspec.errors import LanguageError
-from lpspec.sources import tidy_sources
+import specsolve as sps
+from specsolve.errors import LanguageError
+from specsolve.sources import tidy_sources
 from tests.differential import differential
 
 #: Three coordinates one period apart, so a discount factor orders them and a
@@ -68,7 +68,7 @@ def test_the_discount_factor_is_the_one_a_hand_computes():
     all ten of `c` and two of `b` — an ordering a *linear* cost over equal
     `cost` could not produce, which is what makes the exponent load-bearing.
     """
-    result = lps.solve(SPEC, SOURCES)
+    result = sps.solve(SPEC, SOURCES)
     assert result.objective == pytest.approx(10 * 5 / 1.21 + 2 * 5 / 1.1), (
         'the discounted optimum is not what the exponent says it is'
     )
@@ -119,7 +119,7 @@ def test_a_power_outside_the_language_is_refused_at_the_plan_boundary(expression
         'growth': pl.DataFrame({'value': [1.1]}),
         'period': pl.DataFrame({'g': ['a'], 'value': [2.0]}),
     }
-    model = lps.build(spec, sources)
+    model = sps.build(spec, sources)
     program = model._program
     patched = dataclasses.replace(program, objective=dataclasses.replace(program.objective, expression=expression))
     with pytest.raises((LanguageError, AssertionError), match=match):

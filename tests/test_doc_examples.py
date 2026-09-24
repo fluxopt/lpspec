@@ -1,6 +1,6 @@
 """The examples in the docs, checked against the code.
 
-Every example here was wrong at some point: ``lps.write_lp`` never existed, a
+Every example here was wrong at some point: ``sps.write_lp`` never existed, a
 dimension index was passed as a bare ``RangeIndex`` where the streaming lane
 wants an index entry in ``sources``, the ``piecewise:`` block carried a sign on three
 links while the prose two lines below said a sign needs exactly two, and four
@@ -32,7 +32,7 @@ dimension it does not declare is a failure, and the fix is usually ``wrap=``
 or ``skip`` rather than a bigger example.
 
 In module docstrings, an example is an indented run introduced by ``::`` —
-the reST literal-block marker. Guessing instead ("a run that mentions ``lps.``")
+the reST literal-block marker. Guessing instead ("a run that mentions ``sps.``")
 reads an indented English sentence as code and fails it as a syntax error,
 which would stop prose from naming the API it documents.
 """
@@ -51,12 +51,12 @@ import pytest
 import yaml
 from math_spec import Spec, to_spec
 
-import lpspec as lps
-from lpspec.api import Model
-from lpspec.relational.result import Result
+import specsolve as sps
+from specsolve.api import Model
+from specsolve.relational.result import Result
 
 try:
-    from lpspec import linopy as linopy_lane
+    from specsolve import linopy as linopy_lane
 except ModuleNotFoundError:
     linopy_lane = None  # bare install, no [linopy] extra
 
@@ -78,8 +78,8 @@ TRACKED = [
 #: Names an example may dot into, and the object that decides what is valid.
 #: Anything else (pd, np, network, ...) is external and not our contract.
 ROOTS: dict[str, Any] = {
-    'lps': lps,
-    'lpspec_linopy': linopy_lane,
+    'sps': sps,
+    'specsolve_linopy': linopy_lane,
     'result': Result,
     'model': Model,
 }
@@ -214,9 +214,9 @@ def test_python_block_parses(block: Block) -> None:
 
 @pytest.mark.parametrize('block', _blocks('python'), ids=lambda b: b.where)
 def test_python_block_uses_real_api(block: Block) -> None:
-    """Every ``lps.x`` / ``result.x`` an example shows must exist.
+    """Every ``sps.x`` / ``result.x`` an example shows must exist.
 
-    This is the check that would have caught ``lps.write_lp``, which was
+    This is the check that would have caught ``sps.write_lp``, which was
     documented for months and never existed.
     """
     if block.note == 'skip':
@@ -237,7 +237,7 @@ def test_readme_example_runs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     yaml_blocks = [b for b in _blocks('yaml') if b.doc == 'README.md']
     py_blocks = [b for b in _blocks('python') if b.doc == 'README.md']
     model = next(b for b in yaml_blocks if '# dispatch.yaml' in b.code)
-    script = next(b for b in py_blocks if 'lps.solve' in b.code)
+    script = next(b for b in py_blocks if 'sps.solve' in b.code)
 
     (tmp_path / 'dispatch.yaml').write_text(model.code)
     monkeypatch.chdir(tmp_path)
@@ -359,7 +359,7 @@ def test_every_block_is_covered() -> None:
 # module docstrings — where the engine leak actually lived
 # --------------------------------------------------------------------------
 
-DOCSTRING_MODULES = ['src/lpspec/__init__.py', 'src/lpspec/api.py', 'src/lpspec/linopy/__init__.py']
+DOCSTRING_MODULES = ['src/specsolve/__init__.py', 'src/specsolve/api.py', 'src/specsolve/linopy/__init__.py']
 
 
 def _docstring_examples(path: Path) -> list[str]:
@@ -367,7 +367,7 @@ def _docstring_examples(path: Path) -> list[str]:
 
     The marker is the author's own statement that a run is code, which is why
     it is used instead of guessing. Guessing by "mentions a known root" reads
-    an indented English sentence containing ``lps.solve`` as an example and
+    an indented English sentence containing ``sps.solve`` as an example and
     fails it as a syntax error, so prose could not mention the API it
     documents.
     """

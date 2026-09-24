@@ -12,7 +12,7 @@ them.
     pixi run -e bench python -m bench.profile_phases transport l --rounds 15
 
 **Everything that is not the build is hoisted out of the loop.** Timing
-``lps.build`` repeatedly measures a YAML parse, a lowering pass, a parquet read
+``sps.build`` repeatedly measures a YAML parse, a lowering pass, a parquet read
 and the assembly at once — and the parquet read drags the page cache in with it,
 which is why repeated runs of identical code spread 12-55% and nothing smaller
 than a rewrite shows up above the noise. Parsing and lowering happen once here,
@@ -51,10 +51,10 @@ def main(argv: list[str] | None = None) -> int:
 
     from math_spec import to_spec
 
-    from lpspec.relational.engines.polars import engine as executor_module
-    from lpspec.relational.engines.polars.assembly import Assembly
-    from lpspec.relational.engines.polars.engine import PolarsEngine
-    from lpspec.sources import tidy_sources
+    from specsolve.relational.engines.polars import engine as executor_module
+    from specsolve.relational.engines.polars.assembly import Assembly
+    from specsolve.relational.engines.polars.engine import PolarsEngine
+    from specsolve.sources import tidy_sources
 
     spent: dict[str, list[float]] = collections.defaultdict(list)
     for name in PHASES:

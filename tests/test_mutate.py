@@ -103,8 +103,8 @@ def test_a_range_no_mutation_of_can_parse_is_refused(guarded: Path) -> None:
 
 
 def test_a_dirty_tree_stops_the_run_before_anything_is_written(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(tool, 'dirty_paths', lambda: ['src/lpspec/api.py'])
-    assert tool.main(['src/lpspec/api.py:1']) == 2, (
+    monkeypatch.setattr(tool, 'dirty_paths', lambda: ['src/specsolve/api.py'])
+    assert tool.main(['src/specsolve/api.py:1']) == 2, (
         'an uncommitted change to a tracked file is refused, because checkout would destroy it'
     )
 
@@ -125,7 +125,7 @@ def test_the_bytecode_is_dropped_so_a_restored_file_is_really_restored(
     tree, which it is not).
     """
     monkeypatch.setattr(tool, 'REPO', tmp_path)
-    swept = tmp_path / 'src' / 'lpspec' / '__pycache__'
+    swept = tmp_path / 'src' / 'specsolve' / '__pycache__'
     swept.mkdir(parents=True)
     (swept / 'engine.cpython-311.pyc').write_bytes(b'stale')
     spared = tmp_path / '.venv' / 'lib' / 'site-packages' / '__pycache__'

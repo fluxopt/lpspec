@@ -28,7 +28,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / 'docs'
-REPO_URL = 'https://github.com/fluxopt/lpspec'
+REPO_URL = 'https://github.com/fluxopt/specsolve'
 BLOB = f'{REPO_URL}/blob/main'
 
 #: `](target)` and `[label]: target`, the two ways markdown names a destination.
@@ -261,7 +261,7 @@ def test_the_plan_table_names_every_expression_node():
     """
     from math_spec import program
 
-    from lpspec.relational.engines.polars.fragments import fan_in
+    from specsolve.relational.engines.polars.fragments import fan_in
 
     page = (DOCS / 'about' / 'architecture.md').read_text()
     section = page.split('## The plan, node for node')[1].split('## The relational lane')[0]

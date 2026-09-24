@@ -25,7 +25,7 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
   ([reading a loaded model](https://math-spec.readthedocs.io/en/latest/reference/language/reading/#two-states-and-the-difference-between-them)).
 
 **Model**
-: A spec with data attached: what [`build`](api.md) returns (`lpspec.Model`).
+: A spec with data attached: what [`build`](api.md) returns (`specsolve.Model`).
   One model feeds any sink: `solve()`, `write(path)`, `row(...)`,
   `diagnostics()`. `update(...)` puts new numbers on it in place.
 
@@ -100,7 +100,7 @@ check ──▶ Program ──▶ build ──▶ Model ──▶ solve ──�
 **Lane**
 : One of two ways a spec is executed. The **relational lane** (the default)
   validates at load time, lowers to the plan and streams on polars. The
-  **linopy lane** (`lpspec.linopy`, the `[linopy]` extra) builds the same spec
+  **linopy lane** (`specsolve.linopy`, the `[linopy]` extra) builds the same spec
   as a `linopy.Model`. Both accept the same language
   ([relationship to linopy](../about/linopy.md#2-it-is-the-oracle)).
 

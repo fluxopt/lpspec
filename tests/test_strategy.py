@@ -21,10 +21,10 @@ import polars as pl
 import pytest
 from math_spec import to_spec
 
-import lpspec as lps
-from lpspec import strategy
-from lpspec.api import Model
-from lpspec.relational.parquet import SliceMetrics
+import specsolve as sps
+from specsolve import strategy
+from specsolve.api import Model
+from specsolve.relational.parquet import SliceMetrics
 from tests.conftest import DISPATCH_SPEC, override
 
 # ---------------------------------------------------------------------------
@@ -207,22 +207,22 @@ GEOMETRIES = [
 ]
 
 #: The one contiguous geometry most window tests share — frozen, so sharing is safe.
-WINDOW_AXIS = lps.EachWindow('snapshot', steps=4, lookahead=0, into='t')
+WINDOW_AXIS = sps.EachWindow('snapshot', steps=4, lookahead=0, into='t')
 
 
 @pytest.fixture(scope='module')
 def sweep() -> strategy.Runs:
     """The scenario sweep, solved once for every test that only reads it."""
-    return lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'))
+    return sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'))
 
 
 @pytest.fixture(scope='module')
 def overlapping() -> strategy.Runs:
     """The overlapping-window sweep, solved once for every test that only reads it."""
-    return lps.solve_over(
+    return sps.solve_over(
         WINDOW,
         horizon_sources(12),
-        lps.EachWindow('snapshot', steps=3, lookahead=3, into='t'),
+        sps.EachWindow('snapshot', steps=3, lookahead=3, into='t'),
         carry={'soc_initial': 'soc'},  # the last *kept* row, not the last row
     )
 
@@ -306,11 +306,11 @@ def test_a_fold_passes_its_keep_to_every_slice_and_chooses_none(monkeypatch):
 
     monkeypatch.setattr(Model, 'solve', recording)
 
-    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'))
+    sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'))
     assert asked == ['solver'] * 3, f'the fold defaulted to {asked}, not solve()s own default'
 
     asked.clear()
-    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), keep='progress')
+    sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), keep='progress')
     assert asked == ['progress'] * 3, f'the fold asked for {asked}, not what the caller chose'
 
 
@@ -324,7 +324,7 @@ def test_a_serial_fold_builds_once_and_updates(builds):
     """
     built = builds(strategy)
 
-    runs = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'))
+    runs = sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'))
 
     assert len(runs) == 3, 'three slices'
     assert len(built) == 1, f'{len(built)} builds for three slices — the fold stopped updating'
@@ -343,7 +343,7 @@ def test_a_carried_fold_still_builds_once(builds):
     """
     built = builds(strategy)
 
-    runs = lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'})
+    runs = sps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'})
 
     assert runs.keys == [0, 4, 8]
     assert len(built) == 1, f'{len(built)} builds for three windows — the carry cost the fold its fast path'
@@ -359,7 +359,7 @@ def test_a_pooled_fold_builds_per_slice(builds):
     built = builds(strategy)
 
     with ThreadPoolExecutor(2) as pool:
-        runs = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
+        runs = sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), executor=pool)
 
     assert len(runs) == 3
     assert len(built) == 3, 'a slice that may run in another process builds its own model'
@@ -372,20 +372,20 @@ def test_each_slice_matches_solving_that_slice_alone(sweep):
     for scenario, expected in folded.items():
         one = scenario_sources()
         one['load'] = _draw(one, scenario)
-        with lps.solve(DISPATCH, one) as result:
+        with sps.solve(DISPATCH, one) as result:
             assert result.objective == pytest.approx(expected)
 
 
 def test_an_axis_naming_a_column_no_source_carries_says_so():
-    with pytest.raises(lps.DataError, match="no source carries a 'draw' column"):
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('draw'))
+    with pytest.raises(sps.DataError, match="no source carries a 'draw' column"):
+        sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('draw'))
 
 
 def test_a_name_the_sweep_does_not_hold_says_what_it_does_hold(sweep):
     """Everything a slice produced is kept, so a miss is a name, not a flag."""
-    with pytest.raises(lps.LpspecError, match="no variable 'q' in this sweep"):
+    with pytest.raises(sps.SpecsolveError, match="no variable 'q' in this sweep"):
         sweep.primal('q')
-    with pytest.raises(lps.LpspecError, match="no constraint 'nope' in this sweep"):
+    with pytest.raises(sps.SpecsolveError, match="no constraint 'nope' in this sweep"):
         sweep.dual('nope')
 
 
@@ -396,11 +396,11 @@ def test_a_sweep_that_solved_nothing_blames_the_solve():
     """
     sources = scenario_sources()
     sources['load'] = sources['load'].with_columns(pl.col('value') + 1_000)
-    runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
+    runs = sps.solve_over(DISPATCH, sources, sps.EachCoordinate('scenario'))
 
     assert len(runs) == 3, 'an unsolvable slice is still a row of the record'
     assert runs.objective['objective'].null_count() == 3, 'no slice reached one, and none is written as nan'
-    with pytest.raises(lps.LpspecError, match='holds no variable frames at all') as raised:
+    with pytest.raises(sps.SpecsolveError, match='holds no variable frames at all') as raised:
         runs.primal('p')
     assert 'infeasible' in str(raised.value), 'the message names what the slices actually did'
 
@@ -417,7 +417,7 @@ def test_a_slice_that_reached_no_objective_does_not_poison_the_sweep():
     sources['load'] = sources['load'].with_columns(
         pl.when(pl.col('scenario') == 'high').then(pl.col('value') + 1_000).otherwise(pl.col('value'))
     )
-    runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
+    runs = sps.solve_over(DISPATCH, sources, sps.EachCoordinate('scenario'))
 
     assert runs.objective['objective'].null_count() == 1, 'the one slice that came back infeasible'
     assert runs.objective['objective'].is_nan().sum() == 0, 'written as no value rather than as nan'
@@ -437,7 +437,7 @@ def test_a_rolling_horizon_carries_state_across_the_seam():
     `soc_initial` is updated per window from the previous window's last `soc`,
     which is the carry doing its one job — a copy, at a named index.
     """
-    runs = lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'})
+    runs = sps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'})
 
     assert runs.keys == [0, 4, 8]
     assert runs.primal('p').height == 3 * 4 * 2
@@ -467,10 +467,10 @@ def test_stitch_drops_the_overlap_and_restores_the_global_coordinate(overlapping
 @pytest.mark.parametrize(('periods', 'steps', 'lookahead'), GEOMETRIES)
 def test_a_window_geometry_covers_every_coordinate_exactly_once(periods, steps, lookahead):
     """A stitched sweep reproduces the coordinate list, whatever the tail."""
-    runs = lps.solve_over(
+    runs = sps.solve_over(
         WINDOW,
         horizon_sources(periods),
-        lps.EachWindow('snapshot', steps=steps, lookahead=lookahead, into='t'),
+        sps.EachWindow('snapshot', steps=steps, lookahead=lookahead, into='t'),
     )
     assert runs.primal('soc', original_index=True)['snapshot'].to_list() == list(range(periods)), (
         'the original index must reproduce the coordinate list, whatever the tail'
@@ -489,10 +489,10 @@ def test_a_carry_finds_the_seam_in_every_geometry(periods, steps, lookahead):
     window owns rows it solved — so unlike the index this replaced, there is
     no geometry where the carry reads off the end.
     """
-    runs = lps.solve_over(
+    runs = sps.solve_over(
         WINDOW,
         horizon_sources(periods),
-        lps.EachWindow('snapshot', steps=steps, lookahead=lookahead, into='t'),
+        sps.EachWindow('snapshot', steps=steps, lookahead=lookahead, into='t'),
         carry={'soc_initial': 'soc'},
     )
     assert runs.primal('soc', original_index=True)['snapshot'].to_list() == list(range(periods)), (
@@ -507,10 +507,10 @@ def test_stitch_keeps_the_whole_of_the_final_short_window():
     `t >= step` uniformly would be right for it too; the risk is a rule that
     drops the tail because it is not a full window, and it must not.
     """
-    runs = lps.solve_over(
+    runs = sps.solve_over(
         WINDOW,
         horizon_sources(12),
-        lps.EachWindow('snapshot', steps=5, lookahead=1, into='t'),
+        sps.EachWindow('snapshot', steps=5, lookahead=1, into='t'),
     )
     assert runs.keys == [0, 5, 10], 'three windows, the last of two coordinates'
     assert runs.primal('soc', original_index=True)['snapshot'].to_list() == list(range(12)), (
@@ -533,15 +533,15 @@ def test_a_hand_built_axis_refuses_to_read_over_a_dimension_it_never_named(tmp_p
     route, not through the frame readers.
     """
     sources = horizon_sources(12)
-    windows = lps.EachWindow('snapshot', steps=3, lookahead=3, into='t').slices(sources)
+    windows = sps.EachWindow('snapshot', steps=3, lookahead=3, into='t').slices(sources)
 
-    runs = lps.solve_over(WINDOW, sources, windows, key_name='window')
+    runs = sps.solve_over(WINDOW, sources, windows, key_name='window')
     assert runs.primal('soc').columns == ['window', 't', 'value'], 'a hand-built axis keys by what it was told'
-    with pytest.raises(lps.LpspecError, match='does not say what its keys are coordinates of'):
+    with pytest.raises(sps.SpecsolveError, match='does not say what its keys are coordinates of'):
         runs.primal('soc', original_index=True)
 
-    spilled = lps.solve_over(WINDOW, sources, windows, key_name='window', spill_to=tmp_path / 'runs')
-    with pytest.raises(lps.LpspecError, match='does not say what its keys are coordinates of'):
+    spilled = sps.solve_over(WINDOW, sources, windows, key_name='window', spill_to=tmp_path / 'runs')
+    with pytest.raises(sps.SpecsolveError, match='does not say what its keys are coordinates of'):
         spilled.scan('soc', original_index=True)
 
 
@@ -600,10 +600,10 @@ SPENDING = override(
 @pytest.fixture(scope='module')
 def priced() -> strategy.Runs:
     """The overlapping-window sweep of the expression-bearing model, solved once."""
-    return lps.solve_over(
+    return sps.solve_over(
         SPENDING,
         horizon_sources(12),
-        lps.EachWindow('snapshot', steps=3, lookahead=3, into='t'),
+        sps.EachWindow('snapshot', steps=3, lookahead=3, into='t'),
         carry={'soc_initial': 'soc'},
     )
 
@@ -638,19 +638,19 @@ def test_a_quantity_reduced_over_the_sliced_dimension_has_no_way_back(priced):
     keyed = priced.evaluate('window_spend')
     assert keyed.columns == ['snapshot_start', 'value']
     assert keyed.height == len(priced), 'one total per window, keyed like objective'
-    with pytest.raises(lps.LpspecError, match='reduced over the sliced dimension'):
+    with pytest.raises(sps.SpecsolveError, match='reduced over the sliced dimension'):
         priced.evaluate('window_spend', original_index=True)
 
 
 def test_each_slice_expression_matches_solving_that_slice_alone():
     """The fold must not change an expression's value — the oracle is `solve`."""
     spec = override(DISPATCH, **{'expressions.spend': 'sum(p * cost, over=generator)'})
-    runs = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'))
+    runs = sps.solve_over(spec, scenario_sources(), sps.EachCoordinate('scenario'))
 
     for scenario in runs.keys:
         one = scenario_sources()
         one['load'] = _draw(one, scenario)
-        with lps.solve(spec, one) as result:
+        with sps.solve(spec, one) as result:
             alone = result.evaluate('spend')
             folded = runs.evaluate('spend').filter(pl.col('scenario') == scenario).drop('scenario')
             assert folded['value'].to_list() == pytest.approx(alone['value'].to_list()), (
@@ -659,7 +659,7 @@ def test_each_slice_expression_matches_solving_that_slice_alone():
 
 
 def test_an_expression_the_sweep_does_not_hold_says_what_it_does_hold(priced):
-    with pytest.raises(lps.LpspecError, match="no named expression 'nope' in this sweep"):
+    with pytest.raises(sps.SpecsolveError, match="no named expression 'nope' in this sweep"):
         priced.evaluate('nope')
 
 
@@ -675,12 +675,12 @@ def test_an_expression_no_slice_could_evaluate_carries_its_reason():
         **{'parameters.scale': {'dims': ['t']}, 'expressions.ratio': 'load / scale'},
     )
     sources = {**horizon_sources(12), 'scale': pl.DataFrame({'snapshot': [0], 'value': [2.0]})}
-    with pytest.warns(lps.LpspecWarning, match="'scale' has no rows for snapshot 1"):
-        runs = lps.solve_over(spec, sources, lps.EachWindow('snapshot', steps=6, lookahead=0, into='t'))
+    with pytest.warns(sps.SpecsolveWarning, match="'scale' has no rows for snapshot 1"):
+        runs = sps.solve_over(spec, sources, sps.EachWindow('snapshot', steps=6, lookahead=0, into='t'))
 
     assert runs.primal('p').height > 0, 'the failing expression must not fail the sweep'
     assert runs.evaluate('spend').height > 0, 'nor take the healthy expression with it'
-    with pytest.raises(lps.LpspecError, match='scale'):
+    with pytest.raises(sps.SpecsolveError, match='scale'):
         runs.evaluate('ratio')
 
 
@@ -709,8 +709,8 @@ def test_a_window_spans_coordinates_whatever_they_are_numbered(coordinates):
     construction, which is also what keeps the seam's `where: "t == 0"`
     matching on a dimension with gaps in it.
     """
-    runs = lps.solve_over(
-        WINDOW, coordinate_sources(coordinates), lps.EachWindow('snapshot', steps=2, lookahead=0, into='t')
+    runs = sps.solve_over(
+        WINDOW, coordinate_sources(coordinates), sps.EachWindow('snapshot', steps=2, lookahead=0, into='t')
     )
 
     assert len(runs) == 3
@@ -727,8 +727,8 @@ def test_stitch_recovers_coordinates_no_arithmetic_could(coordinates):
     The window→coordinate mapping is the axis's to keep, and stitching is the
     only way back to it: nothing the caller holds could reconstruct these.
     """
-    runs = lps.solve_over(
-        WINDOW, coordinate_sources(coordinates, load=10.0), lps.EachWindow('snapshot', steps=2, lookahead=0, into='t')
+    runs = sps.solve_over(
+        WINDOW, coordinate_sources(coordinates, load=10.0), sps.EachWindow('snapshot', steps=2, lookahead=0, into='t')
     )
     assert runs.primal('soc', original_index=True)['snapshot'].to_list() == coordinates
 
@@ -741,7 +741,7 @@ def test_a_window_key_column_never_shadows_the_dimension_it_replaced(sweep):
     the coordinate they are *not* — one that joins cleanly against real
     snapshot-indexed data and silently keeps a twelfth of it.
     """
-    runs = lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS)
+    runs = sps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS)
     soc = runs.primal('soc')
     assert 'snapshot' not in soc.columns
     assert soc.columns[0] == 'snapshot_start'
@@ -778,7 +778,7 @@ def test_the_window_geometry_is_checked_at_construction(geometry, expected):
     window, so there is no pair of numbers that skips coordinates.
     """
     with pytest.raises(ValueError, match=expected):
-        lps.EachWindow('snapshot', **geometry)
+        sps.EachWindow('snapshot', **geometry)
 
 
 #: Window blocks that are not all the same size. Between them: a telescoping
@@ -801,10 +801,10 @@ def test_windows_of_unequal_size_cover_every_coordinate_exactly_once(blocks):
     the separability gate never read a second number, because what a window
     owns was always per-window and only the schedule was uniform.
     """
-    runs = lps.solve_over(
+    runs = sps.solve_over(
         WINDOW,
         horizon_sources(12),
-        lps.EachWindow('snapshot', steps=blocks, lookahead=2, into='t'),
+        sps.EachWindow('snapshot', steps=blocks, lookahead=2, into='t'),
         carry={'soc_initial': 'soc'},
     )
     stitched = runs.primal('soc', original_index=True)
@@ -847,7 +847,7 @@ def test_the_blocks_partition_the_axis_and_never_claim_more_than_is_left(steps, 
     that number. Deleting the trim leaves the suite green, which is why this
     asserts the arithmetic rather than an answer.
     """
-    axis = lps.EachWindow('snapshot', steps=steps, lookahead=0, into='t')
+    axis = sps.EachWindow('snapshot', steps=steps, lookahead=0, into='t')
 
     assert axis._blocks(periods) == expected, 'each block is trimmed to what the axis has left'
     assert sum(axis._blocks(periods)) == periods, 'and together they cover it exactly once'
@@ -864,11 +864,11 @@ def test_a_block_list_that_stops_short_of_the_axis_is_refused():
     Trimming them silently is the one outcome a sweep must not have: the stitch
     would come back short and read as a complete schedule.
     """
-    with pytest.raises(lps.DataError, match=r'keeps 7 coordinate\(s\) across 2 window\(s\).*has 12'):
-        lps.solve_over(
+    with pytest.raises(sps.DataError, match=r'keeps 7 coordinate\(s\) across 2 window\(s\).*has 12'):
+        sps.solve_over(
             WINDOW,
             horizon_sources(12),
-            lps.EachWindow('snapshot', steps=[3, 4], lookahead=0, into='t'),
+            sps.EachWindow('snapshot', steps=[3, 4], lookahead=0, into='t'),
         )
 
 
@@ -883,13 +883,13 @@ def test_the_lookahead_the_model_needs_is_one_number_whatever_the_blocks():
     reaching = override(WINDOW, **{'constraints.soc_step.expression': ahead})
 
     for steps in (3, [1, 2, 3, 6]):
-        with pytest.raises(lps.LpspecError, match=r'lookahead=0\) looks ahead by 0 coordinate\(s\).*reads 1 ahead'):
-            lps.solve_over(
-                reaching, horizon_sources(12), lps.EachWindow('snapshot', steps=steps, lookahead=0, into='t')
+        with pytest.raises(sps.SpecsolveError, match=r'lookahead=0\) looks ahead by 0 coordinate\(s\).*reads 1 ahead'):
+            sps.solve_over(
+                reaching, horizon_sources(12), sps.EachWindow('snapshot', steps=steps, lookahead=0, into='t')
             )
 
-        runs = lps.solve_over(
-            reaching, horizon_sources(12), lps.EachWindow('snapshot', steps=steps, lookahead=1, into='t')
+        runs = sps.solve_over(
+            reaching, horizon_sources(12), sps.EachWindow('snapshot', steps=steps, lookahead=1, into='t')
         )
         assert runs.objective['termination_condition'].to_list() == ['optimal'] * len(runs), (
             'one coordinate of lookahead is what the model reads, so every window is whole'
@@ -904,10 +904,10 @@ def test_a_short_tail_window_carries_off_its_own_last_row():
     never computed — but a window short of ``steps`` in the *middle* of a sweep
     cannot happen, which is what makes the owned count always in range.
     """
-    runs = lps.solve_over(
+    runs = sps.solve_over(
         WINDOW,
         horizon_sources(12),
-        lps.EachWindow('snapshot', steps=5, lookahead=1, into='t'),
+        sps.EachWindow('snapshot', steps=5, lookahead=1, into='t'),
         carry={'soc_initial': 'soc'},
     )
     assert runs.keys == [0, 5, 10]
@@ -923,7 +923,7 @@ def test_a_carry_collapses_one_dimension_and_every_other_rides_along():
     stores are handed forward, each its own level. That is the general case; a
     scalar `soc_initial` is only the one where nothing is left to ride.
     """
-    runs = lps.solve_over(MULTI_STORE, multi_store_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'})
+    runs = sps.solve_over(MULTI_STORE, multi_store_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'})
 
     assert runs.keys == [0, 4, 8]
     assert set(runs.primal('soc').columns) == {'snapshot_start', 't', 'storage', 'value'}
@@ -947,7 +947,7 @@ def test_a_carry_collapses_one_dimension_and_every_other_rides_along():
                 'the opening row is the previous window at t == 3, for this same store'
             )
 
-    fresh = lps.solve_over(MULTI_STORE, multi_store_sources(), WINDOW_AXIS)
+    fresh = sps.solve_over(MULTI_STORE, multi_store_sources(), WINDOW_AXIS)
     assert not fresh.primal('soc').equals(runs.primal('soc')), 'the carry changed nothing'
 
 
@@ -963,10 +963,10 @@ def test_the_carried_row_is_the_last_one_owned_and_not_the_last_one_solved():
     The first assertion is what makes the rest discriminating: where the two
     rows hold the same level, reading either passes.
     """
-    runs = lps.solve_over(
+    runs = sps.solve_over(
         WINDOW,
         horizon_sources(12),
-        lps.EachWindow('snapshot', steps=3, lookahead=3, into='t'),
+        sps.EachWindow('snapshot', steps=3, lookahead=3, into='t'),
         carry={'soc_initial': 'soc'},
     )
 
@@ -997,10 +997,10 @@ def test_a_myopic_pathway_carries_a_whole_vector():
     a coordinate sweep needs no axis-owned dimension to carry this shape while
     one that drops a dimension is refused.
     """
-    runs = lps.solve_over(
+    runs = sps.solve_over(
         MYOPIC,
         myopic_sources(),
-        lps.EachCoordinate('period'),
+        sps.EachCoordinate('period'),
         carry={'existing': 'total'},
     )
 
@@ -1015,7 +1015,7 @@ def test_a_myopic_pathway_carries_a_whole_vector():
 
 #: The five ways a carry cannot line up. Each `id` is the case, so a failure
 #: names it rather than a line number: `-k collapses-two-dimensions`.
-_PERIOD_AXIS = lps.EachCoordinate('period')
+_PERIOD_AXIS = sps.EachCoordinate('period')
 UNSOUND_CARRIES = [
     pytest.param(
         WINDOW, horizon_sources, WINDOW_AXIS, {'soc_initial': 'p'},
@@ -1033,7 +1033,7 @@ UNSOUND_CARRIES = [
         id='a-name-neither-side-declares',
     ),
     pytest.param(
-        WINDOW, horizon_sources, lps.EachCoordinate('scenario'), {'soc_initial': 'soc'},
+        WINDOW, horizon_sources, sps.EachCoordinate('scenario'), {'soc_initial': 'soc'},
         r"collapses 't', and this axis owns none", 'Reduce',
         id='a-coordinate-sweep-collapsing-a-dimension-it-does-not-advance-along',
     ),
@@ -1054,8 +1054,8 @@ def test_a_carry_that_cannot_line_up_says_so_before_anything_solves(spec, source
     carry collapses. Any other and there is no coordinate to choose without
     doing the model's arithmetic here.
     """
-    with pytest.raises(lps.LpspecError, match=expected) as raised:
-        lps.solve_over(spec, sources(), axis, carry=carry)
+    with pytest.raises(sps.SpecsolveError, match=expected) as raised:
+        sps.solve_over(spec, sources(), axis, carry=carry)
     if names is not None:
         assert names in str(raised.value), 'the message names the dimensions it could not choose between'
 
@@ -1071,12 +1071,12 @@ def test_a_carry_is_refused_before_a_single_source_is_read(tmp_path):
     missing = tmp_path / 'not-written-yet.parquet'
     sources = {**horizon_sources(), 'load': str(missing)}
 
-    with pytest.raises(lps.LpspecError, match='does not declare'):
-        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'nope'})
+    with pytest.raises(sps.SpecsolveError, match='does not declare'):
+        sps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'nope'})
 
     with pytest.raises(Exception, match='not-written-yet') as raised:
-        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'soc'})
-    assert not isinstance(raised.value, lps.LpspecError), 'the file, not the carry, is what failed'
+        sps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'soc'})
+    assert not isinstance(raised.value, sps.SpecsolveError), 'the file, not the carry, is what failed'
 
 
 # ---------------------------------------------------------------------------
@@ -1087,8 +1087,8 @@ def test_a_carry_is_refused_before_a_single_source_is_read(tmp_path):
 def test_carry_and_executor_are_refused_together():
     """Sequential by definition, so the combination is a call-time error rather
     than something discovered at slice two."""
-    with pytest.raises(lps.LpspecError, match='mutually exclusive'):
-        lps.solve_over(
+    with pytest.raises(sps.SpecsolveError, match='mutually exclusive'):
+        sps.solve_over(
             WINDOW,
             horizon_sources(),
             WINDOW_AXIS,
@@ -1162,10 +1162,10 @@ def test_every_executor_gives_the_same_answers_in_the_same_order(make_executor):
     is the kind of wrong that looks fine until two runs are diffed.
     """
     sources = scenario_sources()
-    sequential = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
+    sequential = sps.solve_over(DISPATCH, sources, sps.EachCoordinate('scenario'))
 
     with _entered(make_executor()) as live:
-        parallel = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'), executor=live)
+        parallel = sps.solve_over(DISPATCH, sources, sps.EachCoordinate('scenario'), executor=live)
 
     assert parallel.keys == sequential.keys
     assert answer_of(parallel).equals(answer_of(sequential))
@@ -1181,10 +1181,10 @@ def test_every_executor_carries_expressions_the_same(make_executor):
     """
     spec = override(DISPATCH, **{'expressions.spend': 'sum(p * cost, over=generator)'})
     sources = scenario_sources()
-    sequential = lps.solve_over(spec, sources, lps.EachCoordinate('scenario'))
+    sequential = sps.solve_over(spec, sources, sps.EachCoordinate('scenario'))
 
     with _entered(make_executor()) as live:
-        parallel = lps.solve_over(spec, sources, lps.EachCoordinate('scenario'), executor=live)
+        parallel = sps.solve_over(spec, sources, sps.EachCoordinate('scenario'), executor=live)
 
     assert parallel.evaluate('spend').equals(sequential.evaluate('spend')), (
         'a sweep reads the same named expression under any executor'
@@ -1209,11 +1209,11 @@ def test_a_thread_pool_does_not_encode_for_a_boundary_it_never_crosses(monkeypat
 
     monkeypatch.setattr(strategy, '_encode', spy)
     with ThreadPoolExecutor(2) as pool:
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
+        sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), executor=pool)
     assert seen == [], 'a thread pool encoded its sources'
 
     with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool:
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
+        sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), executor=pool)
     assert seen, 'a process pool did not encode its sources'
 
 
@@ -1227,9 +1227,9 @@ def test_the_model_and_its_plan_both_cross_a_process():
     nothing.
     """
     spec = to_spec(DISPATCH)
-    serial = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'))
+    serial = sps.solve_over(spec, scenario_sources(), sps.EachCoordinate('scenario'))
     with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool:
-        pooled = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool)
+        pooled = sps.solve_over(spec, scenario_sources(), sps.EachCoordinate('scenario'), executor=pool)
     assert answer_of(pooled).equals(answer_of(serial))
     assert pooled.primal('p').equals(serial.primal('p'))
 
@@ -1246,9 +1246,9 @@ def test_a_failing_slice_reports_the_real_error_across_a_process_boundary():
     broken.pop('cost')
     with (
         ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool,
-        pytest.raises(lps.DataError, match="no data provided for parameter 'cost'"),
+        pytest.raises(sps.DataError, match="no data provided for parameter 'cost'"),
     ):
-        lps.solve_over(DISPATCH, broken, lps.EachCoordinate('scenario'), executor=pool)
+        sps.solve_over(DISPATCH, broken, sps.EachCoordinate('scenario'), executor=pool)
 
 
 def test_a_parquet_path_slices_without_being_read_whole(tmp_path):
@@ -1259,7 +1259,7 @@ def test_a_parquet_path_slices_without_being_read_whole(tmp_path):
     assert isinstance(frame, pl.DataFrame)
     frame.write_parquet(path)
 
-    runs = lps.solve_over(DISPATCH, {**sources, 'load': str(path)}, lps.EachCoordinate('scenario'))
+    runs = sps.solve_over(DISPATCH, {**sources, 'load': str(path)}, sps.EachCoordinate('scenario'))
     assert runs.keys == ['high', 'low', 'mid']
     assert runs.primal('p').height == 3 * 4 * 2
 
@@ -1293,12 +1293,12 @@ def test_a_path_stays_a_path_for_a_local_pool_and_travels_as_bytes_for_a_remote_
 
     monkeypatch.setattr(strategy, '_encode', spy)
     with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool:
-        local = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'), executor=pool)
+        local = sps.solve_over(DISPATCH, sources, sps.EachCoordinate('scenario'), executor=pool)
         assert all(v == str(path) for v in crossed), 'a local pool shipped a file it could have opened'
 
         crossed.clear()
-        remote = lps.solve_over(
-            DISPATCH, sources, lps.EachCoordinate('scenario'), executor=pool, workers_share_fs=False
+        remote = sps.solve_over(
+            DISPATCH, sources, sps.EachCoordinate('scenario'), executor=pool, workers_share_fs=False
         )
         assert all(v == path.read_bytes() for v in crossed), 'the file did not travel as its own bytes'
 
@@ -1306,7 +1306,7 @@ def test_a_path_stays_a_path_for_a_local_pool_and_travels_as_bytes_for_a_remote_
     assert remote.primal('p').equals(local.primal('p'))
 
     crossed.clear()
-    lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'), executor=Inline())
+    sps.solve_over(DISPATCH, sources, sps.EachCoordinate('scenario'), executor=Inline())
     assert all(v == path.read_bytes() for v in crossed), 'an executor we did not ship was assumed local'
 
 
@@ -1355,7 +1355,7 @@ def test_every_bridge_takes_a_kind_on_a_sweep(priced):
     spent = priced.to_dataset(kind='expression')
     assert set(spent.data_vars) == {'spend', 'window_spend'}, 'every expression the slices evaluated'
     assert spent['spend'].dims == ('snapshot_start', 't'), 'keyed by slice, as every bulk export is'
-    with pytest.raises(lps.LpspecError, match='primal, dual, expression'):
+    with pytest.raises(sps.SpecsolveError, match='primal, dual, expression'):
         priced.to_pandas('soc', 'objective')
 
 
@@ -1417,11 +1417,11 @@ def test_a_resume_checks_the_layout_it_is_extending_rather_than_restamping_it(tm
     catch, defeated by the path most likely to hit it.
     """
     out = tmp_path / 'sweep'
-    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=out)
+    sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=out)
     (out / 'format.json').write_text(json.dumps({'answer': 99}))
 
-    with pytest.raises(lps.LayoutError, match='layout 99'):
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=out)
+    with pytest.raises(sps.LayoutError, match='layout 99'):
+        sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=out)
     assert json.loads((out / 'format.json').read_text()) == {'answer': 99}, (
         'and the stamp it was refused over is left as it was found'
     )
@@ -1430,8 +1430,8 @@ def test_a_resume_checks_the_layout_it_is_extending_rather_than_restamping_it(tm
 def test_a_sweep_keyed_in_more_than_one_type_is_refused(tmp_path) -> None:
     """Refused rather than widened: the caller's own labels are not ours to change."""
     sources = scenario_sources()
-    with pytest.raises(lps.LpspecError, match='more than one type'):
-        lps.solve_over(DISPATCH, sources, [(1, sources), (2.5, sources)], key_name='draw')
+    with pytest.raises(sps.SpecsolveError, match='more than one type'):
+        sps.solve_over(DISPATCH, sources, [(1, sources), (2.5, sources)], key_name='draw')
 
 
 def test_a_saved_result_carries_the_row_a_sweep_keys(sweep, tmp_path):
@@ -1444,7 +1444,7 @@ def test_a_saved_result_carries_the_row_a_sweep_keys(sweep, tmp_path):
     """
     sources = scenario_sources()
     low = {**sources, 'load': sources['load'].filter(pl.col('scenario') == 'low').drop('scenario')}
-    with lps.solve(DISPATCH, low) as alone:
+    with sps.solve(DISPATCH, low) as alone:
         one = pl.read_parquet(alone.save(tmp_path / 'low') / 'objective.parquet')
 
     assert one.columns == [column for column in sweep.objective.columns if column != sweep.key_name], (
@@ -1468,9 +1468,9 @@ def test_a_bulk_export_of_a_sweep_that_solved_nothing_is_refused():
     install gets the sentence rather than an ImportError."""
     sources = scenario_sources()
     sources['load'] = sources['load'].with_columns(pl.col('value') + 1_000)
-    runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
+    runs = sps.solve_over(DISPATCH, sources, sps.EachCoordinate('scenario'))
 
-    with pytest.raises(lps.LpspecError, match='holds no variable frames at all'):
+    with pytest.raises(sps.SpecsolveError, match='holds no variable frames at all'):
         runs.to_dataset()
 
 
@@ -1483,7 +1483,7 @@ def test_a_sweep_that_solved_nothing_still_saves_its_records(tmp_path):
     """
     sources = scenario_sources()
     sources['load'] = sources['load'].with_columns(pl.col('value') + 1_000)
-    runs = lps.solve_over(DISPATCH, sources, lps.EachCoordinate('scenario'))
+    runs = sps.solve_over(DISPATCH, sources, sps.EachCoordinate('scenario'))
 
     out = runs.save(tmp_path / 'sweep')
     records = pl.read_parquet(sorted((out / 'objective').glob('*.parquet')))
@@ -1491,7 +1491,7 @@ def test_a_sweep_that_solved_nothing_still_saves_its_records(tmp_path):
         'every slice terminated infeasible, and the record says so'
     )
     assert not (out / 'primal').exists(), 'and no frames are written, there being none'
-    assert lps.load_runs(out).objective.height == records.height, 'the saved study reads back'
+    assert sps.load_runs(out).objective.height == records.height, 'the saved study reads back'
 
 
 @pytest.mark.parametrize('lost', ['objective', 'metrics'], ids=str)
@@ -1504,12 +1504,12 @@ def test_a_sweep_directory_missing_its_record_is_refused_by_name(lost: str, tmp_
     makes of nothing — an empty scan, or a `Runs` whose record has no rows —
     rather than as the directory being wrong.
     """
-    out = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=tmp_path / 'sweep')
-    assert lps.load_runs(out._spill.directory).objective.height == 3, 'the whole one reads back first'
+    out = sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=tmp_path / 'sweep')
+    assert sps.load_runs(out._spill.directory).objective.height == 3, 'the whole one reads back first'
     shutil.rmtree(out._spill.directory / lost)
 
-    with pytest.raises(lps.LayoutError, match=f"no '{lost}.parquet'"):
-        lps.load_runs(out._spill.directory)
+    with pytest.raises(sps.LayoutError, match=f"no '{lost}.parquet'"):
+        sps.load_runs(out._spill.directory)
 
 
 def test_a_loaded_sweep_is_held_and_a_scanned_one_is_spilled(tmp_path):
@@ -1522,13 +1522,13 @@ def test_a_loaded_sweep_is_held_and_a_scanned_one_is_spilled(tmp_path):
     sweep solved without spilling is — every reader answers, and the
     directory is free afterwards.
     """
-    spilled = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=tmp_path / 'sweep')
+    spilled = sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=tmp_path / 'sweep')
     expected = spilled.scan('p').collect()
-    loaded = lps.load_runs(tmp_path / 'sweep')
-    scanned = lps.scan_runs(tmp_path / 'sweep')
+    loaded = sps.load_runs(tmp_path / 'sweep')
+    scanned = sps.scan_runs(tmp_path / 'sweep')
 
     assert scanned.scan('p').collect().equals(expected), 'both read the study the spill wrote'
-    with pytest.raises(lps.LpspecError, match=r'runs\.scan'):
+    with pytest.raises(sps.SpecsolveError, match=r'runs\.scan'):
         scanned.primal('p')
     shutil.rmtree(tmp_path / 'sweep')
 
@@ -1539,7 +1539,7 @@ def test_a_loaded_sweep_is_held_and_a_scanned_one_is_spilled(tmp_path):
 def test_a_reader_for_a_name_the_sweep_lacks_fails_the_way_primal_does(sweep):
     """One explanation, reached through every reader."""
     for read in (sweep.to_pandas, sweep.to_dataarray):
-        with pytest.raises(lps.LpspecError, match="no variable 'q' in this sweep"):
+        with pytest.raises(sps.SpecsolveError, match="no variable 'q' in this sweep"):
             read('q')
 
 
@@ -1555,10 +1555,10 @@ def test_a_hand_built_axis_needs_no_class_but_must_name_its_own_key():
     base = scenario_sources()
     slices = [(name, {**base, 'load': _draw(base, name)}) for name in ('low', 'high')]
 
-    with pytest.raises(lps.LpspecError, match='hand-built axis needs key_name='):
-        lps.solve_over(DISPATCH, base, slices)
+    with pytest.raises(sps.SpecsolveError, match='hand-built axis needs key_name='):
+        sps.solve_over(DISPATCH, base, slices)
 
-    runs = lps.solve_over(DISPATCH, base, slices, key_name='draw')
+    runs = sps.solve_over(DISPATCH, base, slices, key_name='draw')
     assert runs.keys == ['low', 'high']
     assert runs.objective.columns[0] == 'draw'
     assert runs.primal('p').columns[0] == 'draw', 'both frames key the same way, or they stop joining'
@@ -1590,8 +1590,8 @@ def test_a_hand_built_slice_that_names_less_does_not_inherit_the_last_one(second
 
     def fold(executor: object) -> object:
         try:
-            return lps.solve_over(DISPATCH, base, slices, key_name='draw', executor=executor).objective.to_dicts()
-        except lps.DataError as exc:
+            return sps.solve_over(DISPATCH, base, slices, key_name='draw', executor=executor).objective.to_dicts()
+        except sps.DataError as exc:
             return str(exc)
 
     with ThreadPoolExecutor(2) as pool:
@@ -1605,12 +1605,12 @@ def test_key_overrides_what_an_axis_derived_and_refuses_a_collision():
     column the frames carry, which polars reports as a duplicate with no idea
     why.
     """
-    runs = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), key_name='case')
+    runs = sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), key_name='case')
     assert runs.objective.columns[0] == 'case'
     assert set(runs.primal('p').columns) == {'case', 'snapshot', 'generator', 'value'}
 
-    with pytest.raises(lps.LpspecError, match=r"key_name='generator' is a dimension the spec declares"):
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), key_name='generator')
+    with pytest.raises(sps.SpecsolveError, match=r"key_name='generator' is a dimension the spec declares"):
+        sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), key_name='generator')
 
 
 def test_duals_come_back_keyed_by_slice_and_are_never_combined(sweep):
@@ -1640,11 +1640,11 @@ def test_a_slice_without_duals_does_not_fail_the_sweep():
     rather than rewritten.
     """
     integral = override(DISPATCH, **{'variables.p.domain': 'integer'})
-    runs = lps.solve_over(integral, scenario_sources(), lps.EachCoordinate('scenario'))
+    runs = sps.solve_over(integral, scenario_sources(), sps.EachCoordinate('scenario'))
 
     assert len(runs) == 3, 'every slice is still a row of the record'
     assert runs.primal('p').height > 0, 'primals are unaffected'
-    with pytest.raises(lps.LpspecError, match='duals are undefined for a mixed-integer model') as raised:
+    with pytest.raises(sps.SpecsolveError, match='duals are undefined for a mixed-integer model') as raised:
         runs.dual('balance')
     assert "'p' is not continuous" in str(raised.value), 'the sweep names the variable, as one solve does'
 
@@ -1659,9 +1659,9 @@ def test_a_bad_name_is_reported_without_the_optional_dependency(sweep):
     sweep does hold still needs the dependency, and says which extra carries it.
     """
     with mock.patch.dict(sys.modules, {'pandas': None}):
-        with pytest.raises(lps.LpspecError, match="no variable 'q' in this sweep"):
+        with pytest.raises(sps.SpecsolveError, match="no variable 'q' in this sweep"):
             sweep.to_pandas('q')
-        with pytest.raises(ModuleNotFoundError, match=r'pip install "lpspec\[linopy\]"'):
+        with pytest.raises(ModuleNotFoundError, match=r'pip install "specsolve\[linopy\]"'):
             sweep.to_pandas('p')
 
 
@@ -1681,8 +1681,8 @@ def _horizon(constraint: dict, **parameters: dict) -> dict:
 
 def test_a_window_over_a_horizon_budget_is_refused_with_the_change_that_would_lift_it():
     spec = _horizon({'dims': [], 'expression': 'sum(discharge, over=t) <= 100'})
-    with pytest.raises(lps.LpspecError, match=r"constraint 'extra': sums over t") as refused:
-        lps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
+    with pytest.raises(sps.SpecsolveError, match=r"constraint 'extra': sums over t") as refused:
+        sps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
     assert 'sum_back(window=n)' in str(refused.value), 'the refusal names the rolling form that windows'
 
 
@@ -1690,9 +1690,9 @@ def test_a_window_must_look_ahead_as_far_as_the_rows_read():
     """`shift(load, along=t, offset=-2)` reads two rows ahead; a contiguous
     window would read past its end, an overlap of two covers it."""
     spec = _horizon({'dims': ['t'], 'expression': 'sum(p, over=generator) >= shift(load, along=t, offset=-2, edge=0)'})
-    with pytest.raises(lps.LpspecError, match=r'looks ahead by 0 coordinate\(s\), and the model reads 2 ahead'):
-        lps.solve_over(spec, horizon_sources(8), lps.EachWindow('snapshot', steps=4, lookahead=0, into='t'))
-    runs = lps.solve_over(spec, horizon_sources(8), lps.EachWindow('snapshot', steps=4, lookahead=2, into='t'))
+    with pytest.raises(sps.SpecsolveError, match=r'looks ahead by 0 coordinate\(s\), and the model reads 2 ahead'):
+        sps.solve_over(spec, horizon_sources(8), sps.EachWindow('snapshot', steps=4, lookahead=0, into='t'))
+    runs = sps.solve_over(spec, horizon_sources(8), sps.EachWindow('snapshot', steps=4, lookahead=2, into='t'))
     assert runs.keys == [0, 4], 'with the lookahead covered, every window solves'
 
 
@@ -1701,19 +1701,19 @@ def test_a_window_must_look_ahead_as_far_as_the_rows_read():
     [
         pytest.param(
             [1, 2],
-            lps.EachWindow('snapshot', steps=4, lookahead=0, into='t'),
+            sps.EachWindow('snapshot', steps=4, lookahead=0, into='t'),
             False,
             id='a-delay-behind-needs-no-overlap',
         ),
         pytest.param(
             [-1, -3],
-            lps.EachWindow('snapshot', steps=4, lookahead=0, into='t'),
+            sps.EachWindow('snapshot', steps=4, lookahead=0, into='t'),
             True,
             id='a-delay-ahead-needs-the-overlap',
         ),
         pytest.param(
             [-1, -3],
-            lps.EachWindow('snapshot', steps=4, lookahead=3, into='t'),
+            sps.EachWindow('snapshot', steps=4, lookahead=3, into='t'),
             False,
             id='and-an-overlap-of-three-covers-it',
         ),
@@ -1728,10 +1728,10 @@ def test_an_offset_the_data_decides_is_read_off_the_data(delays, axis, refused):
     )
     sources = {**horizon_sources(8), 'delay': pl.DataFrame({'generator': GENERATORS, 'value': delays})}
     if refused:
-        with pytest.raises(lps.LpspecError, match='the model reads 3 ahead'):
-            lps.solve_over(spec, sources, axis)
+        with pytest.raises(sps.SpecsolveError, match='the model reads 3 ahead'):
+            sps.solve_over(spec, sources, axis)
     else:
-        assert len(lps.solve_over(spec, sources, axis)) == 2, 'every window solved'
+        assert len(sps.solve_over(spec, sources, axis)) == 2, 'every window solved'
 
 
 def test_a_reach_a_relation_decides_is_refused_with_the_relation_named():
@@ -1746,14 +1746,14 @@ def test_a_reach_a_relation_decides_is_refused_with_the_relation_named():
     )
     spec['dimensions'] = {**spec['dimensions'], 'day': {'dtype': 'int'}}
     spec['relations'] = {'day_of': {'key': 't', 'values': 'day'}}
-    with pytest.raises(lps.LpspecError, match=r"constraint 'extra': through the relation 'day_of'"):
-        lps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
+    with pytest.raises(sps.SpecsolveError, match=r"constraint 'extra': through the relation 'day_of'"):
+        sps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
 
 
 def test_a_position_the_model_counts_is_a_warning_and_the_windows_still_solve():
     spec = _horizon({'dims': ['t'], 'where': 'position(t) == 0', 'expression': 'soc <= 50'})
-    with pytest.warns(lps.LpspecWarning, match=r"constraint 'extra': counts a position along t"):
-        runs = lps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
+    with pytest.warns(sps.SpecsolveWarning, match=r"constraint 'extra': counts a position along t"):
+        runs = sps.solve_over(spec, horizon_sources(8), WINDOW_AXIS)
     assert len(runs) == 2, 'a restart is reported, not refused'
 
 
@@ -1773,21 +1773,21 @@ def test_an_offset_is_read_off_every_shape_a_source_may_arrive_in(delay):
         {'dims': ['t', 'generator'], 'expression': 'p >= shift(p, along=t, offset=delay, edge=0) - 100'},
         delay={'dims': ['generator'], 'dtype': 'int'},
     )
-    with pytest.raises(lps.LpspecError, match='the model reads 3 ahead'):
-        lps.solve_over(spec, {**horizon_sources(8), 'delay': delay}, WINDOW_AXIS)
+    with pytest.raises(sps.SpecsolveError, match='the model reads 3 ahead'):
+        sps.solve_over(spec, {**horizon_sources(8), 'delay': delay}, WINDOW_AXIS)
 
 
 def test_a_window_whose_local_index_the_spec_does_not_declare_is_refused_by_name():
-    with pytest.raises(lps.LpspecError, match=r"EachWindow\(into='tt'\).*Did you mean 't'") as refused:
-        lps.solve_over(WINDOW, horizon_sources(8), lps.EachWindow('snapshot', steps=4, lookahead=0, into='tt'))
+    with pytest.raises(sps.SpecsolveError, match=r"EachWindow\(into='tt'\).*Did you mean 't'") as refused:
+        sps.solve_over(WINDOW, horizon_sources(8), sps.EachWindow('snapshot', steps=4, lookahead=0, into='tt'))
     assert 'no such dimension' in str(refused.value), 'the refusal says the spec declares nothing by that name'
 
 
 def test_a_coordinate_sweep_over_a_dimension_the_spec_declares_is_refused():
     """`EachCoordinate` drops its column, so a declared dimension would be left
     with no data — the guard that lets a coordinate sweep ask the model nothing else."""
-    with pytest.raises(lps.LpspecError, match=r"EachCoordinate\('generator'\) drops 'generator'"):
-        lps.solve_over(WINDOW, horizon_sources(8), lps.EachCoordinate('generator'), key_name='g')
+    with pytest.raises(sps.SpecsolveError, match=r"EachCoordinate\('generator'\) drops 'generator'"):
+        sps.solve_over(WINDOW, horizon_sources(8), sps.EachCoordinate('generator'), key_name='g')
 
 
 # ---------------------------------------------------------------------------
@@ -1801,8 +1801,8 @@ def test_a_coordinate_sweep_over_a_dimension_the_spec_declares_is_refused():
 #: axis has nothing to filter in them.
 NOT_A_TABLE = [
     pytest.param(WINDOW, horizon_sources, WINDOW_AXIS, {'soc_initial': 0.0}, id='a-number'),
-    pytest.param(DISPATCH, scenario_sources, lps.EachCoordinate('scenario'), {'snapshot': range(4)}, id='a-bare-index'),
-    pytest.param(DISPATCH, scenario_sources, lps.EachCoordinate('scenario'), {'cost': {'wind': 1.0, 'gas': 50.0}}, id='a-map'),
+    pytest.param(DISPATCH, scenario_sources, sps.EachCoordinate('scenario'), {'snapshot': range(4)}, id='a-bare-index'),
+    pytest.param(DISPATCH, scenario_sources, sps.EachCoordinate('scenario'), {'cost': {'wind': 1.0, 'gas': 50.0}}, id='a-map'),
 ]  # fmt: skip
 
 
@@ -1816,13 +1816,13 @@ def test_a_sweep_takes_every_source_shape_solve_takes(spec, sources, axis, plain
     """
     with_tables = sources()
     as_plain = {**with_tables, **plain}
-    runs = lps.solve_over(spec, as_plain, axis)
+    runs = sps.solve_over(spec, as_plain, axis)
     assert (
         runs.objective['objective'].to_list()
-        == lps.solve_over(spec, with_tables, axis).objective['objective'].to_list()
+        == sps.solve_over(spec, with_tables, axis).objective['objective'].to_list()
     ), 'a number, a sequence and a map attach exactly as the tables they stand for'
     with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context('spawn')) as pool:
-        pooled = lps.solve_over(spec, as_plain, axis, executor=pool)
+        pooled = sps.solve_over(spec, as_plain, axis, executor=pool)
     assert answer_of(pooled).equals(answer_of(runs)), 'the plain shapes cross a process as themselves'
 
 
@@ -1835,8 +1835,8 @@ def test_a_source_short_of_a_coordinate_of_the_axis_is_reported():
     """
     sources = myopic_sources()
     sources['cost'] = pl.DataFrame({'period': [1, 1, 2, 2], 'generator': GENERATORS * 2, 'value': [1.0, 50.0] * 2})
-    with pytest.warns(lps.LpspecWarning, match=r"'cost' has no rows for period 3, which 'demand' has"):
-        runs = lps.solve_over(MYOPIC, sources, lps.EachCoordinate('period'), carry={'existing': 'total'})
+    with pytest.warns(sps.SpecsolveWarning, match=r"'cost' has no rows for period 3, which 'demand' has"):
+        runs = sps.solve_over(MYOPIC, sources, sps.EachCoordinate('period'), carry={'existing': 'total'})
     assert runs.objective['objective'].to_list()[-1] == 0.0, 'the sweep still runs, and period 3 is free'
 
 
@@ -1847,8 +1847,8 @@ def test_a_carry_with_no_seed_says_the_first_slice_needs_one():
     """
     sources = horizon_sources(12)
     del sources['soc_initial']
-    with pytest.raises(lps.LpspecError, match=r"carry writes 'soc_initial' from the second slice on"):
-        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'soc'})
+    with pytest.raises(sps.SpecsolveError, match=r"carry writes 'soc_initial' from the second slice on"):
+        sps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'soc'})
 
 
 def test_a_slice_that_leaves_nothing_to_carry_stops_the_sweep_by_name():
@@ -1860,8 +1860,8 @@ def test_a_slice_that_leaves_nothing_to_carry_stops_the_sweep_by_name():
     sources['load'] = sources['load'].with_columns(
         pl.when(pl.col('snapshot') == 5).then(10_000.0).otherwise(pl.col('value')).alias('value')
     )
-    with pytest.raises(lps.LpspecError, match=r'slice 4 .*infeasible') as raised:
-        lps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'soc'})
+    with pytest.raises(sps.SpecsolveError, match=r'slice 4 .*infeasible') as raised:
+        sps.solve_over(WINDOW, sources, WINDOW_AXIS, carry={'soc_initial': 'soc'})
     assert 'slice 8' in str(raised.value), 'the message names the slice that had nothing to start from'
 
 
@@ -1876,8 +1876,8 @@ def test_a_failing_slice_is_named(make_executor):
     base = scenario_sources()
     slices = [(k, {**base, 'load': _draw(base, k)}) for k in ('low', 'mid')]
     slices.append(('bad', {**slices[0][1], 'load': pl.DataFrame({'snapshot': [0, 1], 'value': [1.0, 2.0]})}))
-    with _entered(make_executor() if make_executor else None) as executor, pytest.raises(lps.DataError) as raised:
-        lps.solve_over(DISPATCH, base, slices, key_name='draw', executor=executor)
+    with _entered(make_executor() if make_executor else None) as executor, pytest.raises(sps.DataError) as raised:
+        sps.solve_over(DISPATCH, base, slices, key_name='draw', executor=executor)
     assert any("slice 'bad'" in note and '3 of 3' in note for note in raised.value.__notes__), (
         'the note names the slice by key and by position'
     )
@@ -1888,8 +1888,8 @@ def test_a_key_that_collides_with_a_fixed_column_is_refused(key_name):
     """`value` collides in every frame a reader returns, and the other three
     in `objective` — where the key would silently replace the column rather
     than join it."""
-    with pytest.raises(lps.LpspecError, match=f'key_name={key_name!r} .* column'):
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), key_name=key_name)
+    with pytest.raises(sps.SpecsolveError, match=f'key_name={key_name!r} .* column'):
+        sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), key_name=key_name)
 
 
 @pytest.mark.parametrize('make_executor', EXECUTORS[:2])
@@ -1901,7 +1901,7 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     """
     from math_spec import Spec, validation
 
-    from lpspec import lanes
+    from specsolve import lanes
 
     parsed: list[object] = []
     original = validation.to_spec
@@ -1914,7 +1914,7 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     monkeypatch.setattr(validation, 'to_spec', spy)
     monkeypatch.setattr(lanes, 'to_spec', spy)
     with _entered(make_executor()) as executor:
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor)
+        sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), executor=executor)
     assert len(parsed) == 1, f'the model was parsed {len(parsed)} times for three slices'
 
 
@@ -1926,15 +1926,15 @@ def test_an_axis_hands_out_its_slices_so_one_can_be_built_alone():
     solving it hand-built gives the same answers under the axis's own key.
     """
     sources = horizon_sources(12)
-    axis = lps.EachWindow('snapshot', steps=3, lookahead=3, into='t')
+    axis = sps.EachWindow('snapshot', steps=3, lookahead=3, into='t')
     slices = axis.slices(sources)
     assert [key for key, _ in slices] == [0, 3, 6, 9], 'one slice per window, keyed by where it starts'
 
-    with lps.build(WINDOW, slices[1][1]) as model:
+    with sps.build(WINDOW, slices[1][1]) as model:
         assert str(model.row('soc_open', t=0)).startswith('soc_open[t=0]'), 'one window builds alone'
 
-    by_axis = lps.solve_over(WINDOW, sources, axis)
-    by_hand = lps.solve_over(WINDOW, sources, slices, key_name='snapshot_start')
+    by_axis = sps.solve_over(WINDOW, sources, axis)
+    by_hand = sps.solve_over(WINDOW, sources, slices, key_name='snapshot_start')
     assert answer_of(by_hand).equals(answer_of(by_axis))
     assert by_hand.primal('soc').equals(by_axis.primal('soc'))
 
@@ -1950,7 +1950,7 @@ def test_a_sweep_reports_what_each_slice_cost(make_executor):
     so every one loads. That difference is the reason the column exists.
     """
     with _entered(make_executor() if make_executor else None) as executor:
-        runs = lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor)
+        runs = sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), executor=executor)
     frame = runs.metrics
     assert frame.columns == [
         'scenario',
@@ -1977,12 +1977,12 @@ def test_a_sweep_reports_what_each_slice_cost(make_executor):
 # spilling to disk
 # ---------------------------------------------------------------------------
 
-PRICED_AXIS = lps.EachWindow('snapshot', steps=3, lookahead=3, into='t')
+PRICED_AXIS = sps.EachWindow('snapshot', steps=3, lookahead=3, into='t')
 PRICED_CARRY = {'soc_initial': 'soc'}
 
 
 def _spilled(directory, **kwargs) -> strategy.Runs:
-    return lps.solve_over(SPENDING, horizon_sources(12), PRICED_AXIS, carry=PRICED_CARRY, spill_to=directory, **kwargs)
+    return sps.solve_over(SPENDING, horizon_sources(12), PRICED_AXIS, carry=PRICED_CARRY, spill_to=directory, **kwargs)
 
 
 def test_a_slices_metrics_are_written_in_the_columns_its_type_declares(tmp_path):
@@ -2007,7 +2007,7 @@ def test_a_slice_written_in_another_layout_is_refused_by_name(tmp_path):
     first = min((tmp_path / 'sweep' / 'metrics').glob('*.parquet'))
     pl.read_parquet(first).drop('loaded').write_parquet(first)
 
-    with pytest.raises(lps.LayoutError, match=r"SliceMetrics row that is short of \['loaded'\]"):
+    with pytest.raises(sps.LayoutError, match=r"SliceMetrics row that is short of \['loaded'\]"):
         _spilled(tmp_path / 'sweep')
 
 
@@ -2042,7 +2042,7 @@ def test_the_frame_readers_refuse_a_spilled_sweep_and_name_scan(read, tmp_path):
     """One meaning per name: `primal` returns a frame in memory or raises,
     never a frame it would have to read off disk first. The message names `scan`."""
     runs = _spilled(tmp_path)
-    with pytest.raises(lps.LpspecError, match=r'runs\.scan'):
+    with pytest.raises(sps.SpecsolveError, match=r'runs\.scan'):
         read(runs)
 
 
@@ -2050,9 +2050,9 @@ def test_scan_reads_an_in_memory_sweep_too(sweep):
     """`scan` means the same thing on both: code written for a spilled sweep
     runs unchanged on one that fit in memory."""
     assert sweep.scan('p').collect().equals(sweep.primal('p'))
-    with pytest.raises(lps.LpspecError, match="no variable 'nope'"):
+    with pytest.raises(sps.SpecsolveError, match="no variable 'nope'"):
         sweep.scan('nope')
-    with pytest.raises(lps.LpspecError, match='primal, dual, expression'):
+    with pytest.raises(sps.SpecsolveError, match='primal, dual, expression'):
         sweep.scan('p', 'objective')
 
 
@@ -2066,14 +2066,14 @@ def test_a_spilled_sweep_resumes_after_the_slice_that_failed(builds, tmp_path):
     base = scenario_sources()
     good = [(k, {**base, 'load': _draw(base, k)}) for k in ('low', 'mid', 'high')]
     bad = [*good[:2], ('high', {**good[0][1], 'load': pl.DataFrame({'snapshot': [0, 1], 'value': [1.0, 2.0]})})]
-    with pytest.raises(lps.DataError):
-        lps.solve_over(DISPATCH, base, bad, key_name='draw', spill_to=tmp_path)
+    with pytest.raises(sps.DataError):
+        sps.solve_over(DISPATCH, base, bad, key_name='draw', spill_to=tmp_path)
 
     built = builds(strategy)
-    resumed = lps.solve_over(DISPATCH, base, good, key_name='draw', spill_to=tmp_path)
+    resumed = sps.solve_over(DISPATCH, base, good, key_name='draw', spill_to=tmp_path)
     assert len(built) == 1, 'only the slice that failed is built again'
 
-    fresh = lps.solve_over(DISPATCH, base, good, key_name='draw')
+    fresh = sps.solve_over(DISPATCH, base, good, key_name='draw')
     assert answer_of(resumed).equals(answer_of(fresh))
     assert resumed.scan('p').collect().equals(fresh.primal('p'))
 
@@ -2120,16 +2120,16 @@ def test_a_directory_holding_another_sweep_is_refused(tmp_path):
     """A directory answers for one sweep. Another one pointed at it would read
     the first one's slices back as its own, so the mismatch is refused."""
     _spilled(tmp_path)
-    with pytest.raises(lps.LpspecError, match='holds a sweep keyed by'):
-        lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=tmp_path)
+    with pytest.raises(sps.SpecsolveError, match='holds a sweep keyed by'):
+        sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=tmp_path)
 
 
 @pytest.mark.parametrize('make_executor', EXECUTORS)
 def test_every_executor_spills_the_same_files(make_executor, sweep, tmp_path):
     """Under a pool the answers still land in the directory, in slice order."""
     with _entered(make_executor()) as executor:
-        runs = lps.solve_over(
-            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=executor, spill_to=tmp_path
+        runs = sps.solve_over(
+            DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), executor=executor, spill_to=tmp_path
         )
     assert runs.scan('p').collect().equals(sweep.primal('p'))
     assert sorted(p.name for p in (tmp_path / 'primal' / 'p').iterdir()) == [
@@ -2142,12 +2142,12 @@ def test_every_executor_spills_the_same_files(make_executor, sweep, tmp_path):
 def test_a_pooled_sweep_resumes_too(builds, tmp_path):
     """A slice the directory holds is never submitted; the pool only sees the
     ones still to solve, and the fold reads the rest back in order."""
-    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), spill_to=tmp_path)
+    sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=tmp_path)
     (tmp_path / 'objective' / '000001.parquet').unlink()
     built = builds(strategy)
     with ThreadPoolExecutor(2) as pool:
-        resumed = lps.solve_over(
-            DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), executor=pool, spill_to=tmp_path
+        resumed = sps.solve_over(
+            DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), executor=pool, spill_to=tmp_path
         )
     assert len(built) == 1, 'the slice without its record is the one submitted'
     assert resumed.keys == ['high', 'low', 'mid'], 'the sweep comes back whole and in order'
@@ -2157,7 +2157,7 @@ def test_scan_on_a_spilled_sweep_says_what_it_does_hold(tmp_path):
     """A name no slice wrote has no directory, and the message lists the
     names that do — the same sentence the in-memory reader gives."""
     runs = _spilled(tmp_path)
-    with pytest.raises(lps.LpspecError, match=r"no variable 'nope' in this sweep — it holds 'charge', 'discharge'"):
+    with pytest.raises(sps.SpecsolveError, match=r"no variable 'nope' in this sweep — it holds 'charge', 'discharge'"):
         runs.scan('nope')
 
 
@@ -2175,35 +2175,35 @@ def test_an_export_reads_the_key_off_each_frame_and_skips_an_empty_one(sweep):
 
 def test_a_sweep_archive_carries_its_carry(tmp_path):
     """The carry is config the frames do not hold, so the archive stores it beside the axis."""
-    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll')
-    assert lps.load_archive(tmp_path / 'roll').carry == {'soc_initial': 'soc'}, 'the carry reads back as it was given'
+    sps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll')
+    assert sps.load_archive(tmp_path / 'roll').carry == {'soc_initial': 'soc'}, 'the carry reads back as it was given'
 
 
 def test_a_sweep_archive_with_no_carry_reads_an_empty_carry(tmp_path):
     """A sweep that chained nothing carries nothing — the manifest omits the key and the reader defaults it."""
-    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'plain')
-    assert lps.load_archive(tmp_path / 'plain').carry == {}, 'no carry given, none stored, an empty mapping read back'
+    sps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'plain')
+    assert sps.load_archive(tmp_path / 'plain').carry == {}, 'no carry given, none stored, an empty mapping read back'
 
 
 def test_a_carried_sweep_reruns_from_its_archive_with_the_stored_carry(tmp_path):
     """The stored carry is what makes a re-run the same sweep: with it the chained answer is reproduced."""
-    original = lps.solve_over(
+    original = sps.solve_over(
         WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll'
     )
-    packed = lps.load_archive(tmp_path / 'roll')
-    rerun = lps.solve_over(packed.spec, packed.sources, packed.axis, carry=packed.carry)
+    packed = sps.load_archive(tmp_path / 'roll')
+    rerun = sps.solve_over(packed.spec, packed.sources, packed.axis, carry=packed.carry)
     assert rerun.primal('soc').equals(original.primal('soc')), 'the re-run with the stored carry matches the archive'
 
 
 def test_a_sweep_archive_evaluates_a_quantity_the_file_never_named_per_slice(tmp_path):
     """`Runs.evaluate` reads an undeclared quantity at each slice's own solution — matches solving that slice alone."""
-    axis = lps.EachCoordinate('scenario')
-    lps.solve_over(DISPATCH, scenario_sources(), axis, archive=tmp_path / 'study.zip')
-    sweep = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'out')
+    axis = sps.EachCoordinate('scenario')
+    sps.solve_over(DISPATCH, scenario_sources(), axis, archive=tmp_path / 'study.zip')
+    sweep = sps.load_archive(tmp_path / 'study.zip', tmp_path / 'out')
     expr = 'sum(p * cost, over=generator)'
     swept = sweep.answer.evaluate(expr)
     for key, slice_sources in axis.slices(scenario_sources()):
-        live = lps.solve(DISPATCH, slice_sources).evaluate(expr)
+        live = sps.solve(DISPATCH, slice_sources).evaluate(expr)
         got = swept.filter(pl.col(sweep.answer.key_name) == key).drop(sweep.answer.key_name)
         columns = live.columns[:-1]
         assert got.sort(columns).equals(live.sort(columns)), f'slice {key!r} evaluates at its own primal, no re-solve'
@@ -2211,18 +2211,18 @@ def test_a_sweep_archive_evaluates_a_quantity_the_file_never_named_per_slice(tmp
 
 def test_a_scanned_sweep_archive_evaluates_the_same(tmp_path):
     """A sweep left on disk (`scan_archive`) evaluates against those frames, the same values held reads."""
-    lps.solve_over(DISPATCH, scenario_sources(), lps.EachCoordinate('scenario'), archive=tmp_path / 'study.zip')
+    sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), archive=tmp_path / 'study.zip')
     expr = 'sum(p * cost, over=generator)'
-    whole = lps.load_archive(tmp_path / 'study.zip', tmp_path / 'whole').answer.evaluate(expr)
-    scanned = lps.scan_archive(tmp_path / 'study.zip', tmp_path / 'scan').answer.evaluate(expr)
+    whole = sps.load_archive(tmp_path / 'study.zip', tmp_path / 'whole').answer.evaluate(expr)
+    scanned = sps.scan_archive(tmp_path / 'study.zip', tmp_path / 'scan').answer.evaluate(expr)
     assert scanned.equals(whole), 'a scanned sweep evaluates against the frames on disk, the same answer'
 
 
 def test_a_live_sweep_has_no_model_to_evaluate_against():
     """A Runs a live solve returned retains no model, so an undeclared expression says why — the archive is what carries one — while a declared name is stitched from what the sweep holds."""
     spec = override(DISPATCH, **{'expressions.spend': 'sum(p * cost, over=generator)'})
-    runs = lps.solve_over(spec, scenario_sources(), lps.EachCoordinate('scenario'))
-    with pytest.raises(lps.LpspecError, match='no model behind it'):
+    runs = sps.solve_over(spec, scenario_sources(), sps.EachCoordinate('scenario'))
+    with pytest.raises(sps.SpecsolveError, match='no model behind it'):
         runs.evaluate('sum(p, over=generator)')
     assert runs.evaluate('spend')['scenario'].n_unique() == len(runs), (
         'the declared name answers without a model, stitched from every slice'
@@ -2231,17 +2231,17 @@ def test_a_live_sweep_has_no_model_to_evaluate_against():
 
 def test_evaluate_across_a_sweep_refuses_an_expression_that_reads_a_carried_parameter(tmp_path):
     """The narrow gap: a carried value is a previous slice's answer, not stored data, so evaluate refuses it."""
-    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll.zip')
-    sweep = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll')
+    sps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, carry={'soc_initial': 'soc'}, archive=tmp_path / 'roll.zip')
+    sweep = sps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll')
     assert sweep.answer.evaluate('sum(p * cost)').height, 'an expression over static data evaluates per slice'
-    with pytest.raises(lps.LpspecError, match='carried'):
+    with pytest.raises(sps.SpecsolveError, match='carried'):
         sweep.answer.evaluate('soc_initial')
 
 
 def test_evaluate_over_the_original_index_reindexes_like_primal(tmp_path):
     """`evaluate(original_index=True)` reuses the reindex `primal` does — the sliced dim back, the slice key gone."""
-    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'roll.zip')
-    answer = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
+    sps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'roll.zip')
+    answer = sps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
     reindexed = answer.evaluate('sum(p, over=generator)', original_index=True)
     assert reindexed.columns == ['snapshot', 'value'], 'the sliced dim is restored and the slice key dropped'
     by_hand = answer.primal('p', original_index=True).group_by('snapshot').agg(pl.col('value').sum()).sort('snapshot')
@@ -2252,7 +2252,7 @@ def test_evaluate_over_the_original_index_reindexes_like_primal(tmp_path):
 
 def test_evaluate_over_the_original_index_refuses_a_quantity_reduced_over_the_sliced_dim(tmp_path):
     """A scalar-per-window quantity has no local index to restore, so original_index refuses it — as `expression` does."""
-    lps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'roll.zip')
-    answer = lps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
-    with pytest.raises(lps.LpspecError, match="over 'snapshot'"):
+    sps.solve_over(WINDOW, horizon_sources(), WINDOW_AXIS, archive=tmp_path / 'roll.zip')
+    answer = sps.load_archive(tmp_path / 'roll.zip', tmp_path / 'roll').answer
+    with pytest.raises(sps.SpecsolveError, match="over 'snapshot'"):
         answer.evaluate('sum(p * cost)', original_index=True)

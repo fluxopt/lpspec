@@ -34,11 +34,11 @@ from bench import cases as bench_cases
 #: sources, labelling assigns the solver indices, and only the assembly is the
 #: engine's own.
 STEPS = (
-    ('lpspec.relational.engines.polars.assembly', 'Assembly', '_build_variable'),
-    ('lpspec.relational.engines.polars.assembly', 'Assembly', '_build_constraint'),
-    ('lpspec.relational.engines.polars.assembly', 'Assembly', '_build_objective'),
-    ('lpspec.relational.engines.polars.labels', None, 'frame'),
-    ('lpspec.relational.engines.polars.attaching', None, 'attach'),
+    ('specsolve.relational.engines.polars.assembly', 'Assembly', '_build_variable'),
+    ('specsolve.relational.engines.polars.assembly', 'Assembly', '_build_constraint'),
+    ('specsolve.relational.engines.polars.assembly', 'Assembly', '_build_objective'),
+    ('specsolve.relational.engines.polars.labels', None, 'frame'),
+    ('specsolve.relational.engines.polars.attaching', None, 'attach'),
 )
 
 
@@ -96,7 +96,7 @@ def main() -> None:
     phase = {'now': 'setup'}
     _instrument(timings, phase)
 
-    import lpspec as lps
+    import specsolve as sps
 
     case = bench_cases.CASES[args.case]
     shape = case.shape(args.size)
@@ -106,7 +106,7 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         started = time.perf_counter()
-        with lps.build(case.spec_path(shape), sources) as model:
+        with sps.build(case.spec_path(shape), sources) as model:
             build = time.perf_counter() - started
             phase['now'] = 'emit'
             started = time.perf_counter()

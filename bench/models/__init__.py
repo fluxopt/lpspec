@@ -2,7 +2,7 @@
 
 `bench/cases.py` holds what a case *is* — its ladder, its cardinalities, the
 parquet its generator writes. Here is what it *says*, once per language that
-says it: `model.yaml` for lpspec, and one module per hand-written dialect.
+says it: `model.yaml` for specsolve, and one module per hand-written dialect.
 
 A case with no alternative formulation is just its `model.yaml`; the ones that
 have one carry a `FORMULATIONS` map naming what they hold. Written out rather

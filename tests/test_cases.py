@@ -25,10 +25,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-import lpspec as lps
-from lpspec.errors import DataError
+import specsolve as sps
+from specsolve.errors import DataError
 from tests.differential import RTOL, both_lanes_refuse, differential
-from tests.oracle import lpspec_linopy
+from tests.oracle import specsolve_linopy
 
 CAPPED_BY_REGION = {
     'dimensions': {'t': {'dtype': 'int'}},
@@ -116,9 +116,9 @@ def test_a_hole_inside_the_region_is_still_refused_on_each_lane(lane):
         path = Path(work) / 'capped.yaml'
         path.write_text(yaml.safe_dump(CAPPED_BY_REGION))
         build = (
-            (lambda: lps.build(path, sources))
+            (lambda: sps.build(path, sources))
             if lane == 'relational'
-            else (lambda: lpspec_linopy.build(path, dict(sources)))
+            else (lambda: specsolve_linopy.build(path, dict(sources)))
         )
         with pytest.raises(DataError, match=r"parameter 'hi' covers 1 fewer coordinate"):
             build()
@@ -276,8 +276,8 @@ def test_a_region_binding_tighter_makes_the_model_infeasible_on_both_lanes():
         path = Path(work) / 'carried.yaml'
         path.write_text(yaml.safe_dump(CARRIED_IN))
 
-        relational = lps.solve(path, sources, solver_name='highs').objective
-        eager = lpspec_linopy.build(path, dict(sources))
+        relational = sps.solve(path, sources, solver_name='highs').objective
+        eager = specsolve_linopy.build(path, dict(sources))
         eager.solve(solver_name='highs', output_flag=False)
 
     assert relational != relational, 'the relational lane reports no objective — peak is held to step 35'

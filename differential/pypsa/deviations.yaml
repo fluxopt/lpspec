@@ -1,4 +1,4 @@
-# Every place lpspec's model is allowed to differ from PyPSA's, with the reason.
+# Every place specsolve's model is allowed to differ from PyPSA's, with the reason.
 #
 # Keyed by the PyPSA name (a row or column of `n.model`, or a global-constraint
 # type). `structure` explains a row or column count that differs; `blocks`

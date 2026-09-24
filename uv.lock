@@ -415,99 +415,6 @@ wheels = [
 ]
 
 [[package]]
-name = "lpspec"
-source = { editable = "." }
-dependencies = [
-    { name = "highspy" },
-    { name = "math-spec" },
-    { name = "numpy" },
-    { name = "polars" },
-]
-
-[package.optional-dependencies]
-gurobi = [
-    { name = "gurobipy" },
-    { name = "scipy" },
-]
-linopy = [
-    { name = "linopy" },
-    { name = "pandas" },
-    { name = "xarray" },
-]
-xpress = [
-    { name = "xpress" },
-]
-
-[package.dev-dependencies]
-bench = [
-    { name = "pytest-benchmem" },
-]
-codspeed = [
-    { name = "pandas" },
-    { name = "pyarrow" },
-    { name = "pytest-codspeed" },
-]
-dev = [
-    { name = "pre-commit" },
-    { name = "pyarrow" },
-    { name = "pyomo" },
-    { name = "pyrefly" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-    { name = "ruff" },
-    { name = "typst" },
-]
-docs = [
-    { name = "markdown-exec" },
-    { name = "pygments" },
-    { name = "pymdown-extensions" },
-    { name = "pytest" },
-    { name = "zensical" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "gurobipy", marker = "extra == 'gurobi'", specifier = ">=11" },
-    { name = "highspy", specifier = ">=1.13" },
-    { name = "linopy", marker = "extra == 'linopy'", git = "https://github.com/PyPSA/linopy?rev=master" },
-    { name = "math-spec", git = "https://github.com/energy-models/math-spec?rev=v0.0.0-alpha.122" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "pandas", marker = "extra == 'linopy'", specifier = ">=2.2" },
-    { name = "polars", specifier = ">=1.30" },
-    { name = "scipy", marker = "extra == 'gurobi'", specifier = ">=1.11" },
-    { name = "xarray", marker = "extra == 'linopy'", specifier = ">=2024.2.0" },
-    { name = "xpress", marker = "extra == 'xpress'", specifier = ">=9.5" },
-]
-provides-extras = ["gurobi", "linopy", "xpress"]
-
-[package.metadata.requires-dev]
-bench = [{ name = "pytest-benchmem", specifier = ">=0.5.5" }]
-codspeed = [
-    { name = "pandas", specifier = ">=2.2" },
-    { name = "pyarrow", specifier = ">=16" },
-    { name = "pytest-codspeed", specifier = "==5.0.3" },
-]
-dev = [
-    { name = "pre-commit", specifier = "==4.6.1" },
-    { name = "pyarrow", specifier = ">=16" },
-    { name = "pyomo", specifier = ">=6.7" },
-    { name = "pyrefly", specifier = "==1.2.0" },
-    { name = "pytest", specifier = "==9.1.1" },
-    { name = "pytest-cov", specifier = "==7.1.0" },
-    { name = "pytest-xdist", specifier = "==3.8.0" },
-    { name = "ruff", specifier = "==0.16.1" },
-    { name = "typst", specifier = ">=0.15.0" },
-]
-docs = [
-    { name = "markdown-exec", specifier = "==1.12.3" },
-    { name = "pygments", specifier = "==2.20.0" },
-    { name = "pymdown-extensions", specifier = "==11.0.1" },
-    { name = "pytest", specifier = "==9.1.1" },
-    { name = "zensical", specifier = "==0.0.62" },
-]
-
-[[package]]
 name = "markdown"
 version = "3.10.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1461,6 +1368,99 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
+name = "specsolve"
+source = { editable = "." }
+dependencies = [
+    { name = "highspy" },
+    { name = "math-spec" },
+    { name = "numpy" },
+    { name = "polars" },
+]
+
+[package.optional-dependencies]
+gurobi = [
+    { name = "gurobipy" },
+    { name = "scipy" },
+]
+linopy = [
+    { name = "linopy" },
+    { name = "pandas" },
+    { name = "xarray" },
+]
+xpress = [
+    { name = "xpress" },
+]
+
+[package.dev-dependencies]
+bench = [
+    { name = "pytest-benchmem" },
+]
+codspeed = [
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "pytest-codspeed" },
+]
+dev = [
+    { name = "pre-commit" },
+    { name = "pyarrow" },
+    { name = "pyomo" },
+    { name = "pyrefly" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+    { name = "typst" },
+]
+docs = [
+    { name = "markdown-exec" },
+    { name = "pygments" },
+    { name = "pymdown-extensions" },
+    { name = "pytest" },
+    { name = "zensical" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gurobipy", marker = "extra == 'gurobi'", specifier = ">=11" },
+    { name = "highspy", specifier = ">=1.13" },
+    { name = "linopy", marker = "extra == 'linopy'", git = "https://github.com/PyPSA/linopy?rev=master" },
+    { name = "math-spec", git = "https://github.com/energy-models/math-spec?rev=v0.0.0-alpha.122" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "pandas", marker = "extra == 'linopy'", specifier = ">=2.2" },
+    { name = "polars", specifier = ">=1.30" },
+    { name = "scipy", marker = "extra == 'gurobi'", specifier = ">=1.11" },
+    { name = "xarray", marker = "extra == 'linopy'", specifier = ">=2024.2.0" },
+    { name = "xpress", marker = "extra == 'xpress'", specifier = ">=9.5" },
+]
+provides-extras = ["gurobi", "linopy", "xpress"]
+
+[package.metadata.requires-dev]
+bench = [{ name = "pytest-benchmem", specifier = ">=0.5.5" }]
+codspeed = [
+    { name = "pandas", specifier = ">=2.2" },
+    { name = "pyarrow", specifier = ">=16" },
+    { name = "pytest-codspeed", specifier = "==5.0.3" },
+]
+dev = [
+    { name = "pre-commit", specifier = "==4.6.1" },
+    { name = "pyarrow", specifier = ">=16" },
+    { name = "pyomo", specifier = ">=6.7" },
+    { name = "pyrefly", specifier = "==1.2.0" },
+    { name = "pytest", specifier = "==9.1.1" },
+    { name = "pytest-cov", specifier = "==7.1.0" },
+    { name = "pytest-xdist", specifier = "==3.8.0" },
+    { name = "ruff", specifier = "==0.16.1" },
+    { name = "typst", specifier = ">=0.15.0" },
+]
+docs = [
+    { name = "markdown-exec", specifier = "==1.12.3" },
+    { name = "pygments", specifier = "==2.20.0" },
+    { name = "pymdown-extensions", specifier = "==11.0.1" },
+    { name = "pytest", specifier = "==9.1.1" },
+    { name = "zensical", specifier = "==0.0.62" },
 ]
 
 [[package]]

@@ -8,7 +8,7 @@ will say so.
 **A new model says which side it is on.** The language is being extracted to
 [math-spec](https://github.com/energy-models/math-spec), and almost everything
 here stays: a model with a gallery page is read by a person and solved by an
-engine, and both of those are lpspec's. What moves is
+engine, and both of those are specsolve's. What moves is
 `operators/` — one construct per file, no page — because the operator
 reference is *generated from* it. Name a new model in
 [`extraction.paths`](../extraction.paths) or in `EXAMPLES_THAT_STAY`
@@ -57,7 +57,7 @@ what that build produced.
 
 `ports/` carries three or four files per model — the YAML, the instance, the
 recorded objective with its provenance, and a reference implementation
-importing no lpspec. That last one is absent where the optimum is *published*
+importing no specsolve. That last one is absent where the optimum is *published*
 and needs nothing of ours to reproduce it: `facility_location` (OR-Library) and
 `tsp_mtz` (TSPLIB) cite the literature instead, which is the strongest tier the
 corpus has.

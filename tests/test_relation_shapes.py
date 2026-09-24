@@ -29,8 +29,8 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import DataError, DimensionError
+import specsolve as sps
+from specsolve.errors import DataError, DimensionError
 from tests.conftest import by_coord, solve_written_file
 
 if TYPE_CHECKING:
@@ -42,7 +42,7 @@ RTOL = 1e-9
 
 def _solved(spec: dict[str, Any], sources: dict[str, Any], tmp_path: Path) -> tuple[float, dict[str, Any]]:
     """The objective the relational lane reaches, checked against the LP file it writes, and the primals asked for."""
-    with lps.build(spec, sources) as model:
+    with sps.build(spec, sources) as model:
         model.write(tmp_path / 'model.lp')
         result = model.solve()
         assert result.is_ok, f'the relational lane reached no solution: {result.status}'
@@ -182,7 +182,7 @@ def test_a_walk_onto_a_dimension_the_operand_carries_is_refused_and_names_the_re
     """
     spec = _masked_sum_spec('sum(load * p, by=gen_bus, over=generator, into=bus) <= cap')
     with pytest.raises(DimensionError, match=r"sum\(by=gen_bus\) lands on \['bus'\], which the expression already"):
-        lps.check(spec)
+        sps.check(spec)
 
 
 def test_the_factor_over_the_landed_dimension_multiplies_outside(tmp_path):
@@ -271,7 +271,7 @@ def test_a_bare_relation_holding_a_pair_twice_is_refused():
     """A table has each coordinate at most once, and a bare relation's coordinate is the whole row."""
     sources = _bare_sources() | {'connection': pl.concat([CONNECTION, CONNECTION.head(1)])}
     with pytest.raises(DataError, match=r"relates 1 tuple\(s\) more than once: generator='g1', bus='a'"):
-        lps.solve(_bare_spec(), sources)
+        sps.solve(_bare_spec(), sources)
 
 
 # ---------------------------------------------------------------------------
@@ -484,5 +484,5 @@ def test_one_table_walked_to_each_of_its_two_ends_is_the_nodal_balance(tmp_path)
 
 def test_a_where_compares_two_columns_of_one_relation_row_by_row():
     """`ends.bus0 != ends.bus1` excludes the self-loop and nothing else."""
-    with lps.solve(_ends_spec(), _ends_sources()) as result:
+    with sps.solve(_ends_spec(), _ends_sources()) as result:
         assert sorted(result.primal('f')['line'].to_list()) == ['l1', 'l2'], 'the self-loop `l3` has no column'

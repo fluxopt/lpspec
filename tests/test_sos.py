@@ -23,8 +23,8 @@ import polars as pl
 import pytest
 from math_spec import to_spec
 
-import lpspec as lps
-from lpspec.errors import LanguageError, LpspecError
+import specsolve as sps
+from specsolve.errors import LanguageError, SpecsolveError
 from tests.conftest import EXAMPLES_DIR, expanded, solve_written_file
 
 SOS_YAML = EXAMPLES_DIR / 'sos.yaml'
@@ -155,7 +155,7 @@ def test_a_malformed_set_is_a_load_error_naming_it(blocks, expected, also):
     """
     filled = {name: {'type': 1} | block for name, block in blocks.items()}
     with pytest.raises(LanguageError, match=expected):
-        lps.check(BASE | also | {'sos': filled})
+        sps.check(BASE | also | {'sos': filled})
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +185,7 @@ def test_both_lanes_and_the_enumeration_agree(sos_type):
 def test_the_written_out_solution_is_a_member_of_the_set(sos_type):
     """An optimum can be right while the formulation admits shapes it should
     not, so the pattern itself is checked."""
-    result = lps.solve(expanded(spec(sos_type)), DATA)
+    result = sps.solve(expanded(spec(sos_type)), DATA)
     taken = result.primal('take')
     for site in SITES:
         nonzero = taken.filter((pl.col('site') == site) & (pl.col('value') > 1e-9))['size'].to_list()
@@ -198,13 +198,13 @@ def test_the_written_out_solution_is_a_member_of_the_set(sos_type):
 def test_the_native_sink_reaches_the_same_optimum(sos_type):
     """Gurobi branches on the set; HiGHS is handed the set written out. One answer."""
     pytest.importorskip('gurobipy', reason='the native SOS path needs the [gurobi] extra')
-    assert lps.solve(spec(sos_type), DATA, 'gurobi').objective == pytest.approx(best(sos_type))
+    assert sps.solve(spec(sos_type), DATA, 'gurobi').objective == pytest.approx(best(sos_type))
 
 
 @pytest.mark.parametrize('sos_type', [1, 2], ids=['sos1', 'sos2'])
 def test_the_lp_file_carries_the_set_and_a_reader_agrees(sos_type, tmp_path):
     """The section, in label order, and read back by a solver that takes it."""
-    path = lps.write(spec(sos_type), DATA, tmp_path / 'model.lp')
+    path = sps.write(spec(sos_type), DATA, tmp_path / 'model.lp')
     text = path.read_text()
 
     assert '\nsos\n' in text, 'the LP file dropped the set entirely'
@@ -228,7 +228,7 @@ def test_highs_refuses_the_written_section_which_is_why_a_set_is_written_out_for
     If HiGHS ever grows an SOS concept this fails, and its capability
     descriptor should then declare ``'sos': 'native'``.
     """
-    path = lps.write(spec(1), DATA, tmp_path / 'model.lp')
+    path = sps.write(spec(1), DATA, tmp_path / 'model.lp')
     with pytest.raises(AssertionError):
         solve_written_file(path)
 
@@ -240,12 +240,12 @@ def test_highs_refuses_the_written_section_which_is_why_a_set_is_written_out_for
 
 def test_a_set_on_a_sink_with_no_concept_is_refused_naming_the_expansion():
     """Nothing is rewritten at the hand-off: the language writes a set out, and the refusal says so."""
-    with pytest.raises(LpspecError, match='special-ordered sets') as refusal:
-        lps.solve(spec(1), DATA)
+    with pytest.raises(SpecsolveError, match='special-ordered sets') as refusal:
+        sps.solve(spec(1), DATA)
     assert 'expand()' in str(refusal.value) and 'gurobi' in str(refusal.value), (
         'the way past the refusal is the expansion, or a sink that has the concept'
     )
-    assert lps.solve(expanded(spec(1)), DATA).objective == pytest.approx(best(1)), (
+    assert sps.solve(expanded(spec(1)), DATA).objective == pytest.approx(best(1)), (
         'and the set written out restricts exactly what the set restricts'
     )
 
@@ -259,7 +259,7 @@ def test_a_member_that_may_go_negative_is_held_at_zero_from_below():
     """
     raw = spec(1)
     raw['variables'] = {'take': {'dims': ['site', 'size'], 'bounds': {'lower': -1, 'upper': 'cap'}}}
-    assert lps.solve(expanded(raw), DATA).objective == pytest.approx(best(1))
+    assert sps.solve(expanded(raw), DATA).objective == pytest.approx(best(1))
 
 
 # ---------------------------------------------------------------------------
@@ -279,15 +279,15 @@ def test_a_masked_member_leaves_the_set_and_its_neighbours_adjacent():
     raw['variables'] = {
         'take': {'dims': ['site', 'size'], 'bounds': {'lower': 0, 'upper': 'cap'}, 'where': 'size != 1'}
     }
-    with lps.build(raw, DATA) as model:
+    with sps.build(raw, DATA) as model:
         sets = model._engine._model.tables.sos
     assert sets['weight'].to_list() == [1, 3, 4] * 2, 'the masked member is still in the list, or the order moved'
 
 
 def test_a_set_written_out_is_integrality_and_the_dual_message_names_it():
     """Written out, a set is binaries the file never declared, and the ordinary message names them."""
-    result = lps.solve(expanded(spec(1)), DATA)
-    with pytest.raises(LpspecError, match="mixed-integer model: 'pick_seg'"):
+    result = sps.solve(expanded(spec(1)), DATA)
+    with pytest.raises(SpecsolveError, match="mixed-integer model: 'pick_seg'"):
         result.dual('pick_pick')
 
 
@@ -315,7 +315,7 @@ def test_a_sos2_set_of_one_member_restricts_nothing():
         for a, b in itertools.pairwise([0, 1, 2, 3])
     )
     south = VALUE['south', 0] * CAP['south', 0]
-    assert lps.solve(expanded(raw), live).objective == pytest.approx(north + south), (
+    assert sps.solve(expanded(raw), live).objective == pytest.approx(north + south), (
         'the lone member was pinned to zero'
     )
 
@@ -350,7 +350,7 @@ def test_regrouping_the_members_is_a_different_model_to_a_loaded_solver():
             'live': _table({(s, k): mask[s][k] for s in SITES for k in (0, 1)}),
         }
 
-    with lps.build(raw, live(together)) as model:
+    with sps.build(raw, live(together)) as model:
         one_set = model._engine._model.tables
         model.update(live(apart))
         two_sets = model._engine._model.tables
@@ -370,7 +370,7 @@ def test_a_set_that_runs_along_a_leading_dim_still_arrives_grouped():
     """
     raw = spec(1)
     raw['variables'] = {'take': {'dims': ['size', 'site'], 'bounds': {'lower': 0, 'upper': 'cap'}}}
-    with lps.build(raw, DATA) as model:
+    with sps.build(raw, DATA) as model:
         sets = model._engine._model.tables.sos
         assert sets['set'].to_list() == [0, 0, 0, 0, 1, 1, 1, 1], 'the members of a set did not end up together'
         assert sets['weight'].to_list() == [1, 2, 3, 4] * 2, 'a set is not in weight order'
@@ -400,7 +400,7 @@ def test_a_mask_that_drops_nothing_places_the_sets_where_the_arithmetic_does(dim
     live = _table(dict.fromkeys(((site, size) for site in SITES for size in SIZES), 1.0)).with_columns(
         pl.col('value').cast(pl.Boolean)
     )
-    with lps.build(raw, DATA) as placed, lps.build(masked, DATA | {'live': live}) as counted:
+    with sps.build(raw, DATA) as placed, sps.build(masked, DATA | {'live': live}) as counted:
         assert placed._engine._model.tables.sos.equals(counted._engine._model.tables.sos), (
             'the two placements disagree about which coordinate is in which set, or at which weight'
         )
@@ -424,7 +424,7 @@ def test_a_mask_that_empties_a_set_leaves_the_numbering_dense():
     live = _table({(site, size): float(site == 'south') for site in SITES for size in SIZES}).with_columns(
         pl.col('value').cast(pl.Boolean)
     )
-    with lps.build(raw, DATA | {'live': live}) as model:
+    with sps.build(raw, DATA | {'live': live}) as model:
         assert model._engine._model.tables.sos['set'].to_list() == [0, 0, 0, 0], (
             'the emptied set left a hole, so a set number is a position rather than an index'
         )
@@ -475,7 +475,7 @@ def test_the_example_prices_on_the_curve_and_not_on_its_hull():
     stopped restricting anything would match the curve nowhere.
     """
     sources = _curve_sources()
-    result = lps.solve(expanded(SOS_YAML), sources)
+    result = sps.solve(expanded(SOS_YAML), sources)
     assert result.is_ok
 
     dispatched = result.primal('p')
@@ -489,7 +489,7 @@ def test_the_example_prices_on_the_curve_and_not_on_its_hull():
         on_curve += expected
 
     assert result.objective == pytest.approx(on_curve, abs=1e-6)
-    relaxed = lps.solve(_without_the_set(), sources)
+    relaxed = sps.solve(_without_the_set(), sources)
     assert relaxed.objective < result.objective - 1e-6, 'the hull costs the same, so the set restricts nothing here'
 
 

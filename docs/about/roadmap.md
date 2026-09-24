@@ -1,12 +1,12 @@
 # Roadmap
 
-This page says why lpspec exists, where it is going and what it will not
+This page says why specsolve exists, where it is going and what it will not
 become, for anyone about to propose a feature. **No work items live here.** The
 work is issues, grouped under three parents:
 
-- [Track 1 — primitives](https://github.com/fluxopt/lpspec/issues/470)
-- [Track 2 — the operational surface](https://github.com/fluxopt/lpspec/issues/471)
-- [Track 3 — capabilities, and the degree line](https://github.com/fluxopt/lpspec/issues/472)
+- [Track 1 — primitives](https://github.com/fluxopt/specsolve/issues/470)
+- [Track 2 — the operational surface](https://github.com/fluxopt/specsolve/issues/471)
+- [Track 3 — capabilities, and the degree line](https://github.com/fluxopt/specsolve/issues/472)
 
 A hand-maintained index beside an issue tracker is a second copy that drifts.
 The issues are the list, and this page is the argument for what the list is
@@ -21,7 +21,7 @@ them. A diff then shows scaffolding rather than constraints, and nothing can
 read the model except the program that wrote it. Reviewing such a model means
 reviewing a program.
 
-lpspec makes the math the artifact: a YAML file says what the variables,
+specsolve makes the math the artifact: a YAML file says what the variables,
 constraints and objective *are*. The file is validated at load time and built
 at runtime. Someone who understands the math can review it without
 understanding the builder. Every rule below follows from that.

@@ -103,7 +103,7 @@ p_{s,t,g} \ge 0 \qquad \forall\, s \in \mathcal{S},\ t \in \mathcal{T},\ g \in \
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -179,7 +179,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_stochastic.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_stochastic.yaml', sources) as solution:
         solution.objective  # 33940.0
         solution.dual('power_balance')
     ```
@@ -192,7 +192,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         The port's ``probability`` table is PyPSA's ``scenario_weightings``, passed
         to ``set_scenarios``; the port's ``load`` over ``(scenario, snapshot)`` is a

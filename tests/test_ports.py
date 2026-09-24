@@ -1,6 +1,6 @@
-"""Referenced models, checked against an optimum that did not come from lpspec.
+"""Referenced models, checked against an optimum that did not come from specsolve.
 
-Every other test here compares lpspec against lpspec. Even the differential
+Every other test here compares specsolve against specsolve. Even the differential
 harness compares two lanes consuming the *same resolved AST* (hard rule 1), so
 a **shared misreading** — both lanes agreeing on a meaning the modeller did not
 intend — passes the whole suite green. This is the net for that class.
@@ -23,7 +23,7 @@ import polars as pl
 import pytest
 import yaml
 
-import lpspec as lps
+import specsolve as sps
 from tests.conftest import expanded, port_spec
 from tests.conftest import port_sources as sources
 
@@ -33,7 +33,7 @@ def test_port_reaches_the_reference_optimum(port: dict[str, Any]) -> None:
     at a different vertex than the source prints, so a corpus pinned to a
     solution would fail on a solver upgrade that broke nothing. ``rtol`` is per
     port because a published optimum is rounded and a solved one is not."""
-    with lps.solve(expanded(port['spec']), sources(port['name'])) as solution:
+    with sps.solve(expanded(port['spec']), sources(port['name'])) as solution:
         assert solution.is_ok, f'{port["name"]} did not solve: {solution.status}'
         assert solution.objective == pytest.approx(port['objective'], rel=port['rtol']), (
             f'{port["name"]} disagrees with {port["provenance"]}'
@@ -44,7 +44,7 @@ def test_port_is_inside_the_language(port: dict[str, Any]) -> None:
     """Compiles with no data attached, so a language regression fails separately
     from a semantics one: this breaks when lowering stops accepting the model,
     the test above when it lowers and misses the number."""
-    lps.check(expanded(port['spec']))
+    sps.check(expanded(port['spec']))
 
 
 def test_port_reaches_the_reference_duals(port: dict[str, Any]) -> None:
@@ -59,13 +59,13 @@ def test_port_reaches_the_reference_duals(port: dict[str, Any]) -> None:
 
     Ports with no ``duals`` block are skipped rather than passing vacuously:
     ``pypsa_unit_commitment`` is a MILP, where a dual solution is undefined and
-    lpspec refuses to invent one.
+    specsolve refuses to invent one.
     """
     expected = port.get('duals')
     if not expected:
         pytest.skip(f'{port["name"]} records no duals (a MILP has none)')
 
-    with lps.solve(expanded(port['spec']), sources(port['name'])) as solution:
+    with sps.solve(expanded(port['spec']), sources(port['name'])) as solution:
         for constraint, table in expected.items():
             dims = [c for c in table if c != 'value']
             got = solution.dual(constraint).sort(dims)
@@ -121,9 +121,9 @@ def test_the_instance_can_tell_the_rule_from_its_misreading(
     )
     spec['constraints'][constraint]['expression'] = misread
 
-    with lps.solve(expanded(port_spec(name)), sources(name)) as solution:
+    with sps.solve(expanded(port_spec(name)), sources(name)) as solution:
         as_shipped = solution.objective
-    with lps.solve(expanded(spec), sources(name)) as solution:
+    with sps.solve(expanded(spec), sources(name)) as solution:
         misreading = solution.objective
 
     assert misreading != pytest.approx(as_shipped, rel=1e-09), (

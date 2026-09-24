@@ -23,9 +23,9 @@ from typing import Any
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LpspecError
-from lpspec.relational.sinks.solvers.gurobi import build_gurobi
+import specsolve as sps
+from specsolve.errors import SpecsolveError
+from specsolve.relational.sinks.solvers.gurobi import build_gurobi
 from tests.conftest import (
     CASES,
     QP,
@@ -74,7 +74,7 @@ def test_every_port_reaches_its_reference_optimum_on_gurobi(port: dict[str, Any]
     """
     if port['name'] in OVER_THE_GUROBI_LIMIT:
         pytest.skip(f'{port["name"]} exceeds the bundled gurobi licence — see OVER_THE_GUROBI_LIMIT')
-    with lps.solve(expanded(port['spec'], 'piecewise'), port_sources(port['name']), solver_name='gurobi') as solution:
+    with sps.solve(expanded(port['spec'], 'piecewise'), port_sources(port['name']), solver_name='gurobi') as solution:
         assert solution.is_ok, f'{port["name"]} did not solve: {solution.status}'
         assert solution.objective == pytest.approx(port['objective'], rel=port['rtol'])
 
@@ -83,7 +83,7 @@ def test_block_boundaries_do_not_move_the_answer() -> None:
     """``batch_rows=1`` forces one block per row, so every CSR view is built at
     a boundary — where an off-by-one in ``indptr`` shifts coefficients into the
     neighbouring row rather than dropping them."""
-    with lps.build(*CASES['LP']) as model:
+    with sps.build(*CASES['LP']) as model:
         whole = model.solve(solver_name='gurobi')
         tables = model._engine._model.tables
         with build_gurobi(tables, batch_rows=1) as sink:
@@ -108,16 +108,16 @@ def test_gurobi_takes_the_two_quadratic_models_highs_refuses() -> None:
     need = QP_SOURCES
 
     nonconvex = QP | {'objective': {'sense': 'minimize', 'expression': '-sum(p * p, over=g)'}}
-    with pytest.raises(LpspecError, match='not positive semidefinite'):
-        lps.solve(nonconvex, need)
-    assert lps.solve(nonconvex, need, solver_name='gurobi').objective == pytest.approx(-200.0), (
+    with pytest.raises(SpecsolveError, match='not positive semidefinite'):
+        sps.solve(nonconvex, need)
+    assert sps.solve(nonconvex, need, solver_name='gurobi').objective == pytest.approx(-200.0), (
         'the concave objective is driven to the bound on both columns, which only a spatial branch-and-bound finds'
     )
 
     integral = QP | {'variables': {**QP['variables'], 'p': {**QP['variables']['p'], 'domain': 'integer'}}}
-    with pytest.raises(LpspecError, match='separately and refuses them together'):
-        lps.solve(integral, need)
-    with lps.solve(integral, need, solver_name='gurobi') as mixed, lps.solve(QP, need, solver_name='gurobi') as lp:
+    with pytest.raises(SpecsolveError, match='separately and refuses them together'):
+        sps.solve(integral, need)
+    with sps.solve(integral, need, solver_name='gurobi') as mixed, sps.solve(QP, need, solver_name='gurobi') as lp:
         assert mixed.is_ok
         assert mixed.objective == pytest.approx(lp.objective), (
             'the integral optimum is integral here, so the MIQP reaches the relaxation exactly — '
@@ -137,14 +137,14 @@ def test_a_pushed_quadratic_objective_replaces_rather_than_accumulates() -> None
     soft = QP_SOURCES | {'wear': pl.DataFrame({'value': [1.0]})}
     stiff = QP_SOURCES | {'wear': pl.DataFrame({'value': [4.0]})}
 
-    with lps.build(scaled, soft) as model:
+    with sps.build(scaled, soft) as model:
         first = model.solve(solver_name='gurobi').objective
         model.update(stiff)
         pushed = model.solve(solver_name='gurobi').objective
         assert model.diagnostics().loads == 1, 'the pattern did not move, so the coefficients are pushed'
 
     assert pushed != pytest.approx(first), 'a stiffer model is a different answer'
-    with lps.solve(scaled, stiff, solver_name='gurobi') as fresh:
+    with sps.solve(scaled, stiff, solver_name='gurobi') as fresh:
         assert pushed == pytest.approx(fresh.objective), (
             'an update answers what a fresh build answers — a quadratic part left unreplaced would '
             'report the old curvature, and one accumulated would report both'
@@ -154,9 +154,9 @@ def test_a_pushed_quadratic_objective_replaces_rather_than_accumulates() -> None
 def test_a_mixed_integer_model_has_no_duals() -> None:
     """Gurobi refuses ``Pi`` rather than returning zeros; the sink passes the
     refusal on as the ``None`` that makes ``dual`` explain itself."""
-    with lps.solve(*CASES['MIP'], solver_name='gurobi') as solution:
+    with sps.solve(*CASES['MIP'], solver_name='gurobi') as solution:
         assert solution.has_primal
-        with pytest.raises(LpspecError, match='mixed-integer'):
+        with pytest.raises(SpecsolveError, match='mixed-integer'):
             solution.dual('budget')
 
 
@@ -165,10 +165,10 @@ def test_solver_options_reach_gurobi() -> None:
     ``time_limit``. Forwarding is the contract; translating names is not, and
     an option the solver does not know reaches the caller as the solver's own
     complaint rather than as a guess at what was meant."""
-    with lps.solve(*CASES['MIP'], solver_options={'TimeLimit': 0.0}, solver_name='gurobi') as solution:
+    with sps.solve(*CASES['MIP'], solver_options={'TimeLimit': 0.0}, solver_name='gurobi') as solution:
         assert solution.termination_condition == 'time_limit'
     with pytest.raises(gurobipy.GurobiError, match='no_such_parameter'):
-        lps.solve(*CASES['MIP'], solver_options={'no_such_parameter': 1}, solver_name='gurobi')
+        sps.solve(*CASES['MIP'], solver_options={'no_such_parameter': 1}, solver_name='gurobi')
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +186,7 @@ def test_solver_options_land_on_the_environment() -> None:
     the model sees it as its default, which is what environment-level means.
     """
     with (
-        lps.build(*CASES['MIP']) as model,
+        sps.build(*CASES['MIP']) as model,
         build_gurobi(model._engine._model.tables, solver_options={'TimeLimit': 5.0}) as solver,
     ):
         assert solver.handle.Params.TimeLimit == 5.0
@@ -195,7 +195,7 @@ def test_solver_options_land_on_the_environment() -> None:
 def test_build_gurobi_loads_the_model_and_stops() -> None:
     """`bench/`'s seam: the hand-off with no search behind it, so what it
     reports is what was loaded rather than what was solved."""
-    with lps.build(*CASES['MIP']) as model:
+    with sps.build(*CASES['MIP']) as model:
         tables = model._engine._model.tables
         with build_gurobi(tables) as solver:
             m = solver.handle
@@ -215,7 +215,7 @@ def test_a_dropped_solver_disposes_the_model_it_holds() -> None:
     model is gone. Asserted through a model the caller still holds, the case
     where a refcount could not have done it.
     """
-    with lps.build(*CASES['MIP']) as model:
+    with sps.build(*CASES['MIP']) as model:
         solver = build_gurobi(model._engine._model.tables)
         m = solver.handle
         del solver
@@ -226,7 +226,7 @@ def test_a_dropped_solver_disposes_the_model_it_holds() -> None:
 
 def test_close_disposes_a_model_the_caller_still_holds() -> None:
     """``close()`` is the release, not a hint to the collector — and it is idempotent."""
-    with lps.build(*CASES['MIP']) as model:
+    with sps.build(*CASES['MIP']) as model:
         solver = build_gurobi(model._engine._model.tables)
         m = solver.handle
         solver.close()
@@ -242,7 +242,7 @@ def test_a_load_that_fails_releases_its_environment(monkeypatch: pytest.MonkeyPa
     matrix Gurobi rejects — would hold a licence until the collector found the
     half-built model.
     """
-    from lpspec.relational.sinks.solvers import gurobi as sink
+    from specsolve.relational.sinks.solvers import gurobi as sink
 
     events: list[str] = []
     real_env = gurobipy.Env
@@ -254,7 +254,7 @@ def test_a_load_that_fails_releases_its_environment(monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(gurobipy, 'Env', Env)
     monkeypatch.setattr(sink, '_filled', lambda *args: (_ for _ in ()).throw(RuntimeError('mid-load')))
-    with lps.build(*CASES['MIP']) as model:
+    with sps.build(*CASES['MIP']) as model:
         try:
             build_gurobi(model._engine._model.tables)
         except RuntimeError:
@@ -268,7 +268,7 @@ def test_the_objective_constant_rides_on_the_model_not_the_answer() -> None:
     """Gurobi has ``ObjCon``, so the constant is part of the model it holds —
     which makes the build seam a complete hand-off rather than a model plus a
     number to remember."""
-    with lps.build(*CASES['MAX']) as model, build_gurobi(model._engine._model.tables) as solver:
+    with sps.build(*CASES['MAX']) as model, build_gurobi(model._engine._model.tables) as solver:
         assert solver.handle.ObjCon == pytest.approx(5.0)
 
 
@@ -282,7 +282,7 @@ def test_the_missing_extra_is_named() -> None:
             raise ModuleNotFoundError(f'No module named {name!r}')
         return real_import(name, *args, **kwargs)
 
-    with lps.build(*CASES['LP']) as model, pytest.MonkeyPatch.context() as patch:
+    with sps.build(*CASES['LP']) as model, pytest.MonkeyPatch.context() as patch:
         patch.setattr(builtins, '__import__', refuse)
         with pytest.raises(ModuleNotFoundError, match=r'\[gurobi\] extra \(gurobipy, scipy\)'):
             model.solve(solver_name='gurobi')

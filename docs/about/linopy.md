@@ -12,18 +12,18 @@ relationships:
 
 ## 1. It is not a runtime dependency
 
-`lps.solve`, `lps.build`, `lps.write` and `lps.check` go YAML → polars → HiGHS
+`sps.solve`, `sps.build`, `sps.write` and `sps.check` go YAML → polars → HiGHS
 or file, and import nothing from linopy, xarray or pandas. The bare-install job
 runs the whole suite with none of the three present.
 
-`pip install "lpspec[linopy]"` adds linopy, xarray and pandas. The extra buys
+`pip install "specsolve[linopy]"` adds linopy, xarray and pandas. The extra buys
 the lane below and the `to_pandas` / `to_dataarray` bridges out of a
 [result](../reference/glossary.md#the-chain), nothing else. The lane is a peer,
 not a fallback: nothing routes to it, and a bare install is a complete one.
 
 **Nothing a bare install can reach names linopy, including a traceback.** The
-public exception tree is rooted at `LpspecError`, with no alias
-([#389](https://github.com/fluxopt/lpspec/issues/389)).
+public exception tree is rooted at `SpecsolveError`, with no alias
+([#389](https://github.com/fluxopt/specsolve/issues/389)).
 
 ## 2. It is the oracle
 
@@ -41,7 +41,7 @@ The oracle has one blind spot: a **shared misreading** passes the differential
 suite green. Only a published optimum from outside catches it, and
 [docs/examples/index.md](../examples/index.md) is where those live.
 
-**Where a concept is already linopy's, lpspec copies its name.** Solve statuses;
+**Where a concept is already linopy's, specsolve copies its name.** Solve statuses;
 `status` and `termination_condition` as two axes with `is_ok` as the rollup; the
 shape of a result. A second vocabulary for one fact taxes a reader arriving from
 linopy or PyPSA. But **copy it, do not import it.** The engine may not import
@@ -53,15 +53,15 @@ matches. A copy nobody checks is a copy that rots.
 A [lane](../reference/glossary.md#how-it-runs) is one of the two ways a spec is
 executed. This one builds the same file as a `linopy.Model` instead of attaching
 data relationally, and the caller picks it by an import. The call is the one
-`lps.build` takes: the same first argument (a path, a mapping, or a spec the
+`sps.build` takes: the same first argument (a path, a mapping, or a spec the
 language has already read), the same `sources`, the same index sources.
 
 ```python
-from lpspec import linopy as lpspec_linopy
+from specsolve import linopy as specsolve_linopy
 
-m = lpspec_linopy.build('spec.yaml', {...})  # -> linopy.Model
+m = specsolve_linopy.build('spec.yaml', {...})  # -> linopy.Model
 m.solve(...)
-lpspec_linopy.evaluate(m, 'spec.yaml', 'co2', {...})  # a quantity, read back
+specsolve_linopy.evaluate(m, 'spec.yaml', 'co2', {...})  # a quantity, read back
 ```
 
 Both calls are *pure*: YAML in, a model or a value out, nothing retained.
@@ -78,14 +78,14 @@ lets the differential suite hold the two lanes to one answer.
 
 **This lane constructs; it does not attach.** Math for a `linopy.Model` that
 something else built, a PyPSA network say, has no verb here
-([#845](https://github.com/fluxopt/lpspec/issues/845)). Such a verb would be the
+([#845](https://github.com/fluxopt/specsolve/issues/845)). Such a verb would be the
 one file allowed to reference names it did not declare. That exception costs
 the whole language layer for one use case. Build a second model and merge
 it.
 
 ### What a construct becomes
 
-What `lpspec.linopy.build` calls for each thing a file can say. Each row lives
+What `specsolve.linopy.build` calls for each thing a file can say. Each row lives
 in `linopy/builder.py`, one section per group below.
 
 | Declaration | linopy |
@@ -143,7 +143,7 @@ the oracle, and a quietly shortened objective would recalibrate every
 differential test on such a model to the wrong number. So `builder.py` checks
 for a constant before linopy is asked and raises `LaneError`, naming the wall
 and the lane that does build the model. `tests/test_corpus_parity.py` carries
-the strict xfail ([#894](https://github.com/fluxopt/lpspec/issues/894)).
+the strict xfail ([#894](https://github.com/fluxopt/specsolve/issues/894)).
 
 **The second is this lane's too: a relation that is not the single-valued
 map.** The lane holds each value column as one dense array over the dimensions
@@ -164,10 +164,10 @@ is, and the lane builds the file as written. All four operators that act along
 a dimension (`sum(over=)`, `sum(by=)`, `shift`, `sum_back`) reach the one wall
 and share one refusal. It names the rewrite: declare the parameter over the
 dimension and supply it there
-([#1137](https://github.com/fluxopt/lpspec/issues/1137)).
+([#1137](https://github.com/fluxopt/specsolve/issues/1137)).
 
 **The lane takes the same data too**
-([#60](https://github.com/fluxopt/lpspec/issues/60)). It reads every shape
+([#60](https://github.com/fluxopt/specsolve/issues/60)). It reads every shape
 [the data contract](../reference/data.md) accepts and follows every index rule
 in [where coordinates come from](../reference/data.md#where-coordinates-come-from).
 A malformed source gets the same refusal from both lanes, in the same sentence.
@@ -176,12 +176,12 @@ lane builds a file.
 
 ## Parts of linopy not taken
 
-lpspec does not take array operations (`merge`, `reindex`, `stack`), the Python
+specsolve does not take array operations (`merge`, `reindex`, `stack`), the Python
 modeling API, or the solver layer. The first is data prep
 ([the limits](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#what-the-language-will-not-express)).
 The second is [hard rule 5](architecture.md#hard-rules): the model is the file
 you review and diff. The third is
-[#106](https://github.com/fluxopt/lpspec/issues/106), where lpspec adopts
+[#106](https://github.com/fluxopt/specsolve/issues/106), where specsolve adopts
 linopy's *design* for declared solver capabilities without adopting its code.
 
 The modeling API is what a reader arriving from linopy misses first. Two

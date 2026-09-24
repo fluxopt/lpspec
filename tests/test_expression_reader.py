@@ -17,10 +17,10 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec import expressions
-from lpspec.errors import DataError, LanguageError, LpspecError
-from lpspec.relational.engines.polars.compiler import PolarsCompiler
+import specsolve as sps
+from specsolve import expressions
+from specsolve.errors import DataError, LanguageError, SpecsolveError
+from specsolve.relational.engines.polars.compiler import PolarsCompiler
 from tests.fixtures import override
 
 SPEC = {
@@ -65,9 +65,9 @@ def sources() -> dict[str, pl.DataFrame]:
 
 @pytest.fixture(scope='module')
 def result():
-    """One solve for the whole module — `lps.solve` closes the model, so
+    """One solve for the whole module — `sps.solve` closes the model, so
     every read below also proves the readers outlive it."""
-    return lps.solve(SPEC, sources())
+    return sps.solve(SPEC, sources())
 
 
 def test_a_referenced_expression_reads_the_value_its_constraint_pinned(result):
@@ -145,7 +145,7 @@ def test_a_masked_coordinate_has_no_row():
         'p_max': pl.DataFrame({'generator': ['g1', 'g2'], 'value': [200.0, 0.0]}),
         'load': pl.DataFrame({'snapshot': [0, 1, 2], 'value': [50.0, 120.0, 80.0]}),
     }
-    frame = lps.solve(masked, data).evaluate('scaled')
+    frame = sps.solve(masked, data).evaluate('scaled')
     assert frame['generator'].unique().to_list() == ['g1'], (
         'absence propagates into a reader the way it does into a constraint (the operator rules): the masked-out '
         "generator's coordinates have no rows rather than zeros"
@@ -188,8 +188,8 @@ def test_a_divisor_that_adds_is_added_up_before_it_divides(result):
 
 def test_a_dual_on_a_solve_that_left_none_is_refused_by_name():
     """An integer variable makes duals undefined; the entry reading one is refused with `Result.dual`'s own sentence, and every other entry still reads."""
-    result = lps.solve(override(SPEC, **{'variables.p.domain': 'integer'}), sources())
-    with pytest.raises(LpspecError, match='duals are undefined'):
+    result = sps.solve(override(SPEC, **{'variables.p.domain': 'integer'}), sources())
+    with pytest.raises(SpecsolveError, match='duals are undefined'):
         result.evaluate('price')
     assert result.evaluate('spend').height == 3, 'the refusal is per entry, not per result'
 
@@ -205,7 +205,7 @@ def test_a_divisor_that_adds_keeps_its_hole():
         },
     )
     covered = pl.DataFrame({'snapshot': [0, 1], 'value': [2.0, 3.0]})
-    result = lps.solve(spec, sources() | {'scale': covered, 'other': covered})
+    result = sps.solve(spec, sources() | {'scale': covered, 'other': covered})
     with pytest.raises(DataError, match='used as a divisor but covers 1 fewer'):
         result.evaluate('holed')
 
@@ -234,7 +234,7 @@ def test_a_product_is_absent_where_either_factor_is(crossed):
     )
     bonus = pl.DataFrame({'snapshot': [0, 0, 1, 1, 2, 2], 'generator': ['g1', 'g2'] * 3, 'value': [10.0] * 6})
     data = sources() | {'r_max': pl.DataFrame({'generator': ['g1', 'g2'], 'value': [1.0, 0.0]}), 'bonus': bonus}
-    result = lps.solve(spec, data)
+    result = sps.solve(spec, data)
     p = result.primal('p').filter(pl.col('generator') == 'g1').sort('snapshot')
     want = [v * 1.0 + 10.0 for v in p['value']]
     assert result.evaluate('summed_with')['value'].to_list() == pytest.approx(want), (
@@ -259,7 +259,7 @@ def test_a_variable_declared_zero_is_zero_under_a_nonlinear_read():
         },
     )
     data = sources() | {'p_max': pl.DataFrame({'generator': ['g1', 'g2'], 'value': [200.0, 0.0]})}
-    result = lps.solve(spec, data)
+    result = sps.solve(spec, data)
     p = result.primal('p').sort('snapshot')
     assert p['generator'].unique().to_list() == ['g1'], 'g2 is masked out, so only g1 has a primal'
     want = [0.5**v + 1.0 for v in p['value']]
@@ -277,7 +277,7 @@ def test_a_build_compiles_no_expression_and_a_read_compiles_exactly_one(monkeypa
         return original(self, expr, context, **kwargs)
 
     monkeypatch.setattr(PolarsCompiler, 'expression', counting)
-    with lps.build(SPEC, sources()) as model:
+    with sps.build(SPEC, sources()) as model:
         named = [c for c in compiled if c.startswith('named expression')]
         assert named == [], 'a build lowers no named expression — fifty declared and none read must cost none'
         assert len(compiled) == 2 * len(SPEC['constraints']) + 1, (
@@ -293,10 +293,10 @@ def test_a_build_compiles_no_expression_and_a_read_compiles_exactly_one(monkeypa
 
 
 def test_a_closed_result_refuses_an_expression_read():
-    with lps.build(SPEC, sources()) as model:
+    with sps.build(SPEC, sources()) as model:
         outcome = model.solve()
     outcome.close()
-    with pytest.raises(LpspecError, match='closed'):
+    with pytest.raises(SpecsolveError, match='closed'):
         outcome.evaluate('spend')
 
 
@@ -340,7 +340,7 @@ def test_a_mapping_carries_the_cases_a_string_cannot_say():
         'parameters': {**SPEC['parameters'], 'peak': {'dims': ['snapshot'], 'dtype': 'bool'}},
     }
     data = sources() | {'peak': pl.DataFrame({'snapshot': [0, 1, 2], 'value': [False, True, False]})}
-    frame = lps.solve(spec, data).evaluate(
+    frame = sps.solve(spec, data).evaluate(
         {
             'dims': ['snapshot'],
             'cases': {'busy': {'when': 'peak', 'expression': 'total_gen'}},
@@ -372,15 +372,15 @@ def test_the_splice_steps_over_a_declaration_of_its_own_name():
     naming it: naming it is served by the declared reader, and never splices.
     """
     spec = {**SPEC, 'expressions': {**SPEC['expressions'], '_evaluated': 'sum(p, over=generator) * 3'}}
-    assert lps.solve(spec, sources()).evaluate('_evaluated * 2')['value'].to_list() == pytest.approx(
+    assert sps.solve(spec, sources()).evaluate('_evaluated * 2')['value'].to_list() == pytest.approx(
         [300.0, 720.0, 480.0]
     ), "the splice lands beside the declaration, so the expression still reads the model's own entry"
 
 
 def test_an_answer_read_back_off_disk_says_why_it_cannot_evaluate(result, tmp_path):
     """An answer carries the values and not the model, and a name the file never wrote needs the model."""
-    read_back = lps.load_result(result.save(tmp_path))
-    with pytest.raises(LpspecError, match='no model behind it'):
+    read_back = sps.load_result(result.save(tmp_path))
+    with pytest.raises(SpecsolveError, match='no model behind it'):
         read_back.evaluate('sum(p, over=generator)')
     assert read_back.evaluate('total_gen').equals(result.evaluate('total_gen')), (
         'a declared name is readable either way — it was written, so nothing needs lowering'
@@ -390,7 +390,7 @@ def test_an_answer_read_back_off_disk_says_why_it_cannot_evaluate(result, tmp_pa
 @pytest.fixture
 def archived(tmp_path):
     """A solve written to an archive, which carries the spec and sources back."""
-    with lps.build(SPEC, sources()) as model:
+    with sps.build(SPEC, sources()) as model:
         model.solve(archive=tmp_path / 'run.zip')
     return tmp_path / 'run.zip'
 
@@ -406,7 +406,7 @@ def archived(tmp_path):
 )
 def test_evaluate_off_a_loaded_archive_reads_the_archived_solution(result, archived, expression):
     """A quantity the file never named reads off a loaded archive, at the values the solve left — no re-solve."""
-    read_back = lps.load_archive(archived).answer.evaluate(expression)
+    read_back = sps.load_archive(archived).answer.evaluate(expression)
     live = result.evaluate(expression)
     keys = live.columns[:-1]
     assert read_back.sort(keys).equals(live.sort(keys)), (
@@ -416,7 +416,7 @@ def test_evaluate_off_a_loaded_archive_reads_the_archived_solution(result, archi
 
 def test_evaluate_off_a_scanned_archive_reads_the_same(result, archived, tmp_path):
     """`scan_archive` leaves the frames on disk, and evaluate rebuilds against them just the same."""
-    read_back = lps.scan_archive(archived, into=tmp_path / 'unpacked').answer.evaluate('sum(p * p_max, over=generator)')
+    read_back = sps.scan_archive(archived, into=tmp_path / 'unpacked').answer.evaluate('sum(p * p_max, over=generator)')
     live = result.evaluate('sum(p * p_max, over=generator)')
     keys = live.columns[:-1]
     assert read_back.sort(keys).equals(live.sort(keys)), 'a scanned archive evaluates against the frames left on disk'
@@ -425,14 +425,14 @@ def test_evaluate_off_a_scanned_archive_reads_the_same(result, archived, tmp_pat
 def test_a_declared_name_off_an_archive_is_served_from_disk_not_lowered(archived, monkeypatch):
     """A declared name was written, so it reads back without a rebuild — only a name outside them reaches the reader."""
     monkeypatch.setattr(expressions, 'lower', lambda *a, **k: pytest.fail('a declared name must not lower'))
-    frame = lps.load_archive(archived).answer.evaluate('total_gen')
+    frame = sps.load_archive(archived).answer.evaluate('total_gen')
     assert frame.columns == ['snapshot', 'value'], 'a declared name off an archive reads its written frame'
 
 
 def test_a_closed_result_refuses_to_evaluate():
-    result = lps.solve(SPEC, sources())
+    result = sps.solve(SPEC, sources())
     result.close()
-    with pytest.raises(LpspecError, match='was closed'):
+    with pytest.raises(SpecsolveError, match='was closed'):
         result.evaluate('sum(p, over=generator)')
 
 

@@ -47,12 +47,12 @@ import polars as pl
 import pytest
 from math_spec import program
 
-from lpspec.errors import LaneError
-from lpspec.relational.engines.polars.attaching import AttachedSources
-from lpspec.relational.engines.polars.compiler import PolarsCompiler
-from lpspec.relational.engines.polars.labels import Labelled
-from lpspec.relational.engines.polars.predicates import masked
-from lpspec.relational.engines.polars.scope import Scope
+from specsolve.errors import LaneError
+from specsolve.relational.engines.polars.attaching import AttachedSources
+from specsolve.relational.engines.polars.compiler import PolarsCompiler
+from specsolve.relational.engines.polars.labels import Labelled
+from specsolve.relational.engines.polars.predicates import masked
+from specsolve.relational.engines.polars.scope import Scope
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

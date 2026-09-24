@@ -137,7 +137,7 @@ p_{t - 1,g} - p_{t,g} \le \mathrm{ramp\_limit\_down}_{g} \cdot \mathrm{p}^{\math
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -312,7 +312,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_storage.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_storage.yaml', sources) as solution:
         solution.objective  # 15253.178322993519
         solution.dual('nodal_balance')
     ```
@@ -325,7 +325,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         ``max_hours`` is the ratio PyPSA stores; the port carries the product it
         implies (``soc_max``), because a bound there takes a name, not arithmetic.
@@ -393,6 +393,6 @@ by 0.13%: too small to see on a plot, too large to be rounding.
 a five-term `sum(by=)` nodal balance — generators, both ends of every link,
 and both directions of storage, all projected onto `bus`.
 
-It also asks for [#31](https://github.com/fluxopt/lpspec/issues/31) a third
+It also asks for [#31](https://github.com/fluxopt/specsolve/issues/31) a third
 time. `soc_max` is `p_nom × max_hours` in PyPSA, and a bound here takes a name
 or a number, so the product ships as a column.

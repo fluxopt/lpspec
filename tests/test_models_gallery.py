@@ -224,7 +224,7 @@ def test_the_page_shows_the_reference_that_runs(reference: Path) -> None:
     assert f'=== "{title}"' in text, (
         f'{page} shows no `=== "{title}"` tab — a reference with no tab is invisible to the reader it was written for'
     )
-    assert '=== "lpspec"' in text, f'{page} has an arm tab but no `=== "lpspec"` tab beside it'
+    assert '=== "specsolve"' in text, f'{page} has an arm tab but no `=== "specsolve"` tab beside it'
     assert _build_slice(reference) in _fences(text, 'python'), (
         f'{page} has drifted from the build function of {reference}'
     )
@@ -245,7 +245,7 @@ def _build_slice(reference: Path) -> str:
 
 
 def _call_snippet(name: str) -> str:
-    """The lpspec tab's call block, derived rather than copied.
+    """The specsolve tab's call block, derived rather than copied.
 
     Three lines: the solve, the objective it reaches, the dual the corpus
     checks — a projection of `references.json`, and this is its one home. A
@@ -261,7 +261,7 @@ def _call_snippet(name: str) -> str:
     handed = f"to_spec('{model}').expand()" if written.piecewise or written.sos else f"'{model}'"
     lines = [
         '# sources: parameter name -> frame or parquet path',
-        f'with lps.solve({handed}, sources) as solution:',
+        f'with sps.solve({handed}, sources) as solution:',
         f'    solution.objective  # {entry["objective"]!r}',
     ]
     if entry.get('duals'):
@@ -269,11 +269,11 @@ def _call_snippet(name: str) -> str:
     return '\n'.join(lines) + '\n'
 
 
-def test_the_lpspec_tab_shows_the_call(reference: Path) -> None:
+def test_the_specsolve_tab_shows_the_call(reference: Path) -> None:
     """Beside a runnable script, a bare YAML file is half an answer.
 
     The arm tab is a complete program — build, solve, read the duals — so the
-    lpspec tab carries the same journey: the model, then the call that takes
+    specsolve tab carries the same journey: the model, then the call that takes
     the committed instance to the verified optimum.
     """
     page = GALLERY / f'{reference.stem}.md'
@@ -294,10 +294,10 @@ def test_no_tab_without_a_reference() -> None:
     arm_of = {display: arm for arm, display in ARMS.items()}
     for page in sorted(GALLERY.glob('*.md')):
         for title in re.findall(r'^=== "(.+)"$', page.read_text(), re.MULTILINE):
-            if title == 'lpspec':
+            if title == 'specsolve':
                 continue
             arm = arm_of.get(title)
-            assert arm is not None, f'{page} has a tab `{title}` that is neither lpspec nor a named arm'
+            assert arm is not None, f'{page} has a tab `{title}` that is neither specsolve nor a named arm'
             assert (PORTS / arm / f'{page.stem}.py').exists(), (
                 f'{page} shows a `{title}` tab but examples/ports/references/{arm}/{page.stem}.py does not exist'
             )

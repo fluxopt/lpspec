@@ -30,7 +30,7 @@ resolving a writer backend — is described once and lands where it belongs.
 
 **`prepare` is the pre-clock hook, and it is the reason it exists.** Whatever
 an arm needs before it can build, that the *harness* rather than the library
-imposed, is charged to nobody: the lpspec arm re-parses the case's YAML only
+imposed, is charged to nobody: the specsolve arm re-parses the case's YAML only
 because the runner decides which parquet file is which, and the linopy arm has
 no counterpart to be charged for it.
 
@@ -43,7 +43,7 @@ way raises before anything is timed rather than reporting a number that is wrong
 (#1617). `bench/test_harness.py` holds both halves of this.
 
 **The library is imported inside the verb, never at module scope.** The import
-is part of what an arm costs — a modelling library's alone can exceed lpspec's
+is part of what an arm costs — a modelling library's alone can exceed specsolve's
 entire build at the `xs` rung — so a harness that had already paid for it
 before measuring would be charging one arm for another's work. That is also
 why `ARMS` maps to modules rather than to imported callables.
@@ -53,7 +53,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from bench.arms import gurobipy_loop, gurobipy_matrix, highspy_matrix, linopy, lpspec, pyomo
+from bench.arms import gurobipy_loop, gurobipy_matrix, highspy_matrix, linopy, pyomo, specsolve
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -67,7 +67,7 @@ Counts = dict[str, Any]
 #: scanning: a misnamed module would go missing as an *absent arm*, which reads
 #: as "not measured" rather than as the error it is.
 ARMS: dict[str, ModuleType] = {
-    'lpspec': lpspec,
+    'specsolve': specsolve,
     'linopy': linopy,
     'pyomo': pyomo,
     'gurobipy-loop': gurobipy_loop,

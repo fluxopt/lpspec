@@ -18,7 +18,7 @@ is what it printed on this commit. A block that raises fails the build.
 import polars as pl
 from math_spec import to_markdown, to_spec
 
-import lpspec as lps
+import specsolve as sps
 
 SPEC = 'examples/dispatch.yaml'
 GENERATORS = ['wind', 'solar', 'gas']
@@ -40,7 +40,7 @@ Build once, then `update` per run. New costs go onto the model HiGHS holds,
 and the matrix is never handed over twice.
 
 ```python exec="true" source="material-block" result="text" session="loops"
-model = lps.build(SPEC, sources)
+model = sps.build(SPEC, sources)
 
 rows = []
 for gas_cost in (40.0, 60.0, 90.0):
@@ -55,11 +55,11 @@ print(sweep)
 ```
 
 `loads` is 1 against `solves` of 3: three answers, one load.
-`model.update(x).solve()` gives what `lps.solve(SPEC, sources | x)` gives,
+`model.update(x).solve()` gives what `sps.solve(SPEC, sources | x)` gives,
 always. The next block solves the last cost from scratch to show it.
 
 ```python exec="true" source="material-block" result="text" session="loops"
-fresh = lps.solve(SPEC, sources | {'cost': costs}).objective
+fresh = sps.solve(SPEC, sources | {'cost': costs}).objective
 updated = sweep.filter(pl.col('gas_cost') == 90.0).item(0, 'objective')
 
 print(f'updated {updated:,.1f} — fresh build {fresh:,.1f}')
@@ -105,8 +105,8 @@ spec['constraints']['ramp_up'] = {
 }
 
 ramp_max = pl.DataFrame({'generator': GENERATORS, 'value': [100.0, 100.0, 20.0]})
-base = lps.solve(SPEC, sources).objective
-ramped = lps.solve(spec, sources | {'ramp_max': ramp_max}).objective
+base = sps.solve(SPEC, sources).objective
+ramped = sps.solve(spec, sources | {'ramp_max': ramp_max}).objective
 
 print(pl.DataFrame({'model': ['dispatch', 'dispatch + ramp limit'], 'objective': [base, ramped]}))
 ```
@@ -130,8 +130,8 @@ typo = {
 }
 
 try:
-    lps.check(typo)
-except lps.LanguageError as exc:
+    sps.check(typo)
+except sps.LanguageError as exc:
     print(exc)
 ```
 
@@ -143,13 +143,13 @@ Below, gas is retired with one number:
 
 ```python exec="true" source="material-block" result="text" session="loops"
 retired = sources | {'p_max': pl.DataFrame({'generator': GENERATORS, 'value': [80.0, 40.0, 0.0]})}
-short = lps.build(SPEC, retired)
+short = sps.build(SPEC, retired)
 answer = short.solve()
 
 print(f'{answer.status} / {answer.termination_condition}')
 try:
     answer.primal('p')
-except lps.NoSolutionError as exc:
+except sps.NoSolutionError as exc:
     print(exc)
 ```
 
@@ -157,7 +157,7 @@ Infeasible, while the file still reads `sum(p, over=generator) == load` over
 all three generators. `row` gives the row the build produced, with no solve:
 
 ```python exec="true" source="material-block" result="text" session="loops"
-fleet = lps.build(SPEC, sources)
+fleet = sps.build(SPEC, sources)
 
 print(fleet.row('power_balance', snapshot=3))
 print(short.row('power_balance', snapshot=3))

@@ -18,9 +18,9 @@ from typing import Any
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LpspecError
-from lpspec.relational.sinks import SOLVERS
+import specsolve as sps
+from specsolve.errors import SpecsolveError
+from specsolve.relational.sinks import SOLVERS
 
 #: Two rows that cannot both hold, and no bound in the argument: ``p`` is held
 #: only by a lower bound of zero, which delivers nothing into the combination,
@@ -52,9 +52,9 @@ SOURCES = {
 ASKED: dict[str, dict[str, Any]] = {'highs': {}, 'gurobi': {'InfUnbdInfo': 1}, 'xpress': {'presolve': 0}}
 
 
-def certified(solver_name: str, options: dict[str, Any] | None) -> lps.Result:
+def certified(solver_name: str, options: dict[str, Any] | None) -> sps.Result:
     """*SHORT* solved, which is infeasible on every sink."""
-    with lps.build(SHORT, SOURCES) as model:
+    with sps.build(SHORT, SOURCES) as model:
         answer = model.solve(solver_name, solver_options=options)
         assert answer.termination_condition == 'infeasible'
         return answer
@@ -110,7 +110,7 @@ def test_a_sink_that_was_not_asked_names_what_to_ask(needs: str, names: str) -> 
     if not SOLVERS[needs].is_available():
         pytest.skip(f'{needs} is not installed here')
     answer = certified(needs, None)
-    with pytest.raises(LpspecError, match=names):
+    with pytest.raises(SpecsolveError, match=names):
         answer.dual_ray('demand')
     answer.close()
 
@@ -118,9 +118,9 @@ def test_a_sink_that_was_not_asked_names_what_to_ask(needs: str, names: str) -> 
 def test_a_solve_that_found_an_answer_has_nothing_to_certify() -> None:
     """A ray is about the absence of a solution, so a solve with one says to read dual() instead."""
     feasible = {**SOURCES, 'need': pl.DataFrame({'snapshot': [0, 1], 'value': [0.5, 0.0]})}
-    with lps.solve(SHORT, feasible) as answer:
+    with sps.solve(SHORT, feasible) as answer:
         assert answer.termination_condition == 'optimal'
-        with pytest.raises(LpspecError, match='terminated'):
+        with pytest.raises(SpecsolveError, match='terminated'):
             answer.dual_ray('demand')
 
 
@@ -128,7 +128,7 @@ def test_a_closed_result_says_so_before_it_says_anything_else() -> None:
     """A ray is released with the primals, and reports the same way they do."""
     answer = certified('highs', {})
     answer.close()
-    with pytest.raises(LpspecError, match='closed'):
+    with pytest.raises(SpecsolveError, match='closed'):
         answer.dual_ray('demand')
 
 

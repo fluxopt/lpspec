@@ -92,7 +92,7 @@ p_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G}
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -187,7 +187,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_multi_period.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_multi_period.yaml', sources) as solution:
         solution.objective  # 85300.0
         solution.dual('power_balance')
     ```
@@ -200,7 +200,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         The port's flat ``snapshot`` axis carries a relation into ``period``; PyPSA
         wants the same fact as a ``(period, timestep)`` MultiIndex, so the snapshots
@@ -260,7 +260,7 @@ paper.
 Writing the absence exactly would need `where: at(activity, by=period_of, over=period, into=snapshot)` on
 the variable, and a `where:` cannot call `at()`: its grammar compares a name
 against a literal. A second table keyed by `(snapshot, generator)` would state
-one fact twice. [#982](https://github.com/fluxopt/lpspec/issues/982) asks
+one fact twice. [#982](https://github.com/fluxopt/specsolve/issues/982) asks
 whether a mask may read a parameter one declared relation away.
 
 ## What it exercises

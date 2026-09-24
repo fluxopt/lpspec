@@ -3,7 +3,7 @@
 The renderer's own tests are math-spec's, over fixtures that travel with it.
 What is asserted here is about **this repository's corpus** — that every gallery
 model renders in every format, and that each page's generated math block is
-current. The renderer is the tool; the gallery is lpspec's documentation.
+current. The renderer is the tool; the gallery is specsolve's documentation.
 """
 
 from __future__ import annotations
