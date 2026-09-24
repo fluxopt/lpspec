@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import polars as pl
 import pytest
+from mathspec import program
 
 from specsolve.errors import DataError, LanguageError, SpecsolveError
 from specsolve.sources import tidy_sources
@@ -47,6 +48,23 @@ def yaml_file(tmp_path):
 # ---------------------------------------------------------------------------
 # the lane is a pure producer
 # ---------------------------------------------------------------------------
+
+
+def test_a_side_the_program_leaves_open_builds_as_linopy_s_open_bound():
+    """A program says an open side is `None`, and linopy takes an infinity there."""
+    declared = program.Program(
+        parameters={},
+        variables={'p': program.VariableDeclaration(('snapshot',), lower=None, upper=None)},
+        constraints={},
+        objective=None,
+        dimensions={'snapshot': program.DimensionDeclaration()},
+    )
+    model = linopy.Model()
+    builder.build_model(model, declared, xr.Dataset(), {'snapshot': pd.Index([0, 1], name='snapshot')}, {})
+    p = model.variables['p']
+    assert (float(p.lower.min()), float(p.upper.max())) == (-np.inf, np.inf), (
+        'an open side is the infinity on that side'
+    )
 
 
 def test_nothing_is_patched_onto_linopy_model():

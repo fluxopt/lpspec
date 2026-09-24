@@ -456,6 +456,14 @@ def test_a_constant_bound_needs_no_join_at_all():
     assert joins(bounded) == 0
 
 
+def test_a_side_the_program_leaves_open_is_an_infinite_column():
+    """A program says an open side is `None`, and a relational sink reads an infinity in `lb` and `ub`."""
+    variable = program.VariableDeclaration(('snapshot', 'generator'), lower=None, upper=None)
+    frame = pl.LazyFrame({'snapshot': [0], 'generator': ['a'], 'var_label': [0]})
+    bounded = compiler().bounds(frame, 'p', variable).select('lb', 'ub').collect()
+    assert bounded.row(0) == (float('-inf'), float('inf')), 'an open side is the infinity on that side'
+
+
 def test_a_zero_edge_writes_its_rows_like_any_other_fill():
     """`edge=0` over a constant leaves a row, not a gap.
 
