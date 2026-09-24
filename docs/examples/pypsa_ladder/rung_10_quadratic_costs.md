@@ -324,7 +324,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
 
     import spine
 
-    #: This rung builds a file of its own.
+    #: This rung binds a file of its own.
     MODEL = 'pypsa_quadratic.yaml'
 
 

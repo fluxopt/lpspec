@@ -235,9 +235,9 @@
           }
         }
       },
-      "specsolve_objective": 7182.222222222221,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 7182.222222222221,
       "structure": {
         "columns": [
           16,
@@ -247,60 +247,60 @@
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_p": 12
-              },
-              "pypsa": 12
+              }
             },
             "Link-p": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_p": 4
-              },
-              "pypsa": 4
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 8,
               "specsolve": {
                 "Bus_nodal_balance": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_fix_p_lower": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_fix_p_upper": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-p_set": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_p_set": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-p_set": {
+              "pypsa": 1,
               "specsolve": {
                 "Link_p_set": 1
-              },
-              "pypsa": 1
+              }
             }
           }
         },
@@ -309,12 +309,12 @@
           45
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 16,
             "nonzeros": 57,
             "rows": 45
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 16,
             "nonzeros": 57,
             "rows": 45
@@ -679,9 +679,9 @@
           }
         }
       },
-      "specsolve_objective": 4456.659315422355,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 4456.659315422355,
       "structure": {
         "columns": [
           48,
@@ -691,162 +691,162 @@
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_p": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-p": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_p": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-p_dispatch": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_p_dispatch": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-p_store": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_p_store": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-spill": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_spill": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-state_of_charge": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_state_of_charge": 8
-              },
-              "pypsa": 8
+              }
             },
             "Store-e": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_e": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-p": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_p": 4
-              },
-              "pypsa": 4
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 8,
               "specsolve": {
                 "Bus_nodal_balance": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_fix_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_fix_p_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-energy_balance": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_energy_balance": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-fix-p_dispatch-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_fix_p_dispatch_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-fix-p_dispatch-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_fix_p_dispatch_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-fix-p_store-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_fix_p_store_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-fix-p_store-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_fix_p_store_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-fix-state_of_charge-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_fix_state_of_charge_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-fix-state_of_charge-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_fix_state_of_charge_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-p_set": {
+              "pypsa": 1,
               "specsolve": {
                 "StorageUnit_p_set": 1
-              },
-              "pypsa": 1
+              }
             },
             "StorageUnit-state_of_charge_set": {
+              "pypsa": 1,
               "specsolve": {
                 "StorageUnit_state_of_charge_set": 1
-              },
-              "pypsa": 1
+              }
             },
             "Store-e_set": {
+              "pypsa": 1,
               "specsolve": {
                 "Store_e_set": 1
-              },
-              "pypsa": 1
+              }
             },
             "Store-energy_balance": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_energy_balance": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-fix-e-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_fix_e_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-fix-e-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_fix_e_upper": 4
-              },
-              "pypsa": 4
+              }
             }
           }
         },
@@ -855,12 +855,12 @@
           103
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 48,
             "nonzeros": 166,
             "rows": 103
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 48,
             "nonzeros": 166,
             "rows": 103
@@ -1439,9 +1439,9 @@
           }
         }
       },
-      "specsolve_objective": 7633.908502024291,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 7633.908502024291,
       "structure": {
         "columns": [
           73,
@@ -1450,384 +1450,384 @@
         "differences": {
           "tech_capacity_expansion_limit": {
             "kind": "rows",
+            "pypsa": 5,
+            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense",
             "specsolve": {
               "GlobalConstraint_tech_capacity_expansion_limit_eq": 1,
               "GlobalConstraint_tech_capacity_expansion_limit_lb": 2,
               "GlobalConstraint_tech_capacity_expansion_limit_ub": 2
-            },
-            "pypsa": 5,
-            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense"
+            }
           },
           "transmission_expansion_cost_limit": {
             "kind": "rows",
+            "pypsa": 2,
+            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense",
             "specsolve": {
               "GlobalConstraint_transmission_expansion_cost_limit_eq": 1,
               "GlobalConstraint_transmission_expansion_cost_limit_lb": 1
-            },
-            "pypsa": 2,
-            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense"
+            }
           }
         },
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 20,
               "specsolve": {
                 "Generator_p": 20
-              },
-              "pypsa": 20
+              }
             },
             "Generator-p_nom": {
+              "pypsa": 2,
               "specsolve": {
                 "Generator_p_nom_ext": 2
-              },
-              "pypsa": 2
+              }
             },
             "Link-p": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_p": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-p_nom": {
+              "pypsa": 1,
               "specsolve": {
                 "Link_p_nom_ext": 1
-              },
-              "pypsa": 1
+              }
             },
             "StorageUnit-p_dispatch": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_p_dispatch": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-p_nom": {
+              "pypsa": 1,
               "specsolve": {
                 "StorageUnit_p_nom_ext": 1
-              },
-              "pypsa": 1
+              }
             },
             "StorageUnit-p_store": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_p_store": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-state_of_charge": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_state_of_charge": 8
-              },
-              "pypsa": 8
+              }
             },
             "Store-e": {
+              "pypsa": 8,
               "specsolve": {
                 "Store_e": 8
-              },
-              "pypsa": 8
+              }
             },
             "Store-e_nom": {
+              "pypsa": 1,
               "specsolve": {
                 "Store_e_nom_ext": 1
-              },
-              "pypsa": 1
+              }
             },
             "Store-p": {
+              "pypsa": 8,
               "specsolve": {
                 "Store_p": 8
-              },
-              "pypsa": 8
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 12,
               "specsolve": {
                 "Bus_nodal_balance": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-e_sum_max": {
+              "pypsa": 1,
               "specsolve": {
                 "Generator_e_sum_max": 1
-              },
-              "pypsa": 1
+              }
             },
             "Generator-e_sum_min": {
+              "pypsa": 1,
               "specsolve": {
                 "Generator_e_sum_min": 1
-              },
-              "pypsa": 1
+              }
             },
             "Generator-ext-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_ext_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-ext-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_ext_p_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-ext-p_nom-lower": {
+              "pypsa": 2,
               "specsolve": {
                 "Generator_ext_p_nom_lower": 2
-              },
-              "pypsa": 2
+              }
             },
             "Generator-ext-p_nom-upper": {
+              "pypsa": 2,
               "specsolve": {
                 "Generator_ext_p_nom_upper": 2
-              },
-              "pypsa": 2
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_fix_p_lower": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_fix_p_upper": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-p-ramp_limit_down": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_p_ramp_limit_down": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-p-ramp_limit_up": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_p_ramp_limit_up": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-p_nom_set": {
+              "pypsa": 1,
               "specsolve": {
                 "Generator_p_nom_set": 1
-              },
-              "pypsa": 1
+              }
             },
             "Link-ext-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_ext_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-ext-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_ext_p_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-ext-p_nom-lower": {
+              "pypsa": 1,
               "specsolve": {
                 "Link_ext_p_nom_lower": 1
-              },
-              "pypsa": 1
+              }
             },
             "Link-ext-p_nom-upper": {
+              "pypsa": 1,
               "specsolve": {
                 "Link_ext_p_nom_upper": 1
-              },
-              "pypsa": 1
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-p-ramp_limit_down": {
+              "pypsa": 3,
               "specsolve": {
                 "Link_p_ramp_limit_down": 3
-              },
-              "pypsa": 3
+              }
             },
             "Link-p-ramp_limit_up": {
+              "pypsa": 3,
               "specsolve": {
                 "Link_p_ramp_limit_up": 3
-              },
-              "pypsa": 3
+              }
             },
             "Link-p_nom_set": {
+              "pypsa": 1,
               "specsolve": {
                 "Link_p_nom_set": 1
-              },
-              "pypsa": 1
+              }
             },
             "StorageUnit-energy_balance": {
+              "pypsa": 8,
               "specsolve": {
                 "StorageUnit_energy_balance": 8
-              },
-              "pypsa": 8
+              }
             },
             "StorageUnit-ext-p_dispatch-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_ext_p_dispatch_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-ext-p_dispatch-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_ext_p_dispatch_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-ext-p_nom-lower": {
+              "pypsa": 1,
               "specsolve": {
                 "StorageUnit_ext_p_nom_lower": 1
-              },
-              "pypsa": 1
+              }
             },
             "StorageUnit-ext-p_nom-upper": {
+              "pypsa": 1,
               "specsolve": {
                 "StorageUnit_ext_p_nom_upper": 1
-              },
-              "pypsa": 1
+              }
             },
             "StorageUnit-ext-p_store-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_ext_p_store_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-ext-p_store-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_ext_p_store_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-ext-state_of_charge-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_ext_state_of_charge_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-ext-state_of_charge-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_ext_state_of_charge_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-p_dispatch-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_p_dispatch_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-p_dispatch-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_p_dispatch_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-p_store-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_p_store_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-p_store-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_p_store_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-state_of_charge-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_state_of_charge_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-state_of_charge-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_state_of_charge_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-p_nom_set": {
+              "pypsa": 1,
               "specsolve": {
                 "StorageUnit_p_nom_set": 1
-              },
-              "pypsa": 1
+              }
             },
             "Store-e_nom_set": {
+              "pypsa": 1,
               "specsolve": {
                 "Store_e_nom_set": 1
-              },
-              "pypsa": 1
+              }
             },
             "Store-energy_balance": {
+              "pypsa": 8,
               "specsolve": {
                 "Store_energy_balance": 8
-              },
-              "pypsa": 8
+              }
             },
             "Store-ext-e-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_ext_e_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-ext-e-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_ext_e_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-ext-e_nom-lower": {
+              "pypsa": 1,
               "specsolve": {
                 "Store_ext_e_nom_lower": 1
-              },
-              "pypsa": 1
+              }
             },
             "Store-ext-e_nom-upper": {
+              "pypsa": 1,
               "specsolve": {
                 "Store_ext_e_nom_upper": 1
-              },
-              "pypsa": 1
+              }
             },
             "Store-fix-e-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_fix_e_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-fix-e-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_fix_e_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "tech_capacity_expansion_limit": {
+              "pypsa": 5,
               "specsolve": {
                 "GlobalConstraint_tech_capacity_expansion_limit_eq": 1,
                 "GlobalConstraint_tech_capacity_expansion_limit_lb": 2,
                 "GlobalConstraint_tech_capacity_expansion_limit_ub": 2
-              },
-              "pypsa": 5
+              }
             },
             "transmission_expansion_cost_limit": {
+              "pypsa": 2,
               "specsolve": {
                 "GlobalConstraint_transmission_expansion_cost_limit_eq": 1,
                 "GlobalConstraint_transmission_expansion_cost_limit_lb": 1
-              },
-              "pypsa": 2
+              }
             },
             "transmission_volume_expansion_limit": {
+              "pypsa": 1,
               "specsolve": {
                 "GlobalConstraint_transmission_volume_expansion_limit_ub": 1
-              },
-              "pypsa": 1
+              }
             }
           }
         },
@@ -1836,12 +1836,12 @@
           184
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 73,
             "nonzeros": 328,
             "rows": 184
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 73,
             "nonzeros": 328,
             "rows": 184
@@ -2171,9 +2171,9 @@
           }
         }
       },
-      "specsolve_objective": 8785.0,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 8785.0,
       "structure": {
         "columns": [
           20,
@@ -2183,72 +2183,72 @@
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_p": 12
-              },
-              "pypsa": 12
+              }
             },
             "Link-p": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_p": 8
-              },
-              "pypsa": 8
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 12,
               "specsolve": {
                 "Bus_nodal_balance": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_fix_p_lower": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_fix_p_upper": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-p-ramp_limit_down": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_p_ramp_limit_down": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-p-ramp_limit_up": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_p_ramp_limit_up": 3
-              },
-              "pypsa": 3
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-p-ramp_limit_down": {
+              "pypsa": 3,
               "specsolve": {
                 "Link_p_ramp_limit_down": 3
-              },
-              "pypsa": 3
+              }
             },
             "Link-p-ramp_limit_up": {
+              "pypsa": 3,
               "specsolve": {
                 "Link_p_ramp_limit_up": 3
-              },
-              "pypsa": 3
+              }
             }
           }
         },
@@ -2257,12 +2257,12 @@
           64
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 20,
             "nonzeros": 92,
             "rows": 64
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 20,
             "nonzeros": 92,
             "rows": 64
@@ -2630,9 +2630,9 @@
           }
         }
       },
-      "specsolve_objective": 10282.833333333332,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 10282.833333333332,
       "structure": {
         "columns": [
           44,
@@ -2641,176 +2641,176 @@
         "differences": {
           "operational_limit": {
             "kind": "rows",
+            "pypsa": 3,
+            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense",
             "specsolve": {
               "GlobalConstraint_operational_limit_eq": 1,
               "GlobalConstraint_operational_limit_lb": 1,
               "GlobalConstraint_operational_limit_ub": 1
-            },
-            "pypsa": 3,
-            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense"
+            }
           },
           "primary_energy": {
             "kind": "rows",
+            "pypsa": 3,
+            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense",
             "specsolve": {
               "GlobalConstraint_primary_energy_eq": 1,
               "GlobalConstraint_primary_energy_lb": 1,
               "GlobalConstraint_primary_energy_ub": 1
-            },
-            "pypsa": 3,
-            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense"
+            }
           }
         },
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 20,
               "specsolve": {
                 "Generator_p": 20
-              },
-              "pypsa": 20
+              }
             },
             "Link-p": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_p": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-p_dispatch": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_p_dispatch": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-p_store": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_p_store": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-state_of_charge": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_state_of_charge": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-e": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_e": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-p": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_p": 4
-              },
-              "pypsa": 4
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 8,
               "specsolve": {
                 "Bus_nodal_balance": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 20,
               "specsolve": {
                 "Generator_fix_p_lower": 20
-              },
-              "pypsa": 20
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 20,
               "specsolve": {
                 "Generator_fix_p_upper": 20
-              },
-              "pypsa": 20
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-energy_balance": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_energy_balance": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-p_dispatch-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_p_dispatch_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-p_dispatch-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_p_dispatch_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-p_store-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_p_store_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-p_store-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_p_store_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-state_of_charge-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_state_of_charge_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "StorageUnit-fix-state_of_charge-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "StorageUnit_fix_state_of_charge_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-energy_balance": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_energy_balance": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-fix-e-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_fix_e_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Store-fix-e-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Store_fix_e_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "operational_limit": {
+              "pypsa": 3,
               "specsolve": {
                 "GlobalConstraint_operational_limit_eq": 1,
                 "GlobalConstraint_operational_limit_lb": 1,
                 "GlobalConstraint_operational_limit_ub": 1
-              },
-              "pypsa": 3
+              }
             },
             "primary_energy": {
+              "pypsa": 3,
               "specsolve": {
                 "GlobalConstraint_primary_energy_eq": 1,
                 "GlobalConstraint_primary_energy_lb": 1,
                 "GlobalConstraint_primary_energy_ub": 1
-              },
-              "pypsa": 3
+              }
             }
           }
         },
@@ -2819,12 +2819,12 @@
           102
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 44,
             "nonzeros": 190,
             "rows": 102
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 44,
             "nonzeros": 190,
             "rows": 102
@@ -3180,9 +3180,9 @@
           }
         }
       },
-      "specsolve_objective": 23962.0,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 23962.0,
       "structure": {
         "columns": [
           42,
@@ -3191,154 +3191,154 @@
         "differences": {
           "transmission_expansion_cost_limit": {
             "kind": "rows",
+            "pypsa": 2,
+            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense",
             "specsolve": {
               "GlobalConstraint_transmission_expansion_cost_limit_lb": 1,
               "GlobalConstraint_transmission_expansion_cost_limit_ub": 1
-            },
-            "pypsa": 2,
-            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense"
+            }
           },
           "transmission_volume_expansion_limit": {
             "kind": "rows",
+            "pypsa": 2,
+            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense",
             "specsolve": {
               "GlobalConstraint_transmission_volume_expansion_limit_eq": 1,
               "GlobalConstraint_transmission_volume_expansion_limit_lb": 1
-            },
-            "pypsa": 2,
-            "reason": "one block per sense \u2014 ==, <=, >= \u2014 where PyPSA writes one row per labelled constraint whatever its sense"
+            }
           }
         },
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_p": 16
-              },
-              "pypsa": 16
+              }
             },
             "Line-s": {
+              "pypsa": 20,
               "specsolve": {
                 "Line_s": 20
-              },
-              "pypsa": 20
+              }
             },
             "Line-s_nom": {
+              "pypsa": 2,
               "specsolve": {
                 "Line_s_nom_ext": 2
-              },
-              "pypsa": 2
+              }
             },
             "Link-p": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_p": 4
-              },
-              "pypsa": 4
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 20,
               "specsolve": {
                 "Bus_nodal_balance": 20
-              },
-              "pypsa": 20
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_fix_p_lower": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_fix_p_upper": 16
-              },
-              "pypsa": 16
+              }
             },
             "Kirchhoff-Voltage-Law": {
+              "pypsa": 12,
               "specsolve": {
                 "Kirchhoff_Voltage_Law": 12
-              },
-              "pypsa": 12
+              }
             },
             "Line-ext-s-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Line_ext_s_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Line-ext-s-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Line_ext_s_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Line-ext-s_nom-lower": {
+              "pypsa": 2,
               "specsolve": {
                 "Line_ext_s_nom_lower": 2
-              },
-              "pypsa": 2
+              }
             },
             "Line-ext-s_nom-upper": {
+              "pypsa": 2,
               "specsolve": {
                 "Line_ext_s_nom_upper": 2
-              },
-              "pypsa": 2
+              }
             },
             "Line-fix-s-lower": {
+              "pypsa": 12,
               "specsolve": {
                 "Line_fix_s_lower": 12
-              },
-              "pypsa": 12
+              }
             },
             "Line-fix-s-upper": {
+              "pypsa": 12,
               "specsolve": {
                 "Line_fix_s_upper": 12
-              },
-              "pypsa": 12
+              }
             },
             "Line-s_nom_set": {
+              "pypsa": 1,
               "specsolve": {
                 "Line_s_nom_set": 1
-              },
-              "pypsa": 1
+              }
             },
             "Line-s_set": {
+              "pypsa": 1,
               "specsolve": {
                 "Line_s_set": 1
-              },
-              "pypsa": 1
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "tech_capacity_expansion_limit": {
+              "pypsa": 1,
               "specsolve": {
                 "GlobalConstraint_tech_capacity_expansion_limit_ub": 1
-              },
-              "pypsa": 1
+              }
             },
             "transmission_expansion_cost_limit": {
+              "pypsa": 2,
               "specsolve": {
                 "GlobalConstraint_transmission_expansion_cost_limit_lb": 1,
                 "GlobalConstraint_transmission_expansion_cost_limit_ub": 1
-              },
-              "pypsa": 2
+              }
             },
             "transmission_volume_expansion_limit": {
+              "pypsa": 2,
               "specsolve": {
                 "GlobalConstraint_transmission_volume_expansion_limit_eq": 1,
                 "GlobalConstraint_transmission_volume_expansion_limit_lb": 1
-              },
-              "pypsa": 2
+              }
             }
           }
         },
@@ -3347,12 +3347,12 @@
           123
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 42,
             "nonzeros": 204,
             "rows": 123
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 42,
             "nonzeros": 204,
             "rows": 123
@@ -3586,9 +3586,9 @@
         "per_name": {},
         "skipped": "duals are undefined for a mixed-integer model: 'Generator_n_mod', 'Generator_shut_down', 'Generator_start_up', 'Generato"
       },
-      "specsolve_objective": 7775.0,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 7775.0,
       "structure": {
         "columns": [
           44,
@@ -3598,138 +3598,138 @@
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_p": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-shut_down": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_shut_down": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-start_up": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_start_up": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-status": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_status": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-p": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_p": 4
-              },
-              "pypsa": 4
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 8,
               "specsolve": {
                 "Bus_nodal_balance": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-down-time": {
+              "pypsa": 6,
               "specsolve": {
                 "Generator_com_down_time": 6
-              },
-              "pypsa": 6
+              }
             },
             "Generator-com-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_p_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-status-min_up_time_must_stay_up": {
+              "pypsa": 2,
               "specsolve": {
                 "Generator_com_status_must_stay_up": 2
-              },
-              "pypsa": 2
+              }
             },
             "Generator-com-transition-shut-down": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_transition_shut_down": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-transition-start-up": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_transition_start_up": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-up-time": {
+              "pypsa": 6,
               "specsolve": {
                 "Generator_com_up_time": 6
-              },
-              "pypsa": 6
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_fix_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_fix_p_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-p-ramp_limit_down": {
+              "pypsa": 7,
               "specsolve": {
                 "Generator_p_ramp_limit_down": 7
-              },
-              "pypsa": 7
+              }
             },
             "Generator-p-ramp_limit_up": {
+              "pypsa": 7,
               "specsolve": {
                 "Generator_p_ramp_limit_up": 7
-              },
-              "pypsa": 7
+              }
             },
             "Generator-shut_down-p-fixed-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_shut_down_p_fixed_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-start_up-p-fixed-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_start_up_p_fixed_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-status-p-fixed-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_status_p_fixed_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_upper": 4
-              },
-              "pypsa": 4
+              }
             }
           }
         },
@@ -3738,12 +3738,12 @@
           116
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 44,
             "nonzeros": 237,
             "rows": 116
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 44,
             "nonzeros": 237,
             "rows": 116
@@ -3979,9 +3979,9 @@
         "per_name": {},
         "skipped": "duals are undefined for a mixed-integer model: 'Generator_n_mod', 'Generator_shut_down', 'Generator_start_up', 'Generato"
       },
-      "specsolve_objective": 15915.0,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 15915.0,
       "structure": {
         "columns": [
           80,
@@ -3991,216 +3991,216 @@
         "per_name": {
           "columns": {
             "Generator-n_mod": {
+              "pypsa": 1,
               "specsolve": {
                 "Generator_n_mod": 1
-              },
-              "pypsa": 1
+              }
             },
             "Generator-p": {
+              "pypsa": 24,
               "specsolve": {
                 "Generator_p": 24
-              },
-              "pypsa": 24
+              }
             },
             "Generator-p_nom": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_p_nom_ext": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-shut_down": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_shut_down": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-start_up": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_start_up": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-status": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_status": 16
-              },
-              "pypsa": 16
+              }
             },
             "Link-p": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_p": 4
-              },
-              "pypsa": 4
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 12,
               "specsolve": {
                 "Bus_nodal_balance": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-com-ext-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_ext_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-ext-p-lower-nonneg": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_com_ext_p_lower_nonneg": 4
-              },
-              "pypsa": 4
+              }
             },
             "Generator-com-ext-p-upper-bigM": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_ext_p_upper_big_m": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-ext-p-upper-cap": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_ext_p_upper_cap": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-mod-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_mod_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-mod-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_mod_p_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_com_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Generator-com-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_com_p_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Generator-com-transition-shut-down": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_com_transition_shut_down": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-com-transition-start-up": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_com_transition_start_up": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-ext-p_nom-lower": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_ext_p_nom_lower": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-ext-p_nom-upper": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_ext_p_nom_upper": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_fix_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_fix_p_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-p-ramp_limit_down-run-bigM": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_p_ramp_limit_down_run_big_m": 4
-              },
-              "pypsa": 4
+              }
             },
             "Generator-p-ramp_limit_down-shut-bigM": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_p_ramp_limit_down_shut_big_m": 4
-              },
-              "pypsa": 4
+              }
             },
             "Generator-p-ramp_limit_up-run-bigM": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_p_ramp_limit_up_run_big_m": 4
-              },
-              "pypsa": 4
+              }
             },
             "Generator-p-ramp_limit_up-start-bigM": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_p_ramp_limit_up_start_big_m": 4
-              },
-              "pypsa": 4
+              }
             },
             "Generator-p_nom_modularity": {
+              "pypsa": 1,
               "specsolve": {
                 "Generator_p_nom_modularity": 1
-              },
-              "pypsa": 1
+              }
             },
             "Generator-shut_down-p-fixed-upper": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_shut_down_p_fixed_upper": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-shut_down-p_nom-variable-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_shut_down_p_nom_variable_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Generator-start_up-p-fixed-upper": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_start_up_p_fixed_upper": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-start_up-p_nom-variable-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_start_up_p_nom_variable_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Generator-status-p-fixed-upper": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_status_p_fixed_upper": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-status-p_nom-variable-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_status_p_nom_variable_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_upper": 4
-              },
-              "pypsa": 4
+              }
             }
           }
         },
@@ -4209,12 +4209,12 @@
           191
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 80,
             "nonzeros": 379,
             "rows": 191
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 80,
             "nonzeros": 379,
             "rows": 191
@@ -4488,9 +4488,9 @@
           }
         }
       },
-      "specsolve_objective": 11714.4,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 11714.4,
       "structure": {
         "columns": [
           32,
@@ -4500,48 +4500,48 @@
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 24,
               "specsolve": {
                 "Generator_p": 24
-              },
-              "pypsa": 24
+              }
             },
             "Link-p": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_p": 8
-              },
-              "pypsa": 8
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 28,
               "specsolve": {
                 "Bus_nodal_balance": 28
-              },
-              "pypsa": 28
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 24,
               "specsolve": {
                 "Generator_fix_p_lower": 24
-              },
-              "pypsa": 24
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 24,
               "specsolve": {
                 "Generator_fix_p_upper": 24
-              },
-              "pypsa": 24
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_upper": 8
-              },
-              "pypsa": 8
+              }
             }
           }
         },
@@ -4550,12 +4550,12 @@
           92
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 32,
             "nonzeros": 116,
             "rows": 92
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 32,
             "nonzeros": 116,
             "rows": 92
@@ -4663,9 +4663,9 @@
           }
         }
       },
-      "specsolve_objective": 12587.437500000098,
       "matches": true,
       "spec": "pypsa_quadratic.yaml",
+      "specsolve_objective": 12587.437500000098,
       "structure": {
         "columns": [
           24,
@@ -4675,48 +4675,48 @@
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_p": 16
-              },
-              "pypsa": 16
+              }
             },
             "Link-p": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_p": 8
-              },
-              "pypsa": 8
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 12,
               "specsolve": {
                 "Bus_nodal_balance": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_fix_p_lower": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_fix_p_upper": 16
-              },
-              "pypsa": 16
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_upper": 8
-              },
-              "pypsa": 8
+              }
             }
           }
         },
@@ -4725,12 +4725,12 @@
           60
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 24,
             "nonzeros": 80,
             "rows": 60
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 24,
             "nonzeros": 80,
             "rows": 60
@@ -5034,9 +5034,9 @@
           }
         }
       },
-      "specsolve_objective": 18441021.477729,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 18441021.477729,
       "structure": {
         "columns": [
           188,
@@ -5045,140 +5045,140 @@
         "differences": {
           "objective_constant": {
             "kind": "columns",
-            "specsolve": {},
             "pypsa": 1,
-            "reason": "PyPSA carries a nonzero objective constant as a fixed variable of that name; the file states no constant, and the objective is compared net of it"
+            "reason": "PyPSA carries a nonzero objective constant as a fixed variable of that name; the file states no constant, and the objective is compared net of it",
+            "specsolve": {}
           },
           "solver model": {
             "kind": "solver",
-            "specsolve": {
-              "columns": 187,
-              "nonzeros": 1007,
-              "rows": 468
-            },
             "pypsa": {
               "columns": 188,
               "nonzeros": 1007,
               "rows": 468
             },
-            "reason": "what the file states otherwise than PyPSA writes it \u2014 the objective_constant variable's column and row (rungs 11, 13), the build's floor and cap once rather than once per scenario (rung 14)"
+            "reason": "what the file states otherwise than PyPSA writes it \u2014 the objective_constant variable's column and row (rungs 11, 13), the build's floor and cap once rather than once per scenario (rung 14)",
+            "specsolve": {
+              "columns": 187,
+              "nonzeros": 1007,
+              "rows": 468
+            }
           }
         },
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 60,
               "specsolve": {
                 "Generator_p": 60
-              },
-              "pypsa": 60
+              }
             },
             "Generator-p_nom": {
+              "pypsa": 6,
               "specsolve": {
                 "Generator_p_nom_ext": 6
-              },
-              "pypsa": 6
+              }
             },
             "Line-s": {
+              "pypsa": 70,
               "specsolve": {
                 "Line_s": 70
-              },
-              "pypsa": 70
+              }
             },
             "Line-s_nom": {
+              "pypsa": 7,
               "specsolve": {
                 "Line_s_nom_ext": 7
-              },
-              "pypsa": 7
+              }
             },
             "Link-p": {
+              "pypsa": 40,
               "specsolve": {
                 "Link_p": 40
-              },
-              "pypsa": 40
+              }
             },
             "Link-p_nom": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_p_nom_ext": 4
-              },
-              "pypsa": 4
+              }
             },
             "objective_constant": {
-              "specsolve": {},
-              "pypsa": 1
+              "pypsa": 1,
+              "specsolve": {}
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 90,
               "specsolve": {
                 "Bus_nodal_balance": 90
-              },
-              "pypsa": 90
+              }
             },
             "Generator-ext-p-lower": {
+              "pypsa": 60,
               "specsolve": {
                 "Generator_ext_p_lower": 60
-              },
-              "pypsa": 60
+              }
             },
             "Generator-ext-p-upper": {
+              "pypsa": 60,
               "specsolve": {
                 "Generator_ext_p_upper": 60
-              },
-              "pypsa": 60
+              }
             },
             "Generator-ext-p_nom-lower": {
+              "pypsa": 6,
               "specsolve": {
                 "Generator_ext_p_nom_lower": 6
-              },
-              "pypsa": 6
+              }
             },
             "Kirchhoff-Voltage-Law": {
+              "pypsa": 20,
               "specsolve": {
                 "Kirchhoff_Voltage_Law": 20
-              },
-              "pypsa": 20
+              }
             },
             "Line-ext-s-lower": {
+              "pypsa": 70,
               "specsolve": {
                 "Line_ext_s_lower": 70
-              },
-              "pypsa": 70
+              }
             },
             "Line-ext-s-upper": {
+              "pypsa": 70,
               "specsolve": {
                 "Line_ext_s_upper": 70
-              },
-              "pypsa": 70
+              }
             },
             "Line-ext-s_nom-lower": {
+              "pypsa": 7,
               "specsolve": {
                 "Line_ext_s_nom_lower": 7
-              },
-              "pypsa": 7
+              }
             },
             "Link-ext-p-lower": {
+              "pypsa": 40,
               "specsolve": {
                 "Link_ext_p_lower": 40
-              },
-              "pypsa": 40
+              }
             },
             "Link-ext-p-upper": {
+              "pypsa": 40,
               "specsolve": {
                 "Link_ext_p_upper": 40
-              },
-              "pypsa": 40
+              }
             },
             "Link-ext-p_nom-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_ext_p_nom_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "primary_energy": {
+              "pypsa": 1,
               "specsolve": {
                 "GlobalConstraint_primary_energy_ub": 1
-              },
-              "pypsa": 1
+              }
             }
           }
         },
@@ -5187,13 +5187,13 @@
           468
         ],
         "solver": {
-          "specsolve": {
-            "columns": 187,
+          "pypsa": {
+            "columns": 188,
             "nonzeros": 1007,
             "rows": 468
           },
-          "pypsa": {
-            "columns": 188,
+          "specsolve": {
+            "columns": 187,
             "nonzeros": 1007,
             "rows": 468
           }
@@ -5450,9 +5450,9 @@
           }
         }
       },
-      "specsolve_objective": 7775.0,
       "matches": true,
       "spec": "pypsa_linearized_uc.yaml",
+      "specsolve_objective": 7775.0,
       "structure": {
         "columns": [
           44,
@@ -5462,162 +5462,162 @@
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_p": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-shut_down": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_shut_down": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-start_up": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_start_up": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-status": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_status": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-p": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_p": 4
-              },
-              "pypsa": 4
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 8,
               "specsolve": {
                 "Bus_nodal_balance": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-down-time": {
+              "pypsa": 6,
               "specsolve": {
                 "Generator_com_down_time": 6
-              },
-              "pypsa": 6
+              }
             },
             "Generator-com-p-before": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_com_p_before": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-com-p-current": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_com_p_current": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-com-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_p_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-partly-shut-down": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_com_partly_shut_down": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-com-partly-start-up": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_com_partly_start_up": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-com-status-min_up_time_must_stay_up": {
+              "pypsa": 2,
               "specsolve": {
                 "Generator_com_status_must_stay_up": 2
-              },
-              "pypsa": 2
+              }
             },
             "Generator-com-transition-shut-down": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_transition_shut_down": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-transition-start-up": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_com_transition_start_up": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-com-up-time": {
+              "pypsa": 6,
               "specsolve": {
                 "Generator_com_up_time": 6
-              },
-              "pypsa": 6
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_fix_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_fix_p_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-p-ramp_limit_down": {
+              "pypsa": 7,
               "specsolve": {
                 "Generator_p_ramp_limit_down": 7
-              },
-              "pypsa": 7
+              }
             },
             "Generator-p-ramp_limit_up": {
+              "pypsa": 7,
               "specsolve": {
                 "Generator_p_ramp_limit_up": 7
-              },
-              "pypsa": 7
+              }
             },
             "Generator-shut_down-p-fixed-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_shut_down_p_fixed_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-start_up-p-fixed-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_start_up_p_fixed_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-status-p-fixed-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_status_p_fixed_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_upper": 4
-              },
-              "pypsa": 4
+              }
             }
           }
         },
@@ -5626,12 +5626,12 @@
           128
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 44,
             "nonzeros": 288,
             "rows": 128
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 44,
             "nonzeros": 288,
             "rows": 128
@@ -5860,9 +5860,9 @@
           }
         }
       },
-      "specsolve_objective": 10805.29588,
       "matches": true,
       "spec": "pypsa_losses.yaml",
+      "specsolve_objective": 10805.29588,
       "structure": {
         "columns": [
           46,
@@ -5871,164 +5871,164 @@
         "differences": {
           "objective_constant": {
             "kind": "columns",
-            "specsolve": {},
             "pypsa": 1,
-            "reason": "PyPSA carries a nonzero objective constant as a fixed variable of that name; the file states no constant, and the objective is compared net of it"
+            "reason": "PyPSA carries a nonzero objective constant as a fixed variable of that name; the file states no constant, and the objective is compared net of it",
+            "specsolve": {}
           },
           "solver model": {
             "kind": "solver",
-            "specsolve": {
-              "columns": 45,
-              "nonzeros": 290,
-              "rows": 150
-            },
             "pypsa": {
               "columns": 46,
               "nonzeros": 290,
               "rows": 150
             },
-            "reason": "what the file states otherwise than PyPSA writes it \u2014 the objective_constant variable's column and row (rungs 11, 13), the build's floor and cap once rather than once per scenario (rung 14)"
+            "reason": "what the file states otherwise than PyPSA writes it \u2014 the objective_constant variable's column and row (rungs 11, 13), the build's floor and cap once rather than once per scenario (rung 14)",
+            "specsolve": {
+              "columns": 45,
+              "nonzeros": 290,
+              "rows": 150
+            }
           }
         },
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_p": 16
-              },
-              "pypsa": 16
+              }
             },
             "Line-loss": {
+              "pypsa": 12,
               "specsolve": {
                 "Line_loss": 12
-              },
-              "pypsa": 12
+              }
             },
             "Line-s": {
+              "pypsa": 12,
               "specsolve": {
                 "Line_s": 12
-              },
-              "pypsa": 12
+              }
             },
             "Line-s_nom": {
+              "pypsa": 1,
               "specsolve": {
                 "Line_s_nom_ext": 1
-              },
-              "pypsa": 1
+              }
             },
             "Link-p": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_p": 4
-              },
-              "pypsa": 4
+              }
             },
             "objective_constant": {
-              "specsolve": {},
-              "pypsa": 1
+              "pypsa": 1,
+              "specsolve": {}
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 20,
               "specsolve": {
                 "Bus_nodal_balance": 20
-              },
-              "pypsa": 20
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_fix_p_lower": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_fix_p_upper": 16
-              },
-              "pypsa": 16
+              }
             },
             "Kirchhoff-Voltage-Law": {
+              "pypsa": 4,
               "specsolve": {
                 "Kirchhoff_Voltage_Law": 4
-              },
-              "pypsa": 4
+              }
             },
             "Line-ext-s-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Line_ext_s_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Line-ext-s-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Line_ext_s_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Line-ext-s_nom-lower": {
+              "pypsa": 1,
               "specsolve": {
                 "Line_ext_s_nom_lower": 1
-              },
-              "pypsa": 1
+              }
             },
             "Line-ext-s_nom-upper": {
+              "pypsa": 1,
               "specsolve": {
                 "Line_ext_s_nom_upper": 1
-              },
-              "pypsa": 1
+              }
             },
             "Line-fix-s-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Line_fix_s_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Line-fix-s-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Line_fix_s_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Line-loss_tangents-1--1": {
+              "pypsa": 12,
               "specsolve": {
                 "Line_loss_tangents_reverse": 12
-              },
-              "pypsa": 12
+              }
             },
             "Line-loss_tangents-1-1": {
+              "pypsa": 12,
               "specsolve": {
                 "Line_loss_tangents_forward": 12
-              },
-              "pypsa": 12
+              }
             },
             "Line-loss_tangents-2--1": {
+              "pypsa": 12,
               "specsolve": {
                 "Line_loss_tangents_reverse": 12
-              },
-              "pypsa": 12
+              }
             },
             "Line-loss_tangents-2-1": {
+              "pypsa": 12,
               "specsolve": {
                 "Line_loss_tangents_forward": 12
-              },
-              "pypsa": 12
+              }
             },
             "Line-loss_upper": {
+              "pypsa": 12,
               "specsolve": {
                 "Line_loss_upper": 12
-              },
-              "pypsa": 12
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Link_fix_p_upper": 4
-              },
-              "pypsa": 4
+              }
             }
           }
         },
@@ -6037,13 +6037,13 @@
           150
         ],
         "solver": {
-          "specsolve": {
-            "columns": 45,
+          "pypsa": {
+            "columns": 46,
             "nonzeros": 290,
             "rows": 150
           },
-          "pypsa": {
-            "columns": 46,
+          "specsolve": {
+            "columns": 45,
             "nonzeros": 290,
             "rows": 150
           }
@@ -6230,9 +6230,9 @@
           }
         }
       },
-      "specsolve_objective": 9267.386667,
       "matches": true,
       "spec": "pypsa_stochastic.yaml",
+      "specsolve_objective": 9267.386667,
       "structure": {
         "columns": [
           37,
@@ -6241,146 +6241,146 @@
         "differences": {
           "Generator-ext-p_nom-lower": {
             "kind": "rows",
+            "pypsa": 2,
+            "reason": "PyPSA writes the build's floor once per scenario, each row over the one capacity variable; the file states it once \u2014 capacity is chosen before the future is known, and a copy per future is the same row again.",
             "specsolve": {
               "Generator_ext_p_nom_lower": 1
-            },
-            "pypsa": 2,
-            "reason": "PyPSA writes the build's floor once per scenario, each row over the one capacity variable; the file states it once \u2014 capacity is chosen before the future is known, and a copy per future is the same row again."
+            }
           },
           "Generator-ext-p_nom-upper": {
             "kind": "rows",
+            "pypsa": 2,
+            "reason": "PyPSA writes the build's cap once per scenario, each row over the one capacity variable; the file states it once \u2014 capacity is chosen before the future is known, and a copy per future is the same row again.",
             "specsolve": {
               "Generator_ext_p_nom_upper": 1
-            },
-            "pypsa": 2,
-            "reason": "PyPSA writes the build's cap once per scenario, each row over the one capacity variable; the file states it once \u2014 capacity is chosen before the future is known, and a copy per future is the same row again."
+            }
           },
           "solver model": {
             "kind": "solver",
-            "specsolve": {
-              "columns": 37,
-              "nonzeros": 146,
-              "rows": 85
-            },
             "pypsa": {
               "columns": 37,
               "nonzeros": 148,
               "rows": 87
             },
-            "reason": "what the file states otherwise than PyPSA writes it \u2014 the objective_constant variable's column and row (rungs 11, 13), the build's floor and cap once rather than once per scenario (rung 14)"
+            "reason": "what the file states otherwise than PyPSA writes it \u2014 the objective_constant variable's column and row (rungs 11, 13), the build's floor and cap once rather than once per scenario (rung 14)",
+            "specsolve": {
+              "columns": 37,
+              "nonzeros": 146,
+              "rows": 85
+            }
           }
         },
         "per_name": {
           "columns": {
             "CVaR": {
+              "pypsa": 1,
               "specsolve": {
                 "CVaR": 1
-              },
-              "pypsa": 1
+              }
             },
             "CVaR-a": {
+              "pypsa": 2,
               "specsolve": {
                 "CVaR_a": 2
-              },
-              "pypsa": 2
+              }
             },
             "CVaR-theta": {
+              "pypsa": 1,
               "specsolve": {
                 "CVaR_theta": 1
-              },
-              "pypsa": 1
+              }
             },
             "Generator-p": {
+              "pypsa": 24,
               "specsolve": {
                 "Generator_p": 24
-              },
-              "pypsa": 24
+              }
             },
             "Generator-p_nom": {
+              "pypsa": 1,
               "specsolve": {
                 "Generator_p_nom_ext": 1
-              },
-              "pypsa": 1
+              }
             },
             "Link-p": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_p": 8
-              },
-              "pypsa": 8
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 16,
               "specsolve": {
                 "Bus_nodal_balance": 16
-              },
-              "pypsa": 16
+              }
             },
             "CVaR-def": {
+              "pypsa": 1,
               "specsolve": {
                 "CVaR_def": 1
-              },
-              "pypsa": 1
+              }
             },
             "CVaR-excess-calm": {
+              "pypsa": 1,
               "specsolve": {
                 "CVaR_excess": 1
-              },
-              "pypsa": 1
+              }
             },
             "CVaR-excess-stormy": {
+              "pypsa": 1,
               "specsolve": {
                 "CVaR_excess": 1
-              },
-              "pypsa": 1
+              }
             },
             "Generator-ext-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_ext_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-ext-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Generator_ext_p_upper": 8
-              },
-              "pypsa": 8
+              }
             },
             "Generator-ext-p_nom-lower": {
+              "pypsa": 2,
               "specsolve": {
                 "Generator_ext_p_nom_lower": 1
-              },
-              "pypsa": 2
+              }
             },
             "Generator-ext-p_nom-upper": {
+              "pypsa": 2,
               "specsolve": {
                 "Generator_ext_p_nom_upper": 1
-              },
-              "pypsa": 2
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_fix_p_lower": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_fix_p_upper": 16
-              },
-              "pypsa": 16
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_upper": 8
-              },
-              "pypsa": 8
+              }
             }
           }
         },
@@ -6389,15 +6389,15 @@
           85
         ],
         "solver": {
-          "specsolve": {
-            "columns": 37,
-            "nonzeros": 146,
-            "rows": 85
-          },
           "pypsa": {
             "columns": 37,
             "nonzeros": 148,
             "rows": 87
+          },
+          "specsolve": {
+            "columns": 37,
+            "nonzeros": 146,
+            "rows": 85
           }
         }
       }
@@ -6564,9 +6564,9 @@
           }
         }
       },
-      "specsolve_objective": 12747.191096,
       "matches": true,
       "spec": "pypsa_multi_period.yaml",
+      "specsolve_objective": 12747.191096,
       "structure": {
         "columns": [
           31,
@@ -6576,84 +6576,84 @@
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 20,
               "specsolve": {
                 "Generator_p": 20
-              },
-              "pypsa": 20
+              }
             },
             "Generator-p_nom": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_p_nom_ext": 3
-              },
-              "pypsa": 3
+              }
             },
             "Link-p": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_p": 8
-              },
-              "pypsa": 8
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 16,
               "specsolve": {
                 "Bus_nodal_balance": 16
-              },
-              "pypsa": 16
+              }
             },
             "Carrier-growth_limit": {
+              "pypsa": 2,
               "specsolve": {
                 "Carrier_growth_limit": 2
-              },
-              "pypsa": 2
+              }
             },
             "Generator-ext-p-lower": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_ext_p_lower": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-ext-p-upper": {
+              "pypsa": 16,
               "specsolve": {
                 "Generator_ext_p_upper": 16
-              },
-              "pypsa": 16
+              }
             },
             "Generator-ext-p_nom-lower": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_ext_p_nom_lower": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-ext-p_nom-upper": {
+              "pypsa": 3,
               "specsolve": {
                 "Generator_ext_p_nom_upper": 3
-              },
-              "pypsa": 3
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_fix_p_lower": 4
-              },
-              "pypsa": 4
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 4,
               "specsolve": {
                 "Generator_fix_p_upper": 4
-              },
-              "pypsa": 4
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_upper": 8
-              },
-              "pypsa": 8
+              }
             }
           }
         },
@@ -6662,12 +6662,12 @@
           80
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 31,
             "nonzeros": 117,
             "rows": 80
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 31,
             "nonzeros": 117,
             "rows": 80
@@ -6919,9 +6919,9 @@
           }
         }
       },
-      "specsolve_objective": 5262.5,
       "matches": true,
       "spec": "pypsa.yaml",
+      "specsolve_objective": 5262.5,
       "structure": {
         "columns": [
           20,
@@ -6931,48 +6931,48 @@
         "per_name": {
           "columns": {
             "Generator-p": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_p": 12
-              },
-              "pypsa": 12
+              }
             },
             "Link-p": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_p": 8
-              },
-              "pypsa": 8
+              }
             }
           },
           "rows": {
             "Bus-nodal_balance": {
+              "pypsa": 12,
               "specsolve": {
                 "Bus_nodal_balance": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-fix-p-lower": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_fix_p_lower": 12
-              },
-              "pypsa": 12
+              }
             },
             "Generator-fix-p-upper": {
+              "pypsa": 12,
               "specsolve": {
                 "Generator_fix_p_upper": 12
-              },
-              "pypsa": 12
+              }
             },
             "Link-fix-p-lower": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_lower": 8
-              },
-              "pypsa": 8
+              }
             },
             "Link-fix-p-upper": {
+              "pypsa": 8,
               "specsolve": {
                 "Link_fix_p_upper": 8
-              },
-              "pypsa": 8
+              }
             }
           }
         },
@@ -6981,12 +6981,12 @@
           52
         ],
         "solver": {
-          "specsolve": {
+          "pypsa": {
             "columns": 20,
             "nonzeros": 67,
             "rows": 52
           },
-          "pypsa": {
+          "specsolve": {
             "columns": 20,
             "nonzeros": 67,
             "rows": 52
