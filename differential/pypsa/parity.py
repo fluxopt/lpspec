@@ -9,7 +9,7 @@ the tables the file declares, every "data prep" parameter computed there.
 This file is the rest of the engine side — prepare, build, solve, compare — and
 it needs a checkout of that repository at the tag `pyproject.toml` pins,
 which is what the `PyPSA parity` workflow hands it. Run with this tree's
-lpspec, `pypsa==1.3.0` and `highspy` installed, and the `[linopy]` extra for
+specsolve, `pypsa==1.3.0` and `highspy` installed, and the `[linopy]` extra for
 the model comparison. No pixi environment carries pypsa, so the way to run it
 locally is the workflow's own line, which installs nothing on disk:
 
@@ -20,17 +20,17 @@ locally is the workflow's own line, which installs nothing on disk:
 Per rung, from the same network, three comparisons:
 
 1. **Spec against model** — PyPSA's ``n.optimize.create_model()`` and
-   ``lpspec.linopy.build``, label for label: coefficients, sense, right-hand
+   ``specsolve.linopy.build``, label for label: coefficients, sense, right-hand
    side, bounds, integrality, objective terms. No solver, so it covers MIP
    and QP alike. The verdict speaks the index table's words: ``equal`` is
    the one block PyPSA builds — **done**; ``region`` is the same rows from
    several ``where:`` blocks — **split**; a difference the file states on
    purpose carries a ``blocks`` reason in ``deviations.yaml`` and comes back
    **recorded**; ``mismatch`` fails the run. A rung
-   whose file `lpspec.linopy` cannot build yet stamps the error instead —
+   whose file `specsolve.linopy` cannot build yet stamps the error instead —
    the upstream hardening this gate waits on — and its proof stops at (2).
 2. **One solved objective across the fence** — PyPSA's solve against
-   `lpspec.relational`'s, both HiGHS, rtol 1e-9 on the generic spine.
+   `specsolve.relational`'s, both HiGHS, rtol 1e-9 on the generic spine.
 3. **Coverage** — what the relational lane built per block, each
    dimension's size, the tables attached non-empty; and, over the ladder as a
    whole, that every block is built by some rung, every mask is partially
@@ -52,9 +52,9 @@ Primals are deliberately not compared — an optimum need not be unique.
 The comparison reads linopy's own ``.flat`` export but does not call
 ``linopy.testing``: those asserts hold the raw datasets equal, and two
 builders lay the same model out differently — PyPSA pads absent ``_term``
-slots with NaN where lpspec writes -0.0, and term order within a row is the
+slots with NaN where specsolve writes -0.0, and term order within a row is the
 builder's own. A canonicalizing ``assert`` upstream would shrink this file.
-PyPSA's model is built before `lpspec.linopy` is imported: that import flips
+PyPSA's model is built before `specsolve.linopy` is imported: that import flips
 linopy's global ``semantics`` option to ``v1`` and PyPSA speaks ``legacy``,
 so the option is reset around each PyPSA build.
 
@@ -97,10 +97,10 @@ import projection  # noqa: E402
 import yaml  # noqa: E402
 from sweep import untested_conjuncts  # noqa: E402  the pure half, so a test needs no pypsa
 
-import lpspec as lps  # noqa: E402
-from lpspec.relational.engines.polars.predicates import masked  # noqa: E402
-from lpspec.relational.engines.polars.scope import Scope  # noqa: E402
-from lpspec.sources import tidy_sources  # noqa: E402
+import specsolve as sps  # noqa: E402
+from specsolve.relational.engines.polars.predicates import masked  # noqa: E402
+from specsolve.relational.engines.polars.scope import Scope  # noqa: E402
+from specsolve.sources import tidy_sources  # noqa: E402
 
 
 def rungs() -> list[str]:
@@ -172,7 +172,7 @@ def flattened(name: str, table: object, dims: list[str]) -> object:
 
 
 def prepared(spec: Path, n, stem: str | None = None) -> dict[str, object]:
-    """`prep.sources` cut to what *spec* declares — lpspec refuses a key the spec does not take; *stem* names the rung whose `OPTIMIZE` sizes the loss fan."""
+    """`prep.sources` cut to what *spec* declares — specsolve refuses a key the spec does not take; *stem* names the rung whose `OPTIMIZE` sizes the loss fan."""
     declared = math_spec.to_spec(spec)
     names = {*declared.dimensions, *declared.parameters, *declared.relations}
     losses = keywords(stem).get('transmission_losses', {}) if stem else {}
@@ -210,10 +210,10 @@ def projected(stem: str, spec: Path, parity: dict, n) -> Path:
     symbols = spec.parent / 'symbols' / spec.name
     if symbols.exists():
         shutil.copy(symbols, PROJECTIONS / f'{stem}.symbols.yaml')
-    result = lps.solve(path, prepared(path, n, stem))
+    result = sps.solve(path, prepared(path, n, stem))
     assert result.is_ok, f'{stem}: the projection did not solve — {result.termination_condition}'
-    assert math.isclose(float(result.objective), parity['lpspec_objective'], rel_tol=1e-9, abs_tol=1e-6), (
-        f'{stem}: the projection lands on {result.objective}, the file on {parity["lpspec_objective"]} — the cut lost a term'
+    assert math.isclose(float(result.objective), parity['specsolve_objective'], rel_tol=1e-9, abs_tol=1e-6), (
+        f'{stem}: the projection lands on {result.objective}, the file on {parity["specsolve_objective"]} — the cut lost a term'
     )
     return path
 
@@ -222,7 +222,7 @@ def committed(stem: str, spec: str, declared, sources: dict[str, object]) -> Non
     """Write the tables this rung is the first to feed as CSV, rows sorted — the tables the page shows under it.
 
     Written through :func:`tidy_sources`, so a file holds exactly the tidy
-    frame `lps.solve` received, floats rounded to twelve places because a
+    frame `sps.solve` received, floats rounded to twelve places because a
     ``pow`` differs by an ulp between libms and the gate is a byte diff; the
     workflow's diff gate makes a table that drifts from `prep.sources(build())`
     a red diff. Once per table rather than
@@ -310,7 +310,7 @@ def duals(result, n, declared, gc_kinds: dict[str, str], reasons: dict) -> dict[
     """
     try:
         result.dual(next(iter(declared.constraints)))
-    except lps.LpspecError as error:
+    except sps.SpecsolveError as error:
         return {
             'compared': 0,
             'skipped': str(error).splitlines()[0][:120],
@@ -509,7 +509,7 @@ def _objective(model, relabel) -> tuple:
 def structure(
     theirs, declared, gc_kinds: dict[str, str], built_rows: dict, built_columns: dict, by_label: dict
 ) -> dict:
-    """Row and column counts per PyPSA name, PyPSA's model against what lpspec built — the shape, before the labels.
+    """Row and column counts per PyPSA name, PyPSA's model against what specsolve built — the shape, before the labels.
 
     PyPSA's counts come off its own linopy model, masked labels excluded;
     ours are the rows and columns built per block, keyed by the PyPSA name
@@ -539,14 +539,14 @@ def structure(
 
     def table(theirs_side: dict, ours_side: dict) -> dict[str, dict]:
         names = {n for n, c in theirs_side.items() if c} | set(ours_side)
-        return {n: {'pypsa': theirs_side.get(n, 0), 'lpspec': ours_side.get(n, {})} for n in sorted(names)}
+        return {n: {'pypsa': theirs_side.get(n, 0), 'specsolve': ours_side.get(n, {})} for n in sorted(names)}
 
     return {'rows': table(theirs_rows, ours_rows), 'columns': table(theirs_columns, ours_columns)}
 
 
 def matched(counts: dict) -> bool:
     """One PyPSA name, one block, one equal count — anything else is a difference."""
-    return len(counts['lpspec']) == 1 and next(iter(counts['lpspec'].values())) == counts['pypsa']
+    return len(counts['specsolve']) == 1 and next(iter(counts['specsolve'].values())) == counts['pypsa']
 
 
 def shown(blocks: dict[str, int]) -> str:
@@ -566,7 +566,7 @@ def solver_size(n, built_model) -> dict[str, dict[str, int]]:
     ours = built_model.diagnostics()
     return {
         'pypsa': {'rows': theirs.getNumRow(), 'columns': theirs.getNumCol(), 'nonzeros': theirs.getNumNz()},
-        'lpspec': {'rows': ours.rows, 'columns': ours.columns, 'nonzeros': ours.nonzeros},
+        'specsolve': {'rows': ours.rows, 'columns': ours.columns, 'nonzeros': ours.nonzeros},
     }
 
 
@@ -579,11 +579,13 @@ def explained(stem: str, shape: dict, reasons: dict) -> tuple[dict, list[str]]:
     """
     differences, unexplained = {}, []
     solver = shape['solver']
-    if solver['pypsa'] != solver['lpspec']:
+    if solver['pypsa'] != solver['specsolve']:
         reason = reasons.get('solver model', {}).get('structure')
         differences['solver model'] = {**solver, 'kind': 'solver', 'reason': reason}
         if not reason:
-            unexplained.append(f'{stem}: the solver models differ — pypsa {solver["pypsa"]}, lpspec {solver["lpspec"]}')
+            unexplained.append(
+                f'{stem}: the solver models differ — pypsa {solver["pypsa"]}, specsolve {solver["specsolve"]}'
+            )
     for kind in ('rows', 'columns'):
         for name, counts in shape[kind].items():
             if matched(counts):
@@ -592,7 +594,7 @@ def explained(stem: str, shape: dict, reasons: dict) -> tuple[dict, list[str]]:
             differences[name] = {**counts, 'kind': kind, 'reason': reason}
             if not reason:
                 unexplained.append(
-                    f'{stem}: {kind} of {name} — pypsa {counts["pypsa"]}, lpspec {shown(counts["lpspec"])}'
+                    f'{stem}: {kind} of {name} — pypsa {counts["pypsa"]}, specsolve {shown(counts["specsolve"])}'
                 )
     return differences, unexplained
 
@@ -697,7 +699,7 @@ def compare(theirs, ours, declared, gc_kinds: dict[str, str]) -> dict[str, objec
 
 def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
     """One rung through everything: the objective across the fence, the model against the model, the coverage."""
-    from lpspec import linopy as lpl
+    from specsolve import linopy as lpl
 
     theirs = pypsa_model(stem)
     n = network(stem)
@@ -709,9 +711,9 @@ def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
     declared = math_spec.to_spec(spec)
     try:
         sources = prepared(spec, network(stem), stem)
-        built_model = lps.build(spec, sources)
+        built_model = sps.build(spec, sources)
     except (
-        lps.DataError,
+        sps.DataError,
         TypeError,
         KeyError,
         ValueError,
@@ -721,7 +723,7 @@ def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
         print(f'{stem}: prep cannot prepare {spec.name} yet — {note}', file=sys.stderr)
         return {'spec': spec.name, 'unattached': note}, {'error': 'not attached'}, True
     result = built_model.solve(solver_name='highs')
-    assert result.is_ok, f'{stem}: lpspec did not solve — {result.termination_condition}'
+    assert result.is_ok, f'{stem}: specsolve did not solve — {result.termination_condition}'
     solver = solver_size(n, built_model)
     built_rows, built_columns = built(result, declared)
     by_label = built_by_label(result, template_dims(declared, n.model))
@@ -730,7 +732,7 @@ def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
     for line in unexplained:
         print(line, file=sys.stderr)
     parity = {
-        'lpspec_objective': round(float(result.objective), 6),
+        'specsolve_objective': round(float(result.objective), 6),
         'matches': math.isclose(
             float(result.objective), float(n.objective) + float(n.objective_constant), rel_tol=1e-9, abs_tol=1e-6
         ),
@@ -746,11 +748,11 @@ def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
         'structure': {
             'rows': [
                 sum(c['pypsa'] for c in shape['rows'].values()),
-                sum(sum(c['lpspec'].values()) for c in shape['rows'].values()),
+                sum(sum(c['specsolve'].values()) for c in shape['rows'].values()),
             ],
             'columns': [
                 sum(c['pypsa'] for c in shape['columns'].values()),
-                sum(sum(c['lpspec'].values()) for c in shape['columns'].values()),
+                sum(sum(c['specsolve'].values()) for c in shape['columns'].values()),
             ],
             'solver': solver,
             'per_name': {kind: shape[kind] for kind in ('rows', 'columns')},

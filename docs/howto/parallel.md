@@ -13,13 +13,13 @@ the entry point:
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 
-import lpspec as lps
+import specsolve as sps
 
 
 def main():
     ctx = multiprocessing.get_context('spawn')  # or 'forkserver'
     with ProcessPoolExecutor(4, mp_context=ctx) as pool:
-        runs = lps.solve_over('spec.yaml', sources, lps.EachCoordinate('scenario'), executor=pool)
+        runs = sps.solve_over('spec.yaml', sources, sps.EachCoordinate('scenario'), executor=pool)
     print(runs.objective)
 
 
@@ -38,7 +38,7 @@ the sources to a filesystem the workers mount and pass the paths:
 
 ```python
 sources = {'load': '/shared/load.parquet', 'cost': '/shared/cost.parquet', 'p_max': '/shared/p_max.parquet'}
-runs = lps.solve_over('spec.yaml', sources, lps.EachCoordinate('scenario'), executor=client, workers_share_fs=True)
+runs = sps.solve_over('spec.yaml', sources, sps.EachCoordinate('scenario'), executor=client, workers_share_fs=True)
 ```
 
 `workers_share_fs=True` says the mount is there; without it the paths are

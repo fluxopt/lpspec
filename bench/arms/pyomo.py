@@ -93,7 +93,7 @@ def build_and_emit(sink: str, prepared: Prepared) -> Counts:
     ``set_instance`` is where appsi writes pyomo's expressions into the solver's
     own model, and it is the whole hand-off: nothing here calls ``solve``.
     """
-    with tempfile.TemporaryDirectory(prefix='lpspec-bench-') as tmp:
+    with tempfile.TemporaryDirectory(prefix='specsolve-bench-') as tmp:
         m = _built(prepared)
         if sink == 'lp':
             m.write(str(Path(tmp) / 'model.lp'))

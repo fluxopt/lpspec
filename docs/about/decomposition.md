@@ -1,14 +1,14 @@
 # Decomposition, as evidence
 
 This page shows that the language can express a Benders decomposition and reach
-the right answer, for anyone decomposing a model in lpspec or asking for a
+the right answer, for anyone decomposing a model in specsolve or asking for a
 driver that does it.
 
-**lpspec ships no decomposition driver, and
-[#596](https://github.com/fluxopt/lpspec/issues/596) settled that it will not
+**specsolve ships no decomposition driver, and
+[#596](https://github.com/fluxopt/specsolve/issues/596) settled that it will not
 own one.** The loop is the caller's, and so are its failure modes. Every block
 below is validated against
-[`examples/benders/`](https://github.com/fluxopt/lpspec/blob/main/examples/benders/run.py).
+[`examples/benders/`](https://github.com/fluxopt/specsolve/blob/main/examples/benders/run.py).
 
 ## Why anyone wants it
 
@@ -137,10 +137,10 @@ availability and summed over snapshots. `sources` is the data the model
 attaches ([glossary](../reference/glossary.md#how-it-runs)):
 
 ```python
-import lpspec as lps
+import specsolve as sps
 import polars as pl
 
-with lps.solve('examples/benders/sub.yaml', sources) as sub:
+with sps.solve('examples/benders/sub.yaml', sources) as sub:
     slope = (
         sub.dual('capacity')
         .join(avail, on=['snapshot', 'generator'], suffix='_avail')
@@ -165,7 +165,7 @@ What such a solve does have is a **certificate that no dispatch exists**, and
 demand more than the generators can deliver:
 
 ```python
-with lps.build(sub_spec, dispatch) as sub_model:
+with sps.build(sub_spec, dispatch) as sub_model:
     answer = sub_model.update({'cap_hat': capacity}).solve()
     if not answer.has_primal:
         u = answer.dual_ray('capacity')  # one weight per (snapshot, generator)
@@ -181,7 +181,7 @@ the master already declares.
 
 Three properties make this the cut to use rather than a fallback:
 
-- **It needs no second model.** Until lpspec read a ray, this page carried a
+- **It needs no second model.** Until specsolve read a ray, this page carried a
   fourth YAML file — the subproblem with a slack variable and an objective
   asking *how far from dispatchable* a capacity was — and a second solve for
   every capacity that failed.
@@ -201,8 +201,8 @@ message names the option.
 sub_spec, master_spec = (to_spec(path) for path in paths)
 
 with (
-    lps.build(sub_spec, {**dispatch, 'cap_hat': capacity}) as sub_model,
-    lps.build(master_spec, {**master_sources, **empty}) as master,
+    sps.build(sub_spec, {**dispatch, 'cap_hat': capacity}) as sub_model,
+    sps.build(master_spec, {**master_sources, **empty}) as master,
 ):
     for step in range(25):
         sub = sub_model.update({'cap_hat': capacity}).solve()
@@ -224,11 +224,11 @@ with (
 ```
 
 Twenty lines, two built models and a growing pair of tables. **A reader could
-write this**, which is what [#596](https://github.com/fluxopt/lpspec/issues/596)
+write this**, which is what [#596](https://github.com/fluxopt/specsolve/issues/596)
 settled on.
 
 Each spec is read once above the loop **and built once**, because a cut is a row
-in a parameter table rather than an edit to a file. `lps.build` binds the data
+in a parameter table rather than an edit to a file. `sps.build` binds the data
 and `update` puts the next iteration's numbers on the model that is already
 there ([glossary](../reference/glossary.md#the-chain)), so parsing, validation
 and the build are paid once per run rather than three times an iteration. The
@@ -267,7 +267,7 @@ exists*.
 
 ## The check is the algorithm's own
 
-lpspec can always build the monolith from the same sources, so the example
+specsolve can always build the monolith from the same sources, so the example
 solves both and prints the difference: `0.0e+00` above, asserted in
 `tests/test_benders_example.py`. That is the two-lane differential test aimed
 at an algorithm instead of an engine. It is always available because the
@@ -278,8 +278,8 @@ undecomposed form is another file over the same data.
 Missing is everything that makes a decomposition survive a real model: cut
 management as the master grows, stabilisation, multi-cut, tolerances that hold
 when duals are degenerate, and an answer for when convergence does not happen.
-[#596](https://github.com/fluxopt/lpspec/issues/596) asked whether lpspec
+[#596](https://github.com/fluxopt/specsolve/issues/596) asked whether specsolve
 should own that surface and answered no, so all of it stays the caller's. What a
-caller still lacks *from lpspec* is collected in
-[#1677](https://github.com/fluxopt/lpspec/issues/1677). This page settles only
+caller still lacks *from specsolve* is collected in
+[#1677](https://github.com/fluxopt/specsolve/issues/1677). This page settles only
 that the *language* is not the obstacle.

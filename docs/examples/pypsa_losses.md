@@ -125,7 +125,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -276,7 +276,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_losses.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_losses.yaml', sources) as solution:
         solution.objective  # 24114.237385131008
         solution.dual('nodal_balance')
     ```
@@ -289,7 +289,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         PyPSA is given ``r``, ``x`` and ``s_nom`` and derives the tangents itself.
         The port is given the tangents, because a slope of ``2 * r * p_k`` is
@@ -351,7 +351,7 @@ line, it becomes uncapacitated, and the model reports a cheaper answer:
 | `where:` alone | 120 | **2** | 17514.24 ✘ |
 
 Twenty-seven per cent low, with an optimal status. `diagnostics().omissions`
-([#944](https://github.com/fluxopt/lpspec/issues/944)) counts the two rating
+([#944](https://github.com/fluxopt/specsolve/issues/944)) counts the two rating
 rows a propagated absence deleted, so the wrong model announces itself.
 
 **`r` is 0.0003, not a per-unit textbook figure.** PyPSA's loss term is

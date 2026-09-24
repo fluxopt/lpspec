@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    g = parser.getgroup('ladder', 'the lpspec benchmark ladder')
+    g = parser.getgroup('ladder', 'the specsolve benchmark ladder')
     g.addoption('--cases', nargs='+', default=sorted(CASES), choices=sorted(CASES))
     g.addoption('--sizes', nargs='+', default=['xs', 's', 'm'], help="rung labels, or 'all' for every rung a case has")
     g.addoption('--arms', nargs='+', default=sorted(ARMS), choices=sorted(ARMS))
@@ -117,7 +117,7 @@ _LADDERS = (
 #: Machine-global on purpose — `tempfile.gettempdir()`, not the repo: the run
 #: this lock exists to refuse comes from *another worktree* (#705), which shares
 #: nothing with this one but the machine.
-BENCH_LOCK = Path(tempfile.gettempdir()) / 'lpspec-bench.lock'
+BENCH_LOCK = Path(tempfile.gettempdir()) / 'specsolve-bench.lock'
 
 _TOOK_LOCK = pytest.StashKey[bool]()
 
@@ -298,14 +298,14 @@ def pytest_sessionfinish(session: pytest.Session) -> None:
 #: number measured against a different polars is a different number.
 #:
 #: `pytest-benchmem` is one of them: a fix to its isolated pass moves `rss`
-#: without a line of lpspec changing, so a result file that does not name the
+#: without a line of specsolve changing, so a result file that does not name the
 #: version that measured it cannot be compared across such a release.
 #:
 #: `gurobipy` and `scipy` for the same reason one level out: the `gurobi` sink
 #: is measurable now, and a published ratio through a solver has to say which
 #: solver — scipy being what carries the matrix into it.
 TRACKED = (
-    'lpspec',
+    'specsolve',
     'highspy',
     'gurobipy',
     'scipy',
@@ -394,7 +394,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 def paths() -> Any:
     """``(case, rung) -> parquet paths``, generated once and shared.
 
-    Generation is neither lpspec's work nor stable across machines, so it has
+    Generation is neither specsolve's work nor stable across machines, so it has
     to sit outside every measured region — and session scope is what makes that
     structural rather than a convention the next test can forget. The files are
     also cached on disk between runs, so a second invocation pays nothing.

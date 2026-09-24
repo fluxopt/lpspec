@@ -21,11 +21,11 @@ import numpy as np
 import polars as pl
 import pytest
 
-from lpspec.errors import DataError, LaneError, LanguageError, LpspecError
-from lpspec.sources import tidy_sources
+from specsolve.errors import DataError, LaneError, LanguageError, SpecsolveError
+from specsolve.sources import tidy_sources
 from tests.conftest import EXAMPLES_DIR, expanded, schema_of
 from tests.differential import differential
-from tests.oracle import builder, linopy, loader, lpspec_linopy, pd, where, xr
+from tests.oracle import builder, linopy, loader, pd, specsolve_linopy, where, xr
 from tests.piecewise_models import curve_frame
 
 if TYPE_CHECKING:
@@ -50,7 +50,7 @@ def yaml_file(tmp_path):
 
 
 def test_nothing_is_patched_onto_linopy_model():
-    """Importing lpspec_linopy must not touch linopy.Model."""
+    """Importing specsolve_linopy must not touch linopy.Model."""
     assert not hasattr(linopy.Model, 'from_yaml')
     assert not hasattr(linopy.Model, 'yaml')
 
@@ -59,7 +59,7 @@ def test_the_lane_takes_sources_as_the_one_type():
     """The lane's two verbs annotate ``sources`` the way every door in ``api.py`` does."""
     from tests.test_architecture import sources_annotations
 
-    doors = {'build': lpspec_linopy.build, 'evaluate': lpspec_linopy.evaluate}
+    doors = {'build': specsolve_linopy.build, 'evaluate': specsolve_linopy.evaluate}
     assert sources_annotations(doors) == {'Mapping[str, Source]'}, (
         f'both lane verbs take sources as Mapping[str, Source], and these do not: {sources_annotations(doors)}'
     )
@@ -390,7 +390,7 @@ def test_a_failure_names_the_declaration_and_the_file(yaml_file, tail, data, err
     bad = yaml_file(textwrap.dedent(_MINIMAL).lstrip() + tail, 'bad.yaml')
 
     with pytest.raises(error, match=match) as ei:
-        lpspec_linopy.build(bad, {'g': ['a'], **data})
+        specsolve_linopy.build(bad, {'g': ['a'], **data})
 
     assert context in str(ei.value) or _has_note(ei.value, context)
     assert _has_note(ei.value, f"while loading YAML '{bad}'")
@@ -414,7 +414,7 @@ def test_importing_the_lane_selects_the_v1_convention():
     A subprocess is the only place the claim is falsifiable, so it is the only
     place worth making it.
     """
-    probe = 'import linopy, lpspec.linopy; print(linopy.options["semantics"])'
+    probe = 'import linopy, specsolve.linopy; print(linopy.options["semantics"])'
     out = subprocess.run([sys.executable, '-c', probe], capture_output=True, text=True, check=True)
     assert out.stdout.strip() == 'v1', f'the lane must select v1 on import, got {out.stdout.strip()!r}'
 
@@ -449,12 +449,12 @@ def test_the_two_lanes_agree_about_a_masked_variable_without_the_harness(tmp_pat
     probe = textwrap.dedent(f"""
         import warnings; warnings.simplefilter('ignore')
         import pandas as pd, polars as pl
-        import lpspec as lps
-        from lpspec import linopy as fkl
+        import specsolve as sps
+        from specsolve import linopy as fkl
         data = {{'f': ['a', 'b'], 'gate': pd.Series({{'a': True}}), 'relmax': pd.Series({{'a': 0.5, 'b': 0.5}})}}
         m = fkl.build({str(spec)!r}, data)
         m.solve(solver_name='highs', output_flag=False)
-        native = lps.solve({str(spec)!r}, {{
+        native = sps.solve({str(spec)!r}, {{
             'f': ['a', 'b'],
             'gate': pl.DataFrame({{'f': ['a'], 'value': [True]}}),
             'relmax': pl.DataFrame({{'f': ['a', 'b'], 'value': [0.5, 0.5]}}),
@@ -528,13 +528,13 @@ def test_a_missing_bound_is_refused_at_build_with_the_native_lane_s_message(yaml
     }
 
     with pytest.raises(DataError, match='NULL bounds'):
-        lpspec_linopy.build(spec, data)
+        specsolve_linopy.build(spec, data)
 
     masked = yaml_file(
         spec.read_text().replace('{dims: [f], bounds:', '{dims: [f], where: live, bounds:'),
         'masked.yaml',
     )
-    built = lpspec_linopy.build(masked, data)
+    built = specsolve_linopy.build(masked, data)
     assert 'x' in built.variables
 
 
@@ -600,7 +600,7 @@ def test_the_two_lanes_agree_on_an_absent_slot_declared_zero_under_a_nonlinear_r
     path = yaml_file(ZERO_ABSENCE_YAML, 'zero_absence.yaml')
     with differential(path, ZERO_ABSENCE_DATA) as run:
         tidy = run.result.evaluate('grown')
-        eager = lpspec_linopy.evaluate(run.model, path, 'grown', dict(ZERO_ABSENCE_DATA))
+        eager = specsolve_linopy.evaluate(run.model, path, 'grown', dict(ZERO_ABSENCE_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
         assert got == pytest.approx(want), 'the two lanes disagree about an absent slot declared zero'
@@ -617,11 +617,11 @@ def test_a_dual_on_a_solve_that_left_none_is_refused_on_this_lane_too(yaml_file)
         ),
         'integer.yaml',
     )
-    built = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
+    built = specsolve_linopy.build(path, dict(EXPRESSION_DATA))
     built.solve(solver_name='highs')
-    with pytest.raises(LpspecError, match='duals are undefined'):
-        lpspec_linopy.evaluate(built, path, 'price', dict(EXPRESSION_DATA))
-    assert float(lpspec_linopy.evaluate(built, path, 'spend', dict(EXPRESSION_DATA)).sum()) > 0, (
+    with pytest.raises(SpecsolveError, match='duals are undefined'):
+        specsolve_linopy.evaluate(built, path, 'price', dict(EXPRESSION_DATA))
+    assert float(specsolve_linopy.evaluate(built, path, 'spend', dict(EXPRESSION_DATA)).sum()) > 0, (
         'the refusal is per entry: the affine one still reads'
     )
 
@@ -647,7 +647,7 @@ def test_the_two_lanes_agree_on_a_named_expression(yaml_file, name):
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
     with differential(path, EXPRESSION_DATA) as run:
         tidy = run.result.evaluate(name)
-        eager = lpspec_linopy.evaluate(run.model, path, name, dict(EXPRESSION_DATA))
+        eager = specsolve_linopy.evaluate(run.model, path, name, dict(EXPRESSION_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
         assert got == pytest.approx(want), f"the two lanes disagree about named expression '{name}'"
@@ -727,7 +727,7 @@ def test_a_named_expression_reads_off_a_masked_curve(yaml_file):
     path = yaml_file(MASKED_CURVE_YAML, 'masked_curve.yaml')
     with differential(path, MASKED_CURVE_DATA) as run:
         tidy = run.result.evaluate('spend')
-        eager = lpspec_linopy.evaluate(run.model, expanded(path), 'spend', dict(MASKED_CURVE_DATA))
+        eager = specsolve_linopy.evaluate(run.model, expanded(path), 'spend', dict(MASKED_CURVE_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
         want = {int(k): float(v) for k, v in eager.to_series().items()}
         assert got == pytest.approx(want), 'the two lanes disagree about a named expression over a masked curve'
@@ -741,10 +741,10 @@ def test_the_lane_values_an_expression_the_file_never_declared(yaml_file):
     answers one, and `total_gen`'s own body is the check.
     """
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
-    m = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
+    m = specsolve_linopy.build(path, dict(EXPRESSION_DATA))
     m.solve(solver_name='highs')
-    written = lpspec_linopy.evaluate(m, path, 'sum(p, over=generator)', dict(EXPRESSION_DATA))
-    declared = lpspec_linopy.evaluate(m, path, 'total_gen', dict(EXPRESSION_DATA))
+    written = specsolve_linopy.evaluate(m, path, 'sum(p, over=generator)', dict(EXPRESSION_DATA))
+    declared = specsolve_linopy.evaluate(m, path, 'total_gen', dict(EXPRESSION_DATA))
     assert float(written.sum()) == pytest.approx(float(declared.sum())), (
         'the body and the name it is declared under are one expression, so they read one value'
     )
@@ -755,10 +755,10 @@ def test_the_lane_refuses_an_expression_against_a_lowered_program(yaml_file):
     from math_spec import to_spec
 
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
-    m = lpspec_linopy.build(path, dict(EXPRESSION_DATA))
+    m = specsolve_linopy.build(path, dict(EXPRESSION_DATA))
     m.solve(solver_name='highs')
-    with pytest.raises(LpspecError, match='lowered Program'):
-        lpspec_linopy.evaluate(m, to_spec(path).program, 'total_gen', dict(EXPRESSION_DATA))
+    with pytest.raises(SpecsolveError, match='lowered Program'):
+        specsolve_linopy.evaluate(m, to_spec(path).program, 'total_gen', dict(EXPRESSION_DATA))
 
 
 def test_one_set_of_tables_reaches_both_lanes(dispatch_yaml, dispatch_frame_inputs, tmp_path):
@@ -787,7 +787,7 @@ def test_one_set_of_tables_reaches_both_lanes(dispatch_yaml, dispatch_frame_inpu
     ],
 )
 def test_the_lane_takes_a_model_the_same_three_ways_the_runner_does(tmp_path, as_spec):
-    """`lps.build` and this take the same first argument, so neither decides the lane.
+    """`sps.build` and this take the same first argument, so neither decides the lane.
 
     A path was the only spelling here while the runner took all three, which
     made "convert this to a linopy.Model instead" a rewrite of the call rather
@@ -804,7 +804,7 @@ def test_the_lane_takes_a_model_the_same_three_ways_the_runner_does(tmp_path, as
     path = tmp_path / 'm.yaml'
     path.write_text(pyyaml.safe_dump(raw))
 
-    built = lpspec_linopy.build(as_spec(raw, path), {'g': ['wind', 'gas'], 'cap': {'wind': 40.0, 'gas': 100.0}})
+    built = specsolve_linopy.build(as_spec(raw, path), {'g': ['wind', 'gas'], 'cap': {'wind': 40.0, 'gas': 100.0}})
     assert 'x' in built.variables, 'the same file, whichever way it was handed over'
 
 
@@ -827,12 +827,12 @@ def test_a_construct_the_streaming_lane_refuses_is_refused_here_too():
     model whose vacated positions were `NaN`, and died two phases later inside
     linopy's IO with a sentence naming neither the YAML nor the fix.
     """
-    import lpspec as lps
+    import specsolve as sps
 
     with pytest.raises(LanguageError, match='vacated positions') as native:
-        lps.check(_BARE_SHIFT)
+        sps.check(_BARE_SHIFT)
     with pytest.raises(LanguageError, match='vacated positions') as eager:
-        lpspec_linopy.build(_BARE_SHIFT, {'eff': {0: 1.0, 1: 2.0, 2: 3.0}})
+        specsolve_linopy.build(_BARE_SHIFT, {'eff': {0: 1.0, 1: 2.0, 2: 3.0}})
 
     assert str(native.value) == str(eager.value), 'one refusal, one wording, whichever lane was asked'
 
@@ -858,13 +858,13 @@ def test_a_construct_this_lane_cannot_build_is_refused_in_its_own_words():
     route. Before #894 that sentence was what escaped, from a linopy setter
     two frames down.
     """
-    import lpspec as lps
+    import specsolve as sps
 
-    assert lps.solve(OBJECTIVE_CONSTANT, {'t': [0, 1], 'standing': 5.0}).objective == pytest.approx(5.0), (
+    assert sps.solve(OBJECTIVE_CONSTANT, {'t': [0, 1], 'standing': 5.0}).objective == pytest.approx(5.0), (
         'the streaming lane builds it, so the model is not the problem'
     )
     with pytest.raises(LaneError) as refusal:
-        lpspec_linopy.build(OBJECTIVE_CONSTANT, {'t': [0, 1], 'standing': 5.0})
+        specsolve_linopy.build(OBJECTIVE_CONSTANT, {'t': [0, 1], 'standing': 5.0})
 
     assert str(refusal.value) == builder.OBJECTIVE_CONSTANT_IS_A_LANE_GAP, (
         "the sentence is the lane's own, which is the whole of the fix"
@@ -910,8 +910,8 @@ def test_a_file_that_declares_no_labels_at_all_is_refused_on_both_lanes():
     label in `cost` would define a generator rather than fail. Both lanes
     refuse, in the same sentence.
     """
-    import lpspec as lps
-    from lpspec.errors import DataError
+    import specsolve as sps
+    from specsolve.errors import DataError
 
     spec = {
         'dimensions': {'g': {}},
@@ -925,13 +925,13 @@ def test_a_file_that_declares_no_labels_at_all_is_refused_on_both_lanes():
     }
 
     with pytest.raises(DataError, match="dimension 'g' has no index") as native:
-        lps.build(spec, sources).close()
+        sps.build(spec, sources).close()
     with pytest.raises(DataError, match="dimension 'g' has no index") as eager:
-        lpspec_linopy.build(spec, sources)
+        specsolve_linopy.build(spec, sources)
     assert str(native.value) == str(eager.value), 'one refusal, one wording'
 
     indexed = {**sources, 'g': pd.DataFrame({'g': ['wind', 'gas']})}
-    assert 'x' in lpspec_linopy.build(spec, indexed).variables
+    assert 'x' in specsolve_linopy.build(spec, indexed).variables
 
 
 def test_from_yaml_fails_before_data_validation(tmp_path):
@@ -949,7 +949,7 @@ def test_from_yaml_fails_before_data_validation(tmp_path):
         '    expression: pp <= 100\n'
     )
     with pytest.raises(ValueError, match="'pp' not found"):
-        lpspec_linopy.build(f, {})
+        specsolve_linopy.build(f, {})
 
 
 def test_dispatch_yaml_agrees_variable_by_variable(dispatch_inputs):

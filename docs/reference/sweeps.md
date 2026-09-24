@@ -9,9 +9,9 @@ under one key. Scenarios, rolling horizons and myopic pathways are all the same
 fold.
 
 ```python
-import lpspec as lps
+import specsolve as sps
 
-runs = lps.solve_over('spec.yaml', sources, lps.EachCoordinate('scenario'))
+runs = sps.solve_over('spec.yaml', sources, sps.EachCoordinate('scenario'))
 runs.objective  # (scenario, status, termination_condition, objective, has_primal, spec_digest, solved_at, run)
 runs.primal('p')  # (scenario, snapshot, generator, value)
 ```
@@ -22,15 +22,15 @@ An axis says how the sources split into slices. `solve_over` accepts three.
 
 | | |
 |---|---|
-| `lps.EachCoordinate(dim)` | One slice per label of `dim`: scenarios, draws, investment periods. A source carrying `dim` is filtered to one label and the column is dropped; every other source passes through. A spec that declares `dim` is refused. The slices run in the sorted order of the labels, which is the order a `carry` chains them in. |
-| `lps.EachWindow(dim, steps=, lookahead=, into=)` | One slice per window of consecutive labels of `dim`. `steps` is what each window keeps and `lookahead` is what it sees beyond that, so a `lookahead` above zero is overlap. An `int` keeps the same number every window; a sequence keeps those numbers in order. The dimension is re-indexed into a dense `0..n-1` column named `into`, which the spec has to declare. |
+| `sps.EachCoordinate(dim)` | One slice per label of `dim`: scenarios, draws, investment periods. A source carrying `dim` is filtered to one label and the column is dropped; every other source passes through. A spec that declares `dim` is refused. The slices run in the sorted order of the labels, which is the order a `carry` chains them in. |
+| `sps.EachWindow(dim, steps=, lookahead=, into=)` | One slice per window of consecutive labels of `dim`. `steps` is what each window keeps and `lookahead` is what it sees beyond that, so a `lookahead` above zero is overlap. An `int` keeps the same number every window; a sequence keeps those numbers in order. The dimension is re-indexed into a dense `0..n-1` column named `into`, which the spec has to declare. |
 | a sequence of `(key, sources)` pairs | A hand-built axis. The call must pass `key_name=`. A list names no dimension, so the model is not asked whether it can be cut that way and `original_index=` is refused. |
 
 ```python
-runs = lps.solve_over(
+runs = sps.solve_over(
     'window.yaml',
     sources,
-    lps.EachWindow('snapshot', steps=24, lookahead=24, into='t'),
+    sps.EachWindow('snapshot', steps=24, lookahead=24, into='t'),
     carry={'soc_initial': 'soc'},
 )
 runs.primal('soc')  # (snapshot_start, t, value) — the window, and the index inside it
@@ -45,8 +45,8 @@ seam's `where: "t == 0"` matches on it.
 horizon, or a month at a time with a few days of overlap:
 
 ```python
-lps.EachWindow('snapshot', steps=[24, 24, 168, 168, 720], lookahead=12, into='t')
-lps.EachWindow('snapshot', steps=days_in_each_month, lookahead=48, into='t')
+sps.EachWindow('snapshot', steps=[24, 24, 168, 168, 720], lookahead=12, into='t')
+sps.EachWindow('snapshot', steps=days_in_each_month, lookahead=48, into='t')
 ```
 
 The blocks are taken in order and laid end to end. A sequence that stops short
@@ -70,8 +70,8 @@ one integer for the dimension, so no block size enters the check. The same
 `(key, sources)` pairs a hand-built axis takes:
 
 ```python
-slices = lps.EachWindow('snapshot', steps=24, lookahead=24, into='t').slices(sources)
-lps.build('window.yaml', slices[37][1]).write('window-37.lp')  # the one that was infeasible
+slices = sps.EachWindow('snapshot', steps=24, lookahead=24, into='t').slices(sources)
+sps.build('window.yaml', slices[37][1]).write('window-37.lp')  # the one that was infeasible
 ```
 
 Solved as a list, the slices key by `key_name=` and `original_index=` is
@@ -81,7 +81,7 @@ sliced again by the other.
 **Sources cross a slice in every shape `build` takes.** A table carrying the
 axis, table or parquet path, is filtered. A number, a `{label: value}` map or a
 bare sequence passes through as it is. A table carrying the axis that is short
-of a coordinate another table has raises an `LpspecWarning` before a slice is
+of a coordinate another table has raises an `SpecsolveWarning` before a slice is
 taken, naming both tables. That slice builds the source empty. An absent row is
 how a model masks, so the gap is reported rather than refused.
 
@@ -114,12 +114,12 @@ already is a label of the sliced dimension, so the table comes back unchanged.
 are labels of, so there is no dimension to read them back over:
 
 ```python
-runs = lps.solve_over('window.yaml', sources, windows, key_name='window')
+runs = sps.solve_over('window.yaml', sources, windows, key_name='window')
 runs.primal('soc', original_index=True)
 ```
 
 ```text
-LpspecError: a hand-built axis does not say what its keys are coordinates of,
+SpecsolveError: a hand-built axis does not say what its keys are coordinates of,
 so this sweep has no dimension to read 'window' back over. Read it keyed, which
 is what its slices were solved over, or slice with EachWindow — it keys by where
 each window started, records which coordinates each one owns, and stitches.
@@ -136,8 +136,8 @@ price over time.
 **`save` writes every kind.** `runs.save('runs/')` writes what
 `spill_to=` would have written, so the directory is a spilled sweep. The call
 that made the sweep, pointed at it with `spill_to=`, reads it back without
-solving; so do `lps.load_runs('runs/')`, which reads every slice's frames in
-and answers `primal`, and `lps.scan_runs('runs/')`, which leaves them there for
+solving; so do `sps.load_runs('runs/')`, which reads every slice's frames in
+and answers `primal`, and `sps.scan_runs('runs/')`, which leaves them there for
 `scan` ([loading or scanning](api.md#loading-or-scanning)).
 
 **There is no per-slice reader.** One slice is a partition of a table you
@@ -163,8 +163,8 @@ already hold: `runs.primal('p').partition_by(runs.key_name, as_dict=True)`.
 goes rather than held, so the sweep's memory stays at one slice:
 
 ```python
-runs = lps.solve_over(
-    'window.yaml', sources, lps.EachWindow('snapshot', steps=24, lookahead=24, into='t'), spill_to='runs/'
+runs = sps.solve_over(
+    'window.yaml', sources, sps.EachWindow('snapshot', steps=24, lookahead=24, into='t'), spill_to='runs/'
 )
 runs.scan('soc')  # a LazyFrame: (snapshot_start, t, value), every window, in order
 runs.scan('balance', 'dual', original_index=True).collect()  # the same readers, the same keywords
@@ -185,10 +185,10 @@ runs.scan('balance', 'dual', original_index=True).collect()  # the same readers,
 `{parameter: variable}`.
 
 ```python
-runs = lps.solve_over(
+runs = sps.solve_over(
     'window.yaml',
     sources,
-    lps.EachWindow('snapshot', steps=24, lookahead=24, into='t'),
+    sps.EachWindow('snapshot', steps=24, lookahead=24, into='t'),
     carry={'soc_initial': 'soc'},
 )
 ```

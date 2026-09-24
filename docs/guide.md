@@ -9,7 +9,7 @@ to say.
 ## 1. Install
 
 ```bash
-pip install lpspec
+pip install specsolve
 ```
 
 That brings polars, HiGHS and the language.
@@ -18,15 +18,15 @@ That brings polars, HiGHS and the language.
 
 Copy the YAML from [the home page](index.md#the-whole-thing-in-one-model)
 into `dispatch.yaml`. It is also
-[`examples/dispatch.yaml`](https://github.com/fluxopt/lpspec/blob/main/examples/dispatch.yaml)
+[`examples/dispatch.yaml`](https://github.com/fluxopt/specsolve/blob/main/examples/dispatch.yaml)
 in the repository.
 
 ## 3. Check the file
 
 ```python
-import lpspec as lps
+import specsolve as sps
 
-program = lps.check('dispatch.yaml')
+program = sps.check('dispatch.yaml')
 ```
 
 `check` raises if the file uses something outside the language, and needs no
@@ -50,7 +50,7 @@ sources = {
     'generator': generators,
 }
 
-result = lps.solve('dispatch.yaml', sources)
+result = sps.solve('dispatch.yaml', sources)
 print(result.objective)  # 10500.0
 ```
 
@@ -72,7 +72,7 @@ To hand the model to another tool instead, write it. The suffix picks the
 format:
 
 ```python
-lps.write('dispatch.yaml', sources, 'dispatch.lp')
+sps.write('dispatch.yaml', sources, 'dispatch.lp')
 ```
 
 ## Where next

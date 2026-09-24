@@ -91,7 +91,7 @@ _RUNNER = frozenset({'pytest', 'pytest-xdist'})
 def _pinned_in_the_floors_environment() -> dict[str, str]:
     pixi = tomllib.loads((REPO / 'pyproject.toml').read_text())['tool']['pixi']
     pinned = pixi['feature']['floors']['pypi-dependencies']
-    # `lpspec` is the project under test and `_RUNNER` is what runs it; neither is
+    # `specsolve` is the project under test and `_RUNNER` is what runs it; neither is
     # a dependency whose floor is being claimed.
     return {name: spec for name, spec in pinned.items() if isinstance(spec, str) and name not in _RUNNER}
 

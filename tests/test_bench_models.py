@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-import lpspec as lps
+import specsolve as sps
 
 MODELS = Path(__file__).resolve().parent.parent / 'bench' / 'models'
 
@@ -40,7 +40,7 @@ CASE_NAMES = [p.parent.name for p in _models()]
 @pytest.mark.parametrize('model', _models(), ids=lambda p: p.parent.name)
 def test_a_bench_model_loads(model: Path):
     """Every language change has to migrate this corpus too, or fail here."""
-    lps.check(model)
+    sps.check(model)
 
 
 def test_the_corpus_is_not_empty():
@@ -64,7 +64,7 @@ def test_a_bench_case_builds_on_the_smallest_rung(case: str, tmp_path: Path, ben
     """
     bench_case = bench_cases.CASES[case]
     sources = bench_case.write(bench_case.shape('xs'), tmp_path)
-    with lps.build(bench_case.spec, sources) as model:
+    with sps.build(bench_case.spec, sources) as model:
         assert model is not None
 
 

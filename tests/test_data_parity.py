@@ -37,10 +37,10 @@ import polars as pl
 import pytest
 import yaml as pyyaml
 
-import lpspec as lps
-from lpspec.errors import DataError
+import specsolve as sps
+from specsolve.errors import DataError
 from tests.differential import both_lanes_refuse
-from tests.oracle import lpspec_linopy, pd  # skips the module without the [linopy] extra
+from tests.oracle import pd, specsolve_linopy  # skips the module without the [linopy] extra
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -156,7 +156,7 @@ def spec_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 def _verdict_relational(path: Path, data: dict[str, Any]) -> type[Exception] | str:
     try:
-        lps.solve(path, data)
+        sps.solve(path, data)
     except DataError:
         return DataError
     return ACCEPTED
@@ -164,7 +164,7 @@ def _verdict_relational(path: Path, data: dict[str, Any]) -> type[Exception] | s
 
 def _verdict_eager(path: Path, data: dict[str, Any]) -> type[Exception] | str:
     try:
-        m = lpspec_linopy.build(path, data)
+        m = specsolve_linopy.build(path, data)
         m.solve(solver_name='highs', output_flag=False)
     except DataError:
         return DataError
@@ -207,9 +207,9 @@ def test_a_hole_is_named_where_it_sits_rather_than_as_a_divisor(spec_path: Path)
     eager = {**index, 'cost': pd.Series({'a': 1.0, 'b': None}), 'cap': pd.Series({'a': 5.0, 'b': 5.0})}
 
     with pytest.raises(DataError, match="parameter 'cost'") as relational_error:
-        lps.build(spec_path, holed).close()
+        sps.build(spec_path, holed).close()
     with pytest.raises(DataError, match="parameter 'cost'") as eager_error:
-        lpspec_linopy.build(spec_path, eager)
+        specsolve_linopy.build(spec_path, eager)
 
     assert 'divisor' not in str(relational_error.value), (
         'the message names the hole, not a divisor the model has not got'
@@ -289,7 +289,7 @@ def test_an_int_declaration_takes_no_float_column_so_a_fraction_cannot_arrive(tm
     path = _written(tmp_path, POSITION_SPEC)
 
     both_lanes_refuse(path, _position_sources(1.5), match="declared 'int'")
-    with lps.solve(path, _position_sources(1)) as run:
+    with sps.solve(path, _position_sources(1)) as run:
         assert run.is_ok, 'and an integer column is the ordinary case'
 
 
@@ -310,9 +310,9 @@ def test_whole_numbers_serve_a_float_declaration(tmp_path: Path):
     path = _written(tmp_path, spec)
     integral = {'g': ['a', 'b'], 'cost': _tidy(g=['a', 'b'], value=[1, 2])}
 
-    with lps.solve(path, integral) as run:
+    with sps.solve(path, integral) as run:
         assert run.is_ok, 'an integer column serves a float declaration'
-    assert lpspec_linopy.build(path, integral) is not None, 'and does so on both lanes'
+    assert specsolve_linopy.build(path, integral) is not None, 'and does so on both lanes'
 
 
 #: A flag, and the three ways a source may spell one. Only the boolean column
@@ -347,7 +347,7 @@ def test_a_flag_masks_by_its_declaration_rather_than_by_its_storage(tmp_path: Pa
     sources = {'g': ['a', 'b'], 'active': column}
 
     if spelling == 'boolean':
-        with lps.solve(path, sources) as run:
+        with sps.solve(path, sources) as run:
             assert run.objective == pytest.approx(1.0), 'the inactive column is masked away'
         return
     both_lanes_refuse(path, sources, match="declared 'bool'")
@@ -370,7 +370,7 @@ def test_a_bare_where_on_a_string_parameter_asks_whether_it_has_a_row(tmp_path: 
     path = _written(tmp_path, spec)
     sources = {'g': ['a', 'b'], 'fuel': _tidy(g=['a'], value=['gas'])}
 
-    with lps.solve(path, sources) as run:
+    with sps.solve(path, sources) as run:
         assert run.objective == pytest.approx(1.0), 'defined is having a row, and only `a` has one'
 
 
@@ -479,9 +479,9 @@ def test_a_relation_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_
     clean = {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 's'], b=['n', 'n'])}
     holed = {**_P_MAX, **_INDEX, 'gen_bus': _tidy(g=['w', 'w', 's'], b=[None, 'n', 'n'])}
 
-    with lps.solve(path, clean) as run:
+    with sps.solve(path, clean) as run:
         assert run.objective == pytest.approx(3.0), 'both members are on the bus, and the bus caps them'
-    built = lpspec_linopy.build(path, clean)
+    built = specsolve_linopy.build(path, clean)
     built.solve(solver_name='highs', output_flag=False)
     assert float(built.objective.value) == pytest.approx(3.0), 'and the eager lane agrees where the index is clean'
 
@@ -498,9 +498,9 @@ def test_a_dimension_index_is_a_table_on_both_lanes(tmp_path):
     path = _written(tmp_path, RELATION_SPEC)
     sources = {**_P_MAX, **_INDEX, **_MAP}
 
-    with lps.solve(path, sources) as relational:
+    with sps.solve(path, sources) as relational:
         assert relational.is_ok
-    built = lpspec_linopy.build(path, sources)
+    built = specsolve_linopy.build(path, sources)
     assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'the eager lane read the same index'
 
 
@@ -522,9 +522,9 @@ def test_a_dimension_index_may_be_a_parquet_path_without_pyarrow(tmp_path, monke
     sources = {**_P_MAX, **_MAP, 'b': _tidy(b=['n', 'e']), 'g': str(index)}
 
     monkeypatch.setitem(sys.modules, 'pyarrow', None)
-    with lps.solve(path, sources) as relational:
+    with sps.solve(path, sources) as relational:
         assert relational.is_ok
-    built = lpspec_linopy.build(path, sources)
+    built = specsolve_linopy.build(path, sources)
     assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'the eager lane read the same path'
 
 
@@ -581,9 +581,9 @@ def test_a_relation_into_a_temporal_dimension_is_one_instant_on_both_lanes(tmp_p
         }[library](),
     }
 
-    with lps.solve(path, sources) as run:
+    with sps.solve(path, sources) as run:
         assert run.objective == pytest.approx(3.0), 'one day, one cap, both members under it'
-    built = lpspec_linopy.build(path, sources)
+    built = specsolve_linopy.build(path, sources)
     built.solve(solver_name='highs', output_flag=False)
     assert float(built.objective.value) == pytest.approx(3.0), 'and the eager lane groups them the same way'
 
@@ -703,12 +703,12 @@ def test_an_entity_table_is_a_dimension_index_columns_and_all(tmp_path):
         'cap': _tidy(g=['w', 's'], value=[10.0, 20.0]),
     }
 
-    with lps.solve(path, sources) as result:
+    with sps.solve(path, sources) as result:
         assert result.objective == pytest.approx(30.0)
 
     with pytest.raises(DataError, match=r"missing columns \['g'\]"):
-        lps.build(path, {**sources, 'cap': _tidy(gg=['w', 's'], value=[10.0, 20.0])}).close()
+        sps.build(path, {**sources, 'cap': _tidy(gg=['w', 's'], value=[10.0, 20.0])}).close()
 
     carried = _tidy(g=['w', 's'], cap=[10.0, 20.0], gen_bus=['n', 'e'])
     with pytest.raises(DataError, match=r"index for dimension 'g' carries a 'gen_bus' column"):
-        lps.build(path, {**sources, 'g': carried}).close()
+        sps.build(path, {**sources, 'g': carried}).close()

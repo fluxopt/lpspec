@@ -20,8 +20,8 @@ if TYPE_CHECKING:
 
 gurobipy = pytest.importorskip('gurobipy', reason='the gurobi sink needs the [gurobi] extra')
 
-from lpspec.relational.sinks import SOLVERS  # noqa: E402 — after the guard, or a bare install fails at import
-from lpspec.relational.sinks.capabilities import CAPABILITIES  # noqa: E402
+from specsolve.relational.sinks import SOLVERS  # noqa: E402 — after the guard, or a bare install fails at import
+from specsolve.relational.sinks.capabilities import CAPABILITIES  # noqa: E402
 
 TABLE = 'docs/about/benchmarks.md, "Sink capabilities"'
 

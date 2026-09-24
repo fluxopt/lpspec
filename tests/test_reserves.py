@@ -19,7 +19,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-import lpspec as lps
+import specsolve as sps
 from tests.conftest import EXAMPLES_DIR, port_sources
 from tests.differential import RTOL, differential
 
@@ -81,7 +81,7 @@ def _zero_zone_share(sources: dict) -> dict:
 )
 def test_each_many_to_many_shape_moves_the_optimum(mutate, direction):
     sources = mutate(dict(port_sources('reserves')))
-    with lps.solve(RESERVES_YAML, sources) as run:
+    with sps.solve(RESERVES_YAML, sources) as run:
         assert run.is_ok, 'the mutation must re-price the model, not break it'
         moved = run.objective > OPTIMUM if direction == 'dearer' else run.objective < OPTIMUM
         assert moved, (
@@ -92,7 +92,7 @@ def test_each_many_to_many_shape_moves_the_optimum(mutate, direction):
 
 def test_the_instance_actually_holds_every_shape():
     """The mutations above prove effect; this pins presence, so neither can rot alone."""
-    program = lps.check(RESERVES_YAML)
+    program = sps.check(RESERVES_YAML)
     maps = {name for name, r in program.relations.items() if 'offer' in {r.dim(k) for k in r.key}}
     assert maps == {'gen_of', 'market_of', 'tranche_of'}, 'the offer set is three-legged — the k-ary case'
     sources = port_sources('reserves')

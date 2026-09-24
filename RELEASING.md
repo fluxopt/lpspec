@@ -191,8 +191,8 @@ To keep releasing 0.1.x after `main` moves to 0.2, cut a `0.1.x` branch and run
 Don't cut a release for this — install from the ref:
 
 ```bash
-pixi add --pypi "lpspec @ git+ssh://git@github.com/fluxopt/lpspec@feat/some-branch"
-pixi add --pypi "lpspec @ git+https://github.com/fluxopt/lpspec@d09aab6"
+pixi add --pypi "specsolve @ git+ssh://git@github.com/fluxopt/specsolve@feat/some-branch"
+pixi add --pypi "specsolve @ git+https://github.com/fluxopt/specsolve@d09aab6"
 ```
 
 Every tagged build also attaches its wheel and sdist to the GitHub release.
@@ -206,12 +206,12 @@ Every tagged build also attaches its wheel and sdist to the GitHub release.
 - **PyPI** — currently off. The `pypi` job is skipped unless the repo variable
   `PUBLISH_TO_PYPI` is `true`. To go live: register a
   [trusted publisher](https://docs.pypi.org/trusted-publishers/) for
-  `lpspec` (workflow `publish.yaml`, environment `pypi`), create the `pypi`
+  `specsolve` (workflow `publish.yaml`, environment `pypi`), create the `pypi`
   environment, then set the variable.
 
   **PyPI refuses a direct reference**, and the `linopy` extra is one —
   `linopy @ git+…@master`, because the arithmetic
   convention that lane requires is in no linopy release. So the upload fails
   until upstream ships v1 and the extra becomes an ordinary floor
-  ([#463](https://github.com/fluxopt/lpspec/issues/463)). Everything else —
+  ([#463](https://github.com/fluxopt/specsolve/issues/463)). Everything else —
   the tag, the wheel, the GitHub release — works today.

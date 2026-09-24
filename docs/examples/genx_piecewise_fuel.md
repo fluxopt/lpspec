@@ -250,7 +250,7 @@ $`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size 
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-

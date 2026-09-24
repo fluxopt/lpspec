@@ -119,7 +119,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{bp\_rate}`$
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -227,7 +227,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve(to_spec('examples/piecewise_conversion.yaml').expand(), sources) as solution:
+    with sps.solve(to_spec('examples/piecewise_conversion.yaml').expand(), sources) as solution:
         solution.objective  # 5990.0
     ```
 
@@ -239,7 +239,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> linopy.Model:
         """The instance's tables as a linopy model, row for row.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
         """
         flows: pd.DataFrame = tables['flow'].set_index('flow')
         times = pd.Index(tables['time']['time'], name='time')
@@ -286,4 +286,4 @@ converter in a Python loop. That loop is what moves into the data here.
 
 ---
 
-[`examples/piecewise_conversion.yaml`](https://github.com/fluxopt/lpspec/blob/main/examples/piecewise_conversion.yaml) · back to [all models](index.md)
+[`examples/piecewise_conversion.yaml`](https://github.com/fluxopt/specsolve/blob/main/examples/piecewise_conversion.yaml) · back to [all models](index.md)

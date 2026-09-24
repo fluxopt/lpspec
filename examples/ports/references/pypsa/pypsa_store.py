@@ -15,7 +15,7 @@ alignment and broadcasting decide which coefficient lands in which row. pandas
 is only a floor: it holds the instance's tables and reshapes the recorded duals.
 
 It reads the same instance the port binds and builds the network with PyPSA's
-own objects. Nothing here imports lpspec.
+own objects. Nothing here imports specsolve.
 
 **A ``Store`` is not a ``StorageUnit``.** The storage port takes the latter: a
 dispatch/store pair of non-negative variables so the two efficiencies can
@@ -49,7 +49,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
 def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
     """The port's tables as a PyPSA network, column for column.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
     ``Store`` takes no power rating: ``e_nom`` bounds the level, and the power
     that moves it is limited only by what the level allows within one snapshot.

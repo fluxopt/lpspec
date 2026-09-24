@@ -112,7 +112,7 @@ jobs:
           fi
 
   pypi:
-    # Off until a PyPI trusted publisher exists for lpspec. Flip the repo
+    # Off until a PyPI trusted publisher exists for specsolve. Flip the repo
     # variable PUBLISH_TO_PYPI to "true" to go live — see RELEASING.md.
     name: PyPI
     needs: [build]
@@ -121,7 +121,7 @@ jobs:
     timeout-minutes: 10
     environment:
       name: pypi
-      url: https://pypi.org/project/lpspec
+      url: https://pypi.org/project/specsolve
     permissions:
       id-token: write
       attestations: write

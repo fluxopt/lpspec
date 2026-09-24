@@ -98,7 +98,7 @@ n^{\mathrm{mod}}_{g} \ge 0, n^{\mathrm{mod}}_{g} \in \mathbb{Z} \qquad \forall\,
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -186,7 +186,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_modular.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_modular.yaml', sources) as solution:
         solution.objective  # 56700.0
     ```
 
@@ -198,7 +198,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         ``p_nom_extendable`` and a positive ``p_nom_mod`` together are what make the
         capacity modular: PyPSA takes the module count only where a component is in

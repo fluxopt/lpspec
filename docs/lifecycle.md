@@ -2,7 +2,7 @@
 
 Three verbs a linopy reader reaches for first, spelled as the loops of
 [the previous page](interactive.md). None is a method here, which is
-[hard rule 5](https://github.com/fluxopt/lpspec/blob/main/docs/about/architecture.md#hard-rules).
+[hard rule 5](https://github.com/fluxopt/specsolve/blob/main/docs/about/architecture.md#hard-rules).
 
 | linopy | here | loop |
 |---|---|---|
@@ -17,7 +17,7 @@ site is built, and a block that raises fails the build.
 import polars as pl
 from math_spec import to_spec
 
-import lpspec as lps
+import specsolve as sps
 
 MODEL = 'examples/dispatch.yaml'
 GENERATORS = ['wind', 'solar', 'gas']
@@ -47,7 +47,7 @@ grid = pl.DataFrame({'snapshot': range(6)}).join(pl.DataFrame({'generator': GENE
 p_lo = grid.with_columns(value=pl.lit(0.0))
 p_hi = grid.join(sources['p_max'], on='generator')
 
-pinned = lps.build(pinnable, sources | {'p_lo': p_lo, 'p_hi': p_hi})
+pinned = sps.build(pinnable, sources | {'p_lo': p_lo, 'p_hi': p_hi})
 unpinned = pinned.solve().objective
 
 hold = pl.when(pl.col('generator') == 'gas').then(60.0).otherwise(pl.col('value'))
@@ -73,15 +73,15 @@ one says so.
 integral = to_spec(MODEL).to_dict()
 integral['variables']['p']['domain'] = 'integer'
 
-milp = lps.solve(integral, sources)
+milp = sps.solve(integral, sources)
 print(f'integer objective {milp.objective:,.1f}, has_primal {milp.has_primal}')
 
 try:
     milp.dual('power_balance')
-except lps.LpspecError as exc:
+except sps.SpecsolveError as exc:
     print(exc)
 
-relaxed = lps.solve(MODEL, sources)  # the same file, continuous as declared
+relaxed = sps.solve(MODEL, sources)  # the same file, continuous as declared
 print(relaxed.dual('power_balance'))
 ```
 
@@ -99,9 +99,9 @@ ramped['constraints']['ramp_up'] = {
 }
 data = sources | {'ramp_max': pl.DataFrame({'generator': GENERATORS, 'value': [100.0, 100.0, 20.0]})}
 
-with_ramp = lps.solve(ramped, data).objective
+with_ramp = sps.solve(ramped, data).objective
 ramped['constraints'].pop('ramp_up')
-without_ramp = lps.solve(ramped, data).objective
+without_ramp = sps.solve(ramped, data).objective
 
 print(pl.DataFrame({'model': ['with ramp_up', 'ramp_up removed'], 'objective': [with_ramp, without_ramp]}))
 ```
@@ -119,4 +119,4 @@ An IIS (irreducible infeasible subsystem) on an infeasible model.
 right-hand side without a solve, and
 [debugging a wrong answer](howto/debug.md) is the recipe. The whole
 relationship is
-[relationship to linopy](https://github.com/fluxopt/lpspec/blob/main/docs/about/linopy.md).
+[relationship to linopy](https://github.com/fluxopt/specsolve/blob/main/docs/about/linopy.md).

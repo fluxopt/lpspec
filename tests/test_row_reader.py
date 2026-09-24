@@ -19,12 +19,12 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LpspecError
+import specsolve as sps
+from specsolve.errors import SpecsolveError
 from tests.conftest import DISPATCH_SPEC, override
 
 if TYPE_CHECKING:
-    from lpspec.relational.result import ConstraintRow
+    from specsolve.relational.result import ConstraintRow
 
 DATA = {
     'generator': pl.DataFrame({'generator': ['wind', 'gas']}),
@@ -65,7 +65,7 @@ def _terms(row: ConstraintRow) -> list[tuple[str, str, float]]:
 
 def test_a_row_is_its_terms_its_comparison_and_its_right_hand_side() -> None:
     """The whole shape, on a row whose right-hand side only the data knows."""
-    with lps.build(DISPATCH_SPEC, DATA) as model:
+    with sps.build(DISPATCH_SPEC, DATA) as model:
         row = model.row('balance', snapshot=2)
 
     assert _terms(row) == [('p', '2, wind', 1.0), ('p', '2, gas', 1.0)]
@@ -80,7 +80,7 @@ def test_printing_a_row_gives_the_line_linopy_gives() -> None:
     to read a constraint. What is added is the row's own identity on the same
     line, where linopy prints it as a header.
     """
-    with lps.build(COMMITMENT, COMMITMENT_DATA) as model:
+    with sps.build(COMMITMENT, COMMITMENT_DATA) as model:
         printed = str(model.row('commit', t=1, g='gas'))
 
     assert printed == 'commit[t=1, g=gas]: +1 p[1, gas] -200 u[1, gas] <= 0'
@@ -112,7 +112,7 @@ def test_a_row_too_wide_to_spell_out_summarises_instead_of_truncating() -> None:
         'cost': pl.DataFrame({'g': generators, 'value': [0.001 * (i + 1) for i in range(300)]}),
         'load': pl.DataFrame({'t': [0], 'value': [5.0]}),
     }
-    with lps.build(spec, data) as model:
+    with sps.build(spec, data) as model:
         row = model.row('balance', t=0)
 
     assert row.terms.height == 301, 'the frame keeps every term whatever the line does'
@@ -129,7 +129,7 @@ def test_a_declaration_whose_coefficients_are_all_one_says_so_once() -> None:
         'snapshot': pl.DataFrame({'snapshot': [0]}),
         'load': pl.DataFrame({'snapshot': [0], 'value': [5.0]}),
     }
-    with lps.build(DISPATCH_SPEC, data) as model:
+    with sps.build(DISPATCH_SPEC, data) as model:
         assert str(model.row('balance', snapshot=0)) == 'balance[snapshot=0]: 30 terms — p: 30 (|coef| 1) == 5'
 
 
@@ -139,7 +139,7 @@ def test_it_answers_on_a_model_that_was_never_solved() -> None:
     A model too wrong to solve is exactly the model whose rows need reading,
     so the verb may not require a solver to have run — or even to exist.
     """
-    with lps.build(DISPATCH_SPEC, DATA) as model:
+    with sps.build(DISPATCH_SPEC, DATA) as model:
         assert model.diagnostics().solves == 0, 'nothing has been solved, and the row still reads'
         assert model.row('balance', snapshot=0).rhs == 80.0
 
@@ -151,7 +151,7 @@ def test_a_row_spanning_two_declarations_names_both() -> None:
     happen to share dims here; a frame schema still cannot promise that, and
     the coefficient on ``u`` is the one the *data* supplied.
     """
-    with lps.build(COMMITMENT, COMMITMENT_DATA) as model:
+    with sps.build(COMMITMENT, COMMITMENT_DATA) as model:
         row = model.row('commit', t=1, g='gas')
 
     assert _terms(row) == [('p', '1, gas', 1.0), ('u', '1, gas', -200.0)], (
@@ -162,7 +162,7 @@ def test_a_row_spanning_two_declarations_names_both() -> None:
 
 def test_the_coefficient_is_the_one_data_produced_not_the_one_declared() -> None:
     """The claim `typeset` cannot make: the file says ``p_max``, the row says 40."""
-    with lps.build(COMMITMENT, COMMITMENT_DATA) as model:
+    with sps.build(COMMITMENT, COMMITMENT_DATA) as model:
         terms = model.row('commit', t=0, g='wind').terms
     wind = dict(zip(terms['variable'].to_list(), terms['coefficient'].to_list(), strict=True))
     assert wind['u'] == -40.0, "wind's bound, where the same declaration gives gas -200"
@@ -176,7 +176,7 @@ def test_a_term_whose_variable_is_absent_is_absent_from_the_row() -> None:
     tell you that; reading the row can.
     """
     spec = override(COMMITMENT, **{'variables.p.where': 'p_max > 100'})
-    with lps.build(spec, COMMITMENT_DATA) as model:
+    with sps.build(spec, COMMITMENT_DATA) as model:
         row = model.row('balance', t=0)
 
     assert _terms(row) == [('p', '0, gas', 1.0)], 'wind is masked out of p, so the balance row lost its term'
@@ -185,7 +185,7 @@ def test_a_term_whose_variable_is_absent_is_absent_from_the_row() -> None:
 def test_a_row_a_where_removed_says_so_rather_than_answering() -> None:
     """The coordinate is legal and the row does not exist — which is the answer."""
     spec = override(COMMITMENT, **{'constraints.commit.where': 'p_max > 100'})
-    with lps.build(spec, COMMITMENT_DATA) as model, pytest.raises(LpspecError, match='built no row'):
+    with sps.build(spec, COMMITMENT_DATA) as model, pytest.raises(SpecsolveError, match='built no row'):
         model.row('commit', t=0, g='wind')
 
 
@@ -193,12 +193,12 @@ def test_a_partial_coordinate_is_refused_rather_than_answered_about_one_row() ->
     """A verb that answered about the first matching row would be reporting a
     block as if it were a row — the one wrong answer a debugging verb may not
     give."""
-    with lps.build(COMMITMENT, COMMITMENT_DATA) as model, pytest.raises(LpspecError, match='declared over'):
+    with sps.build(COMMITMENT, COMMITMENT_DATA) as model, pytest.raises(SpecsolveError, match='declared over'):
         model.row('commit', t=0)
 
 
 def test_an_unknown_constraint_lists_the_declared_ones() -> None:
-    with lps.build(COMMITMENT, COMMITMENT_DATA) as model, pytest.raises(KeyError, match='balance'):
+    with sps.build(COMMITMENT, COMMITMENT_DATA) as model, pytest.raises(KeyError, match='balance'):
         model.row('nope', t=0, g='wind')
 
 
@@ -210,15 +210,15 @@ def test_a_closed_model_says_it_was_closed() -> None:
     bespoke message could be replaced by the general one and the suite would
     not notice.
     """
-    model = lps.build(DISPATCH_SPEC, DATA)
+    model = sps.build(DISPATCH_SPEC, DATA)
     model.close()
-    with pytest.raises(LpspecError, match="no built model to read 'balance' out of"):
+    with pytest.raises(SpecsolveError, match="no built model to read 'balance' out of"):
         model.row('balance', snapshot=0)
 
 
 def test_a_update_moves_what_the_row_says() -> None:
     """The row is read off the current build, not the one that was first bound."""
-    with lps.build(DISPATCH_SPEC, DATA) as model:
+    with sps.build(DISPATCH_SPEC, DATA) as model:
         assert model.row('balance', snapshot=0).rhs == 80.0
         moved = {**DATA, 'load': pl.DataFrame({'snapshot': [0, 1, 2, 3], 'value': [7.0, 7.0, 7.0, 7.0]})}
         assert model.update(moved).row('balance', snapshot=0).rhs == 7.0
@@ -231,7 +231,7 @@ def test_the_row_read_is_the_row_the_solver_was_given() -> None:
     A reader that resolved the row index or the column ranges wrongly would
     still return plausible terms — this is what says they are *that* row's.
     """
-    with lps.build(COMMITMENT, COMMITMENT_DATA) as model:
+    with sps.build(COMMITMENT, COMMITMENT_DATA) as model:
         tables = model._engine._model.tables
         for name in ('commit', 'balance'):
             block = model._engine._model.constraints[name]
@@ -273,7 +273,7 @@ def test_a_coefficient_prints_every_digit_the_data_gave_it() -> None:
     ``1`` and two bounds differing in the seventh identically — so the one
     line whose job is *this number is not what you wrote* would say it was.
     """
-    with lps.build(PRECISE, PRECISE_DATA) as model:
+    with sps.build(PRECISE, PRECISE_DATA) as model:
         printed = str(model.row('balance', t=0))
 
     assert printed == 'balance[t=0]: +1.0000001 p[0, a] +12345678 p[0, b] >= 12345678.9', (
@@ -287,7 +287,7 @@ def test_a_row_echoed_at_a_prompt_is_the_line_not_the_frame() -> None:
     The generated dataclass one puts a multi-line frame inside a single row's
     identity, which is the rendering this verb exists to replace.
     """
-    with lps.build(COMMITMENT, COMMITMENT_DATA) as model:
+    with sps.build(COMMITMENT, COMMITMENT_DATA) as model:
         row = model.row('commit', t=1, g='gas')
 
     assert repr(row) == str(row) == 'commit[t=1, g=gas]: +1 p[1, gas] -200 u[1, gas] <= 0'
@@ -295,7 +295,7 @@ def test_a_row_echoed_at_a_prompt_is_the_line_not_the_frame() -> None:
 
 def test_a_row_has_one_spelling_whatever_order_its_coordinate_was_given_in() -> None:
     """One row, one identity: the declaration orders the coordinate, not the caller's keywords."""
-    with lps.build(COMMITMENT, COMMITMENT_DATA) as model:
+    with sps.build(COMMITMENT, COMMITMENT_DATA) as model:
         by_declaration = model.row('commit', t=1, g='gas')
         reversed_kwargs = model.row('commit', g='gas', t=1)
 
@@ -315,7 +315,7 @@ def test_a_declaration_over_no_dims_carries_no_bracket() -> None:
         'constraints': {'total': {'dims': [], 'expression': 'sum(p, over=g) + z <= 10'}},
         'objective': {'sense': 'minimize', 'expression': 'sum(p) + z'},
     }
-    with lps.build(spec, {'g': ['wind', 'gas']}) as model:
+    with sps.build(spec, {'g': ['wind', 'gas']}) as model:
         assert str(model.row('total')) == 'total: +1 p[wind] +1 p[gas] +1 z <= 10'
 
 
@@ -330,7 +330,7 @@ def test_a_dimension_called_name_is_still_a_coordinate() -> None:
         'objective': {'sense': 'minimize', 'expression': 'sum(p)'},
     }
     data = {'name': ['wind', 'gas'], 'p_max': pl.DataFrame({'name': ['wind', 'gas'], 'value': [40.0, 200.0]})}
-    with lps.build(spec, data) as model:
+    with sps.build(spec, data) as model:
         assert str(model.row('cap', name='wind')) == 'cap[name=wind]: +1 p[wind] <= 40'
 
 
@@ -344,7 +344,7 @@ def test_a_coefficient_the_data_made_zero_leaves_no_term() -> None:
     rather than printed as ``+0``.
     """
     zeroed = {**PRECISE_DATA, 'cost': pl.DataFrame({'g': ['a', 'b'], 'value': [0.0, 2.0]})}
-    with lps.build(PRECISE, zeroed) as model:
+    with sps.build(PRECISE, zeroed) as model:
         row = model.row('balance', t=0)
 
     assert _terms(row) == [('p', '0, b', 2.0)], 'a zero coefficient is not a term, so `a` is not in the row'
@@ -365,9 +365,9 @@ def test_a_label_the_dimension_cannot_hold_is_refused_in_our_own_tree(coordinate
     none of them may reach the caller in polars' vocabulary, which names a
     dtype comparison and not the dimension that was misspelled.
     """
-    with lps.build(COMMITMENT, COMMITMENT_DATA) as model, pytest.raises(LpspecError, match='not one of its labels'):
+    with sps.build(COMMITMENT, COMMITMENT_DATA) as model, pytest.raises(SpecsolveError, match='not one of its labels'):
         try:
             model.row('commit', **coordinate)
-        except LpspecError as refused:
+        except SpecsolveError as refused:
             assert names in str(refused), 'the message names the type the dimension does hold'
             raise

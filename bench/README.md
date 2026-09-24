@@ -1,6 +1,6 @@
 # The performance harness
 
-Not shipped in the wheel and not imported by `lpspec`. It exists so that
+Not shipped in the wheel and not imported by `specsolve`. It exists so that
 [docs/about/benchmarks.md](../docs/about/benchmarks.md) has a *provenance* — the last set of
 published numbers came from a `scratch/` script that was deleted, and a claim
 nobody can re-run is a claim with a shelf life.
@@ -126,7 +126,7 @@ curl -o r.tar.gz -L https://github.com/actions/runner/releases/download/v2.330.0
 tar xzf r.tar.gz
 
 # TOKEN from Settings -> Actions -> Runners -> New self-hosted runner
-./config.sh --url https://github.com/fluxopt/lpspec --token TOKEN \
+./config.sh --url https://github.com/fluxopt/specsolve --token TOKEN \
     --labels bench-box --name bench-box --unattended
 sudo ./svc.sh install runner && sudo ./svc.sh start   # comes up with the box
 ```
@@ -153,7 +153,7 @@ first, and so does the last line here:
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | bash
-git clone --depth 1 https://github.com/fluxopt/lpspec.git /tmp/warm
+git clone --depth 1 https://github.com/fluxopt/specsolve.git /tmp/warm
 cd /tmp/warm && ~/.pixi/bin/pixi install -e bench && rm -rf /tmp/warm
 rm -f ~/.pixi/bin/pixi
 sudo shutdown -h now
@@ -230,7 +230,7 @@ One file per sink, because the job measures each in turn; `bench.report` and
 `bench.plot` read the *directory*, so the pair needs no merging.
 
 ```bash
-gh run download <run id> -R fluxopt/lpspec -D ./bench-out
+gh run download <run id> -R fluxopt/specsolve -D ./bench-out
 ```
 
 Then commit it as a change somebody reviews. A scheduled job that pushes to a
@@ -253,7 +253,7 @@ against each other. Publish a whole ladder or none of it.
 
 | | `lp` | `highs` | `gurobi` |
 |---|---|---|---|
-| `lpspec` | `lps.build(...)` then `model.write(...)` | `lps.build(...)` then `build_highs(...)` | `lps.build(...)` then `build_gurobi(...)` |
+| `specsolve` | `sps.build(...)` then `model.write(...)` | `sps.build(...)` then `build_highs(...)` | `sps.build(...)` then `build_gurobi(...)` |
 | `linopy` | `Model.to_file(io_api='lp-polars')` | `Model.to_highspy(set_names=False)` | `Model.to_gurobipy(set_names=False)` |
 | `pyomo` | `ConcreteModel.write(...)` | appsi `Highs().set_instance(...)` | appsi `Gurobi().set_instance(...)` |
 | `gurobipy-loop` | — | — | `addVar` per entity, `addConstrs(quicksum(...))`, then `update()` |
@@ -277,7 +277,7 @@ Publishing both is the answer to *"you wrote their arm badly"*: the gap between
 them is how much of any result is the library and how much is the style, and
 that is a question about our arm too — `gurobipy-matrix` reaches the same
 `addMVar`/`addMConstr` seam our own `build_gurobi` does, so what separates it
-from `lpspec` is only where the matrix came from.
+from `specsolve` is only where the matrix came from.
 
 **`pyomo` is here because leaving it out would look chosen.** Slow is the
 expected answer and not the point: it is the baseline most readers already
@@ -291,13 +291,13 @@ is already false by default, which is the cheap side of the same choice
 `bench/models/<case>/linopy.py` is `examples/ports/references/linopy/<case>.py`
 against the ladder's parquet — scripts #681 reviewed for idiom and the docs
 execute, which is what keeps this arm from being a strawman somebody wrote in
-an afternoon. The retired `lpspec.linopy` lane is not this arm and is not
+an afternoon. The retired `specsolve.linopy` lane is not this arm and is not
 measured.
 
 **A hand-written arm is a model somebody typed twice**, and nothing structural
 stops it being a *different* model that benchmarks beautifully. The eager arm
 never had that risk — it read the same YAML. So each dialect's smallest rung is
-solved against `lpspec`'s and the objectives compared, in
+solved against `specsolve`'s and the objectives compared, in
 `test_the_hand_written_arm...` under `bench/test_harness.py`, which CI runs on
 every pull request.
 
@@ -370,13 +370,13 @@ available at all.
 both. `rss` is the whole-process high-water mark — the number `/usr/bin/time -l`
 agrees with — and it is the only one honest across two libraries; the memray
 peak is deterministic and attributable to a call stack, which is what makes it
-right for comparing lpspec to itself. Both are in every result file, and which
+right for comparing specsolve to itself. Both are in every result file, and which
 one a table reads is a decision, not an accident. The measured reason is below.
 
 **The harness is pytest, and deliberately nothing more.** Selection, the
 ragged parametrization, per-pass isolation, the JSON, the repeats and the
 minimum are all things pytest and its plugins already do and have tested. What
-is left in this directory is what is specific to lpspec: the cases and the
+is left in this directory is what is specific to specsolve: the cases and the
 verbs.
 
 **There is no parity gate while there is one arm.** It solved each case's
@@ -393,11 +393,11 @@ The easiest way to publish a wrong number is to time something in one arm that
 another never does. The boundaries are therefore explicit, and a new arm is
 written against this table:
 
-| | lpspec |
+| | specsolve |
 |---|---|
 | **before the clock** | `prepare` — splitting parquet paths into parameters vs dimensions (harness bookkeeping: it re-parses the YAML only because the *runner* decides which file is which) |
-| `import` | `import lpspec` |
-| `build` | `lps.build(...)` — the engine scans the parquet itself |
+| `import` | `import specsolve` |
+| `build` | `sps.build(...)` — the engine scans the parquet itself |
 | `emit` | `model.write(path)` / `build_highs(_tables(model))` |
 | `teardown` | `model.close()` — releases the built model |
 | **after the clock** | row, column and nonzero counts off the built frames |
@@ -405,7 +405,7 @@ written against this table:
 Two of those are deliberate calls rather than defaults:
 
 - **Import is excluded from `wall_seconds`** but recorded. It is fixed, paid
-  once per process, and a modelling library's import can exceed lpspec's entire
+  once per process, and a modelling library's import can exceed specsolve's entire
   build at the `xs` rung — including it would make the small end meaningless.
 - **Teardown is included, and it is now near-free.** It was there to charge the
   arm holding a scratch database for releasing it. There is no scratch database
@@ -439,7 +439,7 @@ across a session, and this machine has drifted 2x on wall time between the
 start of a session and the end of one. Check out A, measure, check out B,
 measure, and go back — not A once and B once an hour later. A second arm used
 to be the tell — if it moved too, the machine moved, because nothing in
-`src/lpspec/relational/` can reach it — and `bench/floor.py` is that tell now. Peak RSS is far steadier than
+`src/specsolve/relational/` can reach it — and `bench/floor.py` is that tell now. Peak RSS is far steadier than
 wall time and is usually the honest half of a before/after claim.
 
 ## The cases
@@ -532,7 +532,7 @@ decision rather than an omission.
 **This is the ladder's only denominator now.** A wall time on its own says
 nothing about how much headroom is left in it. `bench/floor.py` is what a
 number is read against: it hand-writes **one** model — `transport` — from the
-case's cached parquet straight into numpy arrays and a CSR matrix, no lpspec
+case's cached parquet straight into numpy arrays and a CSR matrix, no specsolve
 and no expression engine anywhere in the path, and ends at the same seam as
 the `highs` sink: a populated `highspy.Highs` with `run()` never called. What
 it costs is the irreducible price of emitting the coefficients, and with it
@@ -547,9 +547,9 @@ pixi run -e bench python -m bench.floor xs --check   # one solve each way, objec
 It is **not a fourth arm**: it hardcodes one model, so it has no place in the
 `case x size x sink x arm` product, and its numbers are quoted beside the
 ladder's rather than inside it. `--check` solves the smallest rung through the
-floor and through lpspec and compares objectives at the gate's tolerance;
+floor and through specsolve and compares objectives at the gate's tolerance;
 `bench/test_harness.py` pins the cheaper fingerprint — the floor's column, row
-and nonzero counts against lpspec's — on every bare `pytest bench`.
+and nonzero counts against specsolve's — on every bare `pytest bench`.
 
 ## The warm-start payoff
 
@@ -609,7 +609,7 @@ request's base and once against its head — and what it gates on.
 
 | arm | `ru_maxrss` | memray peak |
 |---|---|---|
-| lpspec | 309 MB | 211 MB |
+| specsolve | 309 MB | 211 MB |
 | the retired eager arm | 604 MB | **2967 MB** |
 
 memray counts polars' reserved arenas as allocated and does not count the
@@ -688,7 +688,7 @@ uv run --locked bench/reproduce.py
 ```
 
 **Why it exists.** `pixi.lock` is not committed, and two of the libraries here
-install from git — lpspec itself, and linopy from `master`, a branch that moves.
+install from git — specsolve itself, and linopy from `master`, a branch that moves.
 Before the lock, "the versions that produced this number" existed only inside a
 results file, after the fact, in a form nobody could install. `--locked` refuses
 to run if the resolution has drifted, `test_the_lock_pins_every_library...`
@@ -713,7 +713,7 @@ Two files, because an arm is two different kinds of knowledge:
   switched off with what each one costs. Register it in `ARMS`.
 - **`bench/models/<case>/<arm>.py`** — the model itself, one per case, listed in
   that case's `FORMULATIONS`. Modelling only: no timing, no sink, no counts, no
-  lpspec import. That is what lets the dialects of one case be read side by
+  specsolve import. That is what lets the dialects of one case be read side by
   side, which is how a reader judges whether the comparison is fair.
 
 A case an arm cannot express ships no module and prints its reason. Write the

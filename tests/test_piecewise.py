@@ -20,12 +20,12 @@ import pytest
 import yaml as pyyaml
 from math_spec import DimensionError
 
-import lpspec as lps
-from lpspec.errors import DataError, LpspecError
-from lpspec.sources import attachable, tidy_sources
+import specsolve as sps
+from specsolve.errors import DataError, SpecsolveError
+from specsolve.sources import attachable, tidy_sources
 from tests.conftest import EXAMPLES_DIR, by_coord, expanded, override, raw_of, schema_of
 from tests.differential import differential
-from tests.oracle import lpspec_linopy, pd
+from tests.oracle import pd, specsolve_linopy
 from tests.piecewise_models import CHP_YAML, GATED_YAML, NONCONVEX_YAML, SOS2_SPEC, TWO_DIM_YAML, curve_frame
 
 #: The same model with the hull instead of the curve — `method: convex` and
@@ -231,7 +231,7 @@ def test_the_sos2_method_solves_natively_where_the_sink_has_the_concept(nonconve
     pytest.importorskip('gurobipy', reason='the native SOS path needs the [gurobi] extra')
     data = nonconvex_inputs
     on_curve = sum(curve(v, data['bp_x'], data['bp_y']) for v in data['load'])
-    assert lps.solve(expanded(SOS2_SPEC, 'piecewise'), data, 'gurobi').objective == pytest.approx(on_curve, rel=1e-6)
+    assert sps.solve(expanded(SOS2_SPEC, 'piecewise'), data, 'gurobi').objective == pytest.approx(on_curve, rel=1e-6)
 
 
 def test_the_sos2_method_gates_off_like_the_binaries_do(nonconvex_inputs):
@@ -278,7 +278,7 @@ def test_both_lanes_check_the_declarations_a_formulation_emits(tmp_path):
     A values parameter carrying a dim the links do not is a stray dim in
     generated math — one row per zone where the file reads as one per
     snapshot. The native lane used to validate the file as written, which made
-    ``lps.check()`` pass on a model ``lpspec_linopy.build`` refused: the same
+    ``sps.check()`` pass on a model ``specsolve_linopy.build`` refused: the same
     YAML, two answers (hard rule 3). Both refused it once the emitted
     declarations were judged too — but as a dimension error against
     ``cost_curve_link1``, a constraint the author never wrote and a different
@@ -296,7 +296,7 @@ def test_both_lanes_check_the_declarations_a_formulation_emits(tmp_path):
     path = tmp_path / 'stray_dim.yaml'
     path.write_text(pyyaml.safe_dump(raw))
     with pytest.raises(DimensionError, match=stray):
-        lpspec_linopy.build(expanded(path), {})
+        specsolve_linopy.build(expanded(path), {})
 
 
 def test_a_curve_left_as_written_is_refused_at_both_doors(tmp_path):
@@ -309,10 +309,10 @@ def test_a_curve_left_as_written_is_refused_at_both_doors(tmp_path):
     path = tmp_path / 'as_written.yaml'
     path.write_text(NONCONVEX_YAML)
 
-    with pytest.raises(LpspecError, match="piecewise: 'cost_curve' is still a curve") as relational:
-        lps.check(path)
-    with pytest.raises(LpspecError, match="piecewise: 'cost_curve' is still a curve") as eager:
-        lpspec_linopy.build(path, {})
+    with pytest.raises(SpecsolveError, match="piecewise: 'cost_curve' is still a curve") as relational:
+        sps.check(path)
+    with pytest.raises(SpecsolveError, match="piecewise: 'cost_curve' is still a curve") as eager:
+        specsolve_linopy.build(path, {})
     assert "expand('piecewise')" in str(relational.value) and str(relational.value) == str(eager.value), (
         'one refusal, naming the expansion, on both lanes'
     )
@@ -429,10 +429,10 @@ def test_the_eager_lane_reads_the_curve_in_the_index_order(nonconvex_inputs, tmp
         'bp_y': pd.Series([55.0, 0.0, 30.0], index=OUT_OF_ORDER_BP),
     }
 
-    lpspec_linopy.build(expanded(path), shuffled)  # a row order is not a breakpoint order
+    specsolve_linopy.build(expanded(path), shuffled)  # a row order is not a breakpoint order
 
     with pytest.raises(DataError, match='strictly increasing'):
-        lpspec_linopy.build(expanded(path), {**nonconvex_inputs, 'bp': pd.Index([2, 1, 0], name='bp')})
+        specsolve_linopy.build(expanded(path), {**nonconvex_inputs, 'bp': pd.Index([2, 1, 0], name='bp')})
 
 
 def test_a_breakpoint_index_that_runs_backwards_is_refused(nonconvex_inputs):
@@ -495,7 +495,7 @@ def test_the_curve_guard_fires_on_the_eager_lane_too(ragged_inputs, tmp_path):
     path.write_text(TWO_DIM_YAML)
 
     with pytest.raises(DataError, match='every breakpoint the curve runs through needs a row'):
-        lpspec_linopy.build(expanded(path), dict(ragged_inputs))
+        specsolve_linopy.build(expanded(path), dict(ragged_inputs))
 
 
 def test_a_curve_supplied_at_every_breakpoint_passes(ragged_inputs):
@@ -531,7 +531,7 @@ def test_a_dict_shaped_curve_is_read_for_holes_too(ragged_inputs, tmp_path):
     }
 
     with pytest.raises(DataError, match='every breakpoint the curve runs through needs a row'):
-        lpspec_linopy.build(expanded(path), data)
+        specsolve_linopy.build(expanded(path), data)
 
 
 def test_a_dimension_with_no_index_keeps_its_own_message(ragged_inputs):
@@ -632,11 +632,11 @@ def test_both_lanes_agree_on_a_masked_curve(short_curve_inputs, method, tmp_path
     path = tmp_path / 'masked.yaml'
     path.write_text(pyyaml.safe_dump(raw))
 
-    built = lpspec_linopy.build(expanded(path), short_curve_inputs)
+    built = specsolve_linopy.build(expanded(path), short_curve_inputs)
     built.solve('highs', output_flag=False)
 
     assert float(built.objective.value) == pytest.approx(155.0)
-    assert lps.solve(expanded(raw), short_curve_inputs).objective == pytest.approx(155.0), (
+    assert sps.solve(expanded(raw), short_curve_inputs).objective == pytest.approx(155.0), (
         'and the same on the other lane'
     )
 
@@ -653,7 +653,7 @@ def test_a_masked_curve_reaches_the_optimum_its_own_points_put_it_at(short_curve
     if method == 'lp':
         raw['piecewise']['cost_curve']['links'][1] = ['op_cost', 'bp_y', '>=']
 
-    result = lps.solve(expanded(raw), short_curve_inputs)
+    result = sps.solve(expanded(raw), short_curve_inputs)
 
     assert result.objective == pytest.approx(155.0), 'B runs at 20 on its own two points, A at 5'
 
@@ -667,10 +667,10 @@ def test_the_mask_is_smaller_than_padding_the_curve_out(short_curve_inputs):
     del unmasked['piecewise']['cost_curve']['points']
     del unmasked['parameters']['bp_present']
 
-    with lps.build(expanded(raw_of(SHORT_CURVE)), short_curve_inputs) as masked_model:
+    with sps.build(expanded(raw_of(SHORT_CURVE)), short_curve_inputs) as masked_model:
         masked = masked_model.diagnostics()
         assert masked_model.solve('highs').objective == pytest.approx(155.0)
-    with lps.build(expanded(unmasked), padded) as padded_model:
+    with sps.build(expanded(unmasked), padded) as padded_model:
         grown = padded_model.diagnostics()
         assert padded_model.solve('highs').objective == pytest.approx(155.0), 'the same answer, larger'
 
@@ -684,7 +684,7 @@ def test_a_masked_breakpoint_declares_no_segment_binary(short_curve_inputs):
     weight reaches is slack the solver never uses, so the objective is right
     either way and the MILP is bigger for nothing.
     """
-    result = lps.solve(expanded(raw_of(SHORT_CURVE)), short_curve_inputs)
+    result = sps.solve(expanded(raw_of(SHORT_CURVE)), short_curve_inputs)
 
     built = {(row['generator'], row['bp']) for row in result.primal('cost_curve_seg').to_dicts()}
 
@@ -797,7 +797,7 @@ def test_a_curve_masked_by_its_own_breakpoints_asks_for_nothing_extra():
     assert sorted(tidy_sources(program, _ONE_DIM_CURVE)) == ['bp', 'bp_x', 'bp_y', 'load', 'snapshot'], (
         'and the door gives back one frame per name it takes'
     )
-    assert lps.solve(expanded(_nominated_mask_spec()), _ONE_DIM_CURVE).objective == pytest.approx(95.0), (
+    assert sps.solve(expanded(_nominated_mask_spec()), _ONE_DIM_CURVE).objective == pytest.approx(95.0), (
         'and the curve still binds and solves, masked by the rows of its own breakpoints'
     )
 
@@ -807,7 +807,7 @@ def test_values_the_mask_leaves_out_are_left_alone(short_curve_inputs):
     spare = {**A_AND_SHORT_B['x'], ('B', 2): 999.0}
     data = {**short_curve_inputs, 'bp_x': curve_frame(spare)}
 
-    assert lps.solve(expanded(raw_of(SHORT_CURVE)), data).objective == pytest.approx(155.0), (
+    assert sps.solve(expanded(raw_of(SHORT_CURVE)), data).objective == pytest.approx(155.0), (
         'the masked row is not read'
     )
 
@@ -835,7 +835,7 @@ def test_a_gate_that_does_not_exist_leaves_the_curve_ungated(nonconvex_inputs, m
         'on_flag': pd.Series([0.0 if g else 1.0 for g in gated], index=pd.RangeIndex(12, name='snapshot')),
         'gate_rows': pd.Series(gated, index=pd.RangeIndex(12, name='snapshot')),
     }
-    model = lps.build(expanded(raw), data)
+    model = sps.build(expanded(raw), data)
     omitted = {c for c in model.diagnostics().omissions['constraint'] if c.startswith('cost_curve')}
     assert not omitted, 'every coordinate gets a convexity row — gated by the variable, or ungated at 1'
 
@@ -875,7 +875,7 @@ def test_a_masked_gate_declaring_its_absence_pins_the_curve_off(nonconvex_inputs
         'on_flag': pd.Series([float(g) for g in gated], index=pd.RangeIndex(12, name='snapshot')),
         'gate_rows': pd.Series(gated, index=pd.RangeIndex(12, name='snapshot')),
     }
-    model = lps.build(expanded(raw), data)
+    model = sps.build(expanded(raw), data)
     omitted = set(model.diagnostics().omissions['constraint'])
     assert not [c for c in omitted if c.startswith('cost_curve')], (
         'a gate that says what its absence means leaves every row the block emits standing'

@@ -15,7 +15,7 @@ alignment and broadcasting decide which coefficient lands in which row. pandas
 is only a floor: it holds the instance's tables and reshapes the recorded duals.
 
 It reads the same instance the port binds and builds the network with PyPSA's
-own objects. Nothing here imports lpspec.
+own objects. Nothing here imports specsolve.
 
 **Power entering a link at one snapshot leaves it at another.** ``delay`` on a
 ``Link`` withdraws from ``bus0`` at snapshot *t* and injects at ``bus1`` at the
@@ -27,7 +27,7 @@ column.
 
 ``cyclic_delay`` is **False**, which is not PyPSA's default. Cyclic would wrap
 the last shipments onto the first snapshots, and the corpus already ports a
-wrap ([cyclic storage](https://github.com/fluxopt/lpspec/blob/main/examples/ports/pypsa_cyclic_storage.yaml)).
+wrap ([cyclic storage](https://github.com/fluxopt/specsolve/blob/main/examples/ports/pypsa_cyclic_storage.yaml)).
 Non-cyclic is the case with a boundary to state: PyPSA's own docs say *energy is
 lost at the tail and first snapshots receive nothing from delayed links*, and
 ``main`` prints both ends so the reader can see it happen.
@@ -52,7 +52,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
 def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
     """The port's tables as a PyPSA network, column for column.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
     Both links are given a ``delay`` — 2 for ``ship`` and 0 for ``wire`` — so the
     column is read rather than a constant applied to everything, and neither

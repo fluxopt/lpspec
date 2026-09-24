@@ -144,7 +144,7 @@ g_{t,l} \ge 0 \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -305,7 +305,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_global_limits.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_global_limits.yaml', sources) as solution:
         solution.objective  # 127211.66666666666
         solution.dual('nodal_balance')
     ```
@@ -322,7 +322,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     ) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         ``limits`` defaults to all three global-constraint rows and
         ``bus_capacity_cap`` to on; dropping one is how ``main`` measures what it is
@@ -407,7 +407,7 @@ investment_period=0    raises ValueError: Investment period not in `n.investment
 given that key is `NaN`, pandas drops NaN keys, and the row leaves no
 constraint behind. The next line reads
 `period = None if isnan(period) else int(period)`, so NaN is expected to
-arrive; [#966](https://github.com/fluxopt/lpspec/issues/966) tracks reporting
+arrive; [#966](https://github.com/fluxopt/specsolve/issues/966) tracks reporting
 it upstream. [Multi-period investment](pypsa_multi_period.md) proves the limit
 itself, where a period exists to name.
 

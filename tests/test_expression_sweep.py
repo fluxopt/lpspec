@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from lpspec.errors import LaneError
+from specsolve.errors import LaneError
 from tests.conftest import law_data
 from tests.differential import RTOL, NoFiniteAnswerError, differential
 from tests.expression_space import expressions, rewrites, row_spec

@@ -12,8 +12,8 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LpspecError
+import specsolve as sps
+from specsolve.errors import SpecsolveError
 from tests.differential import differential
 
 #: Two generators, two variables over them, one row tying them together. Small
@@ -49,7 +49,7 @@ def quad_of(expression: str, sources=None) -> pl.DataFrame:
     ``(col_l, col_r)`` order as a contract, and a helper that tidied it would
     be the one place no test could tell whether the contract held.
     """
-    with lps.build(spec(expression), dict(sources or SOURCES)) as model:
+    with sps.build(spec(expression), dict(sources or SOURCES)) as model:
         return model._engine._model.tables.quad
 
 
@@ -106,7 +106,7 @@ def test_a_product_keeps_both_of_its_linear_cross_terms(expression, optimum):
     ``Σ (p + weight)(q + weight)`` is ``4 + 16``. Every model still builds and
     still solves with the term missing.
     """
-    solved = lps.solve(spec(expression, variables=FLOORED), SOURCES).objective
+    solved = sps.solve(spec(expression, variables=FLOORED), SOURCES).objective
     assert solved == pytest.approx(optimum), f'{expression} lost one of its two mixed products'
 
 
@@ -115,12 +115,12 @@ def test_a_square_spreads_where_a_linear_cost_would_fill_the_cheapest_first():
     number being what a differential test cannot see. A square puts the
     requirement on the *free* variables until they run out, then splits the
     rest evenly, which a linear objective would never do."""
-    with lps.build(spec('sum(p * p, over=g)'), SOURCES) as model:
+    with sps.build(spec('sum(p * p, over=g)'), SOURCES) as model:
         result = model.solve()
         assert result.objective == pytest.approx(0.0), 'the free variables carry it all'
 
     tight = {**SOURCES, 'need': pl.DataFrame({'value': [24.0]})}
-    with lps.build(spec('sum(p * p, over=g)'), tight) as model:
+    with sps.build(spec('sum(p * p, over=g)'), tight) as model:
         result = model.solve()
         assert result.primal('p')['value'].to_list() == pytest.approx([2.0, 2.0]), (
             'a square spreads the remaining 4 evenly across the two columns; a linear cost would '
@@ -176,7 +176,7 @@ def test_the_lp_section_doubles_every_coefficient(tmp_path):
     """The format divides the section by two, so the text is not the model —
     byte-asserted, since a *consistent* doubling error survives a round trip."""
     path = tmp_path / 'model.lp'
-    lps.write(spec('sum(p * p + p * q * weight, over=g)'), SOURCES, path)
+    sps.write(spec('sum(p * p + p * q * weight, over=g)'), SOURCES, path)
     section = path.read_text().split('+ [')[1].split('] / 2')[0]
     assert '+2.0 x0 ^ 2' in section, 'a squared column doubles, and is spelled ^ 2 rather than x0 * x0'
     assert '+2.0 x0 * x2' in section, 'so does a cross term — uniformly, unlike the Hessian it is written from'
@@ -195,7 +195,7 @@ def test_a_quadratic_term_is_absent_where_either_factor_is():
     with differential(masked, SOURCES, lp=True):
         pass
 
-    with lps.build(masked, SOURCES) as model:
+    with sps.build(masked, SOURCES) as model:
         pairs = model._engine._model.tables.quad
         assert pairs.filter(pl.col('col_l') != pl.col('col_r')).height == 1, (
             "the cross term exists only where 'q' does — one coordinate of two"
@@ -210,7 +210,7 @@ def test_absence_under_a_quadratic_term_reaches_its_siblings():
     solves."""
     masked = spec('sum(p * q + p, over=g)')
     masked['variables'] = {**SPEC['variables'], 'q': {**SPEC['variables']['q'], 'where': 'weight > 2'}}
-    with lps.build(masked, SOURCES) as model:
+    with sps.build(masked, SOURCES) as model:
         objective = model._engine._model.tables.obj
         assert objective.height == 1, (
             "the lone 'p' survives only where 'q' does — a quadratic term is absent wherever "
@@ -224,7 +224,7 @@ def test_a_pattern_that_moves_reloads_the_solver_rather_than_pushing():
     pair — a pattern change wearing a data change."""
     tight = {**SOURCES, 'need': pl.DataFrame({'value': [24.0]})}
     zeroed = {**tight, 'weight': pl.DataFrame({'g': ['a', 'b'], 'value': [0.0, 3.0]})}
-    with lps.build(spec('sum(p * p * weight, over=g)'), tight) as model:
+    with sps.build(spec('sum(p * p * weight, over=g)'), tight) as model:
         model.solve()
         model.update(zeroed)
         model.solve()
@@ -264,10 +264,10 @@ def test_a_quadratic_objective_beside_integrality_is_refused_before_the_build():
     integral = spec('sum(p * p, over=g)')
     integral['variables'] = {**SPEC['variables'], 'p': {**SPEC['variables']['p'], 'domain': 'integer'}}
 
-    with pytest.raises(LpspecError, match='separately and refuses them together'):
-        lps.check(integral, sink='highs')
-    with pytest.raises(LpspecError, match='separately and refuses them together'):
-        lps.solve(integral, SOURCES)
+    with pytest.raises(SpecsolveError, match='separately and refuses them together'):
+        sps.check(integral, sink='highs')
+    with pytest.raises(SpecsolveError, match='separately and refuses them together'):
+        sps.solve(integral, SOURCES)
 
 
 def test_a_nonconvex_objective_is_refused_at_the_solve_and_still_writes(tmp_path):
@@ -275,13 +275,13 @@ def test_a_nonconvex_objective_is_refused_at_the_solve_and_still_writes(tmp_path
     silent by construction and HiGHS discovers it at `run()`. The error code
     must not reach the caller, and the file must still write."""
     concave = spec('-sum(p * p, over=g)')
-    lps.check(concave, sink='highs')
+    sps.check(concave, sink='highs')
 
-    with pytest.raises(LpspecError, match='not positive semidefinite'), lps.build(concave, SOURCES) as model:
+    with pytest.raises(SpecsolveError, match='not positive semidefinite'), sps.build(concave, SOURCES) as model:
         model.solve()
 
     path = tmp_path / 'nonconvex.lp'
-    lps.write(concave, SOURCES, path)
+    sps.write(concave, SOURCES, path)
     assert '-2.0 x0 ^ 2' in path.read_text(), 'the writer has no opinion about curvature'
 
 
@@ -293,7 +293,7 @@ def test_a_moved_quadratic_coefficient_is_pushed_rather_than_reloaded():
     tight = {**SOURCES, 'need': pl.DataFrame({'value': [24.0]})}
     tighter = {**heavier, 'need': pl.DataFrame({'value': [24.0]})}
 
-    with lps.build(spec('sum(p * p * weight, over=g)'), tight) as model:
+    with sps.build(spec('sum(p * p * weight, over=g)'), tight) as model:
         first = model.solve().objective
         model.update(tighter)
         second = model.solve().objective

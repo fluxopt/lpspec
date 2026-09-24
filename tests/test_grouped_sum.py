@@ -1,7 +1,7 @@
 """sum: the transport YAML through both backends, and what coordinates buy.
 
 Three-way differential on examples/transport.yaml:
-  1. eager lpspec_linopy.build + solve (sum via linopy groupby)
+  1. eager specsolve_linopy.build + solve (sum via linopy groupby)
   2. lowered Program -> PolarsEngine -> the `highs` solver, plus the LP file
   3. hand-built indicator-matrix linopy model (an independent oracle that
      involves no sum at all)
@@ -28,13 +28,13 @@ from math_spec.program import (
     Variable,
 )
 
-import lpspec as lps
-from lpspec.errors import DataError
-from lpspec.relational.engines.polars.engine import PolarsEngine
-from lpspec.sources import tidy_sources
+import specsolve as sps
+from specsolve.errors import DataError
+from specsolve.relational.engines.polars.engine import PolarsEngine
+from specsolve.sources import tidy_sources
 from tests.conftest import EXAMPLES_DIR, override, schema_of
 from tests.differential import RTOL, differential
-from tests.oracle import lpspec_linopy, pd, transport_eager_objective
+from tests.oracle import pd, specsolve_linopy, transport_eager_objective
 
 TRANSPORT_YAML = EXAMPLES_DIR / 'transport.yaml'
 
@@ -127,7 +127,7 @@ def test_a_mistyped_coordinate_is_refused_on_both_lanes(transport_data):
     with pytest.raises(DataError, match="not 'bus' labels"):
         _relationally(data)
     with pytest.raises(DataError, match="not 'bus' labels"):
-        lpspec_linopy.build(TRANSPORT_YAML, data)
+        specsolve_linopy.build(TRANSPORT_YAML, data)
 
 
 def test_a_coordinate_must_be_single_valued(transport_data):
@@ -236,14 +236,14 @@ def test_a_partial_coordinate_places_its_orphans_nowhere(tmp_path):
     path.write_text(PARTIAL_YAML)
     sources, data = _partial_inputs()
 
-    with lps.solve(path, sources) as result:
+    with sps.solve(path, sources) as result:
         assert result.is_ok
         assert result.objective == pytest.approx(3.0)
         assert result.to_pandas('x').set_index('item')['value']['i2'] == pytest.approx(0.0), (
             'the orphan is still a variable; it just carries no group obligation'
         )
 
-    model = lpspec_linopy.build(path, data)
+    model = specsolve_linopy.build(path, data)
     model.solve(solver_name='highs', output_flag=False)
     assert float(model.objective.value) == pytest.approx(3.0)
 
@@ -334,7 +334,7 @@ def test_sum_over_a_broadcast_dim_still_collapses_its_terms():
     this point can tell them apart — a solver handed a row with a column twice
     is entitled to reject the whole model, and HiGHS does.
     """
-    with lps.build(BROADCAST_GROUP_SUM, BROADCAST_SOURCES) as model:
+    with sps.build(BROADCAST_GROUP_SUM, BROADCAST_SOURCES) as model:
         tables = model._engine._model.tables
         matrix = tables.matrix_block(0, tables.row_count).sort('row', 'col')
         assert matrix.height == 4, 'a column appears twice on a row'
@@ -355,7 +355,7 @@ def test_sum_over_a_declared_dim_needs_no_such_collapse():
             'constraints.cap.expression': 'sum(x * w, by=gen_bus, over=generator, into=bus) <= limit',
         },
     )
-    with lps.build(spec, BROADCAST_SOURCES) as model:
+    with sps.build(spec, BROADCAST_SOURCES) as model:
         tables = model._engine._model.tables
         matrix = tables.matrix_block(0, tables.row_count).sort('row', 'col')
         assert matrix.height == 6, 'one entry per (row, generator-on-that-bus), not one per bus'
@@ -399,7 +399,7 @@ def test_an_objective_term_carrying_dims_is_still_summed_per_column():
     `dense[at] = values`, which keeps the last write rather than accumulating,
     so this reads as a plausible answer to a model nobody wrote.
     """
-    with lps.build(BROADCAST_OBJECTIVE, BROADCAST_OBJECTIVE_SOURCES) as model:
+    with sps.build(BROADCAST_OBJECTIVE, BROADCAST_OBJECTIVE_SOURCES) as model:
         obj = model._engine._model.tables.obj.sort('col')
         assert obj.height == 3, 'one row per column, not one per (bus, snapshot)'
         assert obj['coeff'].to_list() == [1111.0] * 3, 'sum(w), not w[-1]'
@@ -424,7 +424,7 @@ def test_an_objective_over_the_variables_own_dims_keeps_its_coefficients():
     aggregate must not turn a coefficient into anything but itself.
     """
     spec = override(BROADCAST_OBJECTIVE, **{'objective.expression': 'sum(y * floor)'})
-    with lps.build(spec, BROADCAST_OBJECTIVE_SOURCES) as model:
+    with sps.build(spec, BROADCAST_OBJECTIVE_SOURCES) as model:
         obj = model._engine._model.tables.obj.sort('col')
         assert obj.height == 3
         assert obj['coeff'].to_list() == [1.0, 2.0, 3.0], 'floor itself, un-summed'
@@ -483,7 +483,7 @@ def test_a_monthly_budget_binds_and_prices_itself(monthly):
     which is what distinguishes a binding budget from a decorative one.
     """
     month_of, sources = monthly
-    with lps.solve(MONTHLY_YAML, sources) as result:
+    with sps.solve(MONTHLY_YAML, sources) as result:
         assert result.is_ok
         wind = (
             result.primal('p')
@@ -516,7 +516,7 @@ def test_the_monthly_grouping_is_a_column_and_nothing_else(monthly):
         'month': pl.DataFrame({'month': ['2030-Q1']}),
         'monthly_cap': pl.DataFrame({'month': ['2030-Q1'] * 2, 'generator': ['wind', 'gas'], 'value': [5.0, 1e4]}),
     }
-    with lps.solve(MONTHLY_YAML, regrouped) as result:
+    with sps.solve(MONTHLY_YAML, regrouped) as result:
         assert result.is_ok
         assert result.dual('monthly_budget').height == 2, 'one row per group, and there is now one group'
         wind = result.primal('p').filter(pl.col('generator') == 'wind')['value'].sum()
@@ -536,7 +536,7 @@ def test_a_mistyped_month_is_a_typo_and_not_a_new_group(monthly):
         pl.when(pl.col('month') == '2030-03').then(pl.lit('2030-3')).otherwise(pl.col('month')).alias('month')
     )
     with pytest.raises(DataError, match=r"relation 'month_of' has value\(s\) in 'month' that are not 'month' labels"):
-        lps.solve(MONTHLY_YAML, {**sources, 'month_of': typo})
+        sps.solve(MONTHLY_YAML, {**sources, 'month_of': typo})
 
 
 def test_the_index_the_page_prints_is_the_index_it_solves(monthly):

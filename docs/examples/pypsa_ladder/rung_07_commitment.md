@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **7775.0** on both sides; structure ✔ 17 constraints · 5 variables, name for name; size ✔ 116 rows · ✔ 44 columns · ✔ 237 nonzeros; duals — integer model, no duals; **model for model**: 20 blocks equal, 0 documented splits, 3 recorded deviations.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 8 | 8 |
 | `Generator-com-down-time` | 6 | 6 |
@@ -29,7 +29,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `Link-fix-p-lower` | 4 | 4 |
 | `Link-fix-p-upper` | 4 | 4 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Generator-p` | 16 | 16 |
 | `Generator-shut_down` | 8 | 8 |
@@ -307,7 +307,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_07_commitment.yaml` — the file projected onto what this rung builds:
 
@@ -772,7 +772,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
         'Load_p_set': varying(n, 'Load', 'p_set'),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_07_commitment.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_07_commitment.yaml', sources) as solution:
         solution.objective  # 7775.0
     ```
 

@@ -15,14 +15,14 @@ leaves a median where it was. On this run four published cells have a mean
 above 1.10x their median, the worst at 1.21x: `fleet/s` and `fleet/xs` on
 highspy-matrix, `transport/xs` and `dispatch/xs` on gurobipy-matrix. All four
 are the two smallest rungs of a matrix arm, where the whole measurement is
-milliseconds and one scheduler hiccup is the gap. No lpspec, linopy or pyomo
+milliseconds and one scheduler hiccup is the gap. No specsolve, linopy or pyomo
 cell on this run reaches 1.05x.
 
-The median flipped one cell against lpspec on this run: `dispatch/s` on the
+The median flipped one cell against specsolve on this run: `dispatch/s` on the
 `gurobi` [sink](../reference/glossary.md#how-it-runs), against linopy. On
 `gurobi` our build alternates between a fast and a slow state round after
 round, and no other library's build does
-([#1288](https://github.com/fluxopt/lpspec/issues/1288)).
+([#1288](https://github.com/fluxopt/specsolve/issues/1288)).
 
 ## How to reproduce it
 
@@ -35,7 +35,7 @@ the five libraries install from git and one of those is a branch. `--locked`
 refuses to start if the resolution has drifted.
 
 Everything the tables are drawn from is in
-[`bench/results`](https://github.com/fluxopt/lpspec/blob/main/bench/results):
+[`bench/results`](https://github.com/fluxopt/specsolve/blob/main/bench/results):
 one file per sink and case. Each carries the machine, the versions, the commit
 and every round of every measurement. A case the box could not finish leaves
 no file behind. `pixi run table` prints the directory as one long CSV and
@@ -49,11 +49,11 @@ and the chart's data literal into its own.
 
 ### Marginal cost per model
 
-Build only, repeated in one process. **first** is the first recorded round and **steady** the best of the rounds after it, so the pair is what a rolling horizon pays for its second window against its first. The harness warms up before it records, so neither column carries the one-time import cost: the median gap between them is +13.3 ms on lpspec and +1.9 ms on linopy and +3.4 ms on pyomo and +1.8 ms on gurobipy-loop and +8.2 ms on gurobipy-matrix and +1.0 ms on highspy-matrix.
+Build only, repeated in one process. **first** is the first recorded round and **steady** the best of the rounds after it, so the pair is what a rolling horizon pays for its second window against its first. The harness warms up before it records, so neither column carries the one-time import cost: the median gap between them is +13.3 ms on specsolve and +1.9 ms on linopy and +3.4 ms on pyomo and +1.8 ms on gurobipy-loop and +8.2 ms on gurobipy-matrix and +1.0 ms on highspy-matrix.
 
 **Read down a column, not across the row.** The build is not the same work in every library — one that defers materialising its coefficients to its writer spends almost nothing here and pays it at the seam — so these columns carry no ratios. The tables above measure to a common artifact and are where a comparison belongs.
 
-| case | vars | lpspec: first | lpspec: steady | linopy: first | linopy: steady | pyomo: first | pyomo: steady | gurobipy-loop: first | gurobipy-loop: steady | gurobipy-matrix: first | gurobipy-matrix: steady | highspy-matrix: first | highspy-matrix: steady |
+| case | vars | specsolve: first | specsolve: steady | linopy: first | linopy: steady | pyomo: first | pyomo: steady | gurobipy-loop: first | gurobipy-loop: steady | gurobipy-matrix: first | gurobipy-matrix: steady | highspy-matrix: first | highspy-matrix: steady |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | dispatch | 10k | 26.4 ms | **23.7 ms** | 28.8 ms | 27.1 ms | 31.2 ms | 28.0 ms | 24.3 ms | 23.3 ms | 23.6 ms | 14.9 ms | 5.5 ms | 4.9 ms |
 | fleet | 12k | 115.1 ms | **92.0 ms** | 174.9 ms | 172.7 ms | 35.9 ms | 32.2 ms | 66.7 ms | 64.9 ms | 24.5 ms | 23.1 ms | 6.6 ms | 5.9 ms |
@@ -106,12 +106,12 @@ Listed so that a claim with no table under it is visible as one.
   25.3 GB, `storage/w1000` on `gurobi` at 26.3 GB. A killed case writes no
   file, so each loses every rung it had already measured, its rows in the
   marginal table above included
-  ([#1498](https://github.com/fluxopt/lpspec/issues/1498)). `storage` survived
+  ([#1498](https://github.com/fluxopt/specsolve/issues/1498)). `storage` survived
   on `gurobi` until this run only because the projection stopped
   `gurobipy-matrix` one rung earlier: 0.858 GB at `storage/w100` projects to
   17.2 GB, just over the budget. The last `highs` numbers past `w10` are in
-  [#1285](https://github.com/fluxopt/lpspec/pull/1285), taken on a machine that
-  could hold them. There lpspec took 0.11 s and 0.59 GB at `transport/w100`,
+  [#1285](https://github.com/fluxopt/specsolve/pull/1285), taken on a machine that
+  could hold them. There specsolve took 0.11 s and 0.59 GB at `transport/w100`,
   against linopy's 53.53 s and 14.26 GB.
 - **Anything about expressiveness.** Four models say nothing about a fifth.
 
@@ -121,7 +121,7 @@ Each measurement runs in a process of its own. Peak memory is `ru_maxrss`
 rather than a tracker. Import is excluded from the timing and teardown is
 included. A run refuses to start on a machine that is already working. The
 rest is in
-[`bench/README.md`](https://github.com/fluxopt/lpspec/blob/main/bench/README.md):
+[`bench/README.md`](https://github.com/fluxopt/specsolve/blob/main/bench/README.md):
 every flag, every default switched off and what it costs.
 
 **Peak carries an allocator cost that only the polars arms pay.** polars
@@ -129,7 +129,7 @@ ships its own jemalloc settings, so a peak measured through it holds pages
 freed and not yet returned. An arm on the system allocator never enters
 jemalloc. Our peak moves 12–27% with the decay clock on and off, where
 linopy's does not move at three digits
-([#896](https://github.com/fluxopt/lpspec/issues/896)). It runs against us and
+([#896](https://github.com/fluxopt/specsolve/issues/896)). It runs against us and
 is left in.
 
 **memray never times anything.** Its tracker slows an allocation-heavy

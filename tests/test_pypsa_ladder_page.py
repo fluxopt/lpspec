@@ -37,7 +37,7 @@ def test_every_stamped_rung_has_a_page_and_a_projection():
 
 
 @pytest.mark.parametrize('stem', STEMS, ids=STEMS)
-def test_the_lpspec_tab_shows_the_projection_that_solves(stem: str):
+def test_the_specsolve_tab_shows_the_projection_that_solves(stem: str):
     fences = _fences((ladder.PAGES / f'{stem}.md').read_text(), 'yaml')
     assert (ladder.RUNGS / f'{stem}.yaml').read_text().rstrip() + '\n' in fences, 'the projected model has drifted'
 

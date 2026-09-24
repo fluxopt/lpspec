@@ -1,10 +1,10 @@
-"""Benders decomposition on lpspec, checked against the model it decomposes.
+"""Benders decomposition on specsolve, checked against the model it decomposes.
 
     pixi run python examples/benders/run.py
 
 **This is evidence, not a feature.** It shows what the language can express and
-that the answer is right; lpspec ships no decomposition driver, and
-https://github.com/fluxopt/lpspec/issues/596 settled that it will not own one.
+that the answer is right; specsolve ships no decomposition driver, and
+https://github.com/fluxopt/specsolve/issues/596 settled that it will not own one.
 
 Three files, and the split is the whole idea:
 
@@ -23,7 +23,7 @@ parameter tables. No YAML is written at runtime, so the spec a reviewer reads
 is the spec that runs — which is the point of writing specs in YAML at all.
 
 Because no file changes, each spec is parsed **once** above the loop and
-*built* once: ``lps.build`` binds the data and ``update`` puts the next
+*built* once: ``sps.build`` binds the data and ``update`` puts the next
 iteration's numbers on the model that is already there, where a path would
 re-parse a spec that cannot have moved and a rebuild would re-derive a model
 that did not change. The subproblem's ``cap_hat`` reaches its rows as a
@@ -40,7 +40,7 @@ from pathlib import Path
 import polars as pl
 from math_spec import to_spec
 
-import lpspec as lps
+import specsolve as sps
 
 HERE = Path(__file__).parent
 SNAPSHOTS = [0, 1, 2, 3]
@@ -86,7 +86,7 @@ EMPTY = {
 }
 
 
-def slope_at(solution: lps.Result, capacity: pl.DataFrame) -> tuple[pl.DataFrame, float]:
+def slope_at(solution: sps.Result, capacity: pl.DataFrame) -> tuple[pl.DataFrame, float]:
     """How the subproblem's value moves with capacity, and its value there.
 
     The capacity constraint's shadow price is that derivative, weighted by
@@ -104,7 +104,7 @@ def slope_at(solution: lps.Result, capacity: pl.DataFrame) -> tuple[pl.DataFrame
     return slope, here
 
 
-def cut_from_ray(solution: lps.Result) -> tuple[pl.DataFrame, float]:
+def cut_from_ray(solution: sps.Result) -> tuple[pl.DataFrame, float]:
     """The feasibility cut carried by a certificate that this capacity cannot be dispatched.
 
     ``dual_ray`` weights the subproblem's rows so that together they
@@ -159,7 +159,7 @@ def main() -> None:
     The gap is only checked once some capacity has proved dispatchable: every
     feasibility cut leaves the upper bound at infinity.
     """
-    with lps.solve(HERE / 'monolith.yaml', SOURCES) as whole:
+    with sps.solve(HERE / 'monolith.yaml', SOURCES) as whole:
         truth = whole.objective
     print(f'the whole problem, in one plan: {truth:.2f}\n')
 
@@ -169,8 +169,8 @@ def main() -> None:
     empty = {'generator': GENERATORS, 'cut': [], 'fcut': []}
 
     with (
-        lps.build(SUB, slice_for(SUB, cap_hat=capacity)) as sub_model,
-        lps.build(MASTER, {'invest': SOURCES['invest'], **tables, **empty}) as master,
+        sps.build(SUB, slice_for(SUB, cap_hat=capacity)) as sub_model,
+        sps.build(MASTER, {'invest': SOURCES['invest'], **tables, **empty}) as master,
     ):
         for step in range(25):
             sub = sub_model.update({'cap_hat': capacity}).solve()

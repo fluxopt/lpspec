@@ -22,8 +22,8 @@ from dataclasses import replace
 import polars as pl
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LaneError, LpspecError
+import specsolve as sps
+from specsolve.errors import LaneError, SpecsolveError
 from tests.conftest import recomputed_row_values
 
 gurobipy = pytest.importorskip('gurobipy', reason='a quadratic constraint has no other solver sink')
@@ -93,10 +93,10 @@ def test_the_two_encodings_reach_one_optimum(expression, tmp_path):
     writer's text and Gurobi's parser: a coefficient doubled, a pair
     transposed or a linear half dropped shows up as two different numbers."""
     varied = spec(constraints={**SPEC['constraints'], 'coupled': {'dims': ['g'], 'expression': expression}})
-    with lps.solve(varied, SOURCES, solver_name='gurobi') as direct:
+    with sps.solve(varied, SOURCES, solver_name='gurobi') as direct:
         assert direct.is_ok
         path = tmp_path / 'model.lp'
-        lps.write(varied, SOURCES, path)
+        sps.write(varied, SOURCES, path)
         assert _read_back(path) == pytest.approx(direct.objective, rel=RTOL), (
             'the written file and the direct hand-off are the same model by two routes; a '
             'disagreement is an encoding error in one of them'
@@ -109,7 +109,7 @@ def test_the_activity_is_the_whole_left_hand_side():
     Emphatically *not* ``Ax``: for ``p·q >= 4`` it is 4 at the optimum where
     ``Ax`` is 0, the row owning no linear entry at all.
     """
-    with lps.build(SPEC, SOURCES) as model:
+    with sps.build(SPEC, SOURCES) as model:
         result = model.solve(solver_name='gurobi')
         recomputed = recomputed_row_values(model._engine, result)
         block = model._engine._model.constraints['coupled']
@@ -126,7 +126,7 @@ def test_the_optimum_is_the_one_done_by_hand():
     number is what a shared misreading looks like, and arithmetic is what is
     left to catch it.
     """
-    with lps.solve(SPEC, SOURCES, solver_name='gurobi') as result:
+    with sps.solve(SPEC, SOURCES, solver_name='gurobi') as result:
         assert result.objective == pytest.approx(8.0, rel=RTOL)
         # A looser tolerance than the objective's, and not slack: spatial
         # branch-and-bound closes a *gap*, so the objective is tight while the
@@ -150,7 +150,7 @@ def test_quadratic_declarations_take_the_tail_of_the_label_space():
             'cap': {'dims': [], 'expression': 'sum(p, over=g) <= 9'},
         }
     )
-    with lps.build(first, SOURCES) as model:
+    with sps.build(first, SOURCES) as model:
         tables = model._engine._model.tables
         assert model._engine._model.constraints['cap'].start == 0, 'the linear declaration is built first'
         assert [row for row, _ in tables.quadratic_blocks()] == [1, 2], (
@@ -168,12 +168,12 @@ def test_a_quadratic_row_has_no_price_unless_the_caller_asks():
     models least able to spare it — so it is off, and a caller whose model is
     convex asks.
     """
-    with lps.solve(SPEC, SOURCES, solver_name='gurobi') as silent:
-        with pytest.raises(LpspecError, match='QCPDual'):
+    with sps.solve(SPEC, SOURCES, solver_name='gurobi') as silent:
+        with pytest.raises(SpecsolveError, match='QCPDual'):
             silent.dual('coupled')
         assert silent.is_ok, 'and the answer itself is unaffected'
 
-    with lps.solve(SPEC, SOURCES, solver_name='gurobi', solver_options={'QCPDual': 1}) as priced:
+    with sps.solve(SPEC, SOURCES, solver_name='gurobi', solver_options={'QCPDual': 1}) as priced:
         assert priced.dual('coupled')['value'].to_list() == pytest.approx([0.5, 0.5], rel=RTOL), (
             'the price of relaxing p·q >= 4 at p = q = 2'
         )
@@ -186,17 +186,17 @@ def test_asking_for_prices_on_a_nonconvex_row_says_which_option_did_it():
     nonconvex = spec(
         constraints={'coupled': {'dims': ['g'], 'expression': 'p * p + q * q >= floor'}},
     )
-    assert lps.solve(nonconvex, SOURCES, solver_name='gurobi').objective == pytest.approx(4.0, rel=RTOL), (
+    assert sps.solve(nonconvex, SOURCES, solver_name='gurobi').objective == pytest.approx(4.0, rel=RTOL), (
         'the nonconvex region solves by default — spatial branch-and-bound needs no parameter'
     )
-    with pytest.raises(LpspecError, match=r'not convex.*QCPDual'):
-        lps.solve(nonconvex, SOURCES, solver_name='gurobi', solver_options={'QCPDual': 1})
+    with pytest.raises(SpecsolveError, match=r'not convex.*QCPDual'):
+        sps.solve(nonconvex, SOURCES, solver_name='gurobi', solver_options={'QCPDual': 1})
 
 
 def _entries(expression: str, sources=None) -> pl.DataFrame:
     """The quadratic stream of a model whose row is *expression*."""
     varied = spec(constraints={'coupled': {'dims': ['g'], 'expression': expression}})
-    with lps.build(varied, dict(sources or SOURCES)) as model:
+    with sps.build(varied, dict(sources or SOURCES)) as model:
         return model._engine._model.tables.qmatrix
 
 
@@ -230,12 +230,12 @@ def test_a_quadratic_row_is_structure_whole_and_a_update_reloads():
     dropped = {**SOURCES, 'weight': pl.DataFrame({'g': ['a', 'b'], 'value': [1.0, 0.0]})}
 
     for moved in (heavier, dropped, {**both, 'floor': pl.DataFrame({'value': [9.0]})}):
-        with lps.build(weighted, both) as model:
+        with sps.build(weighted, both) as model:
             first = model.solve(solver_name='gurobi').objective
             model.update(moved)
             again = model.solve(solver_name='gurobi').objective
             assert model.diagnostics().loads == 2, 'anything about a quadratic row is a model to load again'
-            with lps.solve(weighted, moved, solver_name='gurobi') as fresh:
+            with sps.solve(weighted, moved, solver_name='gurobi') as fresh:
                 assert again == pytest.approx(fresh.objective, rel=SEARCHED), (
                     'an update answers what a fresh build answers — a coefficient or a right-hand '
                     'side left behind would answer the model before it'
@@ -251,7 +251,7 @@ def test_the_pair_a_row_holds_is_structure_even_at_the_same_coefficient():
     which pair a row holds also changes how many there are. Asked of the tables
     directly instead: one entry at a different column, same coefficient.
     """
-    with lps.build(SPEC, SOURCES) as model:
+    with sps.build(SPEC, SOURCES) as model:
         tables = model._engine._model.tables
         assert tables.qmatrix.height, 'the model under test carries a quadratic row'
         moved = replace(tables, qmatrix=tables.qmatrix.with_columns(pl.col('col_r') + 1))
@@ -270,38 +270,38 @@ def test_the_linopy_lane_refuses_it_in_the_languages_own_words(tmp_path):
     """Hard rule 3's amendment where it bites. Both lanes still *accept* the
     model — one ``lanes.lowered`` gate — and the refusal names the lane and the
     way round, where linopy's ``NotImplementedError`` names neither."""
-    from tests.oracle import lpspec_linopy
+    from tests.oracle import specsolve_linopy
 
-    with pytest.raises(LpspecError, match='linopy lane cannot build'):
-        lps.check(SPEC, sink='linopy')
+    with pytest.raises(SpecsolveError, match='linopy lane cannot build'):
+        sps.check(SPEC, sink='linopy')
 
     import yaml as pyyaml
 
     path = tmp_path / 'model.yaml'
     path.write_text(pyyaml.safe_dump(SPEC))
     with pytest.raises(LaneError, match='linopy lane cannot build'):
-        lpspec_linopy.build(path, SOURCES)
+        specsolve_linopy.build(path, SOURCES)
 
 
 def test_highs_refuses_it_before_the_build_and_names_who_takes_it():
-    with pytest.raises(LpspecError, match='no such concept'):
-        lps.check(SPEC, sink='highs')
-    with pytest.raises(LpspecError, match='gurobi'):
-        lps.check(SPEC, sink='highs')
-    with pytest.raises(LpspecError, match='no such concept'):
-        lps.solve(SPEC, SOURCES)
+    with pytest.raises(SpecsolveError, match='no such concept'):
+        sps.check(SPEC, sink='highs')
+    with pytest.raises(SpecsolveError, match='gurobi'):
+        sps.check(SPEC, sink='highs')
+    with pytest.raises(SpecsolveError, match='no such concept'):
+        sps.solve(SPEC, SOURCES)
 
 
 def test_the_highs_hand_off_refuses_one_even_when_reached_directly():
     """The backstop for the seam `bench/` uses: `build_highs` is past the
     capability check, and the linear rows of a quadratic model load perfectly
     well — as a different model, answering a number nothing would question."""
-    from lpspec.relational.sinks.solvers.highs import build_highs
+    from specsolve.relational.sinks.solvers.highs import build_highs
 
-    with lps.build(SPEC, SOURCES) as model, pytest.raises(LpspecError, match='no quadratic-constraint concept'):
+    with sps.build(SPEC, SOURCES) as model, pytest.raises(SpecsolveError, match='no quadratic-constraint concept'):
         build_highs(model._engine._model.tables)
 
 
 def test_a_bare_check_stays_silent_about_all_of_it():
     """Whether a model is sayable is solver-independent, and this one is."""
-    lps.check(SPEC)
+    sps.check(SPEC)

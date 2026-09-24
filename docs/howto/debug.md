@@ -7,9 +7,9 @@ and its data, and none needs a solver run you have not already paid for.
 ## 1. Check the file against the sink
 
 ```python
-import lpspec as lps
+import specsolve as sps
 
-lps.check('dispatch.yaml', sink='highs')
+sps.check('dispatch.yaml', sink='highs')
 ```
 
 `check` raises on a construct outside the language, and with `sink=` on one
@@ -20,7 +20,7 @@ until `Spec.expand()` writes it out as binaries
 ## 2. Read the shape the build produced
 
 ```python
-model = lps.build('dispatch.yaml', sources)
+model = sps.build('dispatch.yaml', sources)
 report = model.diagnostics()
 report.columns, report.rows, report.nonzeros  # 8, 4, 8
 report.omissions  # rows a constraint declared and did not build
@@ -65,9 +65,9 @@ on, as in step 3.
 Build the same file on the other lane and compare the objectives:
 
 ```python
-from lpspec import linopy as lpspec_linopy
+from specsolve import linopy as specsolve_linopy
 
-m = lpspec_linopy.build('dispatch.yaml', sources)
+m = specsolve_linopy.build('dispatch.yaml', sources)
 m.solve()
 m.objective.value  # against result.objective
 ```
@@ -84,7 +84,7 @@ Run the loop once with each `keep=` and read the clock the package keeps.
 
 ```python
 for keep in ('solver', 'progress'):
-    model = lps.build('dispatch.yaml', sources)
+    model = sps.build('dispatch.yaml', sources)
     for numbers in walk:
         assert model.update(numbers).solve(keep=keep).kept in {keep, 'nothing'}
     print(keep, model.diagnostics().seconds['solve'])

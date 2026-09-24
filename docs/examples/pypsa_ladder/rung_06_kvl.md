@@ -7,9 +7,9 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 > ✔ Verified against pypsa 1.3.0 — objective **23962.0** on both sides; structure ≠ `transmission_expansion_cost_limit` 2 vs 1+1 — one block per sense — ==, <=, >= — where PyPSA writes one row per labelled constraint whatever its sense; `transmission_volume_expansion_limit` 2 vs 1+1 — one block per sense — ==, <=, >= — where PyPSA writes one row per labelled constraint whatever its sense; size ✔ 123 rows · ✔ 42 columns · ✔ 204 nonzeros; duals ✔ 123 rows; **model for model**: 19 blocks equal, 3 documented splits.
 
 <details markdown="1">
-<summary>Rows and columns, PyPSA against lpspec, name for name</summary>
+<summary>Rows and columns, PyPSA against specsolve, name for name</summary>
 
-| row | PyPSA | lpspec |
+| row | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Bus-nodal_balance` | 20 | 20 |
 | `Generator-fix-p-lower` | 16 | 16 |
@@ -29,7 +29,7 @@ One rung of [the PyPSA corpus](https://math-spec.readthedocs.io/en/latest/exampl
 | `transmission_expansion_cost_limit` | 2 | ≠ 1+1 |
 | `transmission_volume_expansion_limit` | 2 | ≠ 1+1 |
 
-| column | PyPSA | lpspec |
+| column | PyPSA | specsolve |
 | --- | ---: | ---: |
 | `Generator-p` | 16 | 16 |
 | `Line-s` | 20 | 20 |
@@ -293,7 +293,7 @@ S_{k} \in \mathbb{R} \qquad \forall\, k \in \mathcal{K} \,:\, \mathrm{ext}^{s}_{
 
 </details>
 
-=== "lpspec"
+=== "specsolve"
 
     The spec, `differential/pypsa/rungs/rung_06_kvl.yaml` — the file projected onto what this rung builds:
 
@@ -783,7 +783,7 @@ S_{k} \in \mathbb{R} \qquad \forall\, k \in \mathcal{K} \,:\, \mathrm{ext}^{s}_{
             ),
     }
 
-    with lps.solve('differential/pypsa/rungs/rung_06_kvl.yaml', sources) as solution:
+    with sps.solve('differential/pypsa/rungs/rung_06_kvl.yaml', sources) as solution:
         solution.objective  # 23962.0
     ```
 

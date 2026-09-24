@@ -142,7 +142,7 @@ def objective(prepared: Prepared) -> float:
 
     env, model = _built(prepared)
     try:
-        with tempfile.TemporaryDirectory(prefix='lpspec-bench-') as tmp:
+        with tempfile.TemporaryDirectory(prefix='specsolve-bench-') as tmp:
             path = str(Path(tmp) / 'model.lp')
             model.write(path)
             highs = highspy.Highs()

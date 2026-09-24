@@ -143,7 +143,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{still\_live
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-

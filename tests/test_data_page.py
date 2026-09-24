@@ -5,7 +5,7 @@ files, then one frame per parameter — so it is the one place a reader checks
 whether the comparison is rigged. Three ways it could quietly become a lie:
 the CSV shown drifts from the committed file, the committed file drifts from
 the JSON instance the verification machinery reads, or the preparation code
-stops producing tables lpspec accepts. One test each.
+stops producing tables specsolve accepts. One test each.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-import lpspec as lps
+import specsolve as sps
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = ROOT / 'docs' / 'howto' / 'data.md'
@@ -45,13 +45,13 @@ def test_the_preparation_code_runs_and_solves(monkeypatch: pytest.MonkeyPatch) -
 
     Everything else the page says about frameworks points at tab content the
     gallery tests already byte-assert; this block is new, so it runs here —
-    all the way to the optimum, because tables lpspec merely *accepts* could
+    all the way to the optimum, because tables specsolve merely *accepts* could
     still be the wrong tables.
     """
     monkeypatch.chdir(ROOT)
     scope: dict = {}
     exec(_block('read_csv'), scope)  # the page's code, run as the reader would
-    with lps.solve(str(ROOT / 'examples' / 'dispatch.yaml'), scope['sources']) as solution:
+    with sps.solve(str(ROOT / 'examples' / 'dispatch.yaml'), scope['sources']) as solution:
         assert solution.objective == pytest.approx(10500.0, rel=1e-9), (
             'the prepared sources do not reach the optimum references.json records for dispatch'
         )
@@ -62,7 +62,7 @@ def test_the_linopy_shapes_block_runs_and_solves() -> None:
     pytest.importorskip('pandas')
     scope: dict = {}
     exec(_block('pd.Series'), scope)
-    with lps.solve(str(ROOT / 'examples' / 'dispatch.yaml'), scope['sources']) as solution:
+    with sps.solve(str(ROOT / 'examples' / 'dispatch.yaml'), scope['sources']) as solution:
         assert solution.objective == pytest.approx(10500.0, rel=1e-9), (
             'linopy-shaped Series sources do not reach the recorded dispatch optimum'
         )
@@ -97,7 +97,7 @@ def test_the_pypsa_shapes_block_produces_tidy_sources() -> None:
     sources = scope['sources'] | {
         key: pl.DataFrame(instance[key]) for key in ('line', 'cap', 'neg_cap', 'generator', 'line_from', 'line_to')
     }
-    with lps.solve(str(ROOT / 'examples' / 'transport.yaml'), sources) as solution:
+    with sps.solve(str(ROOT / 'examples' / 'transport.yaml'), sources) as solution:
         assert solution.objective == pytest.approx(4400.0, rel=1e-9), (
             'pypsa-shaped sources do not reach the recorded transport optimum'
         )

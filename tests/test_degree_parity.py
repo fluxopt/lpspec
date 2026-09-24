@@ -18,10 +18,10 @@ from __future__ import annotations
 
 import pytest
 
-import lpspec as lps
-from lpspec.errors import LanguageError
+import specsolve as sps
+from specsolve.errors import LanguageError
 from tests.conftest import dispatch_spec_path
-from tests.oracle import lpspec_linopy  # skips the module without the [linopy] extra
+from tests.oracle import specsolve_linopy  # skips the module without the [linopy] extra
 
 
 #: One entry per way the degree rule can be broken *at build time on both
@@ -69,10 +69,10 @@ def test_both_lanes_refuse_the_same_expression(tmp_path, dispatch_spec_inputs, p
     path = dispatch_spec_path(tmp_path, **patch)
 
     with pytest.raises(LanguageError, match=match) as eager:
-        lpspec_linopy.build(path, data)
+        specsolve_linopy.build(path, data)
 
     with pytest.raises(LanguageError, match=match) as relational:
-        lps.check(path)
+        sps.check(path)
 
     assert str(relational.value).endswith(str(eager.value))
 
@@ -84,5 +84,5 @@ def test_the_eager_lane_still_accepts_an_affine_product(tmp_path, dispatch_spec_
     """
     data = dispatch_spec_inputs
     path = dispatch_spec_path(tmp_path, **{'objective.expression': 'sum(p * cost)'})
-    model = lpspec_linopy.build(path, data)
+    model = specsolve_linopy.build(path, data)
     assert model.objective is not None

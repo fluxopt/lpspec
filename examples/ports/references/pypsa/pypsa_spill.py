@@ -15,7 +15,7 @@ alignment and broadcasting decide which coefficient lands in which row. pandas
 is only a floor: it holds the instance's tables and reshapes the recorded duals.
 
 It reads the same instance the port binds and builds the network with PyPSA's
-own objects. Nothing here imports lpspec.
+own objects. Nothing here imports specsolve.
 
 **Water a reservoir cannot hold leaves through a second sink.** ``inflow`` adds
 energy the model did not choose to store, and ``spill`` is the non-negative
@@ -52,7 +52,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
 def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
     """The port's tables as a PyPSA network, column for column.
 
-    ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+    ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
     ``inflow`` is a time-varying attribute, so it arrives pivoted to snapshots
     by names. PyPSA declares the spill variable only for units whose inflow is

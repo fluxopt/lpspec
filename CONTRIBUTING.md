@@ -136,7 +136,7 @@ Three rules on top of that, each enforced, so none has to be remembered:
   `examples/index.md`. The build resolves and validates these; a dead one fails
   it.
 - **Outside `docs/`, write the full GitHub URL** —
-  `https://github.com/fluxopt/lpspec/blob/main/bench/README.md`, not
+  `https://github.com/fluxopt/specsolve/blob/main/bench/README.md`, not
   `../bench/README.md`. The site has no file above `docs/` to resolve to, and
   the build does *not* flag the relative form: it ships as a silent 404. This
   is the same convention the model pages already use to link at their `.yaml`.
@@ -249,8 +249,8 @@ differently" belongs in git.
 A port is a model somebody else already solved, said again in this language and
 checked against **an optimum that did not come from us**. It is the only test
 class that can catch a *shared misreading* — both lanes agreeing on a meaning
-the modeller did not intend — because every other test compares lpspec against
-lpspec. The corpus and the ledger of what a port could *not* say are in
+the modeller did not intend — because every other test compares specsolve against
+specsolve. The corpus and the ledger of what a port could *not* say are in
 [docs/examples/index.md](docs/examples/index.md), where the reference table is
 generated from `examples/ports/references.json` — the same file the tests assert
 against. The PyPSA ladder is a different instrument and lives in
@@ -285,7 +285,7 @@ Four files per port:
 ```
 examples/ports/<name>.yaml                  the model
 examples/ports/data/<name>.json             the instance
-examples/ports/references/<arm>/<name>.py   a reference implementation, importing no lpspec
+examples/ports/references/<arm>/<name>.py   a reference implementation, importing no specsolve
 examples/ports/references.json              the recorded objective and where it came from
 docs/examples/<name>.md                     the gallery page — maths, model, side-by-side
 ```

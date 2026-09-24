@@ -86,7 +86,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{weighting}`
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -172,7 +172,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve('examples/ports/pypsa_energy_sum.yaml', sources) as solution:
+    with sps.solve('examples/ports/pypsa_energy_sum.yaml', sources) as solution:
         solution.objective  # 21400.0
         solution.dual('nodal_balance')
     ```
@@ -185,7 +185,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> pypsa.Network:
         """The port's tables as a PyPSA network, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
 
         The energy bounds arrive as short frames — one row per generator that has
         one — and are reindexed onto the full generator index, which is where the

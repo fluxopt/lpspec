@@ -4,7 +4,7 @@ GAMS model library `trnspwl`: the same shipping problem, but a big consignment i
 
 > **✔ Verified against linopy 0.9.0's own `add_piecewise_formulation`** — objective **8.786852757777865**, matched to `rtol=1e-09`.
 
-Every other reference is independent of lpspec because it is a different
+Every other reference is independent of specsolve because it is a different
 program; this one is also independent of *the construct under test*.
 `piecewise:` and linopy's `add_piecewise_formulation` are two implementations
 of the same λ convex-combination idea, compared here on a model neither was
@@ -21,7 +21,7 @@ underestimates `sqrt` everywhere between.
 |---|---|---|---|---|---|---|---|---|
 | f(x) | 0 | 7.071 | 10.954 | 13.784 | 16.125 | 18.166 | 20 | 24.495 |
 
-The [instance](https://github.com/fluxopt/lpspec/blob/main/examples/ports/data/transport_pwl.json) is otherwise
+The [instance](https://github.com/fluxopt/specsolve/blob/main/examples/ports/data/transport_pwl.json) is otherwise
 [Dantzig's](transport_dantzig.md), unchanged.
 
 ## The model
@@ -113,7 +113,7 @@ Upright is what the model is given — a parameter such as $`\mathrm{capacity}`$
 
 The tabs start from [the instance's tables](../howto/data.md) — one frame per parameter.
 
-=== "lpspec"
+=== "specsolve"
 
     ```yaml
     description: >-
@@ -198,7 +198,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
 
     ```python
     # sources: parameter name -> frame or parquet path
-    with lps.solve(to_spec('examples/ports/transport_pwl.yaml').expand(), sources) as solution:
+    with sps.solve(to_spec('examples/ports/transport_pwl.yaml').expand(), sources) as solution:
         solution.objective  # 8.786852757777865
     ```
 
@@ -210,7 +210,7 @@ The tabs start from [the instance's tables](../howto/data.md) — one frame per 
     def build(tables: dict[str, pd.DataFrame]) -> linopy.Model:
         """The port's tables as a linopy model, column for column.
 
-        ``tables`` is the same mapping the lpspec call attaches as ``sources``.
+        ``tables`` is the same mapping the specsolve call attaches as ``sources``.
         ``scaled`` is what the objective is actually charged on — ``sqrt(shipment)``
         read off the discretised curve rather than computed.
         """
@@ -254,7 +254,7 @@ minimisation is a modelling error, not a data error.
 and the integrality that follows, plus `sum` and parameter arithmetic in the
 objective.
 
-**The two numbers are not bit-identical.** lpspec returns `8.786852757777858`
+**The two numbers are not bit-identical.** specsolve returns `8.786852757777858`
 against linopy's `8.786852757777865`, a relative difference of about
 8 × 10⁻¹⁶: branch-and-bound reaches the same vertex by a different order of
 floating-point operations. The shipment plan is identical. The per-port `rtol`

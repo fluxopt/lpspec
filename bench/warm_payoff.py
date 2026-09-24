@@ -45,15 +45,15 @@ import numpy as np
 import polars as pl
 from math_spec import to_spec
 
-import lpspec as lps
+import specsolve as sps
 from bench.cases import Shape, _seed
-from lpspec.relational.sinks.solvers import SOLVERS
-from lpspec.relational.sinks.solvers.base import WarmStart
+from specsolve.relational.sinks.solvers import SOLVERS
+from specsolve.relational.sinks.solvers.base import WarmStart
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from lpspec.relational.engines.polars.engine import PolarsEngine
+    from specsolve.relational.engines.polars.engine import PolarsEngine
 
 MODELS = Path(__file__).resolve().parent / 'expansion'
 
@@ -245,7 +245,7 @@ def _solved(tables: Any, start: WarmStart | None) -> tuple[Any, int, float, Warm
     return answer, iterations, seconds, carried
 
 
-def _slope_at(solution: lps.Result, avail: pl.DataFrame, capacity: pl.DataFrame) -> tuple[pl.DataFrame, float]:
+def _slope_at(solution: sps.Result, avail: pl.DataFrame, capacity: pl.DataFrame) -> tuple[pl.DataFrame, float]:
     """The subproblem's subgradient in capacity, and its value at *capacity*.
 
     The capacity row's shadow price is that derivative, weighted by
@@ -321,9 +321,9 @@ def sweep(n_gen: int, n_snap: int = SNAPSHOTS, steps: int = 200) -> Run:
     converged = False
 
     with (
-        lps.build(MODELS / 'sub.yaml', slice_for(MODELS / 'sub.yaml', cap_hat=capacity)) as sub_model,
-        lps.build(MODELS / 'feasibility.yaml', slice_for(MODELS / 'feasibility.yaml', cap_hat=capacity)) as short_model,
-        lps.build(
+        sps.build(MODELS / 'sub.yaml', slice_for(MODELS / 'sub.yaml', cap_hat=capacity)) as sub_model,
+        sps.build(MODELS / 'feasibility.yaml', slice_for(MODELS / 'feasibility.yaml', cap_hat=capacity)) as short_model,
+        sps.build(
             MODELS / 'master.yaml',
             {'invest': data['invest'], 'cap_max': data['cap_max'], **cuts, 'generator': gens, 'cut': [], 'fcut': []},
         ) as master,
