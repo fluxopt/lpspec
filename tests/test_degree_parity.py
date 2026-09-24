@@ -2,7 +2,7 @@
 
 The ceiling's own inventory is math-spec's and is swept there; the relational
 lane relaying a refusal to a caller is `test_language_boundary.py`. This module
-checks the thing that actually mattered: that the *eager* lane refuses it too,
+checks the thing that actually mattered: that the *linopy* lane refuses it too,
 **in the same words**.
 
 The rule lives in ``math_spec.degree`` and this lane asks it. Where it kept a
@@ -28,7 +28,7 @@ from tests.oracle import specsolve_linopy  # skips the module without the [linop
 #: lanes*. A product of two variables is not among them any more — the
 #: objective and constraints both take one — and the position that still
 #: refuses it, a named expression, is lowered only by ``check``
-#: (``test_language_boundary.py``). What the eager lane refuses about a
+#: (``test_language_boundary.py``). What the linopy lane refuses about a
 #: quadratic *constraint* is not degree but capability, and lives in
 #: ``test_quadratic_constraint.py``. The divisor that adds is affine and
 #: refused all the same, because a quotient is built as one reciprocal factor.
@@ -60,7 +60,7 @@ from tests.oracle import specsolve_linopy  # skips the module without the [linop
 def test_both_lanes_refuse_the_same_expression(tmp_path, dispatch_spec_inputs, patch, match):
     """Not just "both raise": both say the same thing.
 
-    The relational lane prefixes the declaration it was lowering; the eager lane
+    The relational lane prefixes the declaration it was lowering; the linopy lane
     carries that as an ``add_note`` instead, so its message is the bare sentence
     and the relational one ends with it. One source, so this cannot drift into
     two dialects the way the hand-copied ``**`` message could.
@@ -68,16 +68,16 @@ def test_both_lanes_refuse_the_same_expression(tmp_path, dispatch_spec_inputs, p
     data = dispatch_spec_inputs
     path = dispatch_spec_path(tmp_path, **patch)
 
-    with pytest.raises(LanguageError, match=match) as eager:
+    with pytest.raises(LanguageError, match=match) as linopy_lane:
         specsolve_linopy.build(path, data)
 
     with pytest.raises(LanguageError, match=match) as relational:
         sps.check(path)
 
-    assert str(relational.value).endswith(str(eager.value))
+    assert str(relational.value).endswith(str(linopy_lane.value))
 
 
-def test_the_eager_lane_still_accepts_an_affine_product(tmp_path, dispatch_spec_inputs):
+def test_the_linopy_lane_still_accepts_an_affine_product(tmp_path, dispatch_spec_inputs):
     """The guard refuses degree 2, not multiplication — ``variable * parameter``
     is the shape the whole language is built around, and a check that broke it
     would be caught here rather than by every other test at once.

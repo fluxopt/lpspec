@@ -1,7 +1,7 @@
 """The scoping divergences, checked against the oracle lane itself.
 
 The rules themselves are math-spec's and are swept there. This module checks
-the thing that actually mattered: that the *eager* lane refuses what the
+the thing that actually mattered: that the *linopy* lane refuses what the
 relational lane refuses, in the same place, for the same reason. Before
 resolution was a pass, each of these built a model on one lane and raised on
 the other.
@@ -45,7 +45,7 @@ def test_both_lanes_refuse_a_comparison_that_carries_no_variable(tmp_path, dispa
     """A constraint whose two sides are both constants decides nothing (#1171).
 
     Was: the relational lane built the model quietly with no such row, while
-    the eager lane raised linopy's own `TypeError` at build — one language,
+    the linopy lane raised linopy's own `TypeError` at build — one language,
     two answers, and neither of them said what was wrong with the file. It is
     decidable with no data attached, so it is decided where the file is read.
     """
@@ -119,15 +119,15 @@ def test_both_lanes_build_the_same_model(tmp_path, dispatch_spec_inputs, where):
     path = dispatch_spec_path(tmp_path, **{'variables.p.where': where})
 
     m = specsolve_linopy.build(path, data)
-    eager_rows = int((m.variables['p'].labels != -1).sum())
-    eager_status = m.solve(solver_name='highs')[1]
+    linopy_rows = int((m.variables['p'].labels != -1).sum())
+    linopy_status = m.solve(solver_name='highs')[1]
 
     with sps.build(path, data) as model:
         relational_rows = model._engine._model.variables['p'].frame.select(pl.len()).collect().item()
         relational_status = model.solve().termination_condition
 
-    assert eager_rows == relational_rows, f'{where}: {eager_rows} vs {relational_rows} variables'
-    assert eager_status == relational_status, f'{where}: {eager_status} vs {relational_status}'
+    assert linopy_rows == relational_rows, f'{where}: {linopy_rows} vs {relational_rows} variables'
+    assert linopy_status == relational_status, f'{where}: {linopy_status} vs {relational_status}'
 
 
 def test_every_resolved_predicate_is_parity_tested():
@@ -190,7 +190,7 @@ def test_a_constraint_row_left_with_no_variables(tmp_path, dispatch_spec_inputs)
     path = dispatch_spec_path(tmp_path, **{'variables.p.where': 'snapshot > 0'})
 
     m = specsolve_linopy.build(path, data)
-    eager_status = m.solve(solver_name='highs')[1]
+    linopy_status = m.solve(solver_name='highs')[1]
 
     with sps.build(path, data) as model:
         relational_status = model.solve().termination_condition
@@ -198,7 +198,7 @@ def test_a_constraint_row_left_with_no_variables(tmp_path, dispatch_spec_inputs)
             'a dropped row has to be reported, or a declared constraint goes quietly unenforced'
         )
 
-    assert eager_status == relational_status
+    assert linopy_status == relational_status
 
 
 #: A dimension the data leaves with **no members**, and a variable reduced over
@@ -223,7 +223,7 @@ def test_a_row_over_a_dimension_with_no_members_is_not_built_on_either_lane(sens
 
     A reduction over a set with no members is `0`, so `sum(w, over=k) == 1`
     is a row about constants alone and neither lane builds it. Was: the
-    relational lane solved, and the eager lane raised linopy's `Both sides of
+    relational lane solved, and the linopy lane raised linopy's `Both sides of
     the constraint are constant` before any mask could speak — so a component
     library, whose whole shape is one program covering features a given system
     does not use, could not use the oracle lane at all.
@@ -269,7 +269,7 @@ def test_a_block_ranging_over_a_dimension_with_no_members_is_not_built_on_either
 
     Here the sum reduces a full dimension while its term carries the empty
     one, so every row of the result is empty. The relational lane builds
-    zero rows; the eager lane never got that far — linopy's ``sum`` dies in
+    zero rows; the linopy lane never got that far — linopy's ``sum`` dies in
     xarray's stack (``cannot reshape array of size 0``) whenever another
     dimension of the summed expression is empty — which kept every
     cycle-free rung of the PyPSA ladder off the model-for-model comparison.
@@ -308,7 +308,7 @@ BOOL_MASK_SPEC = {
 def test_a_bool_parameter_is_a_mask_on_both_lanes():
     """A bool parameter reads as its own value: true masks in, false masks out,
     and an absent row masks out. Was: the relational lane raised
-    `isfinite(BOOLEAN)` at build, and the eager lane read false as true.
+    `isfinite(BOOLEAN)` at build, and the linopy lane read false as true.
     """
     data = {
         't': [0, 1, 2],
@@ -338,7 +338,7 @@ SCALAR_ROW_SPEC = {
 def test_the_empty_coordinate_builds_on_both_lanes():
     """A scalar row, a scalar column and a scalar value, in one model (#320).
 
-    Was: the eager lane built all three and solved; the relational lane raised
+    Was: the linopy lane built all three and solved; the relational lane raised
     `constraint 'budget_row' has no dims`, and with that guard gone,
     `variable 'slack' has no dims (scalars: use dims of size 1)`. So the same
     file was two languages, against hard rule 3 — and the hint pointed at the
@@ -419,22 +419,22 @@ def test_a_datetime_boundary_is_sayable_on_both_lanes(tmp_path):
         'snapshot': pl.DataFrame({'snapshot': days}),
         'generator': pl.DataFrame({'generator': ['wind', 'gas']}),
     }
-    eager_data = {
+    linopy_data = {
         'cost': pd.Series({'wind': 1.0, 'gas': 5.0}),
         'load': pd.Series([10.0, 20.0, 30.0], index=pd.Index(days, name='snapshot')),
     }
-    eager_data |= {
+    linopy_data |= {
         'snapshot': pd.Index(days, name='snapshot'),
         'generator': pd.Index(['wind', 'gas'], name='generator'),
     }
 
-    m = specsolve_linopy.build(path, eager_data)
+    m = specsolve_linopy.build(path, linopy_data)
     m.solve(solver_name='highs')
-    eager = float(m.objective.value)
+    linopy_lane = float(m.objective.value)
 
     with sps.solve(path, frames) as result:
         relational = result.objective
         assert result.primal('p')['snapshot'].dtype in (pl.Date, pl.Datetime('us')), 'the coordinate keeps its dtype'
         assert result.primal('p').height == 2, 'only the third day survives the boundary'
 
-    assert eager == relational == 30.0
+    assert linopy_lane == relational == 30.0

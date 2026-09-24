@@ -151,11 +151,6 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   as a `linopy.Model`. Both accept the same language
   ([relationship to linopy](../about/linopy.md#2-it-is-the-oracle)).
 
-**eager**
-: The linopy lane, and nothing else — the **eager lane** in the differential
-  suite and the benchmark harness. Never a reader: how a saved answer is read
-  is [load or scan](#the-verbs).
-
 **Engine**
 : The relational lane's builder: it fills the model's tables from the attached
   data and hands them to a sink.

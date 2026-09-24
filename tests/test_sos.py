@@ -174,10 +174,10 @@ def test_both_lanes_and_the_enumeration_agree(sos_type):
     """
     from tests.differential import differential
 
-    eager = {'site': SITES, 'size': SIZES} | {
+    linopy_lane = {'site': SITES, 'size': SIZES} | {
         name: _table(v).to_pandas() for name, v in (('value', VALUE), ('cap', CAP))
     }
-    with differential(spec(sos_type), eager, lp=True) as run:
+    with differential(spec(sos_type), linopy_lane, lp=True) as run:
         assert run.result.objective == pytest.approx(best(sos_type)), 'the set does not restrict what it claims to'
 
 

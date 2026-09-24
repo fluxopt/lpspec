@@ -1,4 +1,4 @@
-"""Attach context to exceptions via ``Exception.add_note``; the eager builder is the only annotator."""
+"""Attach context to exceptions via ``Exception.add_note``; the linopy builder is the only annotator."""
 
 from __future__ import annotations
 

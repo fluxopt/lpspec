@@ -46,7 +46,7 @@ def test_activity_matches_the_csr_recomputation(dispatch_yaml, dispatch_inputs):
         _agrees_with_csr(run)
 
 
-def test_activity_matches_the_eager_lane(dispatch_yaml, dispatch_inputs):
+def test_activity_matches_the_linopy_lane(dispatch_yaml, dispatch_inputs):
     """The linopy lane has no accessor, so its half is lhs evaluated at the solution."""
     data = dispatch_inputs
     with differential(dispatch_yaml, data) as run:

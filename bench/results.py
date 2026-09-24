@@ -69,7 +69,7 @@ tables print one em dash for *too slow to measure* and the same em dash for
 **One thing the old runner did that this does not: record a failure as a
 result.** It caught a child that died, kept the exception line, and the report
 rendered it as a cell — which is how `docs/about/benchmarks.md` publishes that the
-eager lane runs out of memory at a rung the relational one survives. Under
+linopy lane runs out of memory at a rung the relational one survives. Under
 pytest a dead pass is an error, and a real OOM kills the process before
 anything in it can record why. The readers still understand an ``error`` record
 and will render one; nothing produces it yet. Until that is resolved, the top

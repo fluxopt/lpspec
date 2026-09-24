@@ -23,7 +23,7 @@ the way these did — silently, and found by accident.
 
 **Each case carries data twice**, once per lane's preferred shape. That is not
 duplication for its own sake: the relational lane adapts everything to tidy
-polars frames, the eager lane reads pandas/xarray natively because that is what
+polars frames, the linopy lane reads pandas/xarray natively because that is what
 linopy wants, and the point of the table is that two *representations* of the
 same mistake get the same answer.
 """
@@ -63,7 +63,7 @@ def _tidy(**cols: list[Any]) -> pl.DataFrame:
 
 
 def _written(tmp_path: Path, spec: dict) -> Path:
-    """*spec* on disk, because the eager lane only takes a path."""
+    """*spec* on disk, because the linopy lane only takes a path."""
     path = tmp_path / 'model.yaml'
     path.write_text(pyyaml.safe_dump(spec))
     return path
@@ -75,7 +75,7 @@ class Case:
 
     label: str
     relational: dict[str, Any]
-    eager: dict[str, Any]
+    linopy_lane: dict[str, Any]
     #: `DataError` for a refusal both lanes owe the caller, or `ACCEPTED`.
     verdict: type[Exception] | str
 
@@ -148,7 +148,7 @@ CASES = _cases()
 
 @pytest.fixture(scope='module')
 def spec_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """The eager lane only takes a path, so the model has to hit disk once."""
+    """The linopy lane only takes a path, so the model has to hit disk once."""
     path = tmp_path_factory.mktemp('data-parity') / 'm.yaml'
     path.write_text(pyyaml.safe_dump(SPEC))
     return path
@@ -162,7 +162,7 @@ def _verdict_relational(path: Path, data: dict[str, Any]) -> type[Exception] | s
     return ACCEPTED
 
 
-def _verdict_eager(path: Path, data: dict[str, Any]) -> type[Exception] | str:
+def _verdict_linopy(path: Path, data: dict[str, Any]) -> type[Exception] | str:
     try:
         m = specsolve_linopy.build(path, data)
         m.solve(solver_name='highs', output_flag=False)
@@ -179,10 +179,10 @@ def test_both_lanes_reach_the_same_verdict(case: Case, spec_path: Path):
     which is the failure this table exists to catch rather than to reproduce.
     """
     relational = _verdict_relational(spec_path, case.relational)
-    eager = _verdict_eager(spec_path, case.eager)
+    linopy_lane = _verdict_linopy(spec_path, case.linopy_lane)
 
     assert relational == case.verdict, f'{case.label}: relational lane'
-    assert eager == case.verdict, f'{case.label}: eager lane'
+    assert linopy_lane == case.verdict, f'{case.label}: linopy lane'
 
 
 def test_the_table_covers_both_verdicts():
@@ -199,23 +199,23 @@ def test_a_hole_is_named_where_it_sits_rather_than_as_a_divisor(spec_path: Path)
     The relational lane read a null coefficient in the assembled matrix as an
     undefined divisor, which is the only way one used to arise — so a hole in
     an ordinary coefficient printed `parameter ''`, naming no parameter at all,
-    while the eager lane read the same hole as a missing row and solved. Both
+    while the linopy lane read the same hole as a missing row and solved. Both
     now refuse it at attach, in one sentence, before anything is assembled.
     """
     index = {'f': ['a', 'b']}
     holed = {**index, 'cost': _tidy(f=['a', 'b'], value=[1.0, None]), 'cap': _tidy(f=['a', 'b'], value=[5.0, 5.0])}
-    eager = {**index, 'cost': pd.Series({'a': 1.0, 'b': None}), 'cap': pd.Series({'a': 5.0, 'b': 5.0})}
+    linopy_lane = {**index, 'cost': pd.Series({'a': 1.0, 'b': None}), 'cap': pd.Series({'a': 5.0, 'b': 5.0})}
 
     with pytest.raises(DataError, match="parameter 'cost'") as relational_error:
         sps.build(spec_path, holed).close()
-    with pytest.raises(DataError, match="parameter 'cost'") as eager_error:
-        specsolve_linopy.build(spec_path, eager)
+    with pytest.raises(DataError, match="parameter 'cost'") as linopy_error:
+        specsolve_linopy.build(spec_path, linopy_lane)
 
     assert 'divisor' not in str(relational_error.value), (
         'the message names the hole, not a divisor the model has not got'
     )
     assert "f='b'" in str(relational_error.value), 'and names the coordinate the hole sits at'
-    assert str(relational_error.value) == str(eager_error.value), 'one defect, one sentence'
+    assert str(relational_error.value) == str(linopy_error.value), 'one defect, one sentence'
 
 
 @pytest.mark.parametrize(
@@ -232,7 +232,7 @@ def test_a_hole_is_refused_in_every_shape_a_source_arrives_in(spec_path: Path, h
 
     Each stops being a list of supplied rows at a different line: a dict and a
     sequence are spread over the master coordinates, a scalar is broadcast, a
-    tidy frame is unstacked. The eager lane asks its question at four sites for
+    tidy frame is unstacked. The linopy lane asks its question at four sites for
     that reason, and a guard no test reaches is a guard that rots.
     """
     sources = {'f': ['a', 'b'], 'cost': holed, 'cap': _tidy(f=['a', 'b'], value=[5.0, 5.0])}
@@ -245,7 +245,7 @@ def test_a_hole_in_a_scalar_parameter_is_refused_on_both_lanes(tmp_path: Path):
 
     A scalar is the shape where reading a hole as a row would be least visible:
     it broadcasts everywhere, so one unsupplied number reaches every
-    coordinate. The eager lane takes its own branch for it — one row, no index
+    coordinate. The linopy lane takes its own branch for it — one row, no index
     to unstack — which is why the question is asked there separately.
     """
     spec = {
@@ -431,7 +431,7 @@ def test_a_relation_defect_reads_the_same_on_both_lanes(tmp_path, sources, match
     """One wording, not two — the same rule `no_index_source_message` follows.
 
     The first two were written twice and drifted: the relational lane named the
-    `sources` key and the eager one a separate argument, for one defect a caller
+    `sources` key and the linopy one a separate argument, for one defect a caller
     fixes the same way whichever lane they were on. The rest were the same
     duplication one function further in, where each lane read the index itself
     — and with a map arriving under its own key they are one check in the door
@@ -465,7 +465,7 @@ def test_a_relation_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_
 
     pandas `nunique()` skips nulls where polars `n_unique()` counts them, so a
     label carrying a null in one row and a real value in another read as
-    single-valued on the eager lane — and the null won, that row being the
+    single-valued on the linopy lane — and the null won, that row being the
     first. The member then belonged to no group, its terms left the constraint
     that was to hold them, and the model solved: 8.0 against the 3.0 both lanes
     give the same index deduplicated.
@@ -483,7 +483,7 @@ def test_a_relation_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_
         assert run.objective == pytest.approx(3.0), 'both members are on the bus, and the bus caps them'
     built = specsolve_linopy.build(path, clean)
     built.solve(solver_name='highs', output_flag=False)
-    assert float(built.objective.value) == pytest.approx(3.0), 'and the eager lane agrees where the index is clean'
+    assert float(built.objective.value) == pytest.approx(3.0), 'and the linopy lane agrees where the index is clean'
 
     both_lanes_refuse(path, holed, match="null in 'b'")
 
@@ -491,7 +491,7 @@ def test_a_relation_a_label_holds_twice_is_refused_before_it_can_drop_a_row(tmp_
 def test_a_dimension_index_is_a_table_on_both_lanes(tmp_path):
     """And it may arrive under `sources`, which is where the relational lane looks first.
 
-    The eager lane took its own argument and required a pandas frame, so an index
+    The linopy lane took its own argument and required a pandas frame, so an index
     a caller passed the way the runner documents — a polars table under the
     dimension's own key — was invisible to one of two lanes.
     """
@@ -501,13 +501,13 @@ def test_a_dimension_index_is_a_table_on_both_lanes(tmp_path):
     with sps.solve(path, sources) as relational:
         assert relational.is_ok
     built = specsolve_linopy.build(path, sources)
-    assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'the eager lane read the same index'
+    assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'the linopy lane read the same index'
 
 
 def test_a_dimension_index_may_be_a_parquet_path_without_pyarrow(tmp_path, monkeypatch):
     """The `[linopy]` extra ships pandas and xarray, and nothing says it ships pyarrow.
 
-    The eager lane read an index path with `polars.read_parquet().to_pandas()`,
+    The linopy lane read an index path with `polars.read_parquet().to_pandas()`,
     which wants pyarrow for anything Arrow-backed — so the way the runner
     documents passing an index, a path under the dimension's own key, raised
     `ModuleNotFoundError: No module named 'pyarrow'` on a supported install.
@@ -525,7 +525,7 @@ def test_a_dimension_index_may_be_a_parquet_path_without_pyarrow(tmp_path, monke
     with sps.solve(path, sources) as relational:
         assert relational.is_ok
     built = specsolve_linopy.build(path, sources)
-    assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'the eager lane read the same path'
+    assert set(built.variables['x'].coords['g'].to_numpy()) == {'w', 's'}, 'the linopy lane read the same path'
 
 
 #: The same shape one column over: a relation whose *target* is the temporal
@@ -585,13 +585,13 @@ def test_a_relation_into_a_temporal_dimension_is_one_instant_on_both_lanes(tmp_p
         assert run.objective == pytest.approx(3.0), 'one day, one cap, both members under it'
     built = specsolve_linopy.build(path, sources)
     built.solve(solver_name='highs', output_flag=False)
-    assert float(built.objective.value) == pytest.approx(3.0), 'and the eager lane groups them the same way'
+    assert float(built.objective.value) == pytest.approx(3.0), 'and the linopy lane groups them the same way'
 
 
 def test_a_stray_relation_value_reads_the_same_over_an_int_labelled_target(tmp_path):
     """One sentence, and the labels in it spelled as the caller wrote them.
 
-    The eager lane took its offending values off a pandas frame and printed
+    The linopy lane took its offending values off a pandas frame and printed
     them as they came, so an `int` dimension read back `np.int64(99)` where the
     relational lane said `99` — one defect, two sentences again, and invisible
     to a table whose every label is a string.

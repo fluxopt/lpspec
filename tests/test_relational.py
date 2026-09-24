@@ -10,7 +10,7 @@ still agrees.
 
 Two whole models round-trip at the top, each built three ways and required to
 reach one objective — the engine into `highs`, the engine into an LP file HiGHS
-re-reads, and the eager linopy build as the oracle.
+re-reads, and the linopy build as the oracle.
 
 What was here and now lives with its construct: `test_absence.py`,
 `test_diagnostics.py`, and the data-shift pair in `test_shift.py`.
@@ -57,7 +57,7 @@ from specsolve.relational.sinks.tables import ranges
 from specsolve.sources import tidy_sources
 from tests.conftest import SOLVER_VECTOR_LOAD, SOLVER_VECTOR_SPEC, by_coord, override, solve_written_file
 from tests.differential import RTOL, differential
-from tests.oracle import linopy, pd, specsolve_linopy, transport_eager_objective, xr
+from tests.oracle import linopy, pd, specsolve_linopy, transport_linopy_objective, xr
 
 # ---------------------------------------------------------------------------
 # model 1: dispatch (the spec example)
@@ -166,7 +166,7 @@ _CAP = pl.DataFrame({'f': ['a', 'b'], 'value': [5.0, 5.0]})
 
 #: A constant part beside a term, under each operator that acts along a dim the
 #: constant does not carry. `check` accepts every one, lowering passes it,
-#: and the eager lane builds and solves it — so the file is sayable and only this
+#: and the linopy lane builds and solves it — so the file is sayable and only this
 #: lane is short. #1137, found on `sum(over=)` and true of four of them.
 CONSTANT_BESIDE_A_TERM = {
     'dimensions': {'t': {'dtype': 'int'}},
@@ -176,7 +176,7 @@ CONSTANT_BESIDE_A_TERM = {
 }
 
 
-#: Every operator that acts along a dim, with the objective the eager lane
+#: Every operator that acts along a dim, with the objective the linopy lane
 #: reaches from the file *as written* — which is the number the rewrite owes.
 CONSTANT_BESIDE_A_TERM_CASES = [
     ('sum(x * k + d, over=t) >= load', 8.0, 'sum-over'),
@@ -186,13 +186,13 @@ CONSTANT_BESIDE_A_TERM_CASES = [
 ]
 
 
-#: Empty since #1142: `sum_back`'s rewrite answered 2.5 against the eager lane's
+#: Empty since #1142: `sum_back`'s rewrite answered 2.5 against the linopy lane's
 #: 3.0 until the window propagated absence into its operand. Kept as the hook a
 #: future one-operator hole hangs on, rather than inlined into the list.
 REWRITE_IS_BROKEN_ON: dict[str, pytest.MarkDecorator] = {}
 
 
-def dispatch_eager_objective(gens: pd.DataFrame, load: pd.DataFrame) -> float:
+def dispatch_linopy_objective(gens: pd.DataFrame, load: pd.DataFrame) -> float:
     gi = gens.set_index('generator')
     li = load.set_index('snapshot')['value']
     p_max = xr.DataArray.from_series(gi['p_max'])
@@ -298,15 +298,15 @@ class TestTwoModelsRoundTrip:
     """Two whole models, each built three ways, required to reach one objective.
 
     The engine into ``highs``, the engine into an LP file HiGHS re-reads, and
-    the eager linopy build as the oracle. Everything below this class tests a
+    the linopy build as the oracle. Everything below this class tests a
     part; these two are the only tests here that exercise the whole path, so a
     failure in one of them means a part has no test.
     """
 
     def test_dispatch_roundtrip(self, dispatch_data, tmp_path):
-        """Solver and LP file agree with the eager oracle, down to the dispatch."""
+        """Solver and LP file agree with the linopy oracle, down to the dispatch."""
         gens, load = dispatch_data
-        oracle = dispatch_eager_objective(gens, load)
+        oracle = dispatch_linopy_objective(gens, load)
 
         with PolarsEngine() as engine:
             engine.build(dispatch_program(), tidy_sources(dispatch_program(), dispatch_sources(gens, load)))
@@ -328,9 +328,9 @@ class TestTwoModelsRoundTrip:
             assert np.allclose(balance.sort_index(), expected.sort_index()), 'dispatch meets load in every snapshot'
 
     def test_transport_roundtrip(self, transport_data, tmp_path):
-        """Solver and LP file agree with the eager oracle."""
+        """Solver and LP file agree with the linopy oracle."""
         gens, lines, load = transport_data
-        oracle = transport_eager_objective(gens, lines, load)
+        oracle = transport_linopy_objective(gens, lines, load)
         assert np.isfinite(oracle), 'oracle model must be feasible'
 
         with PolarsEngine() as engine:
@@ -778,7 +778,7 @@ class TestTheLabelSpace:
 
         `b` mistyped as `zz` left `b` with no cost row, which reads as a zero
         coefficient — so the model solved, reported optimal, and returned 5.0 where
-        15.0 is right. The eager lane already refused it; this lane joined the
+        15.0 is right. The linopy lane already refused it; this lane joined the
         stray row against nothing and carried on.
         """
         ok = {'cost': pl.DataFrame({'f': ['a', 'b'], 'value': [1.0, 2.0]}), 'cap': _CAP}
@@ -1233,7 +1233,7 @@ def _aligned_for(spec, data, monkeypatch):
     return seen
 
 
-#: One dimension, so the oracle can take it: the eager loader wants a
+#: One dimension, so the oracle can take it: the linopy loader wants a
 #: `pd.Series` for a 1-D parameter and refuses a polars frame for a 2-D one.
 FLAT_SPEC = {
     'dimensions': {'n': {'dtype': 'str'}},
@@ -1609,7 +1609,7 @@ def _absent_slot_spec(expression: str) -> dict:
 
 
 class TestWhereTheLanesDifferByDesign:
-    """Not a bug in either lane: the eager one builds what this one refuses by name.
+    """Not a bug in either lane: the linopy one builds what this one refuses by name.
 
     The shared claim is that the refusal is deliberate and carries its own
     rewrite (#1137). A test here going green without the message changing means
@@ -1621,7 +1621,7 @@ class TestWhereTheLanesDifferByDesign:
         """#1137: the refusal is this lane's, so it may not wear the language's class.
 
         `LanguageError` here says the file is unsayable, which is false twice over:
-        `check` passes with no data, and the eager lane builds the model and reaches
+        `check` passes with no data, and the linopy lane builds the model and reaches
         *answer*. What is true is that this lane cannot represent a constant
         fragment with no rows for the dim the operator acts along — which is what
         `LaneError` is for. All four operators reach the same wall, so a fix for one
@@ -1645,14 +1645,14 @@ class TestWhereTheLanesDifferByDesign:
         """The message is only worth its words if what it tells you to do works.
 
         Declaring the constant over the dim gives the fragment the rows this lane
-        needs, and the number it then reaches is the one the eager lane reaches from
+        needs, and the number it then reaches is the one the linopy lane reaches from
         the unrewritten file — so the rewrite preserves the model rather than
         quietly answering a different one.
         """
         rewritten = _constant_beside_a_term(expression, over_the_dim=True)
         sources = _constant_beside_a_term_sources(expression, over_the_dim=True)
         assert sps.solve(rewritten, sources).objective == pytest.approx(answer), (
-            'the rewrite answers what the eager lane answers for the file as written'
+            'the rewrite answers what the linopy lane answers for the file as written'
         )
 
     @pytest.mark.parametrize('expression', ABSENT_SLOT_CASES)
@@ -1660,7 +1660,7 @@ class TestWhereTheLanesDifferByDesign:
         """#1142: every operator that moves along a dim drops the constant with the term.
 
         Differential rather than a pinned number, because the question is not what
-        the answer is but whether the two lanes give the same one — and the eager
+        the answer is but whether the two lanes give the same one — and the linopy
         lane is the oracle for exactly this reading of v1 §13. `sum_back` answered
         2.5 against 3.0 until `Window` joined the operators that propagate absence
         into their operand before remapping.
@@ -1668,10 +1668,10 @@ class TestWhereTheLanesDifferByDesign:
         spec = _absent_slot_spec(expression)
         relational = sps.solve(spec, ABSENT_SLOT_SOURCES).objective
 
-        eager = specsolve_linopy.build(spec, ABSENT_SLOT_SOURCES)
-        eager.solve(solver_name='highs')
+        linopy_lane = specsolve_linopy.build(spec, ABSENT_SLOT_SOURCES)
+        linopy_lane.solve(solver_name='highs')
 
-        assert relational == pytest.approx(float(eager.objective.value), rel=RTOL), (
+        assert relational == pytest.approx(float(linopy_lane.objective.value), rel=RTOL), (
             'the lanes disagree about whether a constant survives a slot its term is absent from'
         )
 

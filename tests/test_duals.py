@@ -27,7 +27,7 @@ from tests.test_milp import COMMITMENT_YAML
 DUAL_RTOL = 1e-9
 
 
-def test_dual_matches_the_eager_lane(dispatch_yaml, dispatch_inputs):
+def test_dual_matches_the_linopy_lane(dispatch_yaml, dispatch_inputs):
     """The price at each snapshot, both lanes, same sign and same magnitude."""
     data = dispatch_inputs
 

@@ -175,7 +175,7 @@ def _set_lines(tables: Tables) -> pl.LazyFrame:
     """Each special-ordered set as one ``s0: S2 :: x3:1 x4:2`` line.
 
     linopy's spelling of the section, so a file this writes and a file the
-    eager lane writes are read by the same parsers.
+    linopy lane writes are read by the same parsers.
 
     **The one section gathered rather than interleaved**: a set's members have
     to reach one line. Order is the stream's own, and ``maintain_order`` is what
