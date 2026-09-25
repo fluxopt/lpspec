@@ -14,12 +14,12 @@ import specsolve as sps
 sps.solve('dispatch.yaml', sources, archive='case/')
 ```
 
-That writes `model.yaml`, one `sources/<key>.parquet` per key the file
+That writes `spec.yaml`, one `sources/<key>.parquet` per key the file
 declares, and `answer/` holding everything the solve produced:
 
 ```text
 case/
-    model.yaml
+    spec.yaml
     sources/cost.parquet
     sources/load.parquet
     …

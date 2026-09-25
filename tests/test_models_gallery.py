@@ -38,12 +38,12 @@ GALLERY = Path(__file__).resolve().parent.parent / 'docs' / 'examples'
 
 
 @pytest.fixture(params=constructs.models(), ids=lambda m: m[0])
-def model(request: pytest.FixtureRequest) -> tuple[str, Path]:
+def example(request: pytest.FixtureRequest) -> tuple[str, Path]:
     return request.param
 
 
-def test_every_model_has_a_page(model: tuple[str, Path]) -> None:
-    name, _ = model
+def test_every_model_has_a_page(example: tuple[str, Path]) -> None:
+    name, _ = example
     assert (GALLERY / f'{name}.md').exists(), (
         f'{name} has no gallery page. A model with no page is invisible to a reader '
         f'deciding whether the language can say theirs.'
@@ -65,21 +65,21 @@ def _fences(markdown: str, lang: str) -> list[str]:
     return bodies
 
 
-def test_the_page_shows_the_model_that_runs(model: tuple[str, Path]) -> None:
+def test_the_page_shows_the_model_that_runs(example: tuple[str, Path]) -> None:
     """A YAML fence on the page equals the model file, byte for byte."""
-    name, path = model
+    name, path = example
     fences = _fences((GALLERY / f'{name}.md').read_text(), 'yaml')
     assert path.read_text().rstrip() + '\n' in fences, f'docs/examples/{name}.md has drifted from {path}'
 
 
-def test_the_model_says_what_it_is(model: tuple[str, Path]) -> None:
+def test_the_model_says_what_it_is(example: tuple[str, Path]) -> None:
     """Every gallery model carries a file `description:`.
 
     The legend a page generates opens with it, so a model without one opens
     with nothing — and the sentence is the only part of the page a reader who
     never opens the YAML is certain to read.
     """
-    _, path = model
+    _, path = example
     assert to_spec(path).description, (
         f'{path} has no top-level `description:` — the generated legend on its page opens with it'
     )
@@ -116,7 +116,7 @@ def test_every_page_with_a_model_carries_a_math_block() -> None:
     )
 
 
-def test_every_math_block_opts_into_markdown_inside_html(model: tuple[str, Path]) -> None:
+def test_every_math_block_opts_into_markdown_inside_html(example: tuple[str, Path]) -> None:
     """`<details>` without `markdown="1"` renders its contents as literal text
     on the site, and the strict build does not notice — literal text is valid.
 
@@ -126,7 +126,7 @@ def test_every_math_block_opts_into_markdown_inside_html(model: tuple[str, Path]
     free on one side and load-bearing on the other, which is exactly the kind
     of thing that ships broken.
     """
-    name, _ = model
+    name, _ = example
     page = (GALLERY / f'{name}.md').read_text()
     assert '<details markdown="1">' in page, (
         f'docs/examples/{name}.md has a math block whose <details> does not carry '
@@ -134,7 +134,7 @@ def test_every_math_block_opts_into_markdown_inside_html(model: tuple[str, Path]
     )
 
 
-def test_the_catalogue_lists_every_model(model: tuple[str, Path]) -> None:
+def test_the_catalogue_lists_every_model(example: tuple[str, Path]) -> None:
     """The section head says *every* model, and the nav is what makes that true.
 
     ``strict: true`` fails the build on a page missing from the nav, and the
@@ -142,7 +142,7 @@ def test_the_catalogue_lists_every_model(model: tuple[str, Path]) -> None:
     Models. A page filed anywhere else, or as a loose entry beside the data
     page, still builds and still disappears from the list.
     """
-    name, _ = model
+    name, _ = example
     listed = {name for _, pages in constructs.nav_groups() for _, name in pages}
     assert name in listed, (
         f'{name} is in no group under `Models:` in mkdocs.yml, so the gallery catalogue omits it — '
@@ -256,9 +256,9 @@ def _call_snippet(name: str) -> str:
     """
     entry = constructs.REFERENCES[name]
     ports_yaml = constructs.ROOT / 'examples' / 'ports' / f'{name}.yaml'
-    model = f'examples/ports/{name}.yaml' if ports_yaml.exists() else f'examples/{name}.yaml'
-    written = to_spec(constructs.ROOT / model)
-    handed = f"to_spec('{model}').expand()" if written.piecewise or written.sos else f"'{model}'"
+    path = f'examples/ports/{name}.yaml' if ports_yaml.exists() else f'examples/{name}.yaml'
+    written = to_spec(constructs.ROOT / path)
+    handed = f"to_spec('{path}').expand()" if written.piecewise or written.sos else f"'{path}'"
     lines = [
         '# sources: parameter name -> frame or parquet path',
         f'with sps.solve({handed}, sources) as solution:',

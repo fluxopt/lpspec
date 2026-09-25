@@ -184,7 +184,7 @@ def test_a_position_no_coordinate_occupies_is_an_error_at_bind(tmp_path, positio
     """
     sources = _inputs()
     spec = SPEC.replace('position(snapshot) == 0', f'position(snapshot) == {position}')
-    path = tmp_path / 'model.yaml'
+    path = tmp_path / 'spec.yaml'
     path.write_text(spec)
 
     with pytest.raises(DataError, match=r'which has 3 coordinate\(s\)'):
@@ -341,7 +341,7 @@ def test_a_group_shorter_than_the_position_is_an_error_at_bind(tmp_path):
     impossible to see in the answer.
     """
     spec = MASK.replace('WHERE', 'position(snapshot, by=period_of, within=period) == 2')
-    path = tmp_path / 'model.yaml'
+    path = tmp_path / 'spec.yaml'
     path.write_text(spec)
     sources = _grouped_sources()
 

@@ -93,7 +93,7 @@ def digest_of(yaml: str) -> str:
     """A short, stable name for a spec — what two answers must share to be comparable.
 
     Over the YAML a ``Spec`` round-trips to, which is exactly what an archive
-    writes as ``model.yaml``: two answers carrying one digest answered the
+    writes as ``spec.yaml``: two answers carrying one digest answered the
     same document, byte for byte. Not the same *model* — that is the document
     with its data, and two scenarios of one spec share this and share nothing
     else. What an archive holds beside it says whether the data agreed too:

@@ -94,7 +94,7 @@ class Capabilities:
 def required(program: Program, /) -> frozenset[Capability]:
     """What *program* needs a sink to have, decided with no data attached.
 
-    Exactly what the model declares.
+    Exactly what the spec declares.
 
     Only what rule 2 can decide appears here, so convexity never does.
     """

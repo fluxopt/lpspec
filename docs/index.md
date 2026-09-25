@@ -8,7 +8,7 @@ hide:
 
 # specsolve
 
-**Solve an optimisation model written in YAML. Attach your data as tables, and
+**Solve an optimisation problem written in YAML. Attach your data as tables, and
 keep the solver loaded for quick updates and warm starts.**
 
 --8<-- "README.md:badges"
@@ -32,7 +32,7 @@ keep the solver loaded for quick updates and warm starts.**
 
 </div>
 
-## A model is one file
+## A spec is one file
 
 --8<-- "README.md:model"
 
@@ -179,9 +179,9 @@ call.
 - [Your data](howto/data.md): from the files an instance arrives in to one
   table per parameter, and [what attaching refuses](reference/data.md).
 - [Python API](reference/api.md): attach, build, solve and read back, and
-  [sweep](reference/sweeps.md) one model over scenarios.
+  [sweep](reference/sweeps.md) one spec over scenarios.
 - [The language](https://mathspec.readthedocs.io/en/latest/reference/language/):
-  what a file may contain, on math-spec's site.
+  what a file may contain, on mathspec's site.
 - [About](about/index.md): the architecture, the measured cost, and what will
   never be built.
 

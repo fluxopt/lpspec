@@ -253,8 +253,8 @@ def readers(
             or none for pure arithmetic.
         named: The declared named expressions, by name.
         lower: How an expression written the way ``expressions:`` writes one
-            becomes a plan node in the model's namespace, or ``None`` where there
-            is no model as written to lower against — then ad-hoc evaluation is
+            becomes a plan node in the spec's namespace, or ``None`` where there
+            is no spec as written to lower against — then ad-hoc evaluation is
             unavailable and the second element is ``None``.
 
     Returns:

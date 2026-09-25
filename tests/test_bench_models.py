@@ -1,6 +1,6 @@
 """The benchmark corpus still loads, and still builds.
 
-`bench/` has its own models — one directory per case, holding `model.yaml`
+`bench/` has its own models — one directory per case, holding `spec.yaml`
 beside the same model in every dialect the harness has an arm for — and until
 #343 nothing checked them. The benchmark
 workflow runs only on a `trigger:bench` label — asked for, never guessed, which
@@ -26,28 +26,28 @@ import specsolve as sps
 MODELS = Path(__file__).resolve().parent.parent / 'bench' / 'models'
 
 
-def _models() -> list[Path]:
-    return sorted(MODELS.glob('*/model.yaml'))
+def _specs() -> list[Path]:
+    return sorted(MODELS.glob('*/spec.yaml'))
 
 
 #: Case names are the directory each model sits in — a case is a directory now,
-#: holding its `model.yaml` beside the same model hand-written in every dialect
+#: holding its `spec.yaml` beside the same model hand-written in every dialect
 #: the harness has an arm for. Read off the tree rather than imported from
 #: `bench`, which is what lets the load gate below run on the bare install.
-CASE_NAMES = [p.parent.name for p in _models()]
+CASE_NAMES = [p.parent.name for p in _specs()]
 
 
-@pytest.mark.parametrize('model', _models(), ids=lambda p: p.parent.name)
-def test_a_bench_model_loads(model: Path):
+@pytest.mark.parametrize('spec', _specs(), ids=lambda p: p.parent.name)
+def test_a_bench_spec_loads(spec: Path):
     """Every language change has to migrate this corpus too, or fail here."""
-    sps.check(model)
+    sps.check(spec)
 
 
 def test_the_corpus_is_not_empty():
     """A guard on the guard: the parametrised tests pass vacuously if the glob
     stops matching — a rename of `bench/models/` would silently retire them.
     """
-    assert len(_models()) >= 6, f'expected the bench corpus to be found; got {CASE_NAMES}'
+    assert len(_specs()) >= 6, f'expected the bench corpus to be found; got {CASE_NAMES}'
 
 
 @pytest.fixture(scope='module')
