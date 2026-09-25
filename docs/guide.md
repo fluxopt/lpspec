@@ -2,7 +2,7 @@
 
 Five steps from `pip install` to an answer read back, on the dispatch model
 of [the home page](index.md): three generators meet a load over four
-snapshots at least cost. What a model file may contain is
+snapshots at least cost. What a spec may contain is
 [the language's](https://mathspec.readthedocs.io/en/latest/reference/language/)
 to say.
 
@@ -14,9 +14,9 @@ pip install specsolve
 
 That brings polars, HiGHS and the language.
 
-## 2. Save the model
+## 2. Save the spec
 
-Copy the YAML from [the home page](index.md#a-model-is-one-file)
+Copy the YAML from [the home page](index.md#a-spec-is-one-file)
 into `dispatch.yaml`. It is also
 [`examples/dispatch.yaml`](https://github.com/fluxopt/specsolve/blob/main/examples/dispatch.yaml)
 in the repository.

@@ -29,7 +29,7 @@ One rung of [the PyPSA corpus](https://mathspec.readthedocs.io/en/latest/example
 <details markdown="1">
 <summary>The same model, as math</summary>
 
-The quadratic class of a plain `n.optimize()`: PyPSA's `marginal_cost_quadratic`, stated on rung 1's transport surface in a file of its own. One model cannot carry a quadratic objective beside commitment's integer variables and still solve on HiGHS, because degree is the model's property and not the data's. So the class a free solver takes as a QP lives here, and `examples/pypsa.yaml` stays the mixed-integer one. PyPSA also carries the attribute on storage units and stores; each is one more term of the same shape.
+The quadratic class of a plain `n.optimize()`: PyPSA's `marginal_cost_quadratic`, stated on rung 1's transport surface in a file of its own. One file cannot carry a quadratic objective beside commitment's integer variables and still solve on HiGHS, because degree is the spec's property and not the data's. So the class a free solver takes as a QP lives here, and `examples/pypsa.yaml` stays the mixed-integer one. PyPSA also carries the attribute on storage units and stores; each is one more term of the same shape.
 
 #### Sets
 
@@ -127,8 +127,8 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
 
     ```yaml
     description: 'The quadratic class of a plain `n.optimize()`: PyPSA''s `marginal_cost_quadratic`, stated
-      on rung 1''s transport surface in a file of its own. One model cannot carry a quadratic objective beside
-      commitment''s integer variables and still solve on HiGHS, because degree is the model''s property and
+      on rung 1''s transport surface in a file of its own. One file cannot carry a quadratic objective beside
+      commitment''s integer variables and still solve on HiGHS, because degree is the spec''s property and
       not the data''s. So the class a free solver takes as a QP lives here, and `examples/pypsa.yaml` stays
       the mixed-integer one. PyPSA also carries the attribute on storage units and stores; each is one more
       term of the same shape.'

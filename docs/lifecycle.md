@@ -10,7 +10,7 @@ Three verbs a linopy reader reaches for first, spelled as the loops of
 | `x.relax()` | `domain:` in the declaration | 3 |
 | `remove_constraints` | drop the key from the spec | 3 |
 
-The model is `examples/dispatch.yaml`, as before. Every block runs when the
+The spec is `examples/dispatch.yaml`, as before. Every block runs when the
 site is built, and a block that raises fails the build.
 
 ```python exec="true" source="material-block" session="lifecycle"
