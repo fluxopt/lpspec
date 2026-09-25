@@ -192,6 +192,7 @@ theme:
     - toc.follow
     - search.highlight
     - search.share
+    - content.code.annotate
     - content.code.copy
     - content.code.select
     - content.tabs.link

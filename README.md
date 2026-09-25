@@ -77,7 +77,7 @@ objective:
 import specsolve as sps, polars as pl
 
 generators = ['wind', 'solar', 'gas']
-sources = {
+sources = {  # (1)!
     'p_max': pl.DataFrame({'generator': generators, 'value': [100.0, 60.0, 200.0]}),
     'cost': pl.DataFrame({'generator': generators, 'value': [1.0, 2.0, 50.0]}),
     'load': pl.DataFrame({'snapshot': range(6), 'value': [80.0, 120.0, 150.0, 180.0, 140.0, 100.0]}),
@@ -85,11 +85,22 @@ sources = {
     'generator': generators,
 }
 
-result = sps.solve('dispatch.yaml', sources)
+result = sps.solve('dispatch.yaml', sources, archive='runs/base/')  # (2)!
 print(result.objective)  # 1920.0
-print(result.primal('p'))
+print(result.primal('p'))  # (3)!
 print(result.dual('power_balance'))
+
+base = sps.scan_archive('runs/base/')  # (4)!
+print(base.answer.primal('p').group_by('generator').agg(pl.col('value').sum()))
 ```
+
+1. A source is any table: polars, pandas, pyarrow or DuckDB. It can also be a
+   parquet path, such as `'load': 'load.parquet'`.
+2. `archive=` writes the spec, the data and the answer to `runs/base/` as
+   parquet files.
+3. A tidy table, with one row per snapshot and generator.
+4. `scan_archive` reads the archive where it lies. `base.sources` are parquet
+   paths, so `sps.solve(base.spec, base.sources)` asks the same question again.
 
 <!-- --8<-- [end:solve] -->
 
