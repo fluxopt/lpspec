@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.357](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.356...v0.0.1-alpha.357) (2026-09-25)
+
+
+### Features
+
+* **language:** an open bound is null and an infinite bound is refused, the way mathspec 0.0.0-alpha.127 does ([#1744](https://github.com/fluxopt/specsolve/issues/1744)) ([1b1dbef](https://github.com/fluxopt/specsolve/commit/1b1dbefe7687b052dc75d55cde8f4c8cfab1cd26))
+
 ## [0.0.1-alpha.356](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.355...v0.0.1-alpha.356) (2026-09-25)
 
 
