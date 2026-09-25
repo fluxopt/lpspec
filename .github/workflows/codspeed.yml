@@ -13,8 +13,6 @@ on:
       - .readthedocs.yaml
       - .pre-commit-config.yaml
       - .github/dependabot.yml
-      - .release-please-config.json
-      - .release-please-manifest.json
   # labeled, so applying trigger:bench to an open PR reaches the walltime job.
   pull_request:
     types: [opened, synchronize, reopened, labeled]

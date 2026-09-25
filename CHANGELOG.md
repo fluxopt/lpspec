@@ -1,5 +1,14 @@
 # Changelog
 
+Each pull request adds its line under `## Upcoming version`. A release pull
+request renames that heading to the version and the day, such as
+`## 0.1.0 (2026-10-01)`, and edits the section into the release notes. Merging
+it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/blob/main/RELEASING.md)).
+
+## Upcoming version
+
+- docs: the solve example archives its run and reads it back, with annotations that name the other options ([#1748](https://github.com/fluxopt/specsolve/pull/1748))
+
 ## [0.0.1-alpha.359](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.358...v0.0.1-alpha.359) (2026-09-25)
 
 

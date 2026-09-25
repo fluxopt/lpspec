@@ -73,11 +73,6 @@ closed schema's own error names the valid keys, which is the whole migration
 story. **A test asserting the old behaviour is not a blocker**; say in the PR
 what coverage moved where.
 
-The one place this costs something: a breaking marker (`!`, or a
-`BREAKING CHANGE:` footer) in the PR title is **refused** by the
-`Conventional commit subject` check, because it would move the base version
-rather than the alpha counter. Describe the break in the PR body instead.
-
 ## A claim carries its evidence
 
 - **Measured numbers live in the PR that took them**, beside their method, base
@@ -243,13 +238,21 @@ def solve(sources: Mapping[str, Any], solver_name: str = 'highs') -> Result:
 
 ## Commit messages and PR titles
 
-**The title is the changelog line.** release-please prints it in `CHANGELOG.md`,
-where the reader has no diff, no issue and none of our vocabulary. It names the
-problem solved — an outcome, not an activity, not a mechanism.
+**The title is the changelog line.** The PR adds it under `## Upcoming version`
+in `CHANGELOG.md` by hand, with a link to the PR, and a release PR edits those
+lines into the release notes. There the reader has no diff, no issue and none of
+our vocabulary. It names the problem solved — an outcome, not an activity, not a
+mechanism.
+
+**Every `feat`, `fix`, `perf`, `refactor`, `docs` or `revert` PR adds that
+line**; the `Changelog line` check refuses one that does not. The label
+`no changelog` opts one out, and only the user sets it. A version heading on top
+of that file releases on merge ([RELEASING.md](RELEASING.md)), so write one only
+when told to cut a release.
 
 **The type is decided by the diff's file list, before a word of the subject is
-written.** `feat fix perf refactor docs` publish, `chore test ci build style`
-hide.
+written.** `feat fix perf refactor docs` owe a changelog line,
+`chore test ci build style` owe none.
 
 | The diff touches                                         | Type                           |
 | -------------------------------------------------------- | ------------------------------ |
@@ -286,8 +289,8 @@ Then the subject:
 - **A subject the changelog reader can name.** Not `a walk`, `a build`, `an arm`,
   `the builder`; not `dim`, `lane`, `sink`, `rung`.
 
-Lower case, no full stop, conventional-commit form and the two forbidden
-markers: [CONTRIBUTING.md](CONTRIBUTING.md#branches-commits-prs). The 72-char
+Lower case, no full stop, conventional-commit form:
+[CONTRIBUTING.md](CONTRIBUTING.md#branches-commits-prs). The 72-char
 warning in `pr-title.yaml` is about `git log --oneline`; the changelog does not
 truncate.
 

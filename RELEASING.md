@@ -1,124 +1,130 @@
 # Releasing
 
-> **Temporary, alpha only — overrides "Normal release" below.** Until the first
-> official version, nobody merges the release PR:
-> [`release.yaml`](.github/workflows/release.yaml) puts it on auto-merge, so
-> every merge to `main` cuts a `0.0.1aN` and a tester always has a version to
-> quote. It ends by construction — the step declines any version that is not a
-> prerelease — so from the first official release everything below reads as
-> written. Needs "Allow auto-merge" on the repo; pause with the repo variable
-> `AUTO_RELEASE=false`.
+A release is a pull request that edits `CHANGELOG.md`. Merging it tags the
+commit, opens the GitHub release and publishes the package to PyPI.
 
-The git tag is the version. `pyproject.toml` carries no version number —
-hatch-vcs derives it from the tag at build time, so nothing can drift and a
-release can be cut from any branch without editing a file first.
+## Between releases
 
-One publish path: **pushing a `v*` tag ships it.** Every route below just
-produces a tag; [`publish.yaml`](.github/workflows/publish.yaml) does the rest
-(test → build → verify the built version matches the tag → GitHub release).
+Each pull request adds one line under `## Upcoming version` at the top of
+`CHANGELOG.md`: its title and a link to it. A `feat`, `fix`, `perf`,
+`refactor`, `docs` or `revert` pull request adds a line. A `chore`, `test`,
+`ci`, `build` or `style` pull request adds none. The `Changelog line` check
+fails a pull request that owes a line and adds none. The label `no changelog`
+opts it out, for a change no reader of the changelog needs to hear about.
 
-## Where this project is
+```markdown
+## Upcoming version
 
-**Alpha only, pinned there deliberately.** The project stays on the `0.0.1aN`
-stream until someone edits the config: only the counter moves, and the base
-version is held there until the first official release.
+- feat(language): a coordinate may declare its own label space ([#123](https://github.com/fluxopt/specsolve/pull/123))
+```
 
-| you want | you do | version you get |
-| --- | --- | --- |
-| day-to-day development | nothing | `0.0.1.dev22+ged5056087` — hatch-vcs numbers every commit |
-| a build someone can pin | merge the release PR | `0.0.1a14`, `0.0.1a15`, … |
-| a cut from another branch | run **Prerelease** | `0.0.1a16`, or a named stream like `0.2.0rc1` |
-| to leave alpha | edit the config on purpose (below) | `0.1.0` |
+## Cutting a release
 
-Untagged commits are already uniquely versioned and installable, so there is no
-reason to tag until someone needs a fixed reference. `pip`/`uv` will not resolve
-alphas without `--prerelease`, so they cannot be picked up by accident.
+1. Open a pull request that renames `## Upcoming version` to the version and
+   the day, and edit the section into the release notes: group the lines, merge
+   related ones, and add a paragraph on top if the release needs one.
 
-## Normal release
+   ```markdown
+   ## 0.1.0 (2026-10-01)
+   ```
 
-Land conventional commits on `main`.
-[`release.yaml`](.github/workflows/release.yaml) keeps a release PR open with
-the computed version and changelog. Merge it → release-please tags
-`v0.0.1-alpha.N` → publish runs → dist version `0.0.1aN`. Which commit types
-appear is `changelog-sections` in
-[`.release-please-config.json`](.release-please-config.json); `chore`, `test`,
-`ci`, `build` and `style` are hidden.
+   A version is `X.Y.Z`, with an optional `aN`, `bN` or `rcN` for a
+   pre-release. The `ci` check refuses a heading the release workflow cannot
+   act on: a version that is not newer than the latest tag, a date that is not a
+   day, or a section with nothing under it. You can also put a new, empty
+   `## Upcoming version` above the release.
 
-**Why the version cannot run away.** `initial-version: 0.0.0-alpha.1` matters
-first (without it, `release-type: simple` falls back to release-please's default
-first version, **1.0.0**). `prerelease: true` also keeps the GitHub releases from
-showing as "Latest".
+2. Merge it. [`release.yaml`](.github/workflows/release.yaml) then:
+   - tags the merge commit `v0.1.0` and opens the GitHub release, with the
+     section as its notes. A pre-release version is marked as one.
+   - builds the wheel and the sdist from the tag, and checks that both carry
+     the version the changelog names.
+   - publishes both to PyPI, after a reviewer approves the `pypi` environment.
 
-The rest is `versioning: prerelease`, whose absorb rule is **conditional on the
-version it is applied to** — a bump lands on the counter only when the digits
-below it are already zero:
+Every other push to `main` finds no untagged version heading and does nothing.
 
-| a bump routed to | lands on the counter when |
-| --- | --- |
-| patch | always, once a prerelease exists |
-| minor | `patch == 0` |
-| major | `minor == 0` **and** `patch == 0` |
+`python -m tools.changelog check` runs the same check locally, and
+`python -m tools.changelog notes 0.1.0` prints the notes the release will get.
 
-Two keys decide which row a commit takes. `bump-patch-for-minor-pre-major` sends
-a `feat:` down the *patch* row while major is 0, and `bump-minor-pre-major` sends
-a breaking change down the *minor* row rather than reaching for 1.0.0. Both are
-load-bearing on this stream; neither is decoration.
+## The version
 
-On `0.0.1-alpha.N` that leaves exactly one leak. `fix:`, `feat:` and every hidden
-type take the patch row and land on the counter, but a **breaking marker** takes
-the minor row, and `patch` is 1 — so it bumps for real. That is the whole of the
-accident at #251: `0.0.0-alpha.1 … 0.0.0-alpha.33` were immune because both
-digits were zero, and on `0.0.1-alpha.12` a `feat!:` produced `0.1.0-alpha.12`.
+The version comes from the git tag. `pyproject.toml` declares
+`dynamic = ["version"]`, and hatch-vcs reads the tag at build time, so the
+changelog heading, the tag and the wheel carry one number. Between releases,
+hatch-vcs numbers every commit (`0.1.1.dev22+ged5056087`), so an untagged
+commit is already uniquely versioned and installable.
 
-No release-please setting closes that leak — `bump-minor-pre-major: false` sends
-the same commit to 1.0.0 instead, which is worse. So the pin is held by
-[`pr-title.yaml`](.github/workflows/pr-title.yaml), which refuses a `!` or a
-`BREAKING CHANGE:` footer while the manifest sits on a `0.x` version. That check
-is required (below), so refusing is the same as blocking.
+Do not push a version tag by hand. The release workflow only acts on a heading
+with no tag, so a hand-made tag makes its heading history before anything is
+published.
 
-Staying on `0.0.1-alpha.N` until the first official release is the intent, not an
-accident of history. A `0.x.0` stream would absorb breaking markers arithmetically
-and retire the check — it is not worth a version that sorts backwards to get it.
+The history below the first release heading is what release-please wrote for
+the `0.0.1-alpha.N` stream. Those versions were tags and GitHub releases only,
+and the tool reads each heading as released because its tag exists.
 
-**The subject that lands on main.** `main` takes squash merges only, so one PR
-is one commit and its subject is what release-please parses — the rule a
-contributor has to follow, and the allowed types, are in
-[CONTRIBUTING.md](CONTRIBUTING.md#branches-commits-prs). What matters here is
-the failure mode: a subject release-please cannot parse breaks nothing, it just
-goes silently missing from the changelog. That silence is why
-[`pr-title.yaml`](.github/workflows/pr-title.yaml) is a *required* check rather
-than advisory.
+## When a step fails
 
-Because `squash_merge_commit_title` is `COMMIT_OR_PR_TITLE`, GitHub uses the PR
-title on a multi-commit PR and the commit's own title on a single-commit one;
-the check validates both, so neither can slip through.
+- **The tag or the GitHub release was not made.** Fix the cause and re-run the
+  workflow. It acts on the first version heading that has no tag.
+- **The build or the upload failed after the tag was made.** Re-run the failed
+  jobs of that run from the Actions tab. PyPI never takes a version twice, so a
+  version that reached PyPI is final. Fix a wrong release with the next
+  version.
+
+## One-time setup
+
+- **PyPI.** Add a trusted publisher for the project `specsolve`: owner
+  `fluxopt`, repository `specsolve`, workflow `release.yaml`, environment
+  `pypi`. Before the first upload it is a _pending_ publisher.
+- **The `pypi` environment.** Create it under the repository's
+  Settings → Environments, limit it to `main`, and add the people who may
+  approve a release as required reviewers.
+- **Branch protection on `main`.** Require the `ci`,
+  `Conventional commit subject` and `Changelog line` checks.
+- **The label `no changelog`.** Create it under Issues → Labels.
+
+**PyPI refuses a direct reference.** A distribution that names a git URL in its
+metadata is rejected at upload, in a dependency and in an extra alike. One
+stands in `pyproject.toml` today: the `linopy` extra's `linopy @ git+…@master`,
+which becomes a floor once a linopy release carries the arithmetic convention
+the lane needs ([#463](https://github.com/fluxopt/specsolve/issues/463)). Until
+it is gone, the tag and the GitHub release are made and the upload fails.
 
 ## Branch protection
 
 `main` is covered by a repository ruleset: no deletion, no force-push,
-squash-only merges through a PR, and two required checks — `ci` (from
-[`ci.yml`](.github/workflows/ci.yml)) and `Conventional commit subject`. The CI
-job has a fixed name and no matrix, so the ruleset names it directly and never
-needs updating; keep it that way. If a Python matrix ever comes back, put an
-aggregating gate job in front of it rather than naming legs — requiring
-`full (3.11)` would mean adding a version leaves it unrequired, and dropping
-one blocks every PR on a check that can no longer report.
+squash-only merges through a PR, and three required checks — `ci` (from
+[`ci.yml`](.github/workflows/ci.yml)), `Conventional commit subject` (from
+[`pr-title.yaml`](.github/workflows/pr-title.yaml)) and `Changelog line` (from
+[`changelog.yml`](.github/workflows/changelog.yml)). The CI job has a fixed name
+and no matrix, so the ruleset names it directly and never needs updating; keep
+it that way. If a Python matrix ever comes back, put an aggregating gate job in
+front of it rather than naming legs — requiring `full (3.11)` would mean adding
+a version leaves it unrequired, and dropping one blocks every PR on a check that
+can no longer report.
 
 A required check must exist on `main` before it is required — land the workflow
 first, then add it to the ruleset. Approvals are not required (solo repo); a
 review count of 0 still forces the PR, the squash and the checks.
 
+**The subject that lands on main.** `main` takes squash merges only, so one PR
+is one commit, and its subject is the line the PR adds to the changelog — the
+rule a contributor has to follow, and the allowed types, are in
+[CONTRIBUTING.md](CONTRIBUTING.md#branches-commits-prs). Because
+`squash_merge_commit_title` is `COMMIT_OR_PR_TITLE`, GitHub uses the PR title on
+a multi-commit PR and the commit's own title on a single-commit one; the check
+validates both, so neither can slip through.
+
 ### Relaxed while in early development
 
 Actions bills per job, rounded up to the minute, and the suite takes ~5s. So CI
-cost is job count, and while the project is on the `0.0.1-alpha.N` stream — no
-downstream users to break, runner minutes the scarcer resource — it is one job
-that deliberately trades coverage for cost. What that gives up:
+cost is job count, and while the project has no downstream users to break, it
+deliberately trades coverage for cost. What that gives up:
 
-- **Only Python 3.11 is tested.** The 3.12 and 3.13 classifiers in
-  `pyproject.toml` are untested claims. 3.11 is the floor, so it catches the
-  common breakage (reaching for a newer stdlib feature) but not the reverse: a
-  removal or deprecation that only bites on 3.13.
+- **Only Python 3.12 is tested.** The 3.13 classifier in `pyproject.toml` is an
+  untested claim. 3.12 is the floor, so it catches the common breakage
+  (reaching for a newer stdlib feature) but not the reverse: a removal or
+  deprecation that only bites on 3.13.
 - **Only two dependency sets are installed:** current-with-dev, and the declared
   floors bare. The floors are exercised *without* linopy/xarray, so the linopy
   lane is only ever tested against current linopy — narrow, since the lane
@@ -134,57 +140,10 @@ and GitHub waits for one that never arrives — every visible check green, merge
 blocked, nothing to click. #269 sat like that for hours and was reported as CI
 hanging. The trigger is back; the saving was one ~5s job per push.
 
-Tighten these before the first non-alpha release — that is the point where a
+Tighten these before 0.1.0 — that is the point where a
 missed regression reaches somebody rather than just us. A Python matrix is the
 first thing to add back, behind a gate job. Until then, prefer spending minutes
 on the suite over spending them on matrix breadth.
-
-## Overriding the version
-
-Three levers, ascending force:
-
-1. **Edit the release PR** before merging — retitle it; release-please follows
-   the PR, not just the commits.
-2. **`Release-As:` footer** on any commit forces the next version:
-   `git commit --allow-empty -m "chore: release 0.3.0" -m "Release-As: 0.3.0"`
-3. **Tag by hand** — `git tag -a v0.3.0 -m v0.3.0 && git push origin v0.3.0`
-   publishes immediately, bypassing release-please. The changelog will not
-   mention it, so keep this for emergencies.
-
-## Prereleases
-
-Run the **Prerelease** workflow from any branch (Actions → Prerelease → Run
-workflow). It computes the next counter, runs lint and the suite, and pushes the
-tag; `dry-run` prints it without pushing. The defaults (`0.0.1` / `alpha`) give
-the same stream release-please cuts on `main`. Once a real release is in sight,
-name the version it leads to (`0.2.0`) and pick `rc`; counters are tracked per
-version and channel.
-
-Tags are dashed semver (`v0.2.0-rc.1`), which normalises to the PEP 440 dist
-version `0.2.0rc1`. Do **not** hand-tag `v0.2.0rc1` — without the dash, publish
-marks the GitHub release as a full release.
-
-**On `main`, prefer the release PR.** Both routes write into the
-`0.0.1-alpha.N` namespace and count independently: this workflow takes the next
-free number off existing tags, while release-please counts from
-[`.release-please-manifest.json`](.release-please-manifest.json), so cutting by
-hand on `main` makes release-please's next number collide. Use **Prerelease**
-for what it is good at — a cut from a non-`main` branch, or a differently-named
-stream.
-
-## Leaving the alpha stream
-
-Nothing here happens by accident — you have to edit
-[`.release-please-config.json`](.release-please-config.json). To cut a real
-`0.1.0`: drop `versioning`, `prerelease` and `prerelease-type` (keep
-`bump-minor-pre-major` unless you want 1.0.0 semantics); delete
-`initial-version` (by then there is a released version to bump from, and it
-would otherwise decide 1.0.0 again if the manifest is reset); and set the
-version on the next release PR with a `Release-As:` footer or by retitling it.
-Going to 1.0.0 is a further decision: drop `bump-minor-pre-major`.
-
-To keep releasing 0.1.x after `main` moves to 0.2, cut a `0.1.x` branch and run
-**Release** with `target-branch: 0.1.x`.
 
 ## Consuming an unreleased branch
 
@@ -194,24 +153,3 @@ Don't cut a release for this — install from the ref:
 pixi add --pypi "specsolve @ git+ssh://git@github.com/fluxopt/specsolve@feat/some-branch"
 pixi add --pypi "specsolve @ git+https://github.com/fluxopt/specsolve@d09aab6"
 ```
-
-Every tagged build also attaches its wheel and sdist to the GitHub release.
-
-## One-time setup
-
-- **Release app** — a GitHub App with `contents: write` + `pull-requests: write`,
-  credentials in secrets `APP_CLIENT_ID` / `APP_PRIVATE_KEY`. Needed so release
-  PRs run CI and prerelease tags trigger publish. Without it, `release.yaml`
-  degrades to `GITHUB_TOKEN` and warns; `prerelease.yaml` refuses to run.
-- **PyPI** — currently off. The `pypi` job is skipped unless the repo variable
-  `PUBLISH_TO_PYPI` is `true`. To go live: register a
-  [trusted publisher](https://docs.pypi.org/trusted-publishers/) for
-  `specsolve` (workflow `publish.yaml`, environment `pypi`), create the `pypi`
-  environment, then set the variable.
-
-  **PyPI refuses a direct reference**, and the `linopy` extra is one —
-  `linopy @ git+…@master`, because the arithmetic
-  convention that lane requires is in no linopy release. So the upload fails
-  until upstream ships v1 and the extra becomes an ordinary floor
-  ([#463](https://github.com/fluxopt/specsolve/issues/463)). Everything else —
-  the tag, the wheel, the GitHub release — works today.
