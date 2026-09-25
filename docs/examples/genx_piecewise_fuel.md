@@ -79,7 +79,7 @@ GenX's piecewise-fuel case: a day of dispatch for two carbon-capture plants and 
 | $`\mathit{started\_recently}`$ | `started_recently` over $`\mathcal{P} \times \mathcal{H}`$ — units started in this hour or the five before it — the day is a representative period that repeats, so the first hour follows the last |
 | $`\mathit{shut\_recently}`$ | `shut_recently` over $`\mathcal{P} \times \mathcal{H}`$ — units shut in this hour or the five before it |
 
-Upright is what the model is given — a parameter such as $`\mathrm{unit\_size}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{output}`$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the data supplies — a parameter such as $`\mathrm{unit\_size}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{output}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 $`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
