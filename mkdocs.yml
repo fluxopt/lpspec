@@ -149,6 +149,7 @@ theme:
     - navigation.indexes
     - navigation.top
     - navigation.footer
+    - navigation.path
     - toc.follow
     - search.highlight
     - search.share
@@ -156,11 +157,14 @@ theme:
     - content.code.copy
     - content.code.select
     - content.tabs.link
+    - content.tooltips
+    - content.footnote.tooltips
 
 markdown_extensions:
   - admonition
   - attr_list
   - def_list
+  - footnotes
   - md_in_html
   - tables
   - toc:
