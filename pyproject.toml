@@ -33,11 +33,7 @@ dependencies = [
     # byte of data is read. Extracted
     # to its own repository so a second consumer costs nothing (docs/about/architecture.md);
     # this package is the first one, and PyPSA is the next.
-    #
-    # A direct reference until mathspec publishes, which is a thing PyPI refuses
-    # (RELEASING.md) — the same wall the `linopy` extra is behind, with the same
-    # exit: an ordinary floor the day there is a release to floor against.
-    "mathspec @ git+https://github.com/energy-models/mathspec@v0.0.0-alpha.127",
+    "mathspec>=0.1.0",
     # the relational engine: every frame a model is built from, and the parquet
     # reader that fills them. Arrow-backed, so a result frame exports the
     # PyCapsule protocol and any consumer takes it without this package
@@ -337,6 +333,7 @@ specsolve = { path = "." }
 polars = "==1.30"
 numpy = "==1.26"
 highspy = "==1.13"
+mathspec = "==0.1.0"
 pytest = "*"
 pytest-xdist = "*"
 

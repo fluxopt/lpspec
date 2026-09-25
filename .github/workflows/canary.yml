@@ -11,7 +11,7 @@
 #
 # Bumping the pin is a separate job nobody has asked for yet. A scheduled run
 # that only ever reports is much harder to get wrong than one that opens pull
-# requests, and the bump it would open is a one-line edit to a tag whoever
+# requests, and the bump it would open is a one-line edit to a floor whoever
 # reads the red nightly is already looking at.
 name: mathspec canary
 
