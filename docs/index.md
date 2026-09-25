@@ -9,7 +9,7 @@ hide:
 # specsolve
 
 **Solve an optimisation model written in YAML. Attach your data as tables, and
-get a loaded solver with no LP file in between.**
+keep the solver loaded for quick updates and warm starts.**
 
 --8<-- "README.md:badges"
 
