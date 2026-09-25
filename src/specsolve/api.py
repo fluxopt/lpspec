@@ -1,13 +1,13 @@
 """The runner: attach data to a YAML spec and execute it. Not a modeling API.
 
 Math is defined in YAML only — there is no Python API for constructing specs,
-and the logical plan is internal. Five verbs run a model: ``check``, ``build``
+and the logical plan is internal. Five verbs take a spec: ``check``, ``build``
 (YAML + sources → a [`Model`][]), ``solve``, ``write``, and ``evaluate`` for a
 spec with no variables. ``load_result`` reads back an
 answer [`Result.save`][] wrote and ``scan_result`` leaves it on disk; the
 question and the answer as one archive is [`specsolve.archive.SolveArchive`][].
 
-A model is validated at load time, lowered to the plan, and executed
+A spec is validated at load time, lowered to the plan, and executed
 relationally (docs/about/architecture.md).
 
 Example::
@@ -109,7 +109,7 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
     return program
 
 
-def _refuse_a_model(program: Program) -> None:
+def _refuse_a_decision(program: Program) -> None:
     """Refuse a spec that declares a decision — [`evaluate`][] is arithmetic, not a solve.
 
     A variable has no value until a solver picks one, so an expression over one
@@ -132,7 +132,7 @@ def _refuse_a_model(program: Program) -> None:
         return
     raise SpecsolveError(
         f'evaluate takes a spec with no variables — dimensions, parameters, relations and expressions, '
-        f'evaluated as arithmetic. This one declares {", ".join(declared)}, which makes it a model: a '
+        f'evaluated as arithmetic. This one declares {", ".join(declared)}, which makes it a problem to solve: a '
         f'variable has no value until a solver picks one. Solve it with sps.solve(spec, sources), or '
         f'drop the decision to evaluate the arithmetic that remains.'
     )
@@ -150,7 +150,7 @@ def evaluate(spec: Buildable, sources: Mapping[str, Source], expression: str | M
     prints and lowers — is the one a spec that solves is read through; only the
     variables are absent.
 
-    A spec that declares variables is a model, and belongs to [`solve`][]: an
+    A spec that declares variables is a problem to solve, and belongs to [`solve`][]: an
     expression over a decision has no value until the decision is made.
 
     Args:
@@ -170,13 +170,13 @@ def evaluate(spec: Buildable, sources: Mapping[str, Source], expression: str | M
         LanguageError: A construct outside the streaming language, or a name
             the spec does not declare.
         SpecsolveError: A spec that declares variables, constraints or an
-            objective — a model to solve, not a calculation to evaluate.
+            objective — a problem to solve, not a calculation to evaluate.
         DataError: A source that is missing, unreadable, or the wrong shape,
             or a divisor with no value where the expression divides.
     """
     document = declared(spec)
     program = lowered(document)
-    _refuse_a_model(program)
+    _refuse_a_decision(program)
     readers, evaluator = expression_readers(
         program, tidy_sources(program, sources), lambda written: expressions.lower(document, written)
     )
@@ -702,7 +702,7 @@ def _refuse_another_model(answer: Result, model: Model) -> None:
 def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
     """*answer* with an undeclared expression readable through [`evaluate`][specsolve.relational.result.Result.evaluate], over *spec* and *sources* rebuilt.
 
-    Reading a quantity the file never named lowers the model as written, so the
+    Reading a quantity the file never named lowers the spec as written, so the
     model is rebuilt (a build, never a solve) and the saved primal and dual put
     back in order against it. **The rebuild is checked against the answer**: one
     built from other data than the solve ran on is refused rather than read

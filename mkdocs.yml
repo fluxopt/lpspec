@@ -121,18 +121,26 @@ nav:
 
 theme:
   palette:
-    - scheme: slate
+    - media: "(prefers-color-scheme)"
       primary: custom
       accent: custom
       toggle:
-        icon: lucide/moon
+        icon: lucide/sun-moon
         name: Switch to light mode
-    - scheme: default
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: custom
       accent: custom
       toggle:
         icon: lucide/sun
         name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: lucide/moon
+        name: Switch to system preference
 
   icon:
     repo: fontawesome/brands/github
@@ -149,6 +157,7 @@ theme:
     - navigation.indexes
     - navigation.top
     - navigation.footer
+    - navigation.path
     - toc.follow
     - search.highlight
     - search.share
@@ -156,11 +165,14 @@ theme:
     - content.code.copy
     - content.code.select
     - content.tabs.link
+    - content.tooltips
+    - content.footnote.tooltips
 
 markdown_extensions:
   - admonition
   - attr_list
   - def_list
+  - footnotes
   - md_in_html
   - tables
   - toc:

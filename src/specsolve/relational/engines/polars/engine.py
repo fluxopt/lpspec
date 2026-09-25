@@ -165,7 +165,7 @@ class PolarsEngine:
                 being closed before the load decision.
             lower: How an expression the caller *writes* becomes a plan node,
                 for [`evaluate`][specsolve.relational.result.Result.evaluate]. Passed
-                in because lowering reads the model as written, which nothing
+                in because lowering reads the spec as written, which nothing
                 under ``relational/`` sees (docs/about/architecture.md, hard
                 rule 2). ``None`` for a build from an already-lowered
                 ``Program``, and the result then says so rather than
@@ -326,7 +326,7 @@ class PolarsEngine:
 
         The evaluator is served whenever *lower* is given: a loaded answer
         rebuilds it ([`reconstruct`][]), and a build off a lowered ``Program``,
-        which has no model as written, does not.
+        which has no spec as written, does not.
         """
         if primal is None:
             return {}, None

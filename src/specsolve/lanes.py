@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 #: Anything a verb takes as the spec: a YAML path, a mapping, or a ``Spec``
 #: the language has already read, its ``piecewise:`` blocks written out
 #: (``to_spec(...).expand('piecewise')``). **Not** a ``Program``: lowering has
-#: no inverse, so an answer from one could not name the model it came from, and
+#: no inverse, so an answer from one could not name the spec it came from, and
 #: nothing built from one can be archived.
 type Buildable = str | Path | Mapping[str, object] | Spec
 
@@ -32,7 +32,7 @@ type Buildable = str | Path | Mapping[str, object] | Spec
 def declared(spec: Buildable) -> Spec:
     """*spec* as the document it is, whatever shape it arrived in.
 
-    The one door every verb reads a model through.
+    The one door every verb reads a spec through.
 
     Args:
         spec: A YAML path, a mapping, or a ``Spec``.
@@ -43,7 +43,7 @@ def declared(spec: Buildable) -> Spec:
     """
     if isinstance(spec, Program):
         raise SpecsolveError(
-            'a lowered Program is not a model this takes. Lowering has no inverse, so an answer from one '
+            'a lowered Program is not a spec this takes. Lowering has no inverse, so an answer from one '
             'could not say which document it came back from, and nothing built from one could be archived. '
             'Pass what it was lowered from — a path, a mapping, or mathspec.to_spec() of either, which is '
             'the form worth keeping, since it carries its program. '
@@ -124,7 +124,7 @@ def lowered(spec: Buildable) -> Program:
     """*spec* as a program, refusing what this package cannot build or keep apart.
 
     Every door lowers through here, so what [`check`][] refuses
-    [`build`][] and an archive refuse too. Nothing is expanded here: a model
+    [`build`][] and an archive refuse too. Nothing is expanded here: a spec
     still carrying a ``piecewise:`` block is refused, naming ``Spec.expand``,
     because which formulations to write out is the caller's to say.
 

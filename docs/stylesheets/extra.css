@@ -3,6 +3,7 @@
  * Light = darkened-Monokai variant (dark hues on light bg for readability);
  * Dark = classic Monokai. YAML is what most of this site's code blocks are,
  * so the string and key colours are the ones worth checking after an edit.
+ * Every colour holds 4.5:1 on its code background.
  */
 
 :root,
@@ -11,32 +12,31 @@
   --md-code-bg-color: #fafafa;
 
   --md-code-hl-keyword-color:     #d11f72;   /* darkened pink */
-  --md-code-hl-string-color:      #998800;   /* mustard yellow */
+  --md-code-hl-string-color:      #7f7100;   /* mustard yellow */
   --md-code-hl-number-color:      #6f42c1;   /* purple */
-  --md-code-hl-function-color:    #4d8d04;   /* green */
+  --md-code-hl-function-color:    #457e04;   /* green */
   --md-code-hl-comment-color:     #75715e;   /* olive-gray */
   --md-code-hl-name-color:        #272822;   /* default text */
   --md-code-hl-operator-color:    #d11f72;   /* pink */
   --md-code-hl-punctuation-color: #272822;
   --md-code-hl-constant-color:    #6f42c1;   /* purple — None, True, False */
-  --md-code-hl-special-color:     #4d8d04;   /* green — decorators */
-  --md-code-hl-variable-color:    #d35400;   /* burnt orange */
+  --md-code-hl-special-color:     #457e04;   /* green — decorators */
+  --md-code-hl-variable-color:    #c14d00;   /* burnt orange */
   --md-code-hl-generic-color:     #272822;
 }
 
 [data-md-color-scheme="slate"] {
   --md-code-fg-color: #f8f8f2;
-  /* Derived from slate body bg hsla(var(--md-hue), 15%, 14%, 1):
-     same hue, less saturated (6%), brighter (18%). Subtle slate hint, mostly gray. */
+  /* Slate's hue, desaturated to a grey that stands off the page. */
   --md-code-bg-color: hsla(var(--md-hue), 6%, 18%, 1);
 
-  --md-code-hl-keyword-color:     #f92672;   /* hot pink */
+  --md-code-hl-keyword-color:     #fb5d95;   /* hot pink */
   --md-code-hl-string-color:      #e6db74;   /* yellow */
   --md-code-hl-number-color:      #ae81ff;   /* purple */
   --md-code-hl-function-color:    #a6e22e;   /* green */
-  --md-code-hl-comment-color:     #75715e;   /* olive-gray */
+  --md-code-hl-comment-color:     #9b9682;   /* olive-gray */
   --md-code-hl-name-color:        #f8f8f2;   /* default text */
-  --md-code-hl-operator-color:    #f92672;   /* pink */
+  --md-code-hl-operator-color:    #fb5d95;   /* pink */
   --md-code-hl-punctuation-color: #f8f8f2;
   --md-code-hl-constant-color:    #ae81ff;   /* purple — None, True, False */
   --md-code-hl-special-color:     #a6e22e;   /* green — decorators */
@@ -44,99 +44,40 @@
   --md-code-hl-generic-color:     #f8f8f2;
 }
 
-/* --- Custom palette: soft dark slate primary + sky accent --- */
+/* --- Palette: one violet hue, as primary and accent ---
+ * In the modern variant the primary colour paints links, the primary button and
+ * the progress bar; the accent paints hover, focus and the active navigation
+ * entry. The primary is the shade that rests, the accent the one that answers
+ * the pointer. Links hold 4.5:1 on either background, and the dark scheme puts
+ * dark text on its light button.
+ */
 
-:root,
 [data-md-color-primary="custom"] {
-  --md-primary-fg-color: #334155;          /* slate-700 — soft dark header */
-  --md-primary-fg-color--light: #475569;   /* slate-600 */
-  --md-primary-fg-color--dark: #1e293b;    /* slate-800 — hover/active */
+  --md-primary-fg-color: #6d28d9; /* violet-700 */
+  --md-primary-fg-color--light: #7c3aed; /* violet-600 */
+  --md-primary-fg-color--dark: #5b21b6; /* violet-800 */
   --md-primary-bg-color: #ffffff;
   --md-primary-bg-color--light: #ffffffb3;
 }
 
-/* Light-mode accent: deeper sky for contrast on white */
 [data-md-color-accent="custom"] {
-  --md-accent-fg-color: #0284c7;           /* sky-600 */
-  --md-accent-fg-color--transparent: rgba(2, 132, 199, 0.1);
+  --md-accent-fg-color: #7c3aed; /* violet-600 */
+  --md-accent-fg-color--transparent: #7c3aed1a;
   --md-accent-bg-color: #ffffff;
   --md-accent-bg-color--light: #ffffffb3;
 }
 
-/* Dark-mode accent: brighter sky for contrast on slate background */
+[data-md-color-scheme="slate"][data-md-color-primary="custom"] {
+  --md-primary-fg-color: #a78bfa; /* violet-400 */
+  --md-primary-fg-color--light: #c4b5fd; /* violet-300 */
+  --md-primary-fg-color--dark: #8b5cf6; /* violet-500 */
+  --md-primary-bg-color: #0f172a; /* slate-900 */
+  --md-primary-bg-color--light: #0f172ab3;
+}
+
 [data-md-color-scheme="slate"][data-md-color-accent="custom"] {
-  --md-accent-fg-color: #38bdf8;           /* sky-400 — brighter for dark bg */
-  --md-accent-fg-color--transparent: rgba(56, 189, 248, 0.15);
-}
-
-/* Light-mode resting link: brighter than the accent for prominence.
-   Hover keeps the accent (sky-600) for darken-on-hover affordance. */
-.md-typeset a {
-  color: #0284c7;                          /* sky-600 */
-}
-
-.md-typeset a:hover {
-  color: #0ea5e9;                          /* sky-500 — brighten on hover */
-}
-
-[data-md-color-scheme="slate"] .md-typeset a {
-  color: #38bdf8;                          /* sky-400 */
-}
-
-[data-md-color-scheme="slate"] .md-typeset a:hover {
-  color: #7dd3fc;                          /* sky-300 */
-}
-
-/* The active entry in the right-hand table of contents, and a `code` span
-   inside it, are bound to --md-typeset-a-color, which defaults to
-   --md-primary-fg-color (slate-700). In slate that is slate-700 on a near-black
-   chip — unreadable. Re-bind to the sky link colours. The left sidebar needs
-   nothing: the theme colours its active item with the accent already. */
-:root,
-[data-md-color-scheme="default"] {
-  --md-typeset-a-color: #0284c7;           /* sky-600 — matches link color */
-}
-
-[data-md-color-scheme="slate"] {
-  --md-typeset-a-color: #38bdf8;           /* sky-400 — matches link color */
-}
-
-/* --- Mermaid in dark mode ---
- *
- * The diagrams colour some nodes through `classDef`, e.g.
- * `classDef stream fill:#f0f7f0,stroke:#3a7d44,color:#111`. In slate that came
- * apart and the labels disappeared — near-white text on a near-white fill.
- *
- * The two halves of that declaration do not survive the same way, and neither
- * can be fixed by overriding a rule:
- *
- *   fill  — mermaid emits `#<generated-id> .stream > * { fill: … !important }`.
- *           An ID *and* `!important`: nothing we can write outranks it, so the
- *           pale fills are fixed in both schemes.
- *   color — never applies at all. It reaches the text only by inheritance,
- *           while Material styles `.nodeLabel` directly, and a directly-applied
- *           value beats an inherited one at any specificity. The label colour
- *           is always Material's, which is light in slate. Hence the clash.
- *
- * So the fills win and the labels follow the scheme — the one combination that
- * cannot work. Rather than fight it, render the whole diagram the way its
- * colours were chosen for: light, on its own card, in both schemes.
- *
- * This is variable shadowing, not a specificity contest. Material defines each
- * of these as `var(--md-mermaid-…)` and mermaid's generated CSS *reads* them
- * inside the SVG; redefining them on the container is what those `var()` calls
- * resolve against. The values below are what the default scheme computes.
- */
-[data-md-color-scheme="slate"] .md-typeset .mermaid {
-  --md-mermaid-label-fg-color: #272822;          /* = default's --md-code-fg-color */
-  --md-mermaid-edge-color: #272822;
-  --md-mermaid-node-bg-color: rgba(2, 132, 199, 0.1);
-  --md-mermaid-node-fg-color: #0284c7;           /* sky-600, our light accent */
-  --md-mermaid-label-bg-color: #ffffff;
-
-  background: #ffffff;
-  border-radius: 4px;
-  padding: 0.8rem 0.4rem;
+  --md-accent-fg-color: #c4b5fd; /* violet-300 */
+  --md-accent-fg-color--transparent: #c4b5fd26;
 }
 
 /* --- Landing page --- */
@@ -261,39 +202,21 @@
 }
 
 @keyframes target-flash {
-  0%, 100% {
+  0%,
+  100% {
     background-color: transparent;
     box-shadow: -0.4rem 0 0 0 transparent;
   }
-  25%, 65% {
-    background-color: rgba(2, 132, 199, 0.35);    /* sky-600 — matches accent */
-    box-shadow: -0.4rem 0 0 0 rgba(2, 132, 199, 0.75);
+  25%,
+  65% {
+    background-color: color-mix(in srgb, var(--md-accent-fg-color) 30%, transparent);
+    box-shadow: -0.4rem 0 0 0 color-mix(in srgb, var(--md-accent-fg-color) 70%, transparent);
   }
   45% {
     background-color: transparent;
     box-shadow: -0.4rem 0 0 0 transparent;
   }
 }
-
-[data-md-color-scheme="slate"] .md-content :target {
-  animation: target-flash-dark 1.5s ease-in-out;
-}
-
-@keyframes target-flash-dark {
-  0%, 100% {
-    background-color: transparent;
-    box-shadow: -0.4rem 0 0 0 transparent;
-  }
-  25%, 65% {
-    background-color: rgba(56, 189, 248, 0.22);   /* sky-400 — matches dark accent */
-    box-shadow: -0.4rem 0 0 0 rgba(56, 189, 248, 0.65);
-  }
-  45% {
-    background-color: transparent;
-    box-shadow: -0.4rem 0 0 0 transparent;
-  }
-}
-
 
 /* --- Benchmark figures ---------------------------------------------------
    The charts are `<img>`-referenced SVG (docs/charts/), so they scale with
