@@ -8,6 +8,7 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 ## Upcoming version
 
 - docs: the site follows the reader's light or dark setting in its own violet colour, with code, diagrams and footnotes readable in both ([#1767](https://github.com/fluxopt/specsolve/pull/1767))
+- feat!: specsolve requires mathspec 0.2.0 and uses its words spec and model, so an archive holds its spec as spec.yaml ([#1768](https://github.com/fluxopt/specsolve/pull/1768))
 - docs: every link to the language's documentation points at mathspec.readthedocs.io ([#1764](https://github.com/fluxopt/specsolve/pull/1764))
 - fix: the PyPI page links the docs, issues and changelog, and a stale saved answer says the layout moves before 1.0 ([#1763](https://github.com/fluxopt/specsolve/pull/1763))
 

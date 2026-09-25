@@ -246,7 +246,7 @@ def dispatch_spec_inputs():
 
 def dispatch_spec_path(directory: Path, **patch: Any) -> Path:
     """``DISPATCH_SPEC``, varied and written to disk — the linopy lane only takes a path."""
-    path = directory / 'model.yaml'
+    path = directory / 'spec.yaml'
     path.write_text(pyyaml.safe_dump(override(DISPATCH_SPEC, **patch)))
     return path
 

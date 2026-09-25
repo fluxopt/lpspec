@@ -115,17 +115,17 @@ def test_the_archive_is_the_file_and_stored_parquet(dispatch_yaml: Path, dispatc
         members = {info.filename: info.compress_type for info in zipped.infolist()}
         beside_the_answer = {name for name in members if not name.startswith('answer/')}
         assert beside_the_answer == {
-            'model.yaml',
+            'spec.yaml',
             'sources.parquet',
             *(f'sources/{k}.parquet' for k in dispatch_frame_inputs),
         }, (
-            'the layout is model.yaml, one parquet member per source key, the table digesting them, and the '
+            'the layout is spec.yaml, one parquet member per source key, the table digesting them, and the '
             'answer under its own'
         )
         assert any(name.startswith('answer/') for name in members), 'every archive carries the answer that made it'
         assert set(members.values()) == {zipfile.ZIP_STORED}, 'members are stored — parquet is already compressed'
-        assert to_spec(pyyaml.safe_load(zipped.read('model.yaml'))) == to_spec(dispatch_yaml), (
-            'model.yaml is the model the source file declares'
+        assert to_spec(pyyaml.safe_load(zipped.read('spec.yaml'))) == to_spec(dispatch_yaml), (
+            'spec.yaml is the spec the source file declares'
         )
 
 
@@ -151,8 +151,8 @@ def test_unpack_lays_the_archive_out_in_the_directory(
         'every source comes back as the path it was extracted to, one per key'
     )
     assert all(p.is_file() for p in sources.values()), 'and each path is a file on disk'
-    assert (tmp_path / 'out' / 'model.yaml').is_file(), 'the file lands beside them, as the archive holds it'
-    assert to_spec(tmp_path / 'out' / 'model.yaml') == spec, 'and is the model handed back'
+    assert (tmp_path / 'out' / 'spec.yaml').is_file(), 'the file lands beside them, as the archive holds it'
+    assert to_spec(tmp_path / 'out' / 'spec.yaml') == spec, 'and is the spec handed back'
 
 
 def test_a_refused_model_writes_nothing(dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path) -> None:
@@ -165,9 +165,9 @@ def test_a_refused_model_writes_nothing(dispatch_yaml: Path, dispatch_frame_inpu
 @pytest.mark.parametrize(
     ('members', 'says'),
     [
-        pytest.param({'sources/load.parquet': b''}, "has no 'model.yaml'", id='no-model'),
-        pytest.param({'model.yaml': b'', 'load.parquet': b''}, "holds ['load.parquet']", id='member-outside-sources'),
-        pytest.param({'model.yaml': b'', 'sources/load.csv': b''}, "holds ['sources/load.csv']", id='not-parquet'),
+        pytest.param({'sources/load.parquet': b''}, "has no 'spec.yaml'", id='no-spec'),
+        pytest.param({'spec.yaml': b'', 'load.parquet': b''}, "holds ['load.parquet']", id='member-outside-sources'),
+        pytest.param({'spec.yaml': b'', 'sources/load.csv': b''}, "holds ['sources/load.csv']", id='not-parquet'),
     ],
 )
 def test_a_zip_outside_the_layout_is_refused(members: dict[str, bytes], says: str, tmp_path: Path) -> None:
@@ -290,7 +290,7 @@ def test_a_lowered_program_is_not_a_model_any_verb_takes(verb, dispatch_yaml: Pa
     one function, so the sentence is written once and arrives before anything
     is built.
     """
-    with pytest.raises(sps.SpecsolveError, match='lowered Program is not a model this takes'):
+    with pytest.raises(sps.SpecsolveError, match='lowered Program is not a spec this takes'):
         verb(sps.check(dispatch_yaml), dispatch_frame_inputs)
 
 
@@ -739,7 +739,7 @@ def test_a_rolling_horizon_keeps_the_way_back_to_the_dimension_it_sliced(tmp_pat
     )
 
 
-def test_an_archive_whose_answer_names_another_model_is_refused(
+def test_an_archive_whose_answer_names_another_spec_is_refused(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     """The one thing the archive asserts that its members do not: they belong together.
@@ -753,9 +753,9 @@ def test_an_archive_whose_answer_names_another_model_is_refused(
     tampered = tmp_path / 'tampered.zip'
     with zipfile.ZipFile(archive) as held, zipfile.ZipFile(tampered, 'w') as edited:
         for name in held.namelist():
-            edited.writestr(name, pyyaml.safe_dump(other) if name == 'model.yaml' else held.read(name))
+            edited.writestr(name, pyyaml.safe_dump(other) if name == 'spec.yaml' else held.read(name))
 
-    with pytest.raises(sps.SpecsolveError, match='came back from a different model'):
+    with pytest.raises(sps.SpecsolveError, match='came back from a different spec'):
         sps.load_archive(tampered, tmp_path / 'out')
     assert sps.load_archive(archive, tmp_path / 'fine').spec == to_spec(dispatch_yaml), (
         'and the archive as written reads back as the model it holds'
@@ -782,20 +782,20 @@ def test_every_slice_of_a_sweep_names_the_model_it_answered(
     )
 
 
-def test_a_sweep_archive_whose_answer_names_another_model_is_refused(
+def test_a_sweep_archive_whose_answer_names_another_spec_is_refused(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
     """The sibling of the one-solve check, and the one that was vacuous.
 
     A sweep's guard reads every slice's digest. While those were null it could
-    not fire at all, so a swapped `model.yaml` loaded happily.
+    not fire at all, so a swapped `spec.yaml` loaded happily.
     """
     sources = {**dispatch_frame_inputs, 'load': _by_scenario(['low', 'high'])}
     sps.solve_over(dispatch_yaml, sources, sps.EachCoordinate('scenario'), archive=tmp_path / 'study')
     other = override(raw_of(dispatch_yaml), **{'variables.p.bounds.upper': 1.0})
-    (tmp_path / 'study' / 'model.yaml').write_text(pyyaml.safe_dump(other))
+    (tmp_path / 'study' / 'spec.yaml').write_text(pyyaml.safe_dump(other))
 
-    with pytest.raises(sps.SpecsolveError, match='came back from a different model'):
+    with pytest.raises(sps.SpecsolveError, match='came back from a different spec'):
         sps.load_archive(tmp_path / 'study')
 
 
@@ -922,7 +922,7 @@ def test_two_writers_to_one_target_stage_in_separate_places(tmp_path: Path) -> N
     Two archives written to one path at once met in it: the second to open a
     staging area cleared the first's members out from under it, and the first
     went on to rename a torn directory into place and report it written. The
-    tear surfaced only at load, as an archive with no ``model.yaml``.
+    tear surfaced only at load, as an archive with no ``spec.yaml``.
     """
     out = tmp_path / 'case'
 

@@ -1,9 +1,9 @@
-"""Expressions the file never named, valued against a model the language has already read.
+"""Expressions the file never named, valued against a spec the language has already read.
 
-The expressions are spliced into the model as named ones and the whole model is
+The expressions are spliced into the spec as named ones and the whole spec is
 lowered again, so an ad-hoc read passes every rule a declared read passes; then
 everything but the nodes is thrown away. It sits above both lanes because
-lowering reads the model **as written**, which nothing under ``relational/`` may
+lowering reads the spec **as written**, which nothing under ``relational/`` may
 see (docs/about/architecture.md, hard rule 2).
 """
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from mathspec.program import Expression
 
 #: The name a single unnamed expression is spliced under. Stepped over rather
-#: than overwritten where a model declares it — :func:`_free_name`.
+#: than overwritten where a spec declares it — :func:`_free_name`.
 _EVALUATED = '_evaluated'
 
 #: The one section a caller may hand in. Every other declaration needs data or
@@ -32,7 +32,7 @@ def lower(spec: Spec, expression: str | Mapping[str, object]) -> Expression:
     """One unnamed expression as a plan node, read in *spec*'s namespace.
 
     Args:
-        spec: The model the expression is written against. It supplies every
+        spec: The spec the expression is written against. It supplies every
             name the expression may use; one it does not declare is refused.
         expression: What one ``expressions:`` entry takes — a string, or the
             mapping carrying ``cases:`` with ``dims:`` and ``otherwise:``.
@@ -51,7 +51,7 @@ def lower(spec: Spec, expression: str | Mapping[str, object]) -> Expression:
 
 
 def _splice(written: dict[str, object], entries: Mapping[str, object]) -> dict[str, Expression]:
-    """*entries* added to the model *written* and lowered with it, as nodes.
+    """*entries* added to the spec *written* and lowered with it, as nodes.
 
     The lowered program is read for these nodes and dropped — its variables,
     constraints and objective are the ones already solved, lowered again only to
@@ -76,7 +76,7 @@ def _free_name(written: Mapping[str, object]) -> str:
 def _declared(written: Mapping[str, object]) -> set[str]:
     """Every name *written* declares.
 
-    Read off the model's own mappings, the way the language checks the same
+    Read off the spec's own mappings, the way the language checks the same
     thing, so a section added later is covered.
     """
     return {name for section in written.values() if isinstance(section, dict) for name in section}

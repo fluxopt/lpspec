@@ -123,8 +123,8 @@ objective:
 
 **`cut` and `fcut` take their members from data**
 ([the data contract](../reference/data.md)). An iteration appends rows to their
-parameter tables and generates no YAML, so the model a reviewer reads is the
-model that runs.
+parameter tables and generates no YAML, so the spec a reviewer reads is the
+spec that runs.
 
 `theta` is a scalar variable, `dims: []`, and its `lower: 0` is the only
 thing keeping the first master bounded before any cut exists.
@@ -133,8 +133,8 @@ thing keeping the first master bounded before any cut exists.
 
 A cut is the value and the slope of the subproblem at the capacity that was
 tried. The slope is the shadow price of the capacity constraint, weighted by
-availability and summed over snapshots. `sources` is the data the model
-attaches ([glossary](../reference/glossary.md#how-it-runs)):
+availability and summed over snapshots. `sources` is the data attached to
+the spec ([glossary](../reference/glossary.md#how-it-runs)):
 
 ```python
 import specsolve as sps
