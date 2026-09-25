@@ -11,6 +11,7 @@ dataframe library beyond the engine's own. The tests that exercise the bridges
 
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -842,10 +843,14 @@ def test_a_bridge_out_names_the_package_to_install(dispatch_solution, absent, br
     specsolve installs neither pandas nor xarray, so the bare `No module named
     'pandas'` leaves the reader to guess whether the package is broken. The
     message says the package is the caller's to install.
+
+    `to_dataarray` reads through pandas first, so on an install with neither
+    package the one it names is pandas.
     """
+    named = absent if importlib.util.find_spec('pandas') is not None else 'pandas'
     with (
         mock.patch.dict(sys.modules, {absent: None}),
-        pytest.raises(ModuleNotFoundError, match=f'pip install {absent}'),
+        pytest.raises(ModuleNotFoundError, match=f'pip install {named}'),
     ):
         getattr(dispatch_solution, bridge)('p')
 
