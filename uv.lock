@@ -517,12 +517,16 @@ wheels = [
 
 [[package]]
 name = "mathspec"
-version = "0.0.0a127"
-source = { git = "https://github.com/energy-models/mathspec?rev=v0.0.0-alpha.127#f9c51b34a8a20fe1b94bd15dabbd9ef3eee3ebfb" }
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyparsing" },
     { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/34/20/85803dceab6dc37ae08067d2388106427c942e60891462c9526e24023b64/mathspec-0.1.0.tar.gz", hash = "sha256:368725fbb337e7c682af7352b3ec38828027730fc36f145ff36aeb6bb808aa65", size = 151186, upload-time = "2026-09-25T10:59:39.646Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e4/f2/2359d581003d138cc1fcb7646569fa0936c4f875e7ba119f4d2bd3fe0f94/mathspec-0.1.0-py3-none-any.whl", hash = "sha256:babf3d173806ff7462590af9c9691ad62b4560fec2e5ee8b23a021cdf69a89c1", size = 157744, upload-time = "2026-09-25T10:59:37.747Z" },
 ]
 
 [[package]]
@@ -1426,7 +1430,7 @@ docs = [
 requires-dist = [
     { name = "gurobipy", marker = "extra == 'gurobi'", specifier = ">=11" },
     { name = "highspy", specifier = ">=1.13" },
-    { name = "mathspec", git = "https://github.com/energy-models/mathspec?rev=v0.0.0-alpha.127" },
+    { name = "mathspec", specifier = ">=0.1.0" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", marker = "extra == 'xarray'", specifier = ">=2.2" },
     { name = "polars", specifier = ">=1.30" },

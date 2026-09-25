@@ -16,36 +16,23 @@ htmlcov/
 .venv/
 venv/
 .idea/
-# pixi's environments, and the lockfile the tree deliberately does not carry —
-# pyproject.toml says why beside `[tool.pixi.workspace]`.
 .pixi/
 pixi.lock
 
-# generated benchmark inputs (regenerated deterministically from bench/cases.py;
-# the results JSONL under bench/results/ *is* tracked — that is the provenance)
 bench/.cache/
-# pytest-benchmark's run store; baselines to compare against are chosen by
-# number at the command line, not committed
 .benchmarks/
 
-# spike outputs (scripts are tracked; data/LP artifacts are not)
 scratch/relational_spike/*_data/
 scratch/relational_spike/bench_out/
 scratch/relational_spike/*.lp
 .DS_Store
 
-# the built site (`mkdocs build`); Read the Docs builds it from source
 site/
-# mkdocs-jupyter's store of executed notebooks, keyed by content, so a local
-# rebuild does not re-run one that did not change
 .cache/
 
-# rendered presentation output (sources docs/*.md + docs/*.svg are tracked)
 docs/*.html
 docs/*.pdf
-# ...except the chart page, which is a source: it carries the numbers inline
-# and is what docs/benchmarks.md links to.
+# The chart page is a source: it carries its numbers inline.
 !docs/benchmarks-scaling.html
 
-# the cell in flight, for a watchdog that outlives the process measuring it
 bench/results/.inflight

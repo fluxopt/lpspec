@@ -16,13 +16,7 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # Deliberately a local hook rather than facebook/pyrefly-pre-commit: that hook
-  # is `language: python`, so it type-checks against pre-commit's own isolated
-  # venv, where pydantic/pandas/xarray/linopy do not exist. With missing-import
-  # promoted to error (pyproject.toml) every third-party import would fail.
-  # Running the task points pyrefly at the default pixi environment, which is
-  # the whole point of checking imports — and it is the same `typecheck` CI
-  # runs, so the hook and the gate cannot check different things.
+  # Local, so pyrefly checks against the pixi environment and not pre-commit's own venv.
   - repo: local
     hooks:
       - id: pyrefly

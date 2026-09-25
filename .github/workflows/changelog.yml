@@ -1,14 +1,8 @@
 name: Changelog
 
-# A feat, fix, perf, refactor, docs or revert PR adds its line under
-# `## Upcoming version` in CHANGELOG.md, so the release notes exist before the
-# release PR is written. The label `no changelog` opts a PR out, and a skipped
-# job counts as passed. See RELEASING.md.
-
 on:
   pull_request:
-    # `edited` re-runs it when the title changes the type, and `labeled` and
-    # `unlabeled` when the opt-out label comes or goes.
+    # `edited` for a title that changes the type, `labeled`/`unlabeled` for the opt-out label.
     types: [opened, edited, reopened, synchronize, labeled, unlabeled]
 
 permissions:
@@ -27,7 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # The base branch's changelog is what a new line is told apart from.
           fetch-depth: 0
           persist-credentials: false
 

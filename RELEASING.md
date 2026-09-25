@@ -84,11 +84,9 @@ and the tool reads each heading as released because its tag exists.
 - **The label `no changelog`.** Create it under Issues → Labels.
 
 **PyPI refuses a direct reference.** A distribution that names a git URL in its
-metadata is rejected at upload, in a dependency and in an extra alike. One
-stands in `pyproject.toml` today: `mathspec @ git+…`, which becomes a floor once
-mathspec is on PyPI. Until it is gone, the tag and the GitHub release are made
-and the upload fails. The test oracle's `linopy @ git+…@master` is in the `dev`
-group, which is not package metadata, so PyPI never sees it.
+metadata is rejected at upload, in a dependency and in an extra alike. None
+stands in the package metadata today. The test oracle's `linopy @ git+…@master`
+is in the `dev` group, which is not package metadata, so PyPI never sees it.
 
 ## Branch protection
 

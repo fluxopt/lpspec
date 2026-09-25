@@ -1,31 +1,8 @@
 name: PR title
 
-# The squash subject becomes a commit on main. The PR adds its title to
-# CHANGELOG.md by hand, and its type decides whether it owes that line. Nothing
-# writes the changelog on merge. See RELEASING.md.
-#
-# Merges are squash-only (repo ruleset), and `squash_merge_commit_title` is
-# COMMIT_OR_PR_TITLE: GitHub uses the PR title when a PR has several commits, and
-# the single commit's own title when it has exactly one. So both are validated —
-# whichever GitHub picks, it has been checked. (Setting the repo to PR_TITLE makes
-# it unconditionally the PR title; this check stays correct either way.)
-
 on:
   pull_request:
-    # `synchronize` is here because this check is **required**, and a required
-    # check is evaluated against the head commit. Skipping the push event does
-    # not mean "reuse the previous result" — it means the new head has *no*
-    # result, and GitHub waits for one that will never arrive. The PR is then
-    # blocked with nothing to click on: not a failing check, an absent one.
-    #
-    # That is what happened to #269 — opened, pushed to, then stuck at
-    # `mergeStateStatus: BLOCKED` for hours with every visible check green. It
-    # was reported as CI hanging, which is exactly how it looks.
-    #
-    # It was dropped to save a job per push, and that reasoning was sound while
-    # the check was advisory. Once it gates the merge queue, an unreported run
-    # is indistinguishable from an unfinished one, and no amount of waiting
-    # resolves it. Cost: one ~5s job per push, billed as a minute.
+    # `synchronize`: a required check must report on every head commit, or the PR blocks (#269).
     types: [opened, edited, reopened, synchronize]
 
 permissions:
@@ -54,7 +31,6 @@ jobs:
 
           # keep in sync with the type table in AGENTS.md and CONTRIBUTING.md
           TYPES='feat|fix|perf|refactor|docs|chore|test|ci|build|style|revert'
-          # type, optional (scope), optional ! for breaking, ": ", then a subject
           PATTERN="^(${TYPES})(\([a-z0-9._/-]+\))?!?: .+"
 
           fail=0
@@ -72,8 +48,6 @@ jobs:
             echo "ok: ${what} — ${subject}"
           }
 
-          # A one-commit PR is squashed with that commit's own title, so both
-          # the PR title and that title are checked.
           titles=("PR title|${PR_TITLE}")
           if [[ "$COMMIT_COUNT" == "1" ]]; then
             only=$(gh api "repos/${REPO}/pulls/${NUMBER}/commits" --jq '.[0].commit.message')
