@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, NamedTuple, get_args, get_type_hints
 
 import polars as pl
@@ -34,19 +35,26 @@ KINDS = ('primal', 'dual', 'expression')
 LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expression'}
 
 
-#: What the layout under a directory looks like. **Zero while the layout is
-#: still moving**, and it starts counting at one the day that stops. So an
-#: answer another zero-era build wrote reads as current, and what the stamp
-#: catches is one written before there was a stamp. **Compared, never
-#: branched on.**
-ANSWER_FORMAT = 0
+#: What a result, a sweep and an archive write to disk look like. **1 is the
+#: layout 0.1.0 writes.** A change to any of them raises it, and the release
+#: notes name the change. Every answer written before 0.1.0 is stamped 0, or
+#: not at all. **Compared, never branched on.**
+ANSWER_FORMAT = 1
 FORMAT_FILE = 'format.json'
 
 
+def _writer() -> str | None:
+    """The specsolve version writing a stamp, or ``None`` from a source tree nothing installed."""
+    try:
+        return version('specsolve')
+    except PackageNotFoundError:
+        return None
+
+
 def write_format(directory: Path) -> None:
-    """Stamp *directory* with the layout its contents are in."""
+    """Stamp *directory* with the layout its contents are in, and the specsolve version that wrote them."""
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / FORMAT_FILE).write_text(json.dumps({'answer': ANSWER_FORMAT}))
+    (directory / FORMAT_FILE).write_text(json.dumps({'answer': ANSWER_FORMAT, 'specsolve': _writer()}))
 
 
 def check_format(directory: Path) -> None:
@@ -60,13 +68,16 @@ def check_format(directory: Path) -> None:
             answer written before there was one.
     """
     file = directory / FORMAT_FILE
-    found = json.loads(file.read_text())['answer'] if file.is_file() else None
+    stamp = json.loads(file.read_text()) if file.is_file() else {}
+    found = stamp.get('answer')
     if found != ANSWER_FORMAT:
+        writer = stamp.get('specsolve')
+        by = f', written by specsolve {writer},' if writer else ''
         raise LayoutError(
-            f'{str(directory)!r} holds a saved answer in layout {found}, and this package reads '
-            f'{ANSWER_FORMAT}. The layout moves before 1.0 and nothing reads an '
-            f'older one back: solve the model again and save it. An archive that archive= wrote still '
-            f'holds the model and the data to do that with.'
+            f'{str(directory)!r} holds a saved answer in layout {found}{by} and this package reads '
+            f'{ANSWER_FORMAT}. The layout moves before 1.0 and nothing reads another one back: solve '
+            f'the model again and save it. An archive that archive= wrote still holds the model and '
+            f'the data to do that with.'
         )
 
 
