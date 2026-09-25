@@ -22,10 +22,6 @@ exact version — the environment the ``ci`` job runs the suite in to prove the
 bound is real rather than decorative. The version is therefore written twice in
 one file, and this is what stops the copies drifting: raise a floor and the pin
 has to move with it, which is the whole of the fix.
-
-A direct reference (``mathspec @ git+…``) is the exception and is excluded
-from both sides: it is already exact, so there is no bound to prove, and the
-repository it points at claims its own floors.
 """
 
 from __future__ import annotations
@@ -67,17 +63,12 @@ def test_ruff_is_the_same_version_in_ci_and_in_the_hook():
 #: lower bound is a claim the `floors` environment has to pin to prove.
 _FLOOR = re.compile(r'^([A-Za-z0-9._-]+)>=([0-9][0-9a-zA-Z.]*)$')
 
-#: `mathspec @ git+https://…@v0.0.0-alpha.9`. A direct reference is already
-#: exact, so it has no lower bound to prove and nothing to pin — it must stay
-#: out of the floors environment rather than be pinned twice.
-_DIRECT = re.compile(r'^([A-Za-z0-9._-]+) @ \S+$')
-
 
 def _declared_floors() -> dict[str, str]:
     declared = tomllib.loads((REPO / 'pyproject.toml').read_text())['project']['dependencies']
-    unparsed = [spec for spec in declared if not (_FLOOR.match(spec) or _DIRECT.match(spec))]
+    unparsed = [spec for spec in declared if not _FLOOR.match(spec)]
     assert not unparsed, (
-        f'{unparsed} is neither a bare `name>=version` lower bound nor a direct reference. A '
+        f'{unparsed} is not a bare `name>=version` lower bound. A '
         f'runtime dependency written any other way has no floor for the `floors` environment to '
         f'pin, so teach this pattern the new shape rather than leaving the dependency unchecked.'
     )
