@@ -49,7 +49,7 @@ read here and shipped.
 `sweep` reads as it does for a serial sweep, one column wider:
 
 ```python
-sweep.record  # (scenario, status, termination_condition, objective, has_primal, spec_digest)
+sweep.record  # one Record per slice, the scenario column first
 sweep.primal('p')  # (scenario, snapshot, generator, value)
 sweep.metrics  # one row per slice; every slice loaded its own solver
 ```

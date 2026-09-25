@@ -55,8 +55,9 @@ With one parquet file per parameter, pass the paths instead:
 
 ## From linopy's shapes
 
-Pass an indexed pandas Series as it is; its index levels attach to
-dimensions by name. A `DataArray` becomes one with `.to_series()`. The
+Pass a pandas Series over one dimension as it is; its index attaches to the
+dimension it is named after. A Series over two dimensions is a table:
+`reset_index()` it, since a `MultiIndex` is refused. A `DataArray` becomes one with `.to_series()`. The
 [dispatch](../examples/dispatch.md) instance, linopy-style:
 
 ```python

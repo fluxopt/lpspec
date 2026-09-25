@@ -150,15 +150,16 @@ class ConstraintRow:
     Read off the built model, so it needs no solve — and it is the *built*
     row, after ``where`` masking, after any term whose variable was absent
     dropped out, and after a coefficient the data made exactly zero stopped
-    being a term at all
-    ([`_without_zeros`][specsolve.relational.engines.polars.assembly._without_zeros]). Those
+    being a term at all. Those
     three are why a row can be shorter than the file suggests, and why reading
     one is worth it when a model says something other than what its author
     wrote.
 
-    Printing it gives the row as one line of math, which is what reading a row
-    usually means; [`terms`][] is the same content as a frame, for the row
-    too wide to read and for anything that filters or joins.
+    Printing it gives the row as one line of math in linopy's format, which is
+    what reading a row usually means. A row wider than [`display_terms`][]
+    prints instead how many terms each variable contributes and the span of
+    their coefficients. [`terms`][] is the same content as a frame, for the
+    row too wide to read and for anything that filters or joins.
 
     Attributes:
         name: The constraint this row belongs to.
@@ -584,12 +585,18 @@ class Result:
     def dual(self, name: str) -> pl.DataFrame:
         """Shadow prices of constraint *name* — ``(dims…, value)``.
 
-        [`primal`][]'s shape and order, over constraint rows.
+        [`primal`][]'s shape and order, over constraint rows. Duals exist only
+        where a solver ran here: a model written to a file and solved elsewhere
+        never passes back through this package. Reduced costs and slacks are
+        not read.
 
         Raises:
             NoSolutionError: The solve left no values at all.
             SpecsolveError: This result was closed, or it left primals but no
-                duals — an integer variable makes them undefined.
+                duals — an integer variable makes them undefined, and so does
+                an ``sos:`` set that ``Spec.expand()`` wrote out as binaries.
+                ``gurobi`` and ``xpress`` branch on a set itself and keep
+                them.
             KeyError: No constraint is called *name*.
         """
         frames = self._readable(self._duals, f"the dual of '{name}'")
@@ -616,6 +623,12 @@ class Result:
         every column is held only by a lower bound of zero, as a dispatch
         variable is, the bounds deliver nothing and the proof is the simpler
         ``Σ weight * right-hand side > 0``.
+
+        A certificate is computed only where it was asked for. ``highs``
+        always produces one; ``gurobi`` needs ``{'InfUnbdInfo': 1}`` and
+        ``xpress`` needs ``{'presolve': 0}`` in *solver_options*, set before the
+        solve. A ray is live only: [`save`][] writes none, and no sweep
+        spills one.
 
         Raises:
             SpecsolveError: This result was closed; or the solve was not
@@ -670,16 +683,20 @@ class Result:
         A declared name is served by its own reader, compiled on this call and
         never lowered again, so a model whose expressions go unread compiles
         none of them. Anything else lowers the model as written, which costs
-        what ``check`` costs.
+        what ``check`` costs. An undeclared expression names nothing, so it is
+        not a kind: [`save`][] does not write it and a sweep does not spill it.
+        To keep a quantity, declare it under ``expressions:``.
 
         Raises:
             NoSolutionError: The solve left no values to read.
             SpecsolveError: This result was closed; the model was built from an
                 already-lowered ``Program`` or read back off disk, so there is
-                nothing to lower an undeclared expression against; or a divisor
-                with no value where the expression divides.
+                nothing to lower an undeclared expression against; an archive
+                whose sources build another model than the one this answered;
+                or a divisor with no value where the expression divides.
             LanguageError: A construct outside the language, or a name the
-                model does not declare.
+                model does not declare — a new parameter is a build, not a
+                read.
         """
         self._readable(self._primals, 'an expression')
         return evaluated(self._expressions or {}, self._evaluate, expression)
@@ -709,6 +726,9 @@ class Result:
 
     def to_pandas(self, name: str, kind: str = 'primal') -> pd.DataFrame:
         """One name's values as a tidy `pandas.DataFrame`.
+
+        Needs pandas, which specsolve does not install; the xarray bridges
+        need xarray too.
 
         Args:
             name: A variable, a constraint or a named expression, as *kind*

@@ -102,7 +102,7 @@ def _case(rung: Rung, dispatch_yaml: Any) -> tuple[Any, dict[str, Any]]:
     }[rung.model]()
 
 
-#: Each rung of the update table (docs/reference/api.md): the model it moves, what
+#: Each rung of the update contract (``Model.update``): the model it moves, what
 #: changes, and whether the loaded solver may be kept. `p_max` appears twice on
 #: purpose: it gates ``where: p_max > 0`` *and* bounds the variable, so whether
 #: it is structural is a property of the values and not of where the name

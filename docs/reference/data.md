@@ -115,7 +115,7 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | What arrives | What happens |
 |---|---|
 | an undeclared column in a table | ignored |
-| a coordinate with no row | sparse variables; what a missing row means where it is read is [absence](https://mathspec.readthedocs.io/en/latest/reference/language/absence/). `diagnostics().sparse_parameters` names the parameters that arrived short of their dims ([api](api.md#diagnostics)) |
+| a coordinate with no row | sparse variables; what a missing row means where it is read is [absence](https://mathspec.readthedocs.io/en/latest/reference/language/absence/). `diagnostics().sparse_parameters` names the parameters that arrived short of their dims ([`Diagnostics`](api.md#specsolve.relational.result.Diagnostics)) |
 | a value that is readable and wrong | bound as given |
 
 ### Stray labels
@@ -132,7 +132,7 @@ generator.
 ## Growing or replacing the data
 
 **A built model takes new numbers with
-[`update`](api.md#re-solving-with-new-numbers).** A sweep over slices of one
+[`update`](api.md#specsolve.Model.update).** A sweep over slices of one
 dimension is [`solve_over`](sweeps.md). Both attach through the rules above.
 
 **The [linopy lane](../about/linopy.md#the-same-language-and-the-same-data)

@@ -19,7 +19,7 @@ written once.
 containment check refuses parameter rows outside a narrowed index, so an axis
 rewrites the rows and the index together.
 
-The caller-facing rules are [docs/reference/sweeps.md](../../docs/reference/sweeps.md).
+The caller-facing rules are [sweeps](https://specsolve.readthedocs.io/en/latest/reference/sweeps/).
 """
 
 from __future__ import annotations
@@ -527,9 +527,13 @@ class EachWindow:
     dense ``0..n-1`` column the model addresses by the name ``into`` gives it,
     which the spec has to declare.
 
-    Whether the model *can* be sliced this way is asked before it is — the
-    coupling, the reach and the lookahead they need are
-    `_check_the_program`.
+    Whether the model *can* be cut this way is asked before a slice is taken
+    ([separability](https://mathspec.readthedocs.io/en/latest/reference/reading/#asking-whether-an-axis-can-be-cut)):
+    a coupling along ``into`` is refused, naming the declaration and the
+    change that would lift it; ``lookahead`` has to cover what the rows read
+    ahead; and a ``position()`` the model counts warns, since every window
+    restarts it. What the rows read *behind* is the rolling-horizon seed, met
+    by the edge policy, and is not refused.
     """
 
     dim: str
@@ -717,12 +721,11 @@ class Sweep:
     """
 
     key_name: str
-    #: ``(key, status, termination_condition, objective, has_primal, spec_digest)``,
-    #: in slice order — how every slice terminated, whether or not it produced
-    #: an answer, ``has_primal`` saying which of the two it was and ``spec_digest``
-    #: which document every slice answered. A slice that reached no objective
-    #: holds null there rather than ``nan``, so the column aggregates over the
-    #: slices that solved.
+    #: One [`Record`][specsolve.relational.parquet.Record] per slice, the key
+    #: column first, in slice order — how every slice terminated, whether or
+    #: not it produced an answer. A slice that reached no objective holds null
+    #: there rather than ``nan``, so the column aggregates over the slices that
+    #: solved.
     record: pl.DataFrame
     #: One [`SliceMetrics`][specsolve.relational.parquet.SliceMetrics] per slice, keyed
     #: and in slice order — [`diagnostics`][specsolve.api.Model.diagnostics] one dimension
@@ -1286,7 +1289,7 @@ def solve_over(
     """Solve *spec* once per slice of *axis* and fold the answers together.
 
     The rules — what a carry copies, how the key column is named, which
-    executor to choose — are [docs/reference/sweeps.md](../../docs/reference/sweeps.md).
+    executor to choose — are [sweeps](https://specsolve.readthedocs.io/en/latest/reference/sweeps/).
 
     Args:
         spec: As [`check`][specsolve.api.check] takes it. Parsed once, whichever
@@ -1328,7 +1331,10 @@ def solve_over(
             *spill_to*, the spill is what the archive packs, so a sweep too
             large to hold is archived without ever being held. The archive is
             a second copy of the answers on disk; the memory is what
-            *spill_to* bounds.
+            *spill_to* bounds. A sliced source is archived whole, the column
+            the axis cuts on included. A hand-built axis is refused, since a
+            list of ``(key, sources)`` is a set of sources per slice: archive
+            one solve each.
 
     Returns:
         Every slice's answers, keyed by slice.

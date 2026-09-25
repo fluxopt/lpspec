@@ -12,19 +12,18 @@ fold.
 import specsolve as sps
 
 sweep = sps.solve_over('spec.yaml', sources, sps.EachCoordinate('scenario'))
-sweep.record  # (scenario, status, termination_condition, objective, has_primal, spec_digest, solved_at, run)
+sweep.record  # one Record per slice, the scenario column first
 sweep.primal('p')  # (scenario, snapshot, generator, value)
 ```
 
 ## The axes
 
-An axis says how the sources split into slices. `solve_over` accepts three.
-
-| | |
-|---|---|
-| `sps.EachCoordinate(dim)` | One slice per label of `dim`: scenarios, draws, investment periods. A source carrying `dim` is filtered to one label and the column is dropped; every other source passes through. A spec that declares `dim` is refused. The slices run in the sorted order of the labels, which is the order a `carry` chains them in. |
-| `sps.EachWindow(dim, steps=, lookahead=, into=)` | One slice per window of consecutive labels of `dim`. `steps` is what each window keeps and `lookahead` is what it sees beyond that, so a `lookahead` above zero is overlap. An `int` keeps the same number every window; a sequence keeps those numbers in order. The dimension is re-indexed into a dense `0..n-1` column named `into`, which the spec has to declare. |
-| a sequence of `(key, sources)` pairs | A hand-built axis. The call must pass `key_name=`. A list names no dimension, so the model is not asked whether it can be cut that way and `original_index=` is refused. |
+An axis says how the sources split into slices. `solve_over` accepts three:
+[`EachCoordinate`](api.md#specsolve.EachCoordinate), one slice per label of a
+dimension; [`EachWindow`](api.md#specsolve.EachWindow), one slice per window of
+consecutive labels; and a sequence of `(key, sources)` pairs written by hand. A
+hand-built axis must pass `key_name=`. A list names no dimension, so the model
+is not asked whether it can be cut that way and `original_index=` is refused.
 
 ```python
 sweep = sps.solve_over(
@@ -36,10 +35,7 @@ sweep = sps.solve_over(
 sweep.primal('soc')  # (snapshot_start, t, value) — the window, and the index inside it
 ```
 
-**A window spans labels, not values.** `steps=24` is twenty-four snapshots
-however they are numbered. The dimension only has to be orderable:
-datetimes, strings and gapped integers all work. `into` has no default, and a
-seam's `where: "t == 0"` matches on it.
+`into` has no default, and a seam's `where: "t == 0"` matches on it.
 
 **`steps` as a sequence is one block per window**, which is a telescoping
 horizon, or a month at a time with a few days of overlap:
@@ -87,7 +83,7 @@ how a model masks, so the gap is reported rather than refused.
 
 ## Reading a sweep
 
-**`Sweep` reads like [`Result`](api.md#reading-a-result), one dimension wider.**
+**`Sweep` reads like [`Result`](api.md#specsolve.Result), one dimension wider.**
 `primal`, `dual`, `evaluate`, `to_pandas`, `to_dataarray`, `to_dataset` and
 `save` keep their names, and every table has the slice key prepended.
 
@@ -138,7 +134,7 @@ price over time.
 that made the sweep, pointed at it with `spill_to=`, reads it back without
 solving; so do `sps.load_sweep('runs/')`, which reads every slice's frames in
 and answers `primal`, and `sps.scan_sweep('runs/')`, which leaves them there for
-`scan` ([loading or scanning](api.md#loading-or-scanning)).
+`scan` ([`load_sweep`](api.md#specsolve.load_sweep)).
 
 **There is no per-slice reader.** One slice is a partition of a table you
 already hold: `sweep.primal('p').partition_by(sweep.key_name, as_dict=True)`.
@@ -153,7 +149,7 @@ already hold: `sweep.primal('p').partition_by(sweep.key_name, as_dict=True)`.
 | **a slice that did not solve contributes no rows** | A `primal` table can be shorter than the sweep. `record` is always one row per slice and says which did not solve, holding null where a slice reached no objective. |
 | **a window keys as `<dim>_start`** | `EachWindow('snapshot', …)` drops `snapshot` and re-indexes to `into`; the key column `snapshot_start` holds where each window began. |
 | **a hand-built axis names its own key** | A plain list cannot say what its keys are labels *of*, so it must pass `key_name='draw'`. `key_name` overrides the derived name on any axis. It is refused only when it collides with a column the tables already carry: a dimension the spec declares, or `value`, `status`, `termination_condition`, `objective`. |
-| **`sweep.metrics` says what each slice took** | One `SliceMetrics` per slice, `(key, columns, rows, nonzeros, loaded, attach_seconds, build_seconds, handoff_seconds, solve_seconds)` — the type names the columns ([row types](glossary.md#row-types)), and every clock names its unit. `model.diagnostics()` one dimension wider, its counts and clocks only. `loaded` says the solver took the model from scratch. A serial sweep loads once and pushes values after, so a later `True` is a slice whose data moved a mask; under `executor=` every slice loads. The clocks are that slice's own seconds. In an **archive** the table carries `run` too, so a warehouse of them says which run a slice's cost belongs to. |
+| **`sweep.metrics` says what each slice took** | One [`SliceMetrics`](api.md#specsolve.relational.parquet.SliceMetrics) per slice, whose entry names the columns, and [`Sweep.metrics`](api.md#specsolve.Sweep.metrics) says what `loaded` means under a serial fold and under `executor=`. In an **archive** the table carries `run` too, so a warehouse of them says which run a slice's cost belongs to. |
 | **a slice that fails says which slice** | The error is the engine's own, with a note on it: `in slice 'bad' (3 of 3)`. |
 | **a sweep's memory grows with its answer, unless it is spilled** | The models are released as the fold goes; the tables accumulate. `spill_to=` writes them out instead ([below](#spilling-a-sweep-to-disk)), and `save` writes a held sweep out the same way, after the fact. |
 
@@ -243,8 +239,8 @@ than the table. Only `scan_parquet` is a reference.
 | | |
 |---|---|
 | **a partition is a filter on the sources** | Not a narrower index: the containment check refuses parameter rows outside the declared coordinates, so the axis rewrites the rows and the index they are over in one mapping. |
-| **one model, updated per slice** | A serial sweep builds once and [updates](api.md#re-solving-with-new-numbers), and a slice whose structure matches the last keeps the loaded solver. A sweep under `executor=` builds per slice, because a built model does not cross a process. |
-| **`keep=` reaches every slice, and the fold chooses none of them** | It defaults to `'solver'`, as [`solve`](api.md#how-much-of-the-session-a-solve-keeps) does. `keep='progress'` has something to carry, since consecutive slices differ by one step; whether that pays is a fact about the *model*. Under `executor=` every slice is a first solve and keeps `'nothing'`. |
-| **the model is asked before it is sliced** | The plan says what each axis can bear ([`separability`](https://mathspec.readthedocs.io/en/latest/reference/reading/#asking-whether-an-axis-can-be-cut)). `EachWindow` needs `into` *windowable*: it refuses a coupling by naming the declaration and the change that would lift it, reads an offset the data decides off the data, requires `length - step` to cover what the rows read ahead, and warns where a `position()` restarts per window. What the rows read *behind* is the rolling-horizon seed, met by the edge policy, and is not refused. `EachCoordinate` is not asked: the spec must not declare the column it slices, so the model never sees the axis. |
+| **one model, updated per slice** | A serial sweep builds once and [updates](api.md#specsolve.Model.update), and a slice whose structure matches the last keeps the loaded solver. A sweep under `executor=` builds per slice, because a built model does not cross a process. |
+| **`keep=` reaches every slice, and the fold chooses none of them** | It defaults to `'solver'`, as [`solve`](api.md#specsolve.Model.solve) does. `keep='progress'` has something to carry, since consecutive slices differ by one step; whether that pays is a fact about the *model*. Under `executor=` every slice is a first solve and keeps `'nothing'`. |
+| **the model is asked before it is sliced** | The plan says what each axis can bear. [`EachWindow`](api.md#specsolve.EachWindow) says what a window refuses, and reads an offset the data decides off the data. `EachCoordinate` is not asked: the spec must not declare the column it slices, so the model never sees the axis. |
 | **the model is parsed once** | `solve_over` validates it up front, so a model outside the language fails before the data is touched. Every worker is handed the lowered [program](glossary.md#the-chain), in this process or across one, and none reads the YAML or lowers it again. |
 | **a slice is total** | A slice says what the *whole* model attaches, not what changed since the one before it. The class axes always do; a hand-built list has to keep the rule. |
