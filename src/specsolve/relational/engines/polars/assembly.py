@@ -148,7 +148,7 @@ class Assembly:
         """
         cols = [self._build_variable(name, v) for name, v in self.program.variables.items()]
         sets = [self._build_sos(s, self.program.variables[s.variable]) for s in self.program.sos.values()]
-        ordered = sorted(self.program.constraints.items(), key=lambda item: declares_quadratic(item[1]))  # pyrefly: ignore[implicit-any-lambda]  — a (name, declaration) pair
+        ordered = sorted(self.program.constraints.items(), key=lambda item: declares_quadratic(item[1]))
         built = [self._build_constraint(name, c) for name, c in ordered]
         objective = self._build_objective(self.program.objective)
 

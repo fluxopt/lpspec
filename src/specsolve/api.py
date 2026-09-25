@@ -685,14 +685,19 @@ def _answer_under(out: Path, read: Reading) -> Result:
     record = Record(**pl.read_parquet(record_file).row(0, named=True))
     status = record.solve_status
     objective = float('nan') if record.objective is None else record.objective
-    carried = {
-        '_spec_digest': record.spec_digest,
-        '_solved_at': record.solved_at,
-        '_model_digest': record.model_digest,
-        '_run': record.run,
-    }
     if not status.is_readable:
-        return Result(status, objective, {}, {}, {}, 'nothing', **carried)
+        return Result(
+            status,
+            objective,
+            {},
+            {},
+            {},
+            'nothing',
+            _spec_digest=record.spec_digest,
+            _solved_at=record.solved_at,
+            _model_digest=record.model_digest,
+            _run=record.run,
+        )
 
     no_duals, no_expressions = read_reasons(out)
     expressions: dict[str, Callable[[], pl.DataFrame]] = {
@@ -708,7 +713,10 @@ def _answer_under(out: Path, read: Reading) -> Result:
         'nothing',
         expressions,
         _no_duals=no_duals,
-        **carried,
+        _spec_digest=record.spec_digest,
+        _solved_at=record.solved_at,
+        _model_digest=record.model_digest,
+        _run=record.run,
     )
 
 

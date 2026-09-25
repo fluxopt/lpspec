@@ -13,7 +13,7 @@ jobs:
     if: vars.BENCH_RUNNER != ''
     runs-on: ubuntu-24.04
     steps:
-      - uses: hetznercloud/setup-hcloud@v1
+      - uses: hetznercloud/setup-hcloud@v2
       - env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           BOX: ${{ vars.BENCH_RUNNER }}
