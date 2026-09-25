@@ -7,7 +7,7 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
-- feat(api): a saved answer is stamped with layout 1 and the specsolve version that wrote it, and one written before 0.1.0 is refused by name ([#PR](https://github.com/fluxopt/specsolve/pull/PR))
+- feat(api): a saved answer is stamped with layout 1 and the specsolve version that wrote it, and one written before 0.1.0 is refused by name ([#1765](https://github.com/fluxopt/specsolve/pull/1765))
 - fix: the PyPI page links the docs, issues and changelog, and a stale saved answer says the layout moves before 1.0 ([#1763](https://github.com/fluxopt/specsolve/pull/1763))
 
 ## 0.1.0rc1 (2026-09-25)
