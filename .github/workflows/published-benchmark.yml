@@ -1,12 +1,5 @@
 name: Published benchmark
 
-# The comparison behind docs/about/benchmarks-scaling.html, on a box this run
-# creates and deletes. Setup and why: bench/README.md
-#
-# Re-running a failed job does not work: provision succeeded, so a re-run
-# reuses it and does not remake the box teardown has already deleted. Dispatch
-# a new run instead.
-
 on:
   workflow_dispatch:
     inputs:
@@ -37,8 +30,6 @@ jobs:
           SNAPSHOT: ${{ vars.BENCH_SNAPSHOT }}
           TYPE: ${{ vars.BENCH_SERVER_TYPE || 'ccx33' }}
           LOCATION: ${{ vars.BENCH_LOCATION || 'nbg1' }}
-          # Without a key Hetzner sets a root password and expires it, so the
-          # first login is a forced password change rather than a shell.
           SSH_KEY: ${{ vars.BENCH_SSH_KEY }}
         run: |
           hcloud server delete "$BOX" 2>/dev/null || true
@@ -54,9 +45,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      # A warmed box carries ~/.cache/rattler and, alongside it, a pixi binary
-      # that setup-pixi then refuses to overwrite. The cache is what was worth
-      # warming; the binary is a few MB fetched every run anyway.
+      # A warmed box carries a pixi binary that setup-pixi refuses to overwrite.
       - run: rm -f ~/.pixi/bin/pixi
       - uses: prefix-dev/setup-pixi@v0.10.1
         with:
@@ -68,26 +57,12 @@ jobs:
           restore-keys: pixi-bench-${{ runner.os }}-
       - run: pixi install -e bench
 
-      # The committed results are a *previous* run's, and every case that
-      # finishes overwrites its own file — so the ones left are exactly the
-      # cases this run could not measure. Left in place they are published as
-      # though it had: run 33481938841 killed `transport` and `storage` on
-      # `highs`, and the page it rendered carried those two byte-identical to
-      # what was committed, mixed in beside six fresh ones with nothing saying
-      # so. A case this run cannot take is a gap, and a gap is honest.
+      # Committed results would publish as this run's; a case it could not measure stays a gap.
       - run: rm -f bench/results/latest*.json
 
       - if: inputs.mode == 'smoke'
         run: pixi run -e bench ladder-smoke
-      # One step per case, because a runner that dies takes its filesystem with
-      # it and skips every step left — `if: always()` included. Each step
-      # measures one case under `bench/memory-watchdog.sh` and uploads before the
-      # next one can take the box.
-      #
-      # `!cancelled()`, not `always()`: a case runs when the one before it
-      # failed, never when a human stopped the run. Each uploads what it
-      # measured, so a box lost on the fourth case does not cost the three
-      # before it (.github/actions/ladder-case).
+      # One step per case, so each uploads its results before a dying runner skips the rest.
       - if: inputs.mode != 'smoke'
         uses: ./.github/actions/ladder-case
         with:
@@ -145,8 +120,6 @@ jobs:
           memory-budget: ${{ inputs.memory_budget }}
           sizes: ${{ inputs.sizes }}
 
-      # After the run: ladder-ci is `pytest bench`, and two harness tests render them.
-
       - if: ${{ !cancelled() }}
         run: pixi run -e bench report
       - if: ${{ !cancelled() }}
@@ -165,8 +138,6 @@ jobs:
   teardown:
     name: take the box down
     needs: [provision, benchmark]
-    # A stopped Hetzner server bills like a running one; only delete stops it.
-    # Hosted, so it cannot die with the box it is deleting.
     if: always() && vars.BENCH_RUNNER != ''
     runs-on: ubuntu-24.04
     steps:

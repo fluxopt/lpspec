@@ -1,20 +1,5 @@
 name: Sweep
 
-# A job of its own, against CI's rule that a step does not become one. That rule
-# is about billing: a job is rounded up to the minute, so splitting a few
-# seconds of work costs a whole one. This is minutes of work — 2,576 expressions
-# through both lanes — so it is the case the rule does not cover, and putting it
-# inside `ci` would add its whole duration to the required check on every PR.
-#
-# The per-PR half runs in `ci` at `--sweep-depth 2` with no flag needed. This is
-# the same module one dial further out.
-#
-# Two legs, because 202s of pytest was the slowest check on 23 of 32 commits
-# after ci.yml split (#1319) — halving it puts the bottleneck back on `ci`'s
-# suite, and a third leg would buy nothing. `tests/test_pixi_tasks.py` refuses a
-# matrix that disagrees with the `n` it passes: a leg dropped from the list is
-# a quarter of the sweep not run, in a job that stays green.
-
 on:
   push:
     branches: [main]
@@ -38,7 +23,6 @@ jobs:
         shard: ['0/2', '1/2']
     steps:
       - uses: actions/checkout@v7
-      # The interpreter is the manifest's, like everywhere else — see ci.yml.
       - uses: prefix-dev/setup-pixi@v0.10.1
         with:
           run-install: false
