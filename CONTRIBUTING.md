@@ -202,19 +202,19 @@ no it becomes a row in the deliberate non-primitives table.
 
 ## Breaking changes are free
 
-**The project is `0.0.1aN` until the first official release, and holds no
-compatibility promise.** So a construct that is named wrong, a default that is
-wrong, or a permissive input that hides a silent wrong answer gets **fixed in
-place**: rename, move and delete outright — no alias for the old spelling, no
-`DeprecationWarning` cycle, no `legacy_` path beside the new one.
+**The project holds no compatibility promise before 1.0.** So a construct that
+is named wrong, a default that is wrong, or a permissive input that hides a
+silent wrong answer gets **fixed in place**: rename, move and delete outright —
+no alias for the old spelling, no `DeprecationWarning` cycle, no `legacy_` path
+beside the new one.
 
 Spend nothing on the retirement either. The closed schema already fails at load
 naming the valid keys and the near miss, and the operator table already names
-what it accepts — that is the whole migration story an alpha owes anyone. A
-hand-written message per retired spelling is a second place the old surface
-lives, it needs a test of its own, and it outlives every file it was written
-for: `shift(by=)` had one for a day before `by=` became a legal keyword again
-and the message started refusing the new spelling.
+what it accepts — that is the whole migration story a release before 1.0 owes
+anyone. A hand-written message per retired spelling is a second place the old
+surface lives, it needs a test of its own, and it outlives every file it was
+written for: `shift(by=)` had one for a day before `by=` became a legal keyword
+again and the message started refusing the new spelling.
 
 This binds **agents working in this repo** too, and it is the habit most often
 imported from elsewhere: asked to change something, change it — do not add
