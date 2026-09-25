@@ -1,8 +1,8 @@
-"""What a caller reads back — a solve's :class:`Result`, a build's :class:`Diagnostics`.
+"""What a caller reads back — a solve's [`Result`][], a build's [`Diagnostics`][].
 
 The objects ``sps.solve`` and ``model.diagnostics()`` hand back, so they are
 the pieces of this subpackage a reader meets without going looking. A
-:class:`Result` holds one finished frame per declaration, its values already
+[`Result`][] holds one finished frame per declaration, its values already
 laid out over the build's coordinates, so no reader ever goes back to the
 engine.
 
@@ -47,8 +47,8 @@ if TYPE_CHECKING:
 
 
 #: How much of the session a solve keeps, as a request to
-#: :meth:`specsolve.api.Model.solve` and as the report in
-#: :attr:`Result.kept`. The two things a session holds — the solver with the
+#: [`specsolve.api.Model.solve`][] and as the report in
+#: [`Result.kept`][]. The two things a session holds — the solver with the
 #: model on it, and the work that solver did — can only be dropped in that
 #: order: there is no carrying on from a solver that was closed, so the fourth
 #: combination does not exist.
@@ -143,7 +143,7 @@ def _bracket(labels: str) -> str:
 
 @dataclass(frozen=True)
 class ConstraintRow:
-    """One built constraint row, spelled back out — what :meth:`~specsolve.api.Model.row` returns.
+    """One built constraint row, spelled back out — what [`row`][specsolve.api.Model.row] returns.
 
     The row a model actually built at one coordinate: every term with its
     coefficient, and the comparison and right-hand side it was built against.
@@ -151,13 +151,13 @@ class ConstraintRow:
     row, after ``where`` masking, after any term whose variable was absent
     dropped out, and after a coefficient the data made exactly zero stopped
     being a term at all
-    (:func:`~specsolve.relational.engines.polars.assembly._without_zeros`). Those
+    ([`_without_zeros`][specsolve.relational.engines.polars.assembly._without_zeros]). Those
     three are why a row can be shorter than the file suggests, and why reading
     one is worth it when a model says something other than what its author
     wrote.
 
     Printing it gives the row as one line of math, which is what reading a row
-    usually means; :attr:`terms` is the same content as a frame, for the row
+    usually means; [`terms`][] is the same content as a frame, for the row
     too wide to read and for anything that filters or joins.
 
     Attributes:
@@ -185,7 +185,7 @@ class ConstraintRow:
     def __str__(self) -> str:
         """The row as one line: ``balance[snapshot=1]: +1 p[…] +50 p[…] >= 60``.
 
-        linopy's shape for the same job. A row wider than :attr:`display_terms`
+        linopy's shape for the same job. A row wider than [`display_terms`][]
         summarises rather than truncating.
         """
         return f'{self.name}{_bracket(self._where())}: {self._body()} {self.sense} {_number(self.rhs)}'
@@ -281,7 +281,7 @@ class Diagnostics:
     #: The axis a solver reports and does not repair: HiGHS prints a ``Bound``
     #: range beside its ``Matrix`` one, equilibrates the matrix automatically,
     #: and answers the bounds with ``Consider scaling the bounds by …`` — so a
-    #: model can be clean on :attr:`coefficient_range` and still be the one the
+    #: model can be clean on [`coefficient_range`][] and still be the one the
     #: solver is complaining about. Zero and infinity are excluded, an
     #: unbounded side and a ``lower: 0`` being nothing the solver represents. A
     #: large ``largest`` is usually a big number standing in for "uncapped", and
@@ -305,7 +305,7 @@ class Diagnostics:
     #: an iterating driver is the difference between "specsolve is slow" and
     #: "this model masks on a parameter that varies", unless the driver asked
     #: for ``keep='nothing'``, which loads by construction. ``loads`` ticks on
-    #: exactly the solves that report :attr:`Result.kept` of ``nothing`` —
+    #: exactly the solves that report [`Result.kept`][] of ``nothing`` —
     #: the same event, counted here and named there.
     solves: int
     loads: int
@@ -326,7 +326,7 @@ class Diagnostics:
         What ``archive=`` records beside the answer, and what a caller feeding
         its own store reads off a model it solved. Which fields reach it and
         what it means cumulatively are
-        :class:`~specsolve.relational.parquet.Metrics`'s to say; a phase this
+        [`Metrics`][specsolve.relational.parquet.Metrics]'s to say; a phase this
         build never entered reads zero there. ``run`` is null: the name is the
         publisher's, and nothing has published this yet.
         """
@@ -379,10 +379,10 @@ def evaluated(
 class Result:
     """What a solve returned — the outcome, and access to any values.
 
-    Returned whatever the solve concluded: test :attr:`has_primal` before
-    reading values, or catch :class:`~specsolve.errors.NoSolutionError`. The
+    Returned whatever the solve concluded: test [`has_primal`][] before
+    reading values, or catch [`NoSolutionError`][specsolve.errors.NoSolutionError]. The
     values are this result's own, so a later solve on the same model does not
-    rewrite them, and there is no lifetime to manage — :meth:`close` releases
+    rewrite them, and there is no lifetime to manage — [`close`][] releases
     what this result holds early, and nothing breaks without it.
 
     An update is no exception. A result owns everything it reads — one finished
@@ -396,40 +396,40 @@ class Result:
     _status: SolveStatus
     _objective: float
     #: One ``(dims…, value)`` frame per declaration, lazy and in label order —
-    #: a read is a collect. ``None`` is what :meth:`close` leaves behind, and
+    #: a read is a collect. ``None`` is what [`close`][] leaves behind, and
     #: the primal's absence is what "closed" means: both go together, and an
     #: empty mapping is a solve that left nothing, which the status reports.
     _primals: Mapping[str, pl.LazyFrame] | None
     _duals: Mapping[str, pl.LazyFrame] | None
     #: The constraints' left-hand sides at the solution, laid out exactly as
-    #: :attr:`_duals` — same frames, same row order — and present whenever the
+    #: [`_duals`][] — same frames, same row order — and present whenever the
     #: primals are: unlike a dual, an activity exists at any incumbent.
     _activities: Mapping[str, pl.LazyFrame] | None
     #: How much of the session this solve kept, read off what actually ran —
     #: never off what was asked for.
     _kept: Keep
     #: One deferred reader per declared named expression, and the ad-hoc
-    #: evaluator — what :meth:`evaluate` reads through and what :meth:`save`
+    #: evaluator — what [`evaluate`][] reads through and what [`save`][]
     #: writes. Nothing is compiled until a reader is called; the pair is
     #: composed above the lane so the evaluator may read the spec as written
     #: (hard rule 2). ``_evaluate`` is ``None`` where there is no such spec —
     #: a build off an already-lowered ``Program``, or an answer read back off
-    #: disk. Released with the primals by :meth:`close`, since each holds this
+    #: disk. Released with the primals by [`close`][], since each holds this
     #: build's frames and values.
     _expressions: Mapping[str, Callable[[], pl.DataFrame]] | None = None
     _evaluate: Callable[[str | Mapping[str, object]], pl.DataFrame] | None = None
     #: Why there are no duals, when a solve that left values still has none.
-    #: ``None`` whenever :attr:`_duals` holds them.
+    #: ``None`` whenever [`_duals`][] holds them.
     _no_duals: str | None = None
     #: One ``(dims…, value)`` frame per constraint, laid out exactly as
-    #: :attr:`_duals`, carrying the certificate an infeasible solve left.
+    #: [`_duals`][], carrying the certificate an infeasible solve left.
     #: Empty on every solve that was not infeasible, and released by
-    #: :meth:`close` with the rest.
+    #: [`close`][] with the rest.
     _dual_rays: Mapping[str, pl.LazyFrame] | None = None
     #: Why there is no certificate — the status, or the solver setting that
-    #: would have produced one. ``None`` whenever :attr:`_dual_rays` holds it.
+    #: would have produced one. ``None`` whenever [`_dual_rays`][] holds it.
     _no_dual_ray: str | None = None
-    #: Which spec this answered, as :func:`~specsolve.relational.parquet.digest_of`
+    #: Which spec this answered, as [`digest_of`][specsolve.relational.parquet.digest_of]
     #: names it. Attached by the model that solved, so a solve run off a
     #: lowered program — which has no document — leaves it ``None``.
     _spec_digest: str | None = None
@@ -437,9 +437,9 @@ class Result:
     _solved_at: datetime | None = None
     #: The built model's digest — the spec *and* its data — as the value an
     #: answer read off disk carries, or as the callable a live solve is given
-    #: so that nothing is hashed unless :meth:`model_digest` is asked. ``None``
+    #: so that nothing is hashed unless [`model_digest`][] is asked. ``None``
     #: where neither: an answer written before the column, or one built by hand.
-    #: Read through :meth:`model_digest`, never here.
+    #: Read through [`model_digest`][], never here.
     _model_digest: str | Callable[[], str] | None = None
     #: The archive this answer was read back out of, as its record names it.
     #: ``None`` for a live solve: the name is stamped when an archive is
@@ -449,7 +449,7 @@ class Result:
     def model_digest(self) -> str | None:
         """Which model this answered — the document and the data it was attached to.
 
-        :attr:`spec_digest` names the document alone, so two scenarios of one
+        [`spec_digest`][] names the document alone, so two scenarios of one
         spec share that and differ here. Computed on the first ask and kept,
         which is what keeps a solve that never asks free of it.
         """
@@ -476,7 +476,7 @@ class Result:
     def has_primal(self) -> bool:
         """Whether there are values to read — what the accessors gate on.
 
-        Narrower than :attr:`is_ok`: a run stopped at a time limit before any
+        Narrower than [`is_ok`][]: a run stopped at a time limit before any
         incumbent is ``ok`` with nothing to read.
         """
         return self._status.is_readable
@@ -508,12 +508,12 @@ class Result:
 
     @property
     def record(self) -> Record:
-        """How this solve terminated, as the one row :meth:`save` writes for it.
+        """How this solve terminated, as the one row [`save`][] writes for it.
 
         The fields above in one value, and the same row a sweep keeps per slice
-        in :attr:`~specsolve.strategy.Sweep.record`. ``objective`` is ``None``
+        in [`record`][specsolve.strategy.Sweep.record]. ``objective`` is ``None``
         rather than ``nan`` where there are no values. Asking computes
-        :meth:`model_digest` once, as a save does.
+        [`model_digest`][] once, as a save does.
         """
         return Record.of(
             self.termination_condition,
@@ -526,13 +526,13 @@ class Result:
 
     @property
     def kept(self) -> Keep:
-        """How much of the session this solve kept — one of :data:`KEEPS`.
+        """How much of the session this solve kept: ``solver``, ``progress`` or ``nothing``.
 
         What *happened*, not what was asked: ``keep=`` is a preference, and a
         first solve or a structure that moved keeps ``nothing`` whatever it
         requested, the solver having been loaded again. So a driver that asked
         to keep ``progress`` and reads ``nothing`` back is being told its
-        labels moved. Advisory, like :class:`Diagnostics`: no answer depends
+        labels moved. Advisory, like [`Diagnostics`][]: no answer depends
         on it.
         """
         return self._kept
@@ -541,7 +541,7 @@ class Result:
         """The primals, or why nothing here can be read: this result was closed.
 
         The closed check is read off the primals whichever mapping the caller
-        wants: :meth:`close` releases them together.
+        wants: [`close`][] releases them together.
         """
         if self._primals is None:
             raise SpecsolveError(
@@ -584,7 +584,7 @@ class Result:
     def dual(self, name: str) -> pl.DataFrame:
         """Shadow prices of constraint *name* — ``(dims…, value)``.
 
-        :meth:`primal`'s shape and order, over constraint rows.
+        [`primal`][]'s shape and order, over constraint rows.
 
         Raises:
             NoSolutionError: The solve left no values at all.
@@ -601,7 +601,7 @@ class Result:
         """Constraint *name*'s share of the certificate that this model has no solution — ``(dims…, value)``.
 
         The one thing an infeasible solve has to say, and the only reader that
-        answers on one: :meth:`primal`, :meth:`dual` and :meth:`activity` all
+        answers on one: [`primal`][], [`dual`][] and [`activity`][] all
         raise there, because there is no solution behind them. Weight every
         row by its value here and add them together, and the combined row
         demands more than the columns can deliver inside their bounds — which
@@ -610,7 +610,7 @@ class Result:
         longer needs a second model to ask *how far from feasible* a
         subproblem was.
 
-        :meth:`dual`'s shape and order. **The sign is the row's own**, one
+        [`dual`][]'s shape and order. **The sign is the row's own**, one
         convention across every sink, so a driver never asks who solved — a
         sink whose solver signs the other way negates what it reads. Where
         every column is held only by a lower bound of zero, as a dispatch
@@ -642,10 +642,10 @@ class Result:
     def activity(self, name: str) -> pl.DataFrame:
         """The left-hand side of constraint *name* at the solution — ``(dims…, value)``.
 
-        :meth:`dual`'s shape and order, and the other half of a row's story:
+        [`dual`][]'s shape and order, and the other half of a row's story:
         how far each row's ``Σ aᵢxᵢ`` sits from its bound. The solver's own
         number, not a recomputation. Readable whenever there is a solution —
-        unlike :meth:`dual` it is well-defined on a mixed-integer model. On an
+        unlike [`dual`][] it is well-defined on a mixed-integer model. On an
         ``==`` row it equals the right-hand side up to solver tolerance by
         construction.
 
@@ -665,7 +665,7 @@ class Result:
         with ``dims:`` and ``otherwise:``. It may use every name the model
         declares and only those. The value is aggregated to the expression's
         own dims, in declaration order, rows in label order over them —
-        :meth:`primal`'s shape and order.
+        [`primal`][]'s shape and order.
 
         A declared name is served by its own reader, compiled on this call and
         never lowered again, so a spec whose expressions go unread compiles
@@ -708,7 +708,7 @@ class Result:
         return tuple(self._expressions or {})
 
     def to_pandas(self, name: str, kind: str = 'primal') -> pd.DataFrame:
-        """One name's values as a tidy :class:`pandas.DataFrame`.
+        """One name's values as a tidy `pandas.DataFrame`.
 
         Args:
             name: A variable, a constraint or a named expression, as *kind*
@@ -719,14 +719,14 @@ class Result:
         return tidy_to_pandas(self._frame(name, kind))
 
     def to_dataarray(self, name: str, kind: str = 'primal') -> xr.DataArray:
-        """One name's values as a labelled :class:`xarray.DataArray`, :meth:`to_pandas`'s arguments.
+        """One name's values as a labelled `xarray.DataArray`, [`to_pandas`][]'s arguments.
 
         Dense over the name's dims: a masked coordinate comes back NaN.
         """
         return tidy_to_dataarray(self.to_pandas(name, kind), name)
 
     def to_dataset(self, *names: str, kind: str = 'primal') -> xr.Dataset:
-        """The named values of one *kind* as one :class:`xarray.Dataset`; all of that kind by default.
+        """The named values of one *kind* as one `xarray.Dataset`; all of that kind by default.
 
         One kind per call: a dual and a variable of the same name would
         collide, and mean something else per row. Each arrives dense over its
@@ -742,7 +742,7 @@ class Result:
         """Every kind this solve answered with, one file per name, into *directory*.
 
         ``record.parquet`` holds the
-        :class:`~specsolve.relational.parquet.Record` — how the solve terminated
+        [`Record`][specsolve.relational.parquet.Record] — how the solve terminated
         and what it reached, in the columns a sweep keys and folds. A solve
         that reached no objective writes null there rather than ``nan``, so a
         directory per case is a table an aggregate reads. Then
@@ -750,9 +750,9 @@ class Result:
         for every constraint where the duals are defined, and
         ``expression/<name>.parquet`` for every named expression this data
         can evaluate — an integer variable leaves the duals out, and an
-        expression that fails on this data is left out, :meth:`evaluate`
+        expression that fails on this data is left out, [`evaluate`][]
         still saying why. The primals are streamed to disk in
-        :meth:`primal`'s order, so the same model and data write the same
+        [`primal`][]'s order, so the same model and data write the same
         bytes.
 
         ``activity/<name>.parquet`` goes beside them for every constraint,
@@ -764,8 +764,8 @@ class Result:
         expression that failed, and one with an empty *name* for the duals,
         whose absence is never per-constraint. Written because a directory
         that simply lacks a file cannot tell "there is none, and here is why"
-        from "no such name", which is the one thing :meth:`dual` and
-        :meth:`evaluate` do say.
+        from "no such name", which is the one thing [`dual`][] and
+        [`evaluate`][] do say.
 
         A solve that left no values writes the record and nothing else. A run
         that came back infeasible is an answer a set of saved cases needs on
@@ -815,7 +815,7 @@ class Result:
         Its frames, which carry both its own values and its hold on the label
         frames of the build it answered. Frames already read stay valid. Never
         the model or the solver, which are the
-        :class:`~specsolve.api.Model`'s to close.
+        [`Model`][specsolve.api.Model]'s to close.
         """
         self._primals = self._duals = self._activities = self._expressions = None
         self._dual_rays = None

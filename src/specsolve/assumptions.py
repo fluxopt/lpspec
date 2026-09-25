@@ -3,13 +3,13 @@
 Everything decidable without data is decided at load, and an ``assumptions:``
 entry is what is left over: a predicate only the numbers can answer. The
 language states each one — the predicate, the coordinates it is checked at,
-and the sentence :func:`~mathspec.program.assumption_message` refuses in — and
+and the sentence `assumption_message` refuses in — and
 every condition a ``piecewise:`` method puts on its breakpoints arrives the
 same way. What is decided here is whether the data holds it, and where not.
 
 The mask walk answers, which is the relational engine's: a second reading of a
 predicate at the door would drift from the one the rows are built with. Called
-from :func:`~specsolve.sources.tidy_sources`, so both lanes pass through it by
+from [`tidy_sources`][specsolve.sources.tidy_sources], so both lanes pass through it by
 entering the one door.
 """
 
@@ -42,7 +42,7 @@ def validate_assumptions(program: Program, sources: Mapping[str, pl.LazyFrame]) 
     Args:
         program: The lowered spec — every assumption by the name a refusal
             quotes.
-        sources: What :func:`~specsolve.sources.tidy_sources` holds once every
+        sources: What [`tidy_sources`][specsolve.sources.tidy_sources] holds once every
             parameter, relation and index is read.
 
     Raises:

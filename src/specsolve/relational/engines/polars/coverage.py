@@ -10,15 +10,15 @@ and each is asked at the last moment the gap is still visible:
 position                       the gap looks like                   asked
 =============================  ===================================  ==========================================
 a divisor under a term         a null coefficient in the share      before the terminal aggregate reads it as 0
-a divisor under a constant     a null value in the piece            before :func:`~fragments.constant_scalar` sums it away
+a divisor under a constant     a null value in the piece            before [`constant_scalar`][fragments.constant_scalar] sums it away
 a constant piece the row sees  a null after the join onto the rows  on the rows pass itself
 a constant piece summed away   a coordinate the parameter lacks     of the parameter, the piece no longer showing it
 =============================  ===================================  ==========================================
 
 Which parameters stand as constant pieces, and under which region of a
 ``cases:`` block, is read off the fragments the compiler built
-(:attr:`~fragments.TermFragment.parameters`,
-:attr:`~fragments.TermFragment.region`), so the rule is decided once, where
+([`parameters`][fragments.TermFragment.parameters],
+[`region`][fragments.TermFragment.region]), so the rule is decided once, where
 the pieces are made.
 """
 
@@ -68,8 +68,8 @@ def refuse_null_coefficients(stacked: pl.DataFrame, subject: str, *expressions: 
 def refuse_null_constants(pieces: Sequence[pl.LazyFrame], divisors: Collection[str], subject: str) -> None:
     """A null value in a constant *piece* means a divisor had no value where the model divided.
 
-    :func:`refuse_null_coefficients` one position over, and asked before
-    :func:`~fragments.constant_scalar` rather than after: a constant piece is
+    [`refuse_null_coefficients`][] one position over, and asked before
+    [`constant_scalar`][fragments.constant_scalar] rather than after: a constant piece is
     summed per coordinate on its way to the row, and polars reads a null as
     zero, so a gap left behind for this to find is filled in by the time the
     assembled constant is joined. *pieces* are narrowed by the caller to the
@@ -88,7 +88,7 @@ def refuse_null_constants(pieces: Sequence[pl.LazyFrame], divisors: Collection[s
 
 
 def narrowed_to_rows(rows: pl.LazyFrame, consts: Sequence[TermFragment]) -> list[pl.LazyFrame]:
-    """Each constant piece cut to the rows built, for :func:`refuse_null_constants`.
+    """Each constant piece cut to the rows built, for [`refuse_null_constants`][].
 
     A piece keeping the row's own dims is narrowed to the rows built, the
     semi-join standing in for the inner join that narrows a term; one that
@@ -126,7 +126,7 @@ def constant_side(
     caught here and nowhere else.
 
     What it cannot answer for is a gap an aggregation summed away, which is
-    :func:`refuse_short_constants`' question.
+    [`refuse_short_constants`][]' question.
 
     Raises:
         DataError: A constant piece with no value at a row it is owed.
@@ -173,7 +173,7 @@ def refuse_short_constants(
 ) -> None:
     """A parameter on a constant side must cover the coordinates the rows ask of it.
 
-    Asked of the *parameter* where :func:`constant_side` asks the assembled
+    Asked of the *parameter* where [`constant_side`][] asks the assembled
     piece, because the parameter is what still has the answer once an
     aggregation has stood between the two: a summed piece carries one row per
     coordinate it does cover, so the gap it left is not a null a join can find

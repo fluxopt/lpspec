@@ -1,12 +1,12 @@
 """The solver family: one class per solver, holding one model. See ../README.md.
 
 One module per solver, **named for the solver**. Each defines a
-:class:`~specsolve.relational.sinks.solvers.base.Solver` subclass named for it,
+[`Solver`][specsolve.relational.sinks.solvers.base.Solver] subclass named for it,
 plus ``build_<name>``, the load-only seam `bench/` measures.
 ``tests/test_architecture.py`` checks all of that off the path.
 
 What a solver holds between solves, and the rule for keeping it, is
-:mod:`~specsolve.relational.sinks.solvers.base` — the one module a member may read
+[`base`][specsolve.relational.sinks.solvers.base] — the one module a member may read
 besides ``handoff.py``.
 """
 
@@ -70,7 +70,7 @@ def loaded(
 
     *held* is kept exactly when it is the named class holding a model that
     differs from this one in nothing but numbers — same
-    :attr:`~specsolve.relational.sinks.handoff.Handoff.structure`, same options — and
+    [`structure`][specsolve.relational.sinks.handoff.Handoff.structure], same options — and
     then the new numbers are pushed onto it.
 
     A solver being replaced is closed here. *name* is resolved first.

@@ -1,6 +1,6 @@
 """The ``gurobi`` solver: the model in two calls, straight into gurobipy.
 
-The same hand-off as :mod:`~specsolve.relational.sinks.solvers.highs`, reading the
+The same hand-off as [`highs`][specsolve.relational.sinks.solvers.highs], reading the
 same ``dense_columns``, ``dense_rows`` and ``row_blocks``, so the two cannot
 disagree about the model they load. Two things differ:
 
@@ -10,7 +10,7 @@ disagree about the model they load. Two things differ:
   ``[gurobi]`` extra carries scipy.
 - **Nothing is batched.** The columns cannot be, since ``addMConstr`` writes
   into one ``MVar`` spanning the model. See
-  :meth:`~specsolve.relational.sinks.handoff.Handoff.row_blocks`.
+  [`row_blocks`][specsolve.relational.sinks.handoff.Handoff.row_blocks].
 
 ``gurobipy`` and ``scipy`` are imported inside the functions, so importing
 this module stays free for a caller who never solves with it.
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 
 #: Gurobi status -> termination condition. Copied from linopy's own
-#: ``Gurobi.CONDITION_MAP`` bar three entries (:data:`_LINOPY_DIVERGENCES`);
+#: ``Gurobi.CONDITION_MAP`` bar three entries ([`_LINOPY_DIVERGENCES`][]);
 #: ``tests/test_solve_status.py`` asserts both halves.
 _CONDITION_OF_GUROBI_STATUS = {
     1: 'unknown',
@@ -72,15 +72,15 @@ def build_gurobi(
     batch_rows: int | None = None,
     solver_options: Mapping[str, Any] | None = None,
 ) -> Gurobi:
-    """Load the model into a :class:`gurobipy.Model` and stop there.
+    """Load the model into a `gurobipy.Model` and stop there.
 
-    :func:`~specsolve.relational.sinks.solvers.highs.build_highs`'s seam.
+    [`build_highs`][specsolve.relational.sinks.solvers.highs.build_highs]'s seam.
     ``batch_rows`` is a *nonzero* budget that splits the matrix across calls;
     it defaults to one call — see
-    :meth:`~specsolve.relational.sinks.handoff.Handoff.row_blocks`.
+    [`row_blocks`][specsolve.relational.sinks.handoff.Handoff.row_blocks].
 
     Returns:
-        The :class:`Gurobi` holding the model, at ``.handle``. ``close``, or
+        The [`Gurobi`][] holding the model, at ``.handle``. ``close``, or
         leaving a ``with``, releases both the model and its environment in the
         order Gurobi wants.
     """
@@ -88,14 +88,14 @@ def build_gurobi(
 
 
 class Gurobi(Solver):
-    """Gurobi, holding one model — :class:`Solver`'s member for the opt-in sink.
+    """Gurobi, holding one model — [`Solver`][]'s member for the opt-in sink.
 
-    :class:`~specsolve.relational.sinks.solvers.highs.Highs`'s twin, and the same
+    [`Highs`][specsolve.relational.sinks.solvers.highs.Highs]'s twin, and the same
     lifecycle. Four things are gurobipy's shape:
 
     - **A push writes through the read-back handles.** The ``MVar`` and the
       constraint blocks are what carry the attributes, so this keeps what
-      :func:`_built` returns rather than the model alone.
+      [`_built`][] returns rather than the model alone.
     - **The release is one finalizer, however it is reached.** ``close`` runs
       it, and a holder dropped without closing runs it when the collector
       gets there; both dispose the model before its environment, the order
@@ -103,7 +103,7 @@ class Gurobi(Solver):
       than the solver.
     - **Nothing pushes ``Sense``.** A row's comparison comes from the YAML and
       no data can move it, so a model whose senses differ is one
-      :attr:`~specsolve.relational.sinks.handoff.Handoff.structure` has already
+      [`structure`][specsolve.relational.sinks.handoff.Handoff.structure] has already
       sent back to be loaded again. gurobipy would refuse the array anyway.
     - **``update`` before ``optimize``**, gurobipy's changes being queued.
     """
@@ -113,7 +113,7 @@ class Gurobi(Solver):
     _m: Any
     _x: Any
     _blocks: list[Any]
-    #: :func:`_released` over the model and its environment, bound to this
+    #: [`_released`][] over the model and its environment, bound to this
     #: holder's lifetime.
     _release: weakref.finalize[[Any, Any], Gurobi]
     #: The quadratic constraints, in row order and **after** every linear one:
@@ -204,7 +204,7 @@ class Gurobi(Solver):
         mixed-integer solve, and before any — so the refusal itself routes to
         the incumbent, and to ``None`` where ``SolCount`` says there is not
         one of those either. Row statuses concatenate across the constraint
-        blocks the way :func:`_duals` reads prices.
+        blocks the way [`_duals`][] reads prices.
         """
         import numpy as np
 
@@ -344,7 +344,7 @@ def _built(
 
 
 def _filled(m: Any, handoff: Handoff, batch_rows: int | None, gurobipy: Any) -> tuple[Any, list[Any], list[Any]]:
-    """Everything :func:`_built` loads after the environment exists."""
+    """Everything [`_built`][] loads after the environment exists."""
     import numpy as np
     import scipy.sparse
 
@@ -381,13 +381,13 @@ def _add_quadratic_rows(m: Any, x: Any, handoff: Handoff, rows: RowVectors, spel
 
     Each row is assembled from **both** matrices: its quadratic entries as
     :math:`Q` in :math:`x^	op Q x` (no halving, the convention
-    :func:`_set_quadratic` already takes) and its linear entries from the
+    [`_set_quadratic`][] already takes) and its linear entries from the
     ordinary matrix, where they sit at the same row label. A quadratic row
     keeps its place in the linear matrix, so the two halves are read from one
     label.
 
     They are the **tail** of the label space, so the handles returned here
-    concatenate onto the linear blocks (:func:`_duals`).
+    concatenate onto the linear blocks ([`_duals`][]).
     """
     import numpy as np
     import scipy.sparse
@@ -410,7 +410,7 @@ def _set_quadratic(m: Any, x: Any, handoff: Handoff, cost: Any) -> None:
 
     ``setMObjective`` takes :math:`Q` in :math:`x^\top Q x` — **no halving** —
     so the unordered-pair form the engine hands over
-    (:attr:`~specsolve.relational.sinks.handoff.Handoff.quad`) goes in as it
+    ([`quad`][specsolve.relational.sinks.handoff.Handoff.quad]) goes in as it
     stands, one entry per pair in the upper triangle.
 
     It sets the *whole* objective, so the cost vector already on the columns is
@@ -457,7 +457,7 @@ def _spelled(gurobipy: Any) -> Any:
 
 
 def _gurobipy() -> Any:
-    """The optional dependency — scipy guarded with it — or :attr:`Gurobi.unavailable_message`."""
+    """The optional dependency — scipy guarded with it — or [`Gurobi.unavailable_message`][]."""
     return Gurobi.imported()
 
 
@@ -495,7 +495,7 @@ def _activity(blocks: list[Any], qrows: list[Any]) -> pl.Series:
     recovers the solver's number. ``Slack`` exists whenever a solution does,
     mixed-integer included, and a readable status guarantees one by the time
     this is asked. Blocks were added in ascending row ranges, the same fact
-    :func:`_duals` leans on.
+    [`_duals`][] leans on.
 
     **A quadratic row's activity is not** :math:`Ax`: ``QCSlack`` is measured
     against the whole left-hand side, :math:`x^\top Q x + a^\top x`, so the
@@ -516,7 +516,7 @@ def _duals(blocks: list[Any], qrows: list[Any]) -> pl.Series | None:
 
     Blocks were added in ascending row ranges and the quadratic rows after
     them, so concatenating their slices reproduces the row index without a
-    sort — and :meth:`Solver.run` checks the vector spans the model. Gurobi
+    sort — and [`Solver.run`][] checks the vector spans the model. Gurobi
     refuses ``Pi`` on a mixed-integer model, and that refusal *is* the answer
     — no zero vector to test.
 

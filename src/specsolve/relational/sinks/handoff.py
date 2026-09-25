@@ -77,7 +77,7 @@ SENSE_CODES: Mapping[program.ConstraintSense, int] = {
 }
 
 #: The dtype the ``rows`` frame holds a comparison in. Built from
-#: :data:`SENSE_CODES` so a category's index *is* its code.
+#: [`SENSE_CODES`][] so a category's index *is* its code.
 SENSE = pl.Enum(list(SENSE_CODES))
 
 
@@ -103,7 +103,7 @@ class Handoff:
     **contiguous tail** of the label space — quadratic is a property of a
     declaration, so the engine builds those last — which lets a sink holding
     linear and quadratic rows in different objects read its answer back as two
-    runs rather than a scatter, beginning at :attr:`linear_row_count`.
+    runs rather than a scatter, beginning at [`linear_row_count`][].
 
     ``sos`` is the fifth stream and the one that lands unevenly: ``(set, type,
     col, weight)`` in ``(set, weight)`` order, one row per member, empty for
@@ -119,12 +119,12 @@ class Handoff:
     indices and no sink builds a mapping. **``cols`` carries no ``col`` and
     ``matrix`` no ``row``**: a ``cols`` row's position is its index and a
     matrix entry's row is where it sits between two starts, which is what a
-    solver's matrix API takes. :meth:`matrix_block` spells them back out for the
+    solver's matrix API takes. [`matrix_block`][] spells them back out for the
     one consumer that renders them. ``obj`` keeps its ``col``, being genuinely
     sparse, and **carries no order contract at all**: its rows arrive in
     whatever order collapsing them produced, which differs between two builds
     of one model. Every consumer reads it scattered over the column index
-    (:meth:`dense_columns`), so nothing downstream can tell — and anything new
+    ([`dense_columns`][]), so nothing downstream can tell — and anything new
     that reads it must scatter too rather than read it in place.
     """
 
@@ -202,8 +202,8 @@ class Handoff:
     def dense_rows(self, infinity: float) -> RowVectors:
         """The row vectors over the solver's row index, ready to hand over.
 
-        The row half of :meth:`dense_columns`, so a chunk of rows is a slice
-        rather than a search. It stops at the sense, a :data:`SENSE_CODES`
+        The row half of [`dense_columns`][], so a chunk of rows is a slice
+        rather than a search. It stops at the sense, a [`SENSE_CODES`][]
         byte, because that is where the solvers part — HiGHS wants
         ``lower``/``upper``, the others a comparison and right-hand side. A
         row with no entry gets a comparison nothing can fail (``>=`` against
@@ -277,7 +277,7 @@ class Handoff:
     def contents(self) -> str:
         """A digest of the built model **whole** — the numbers included.
 
-        :attr:`structure`'s counterpart, and the one question a saved answer
+        [`structure`][]'s counterpart, and the one question a saved answer
         asks of a model rebuilt later: is this the model I answered? So it
         covers what ``structure`` leaves out on purpose — the bounds, the costs
         and the right-hand sides a re-solve may push — because a pushed number
@@ -319,7 +319,7 @@ class Handoff:
         In declared ``(set, weight)`` order; the type is read off the first
         member, every member of a set carrying the same one. Nothing here is
         pushed on an update: a set is structure, so a model whose members moved
-        is one :attr:`structure` has already sent back to be loaded again.
+        is one [`structure`][] has already sent back to be loaded again.
         """
         for members in self.sos.partition_by('set', maintain_order=True):
             yield members.item(0, 'type'), members.get_column('col'), members.get_column('weight')
@@ -329,7 +329,7 @@ class Handoff:
 
         One row at a time, unlike the linear matrix: every API that takes a
         quadratic constraint takes one per call. They are the contiguous tail
-        beginning at :attr:`linear_row_count`, so they arrive ascending and a
+        beginning at [`linear_row_count`][], so they arrive ascending and a
         sink's read-back stays two runs.
         """
         for (row,), entries in self.qmatrix.group_by('row', maintain_order=True):
@@ -341,7 +341,7 @@ class Handoff:
         A chunk is a ``slice``: ``row_starts`` already says where every row's
         entries sit, so nothing is sorted and nothing is searched. A consumer
         that needs the ``row`` labels spelled back out asks
-        :meth:`matrix_block` with the chunk's own range, so its spans and
+        [`matrix_block`][] with the chunk's own range, so its spans and
         entries cannot disagree.
         """
         for lo, hi in self._spans(budget):
@@ -360,9 +360,9 @@ class Handoff:
 
 
 def spelled_senses(spelling: Mapping[str, str]) -> np.ndarray[tuple[int, ...], np.dtype[np.str_]]:
-    """:data:`SENSE_CODES` as one solver's spellings, indexed by code.
+    """[`SENSE_CODES`][] as one solver's spellings, indexed by code.
 
-    A sense added to :data:`SENSE_CODES` and not to *spelling* raises instead.
+    A sense added to [`SENSE_CODES`][] and not to *spelling* raises instead.
     """
     import numpy as np
 

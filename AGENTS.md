@@ -218,6 +218,11 @@ name is the *caller*, not the implementer.
   that), so a function whose signature already says it takes the one-line
   docstring and no block at all — the guide's own escape, and what most private
   helpers here want. Half a signature restated is what neither rule accepts.
+- **A name is linked as the site links it**: ``[`name`][]`` where the module
+  imports it, ``[`name`][dotted.path]`` where it does not. A name from another
+  package is plain code. The docstrings are
+  [the Python API](docs/reference/api.md), and `pixi run docs-test` refuses a
+  link that lands nowhere, rendered or not; the suite refuses a Sphinx role.
 - **The gate is `src/`**, where a docstring is a contract with a caller. Under
   `tests/`, `bench/`, `tools/` and `examples/` the `D` rules are off and so are
   the bullets above: there a docstring argues for one assertion or narrates a

@@ -20,11 +20,11 @@ if TYPE_CHECKING:
     from mathspec.program import Expression
 
 #: The name a single unnamed expression is spliced under. Stepped over rather
-#: than overwritten where a spec declares it — :func:`_free_name`.
+#: than overwritten where a spec declares it — [`_free_name`][].
 _EVALUATED = '_evaluated'
 
 #: The one section a caller may hand in. Every other declaration needs data or
-#: builds rows, and neither is a read — see :func:`_entries`.
+#: builds rows, and neither is a read — see [`_splice`][].
 _SECTION = 'expressions'
 
 
