@@ -144,10 +144,10 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 ## How it runs
 
 **Lane**
-: One of two ways a spec is executed. The **relational lane** (the default)
-  validates at load time, lowers to the plan and streams on polars. The
-  **linopy lane** (`specsolve.linopy`, the `[linopy]` extra) builds the same spec
-  as a `linopy.Model`. Both accept the same language
+: A way a spec is executed. specsolve's is the **relational lane**: it
+  validates at load time, lowers to the plan and streams on polars. The test
+  suite's **linopy lane** builds the same spec as a `linopy.Model`, as the
+  oracle the relational lane is checked against
   ([relationship to linopy](../about/linopy.md#2-it-is-the-oracle)).
 
 **Engine**

@@ -20,9 +20,10 @@ above are a convenience rather than a step you can forget.
 `pixi task list` prints every task with what it does. The ones you want most:
 `test`, `lint`, `format`, `typecheck`, `check` (all four), `docs`.
 
-The default environment carries the `[linopy]` extra, because the differential
-test suite needs a second lane to compare against, and `[gurobi]` and
-`[xpress]`, because a solver sink is checked against another solver. Both of
+The default environment carries linopy, from the `dev` group, because the
+differential test suite compares every build against the linopy oracle in
+`tests/linopy_lane`. It carries `[gurobi]` and `[xpress]` too, because a solver
+sink is checked against another solver. Both of
 those wheels carry a size-limited licence of their own — gurobipy's needs
 nothing, and xpress's Community licence is active on import — so those tests run
 on a plain checkout with no licence of your own. They skip where the package is

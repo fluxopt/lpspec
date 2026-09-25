@@ -135,9 +135,8 @@ class Gurobi(Solver):
     #: default parameters, both measured in
     #: ``tests/test_gurobi_capability_probes.py``.
     #:
-    #: This is the only consumer in the package that builds a
-    #: ``quadratic_constraint`` at all — the linopy lane cannot
-    #: (:data:`specsolve.lanes.LANES`).
+    #: This is the only solver in the package that builds a
+    #: ``quadratic_constraint`` at all.
     capabilities = Capabilities(
         supports={
             'integrality': 'native',

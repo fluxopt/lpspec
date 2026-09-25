@@ -20,15 +20,17 @@ through the same public calls `sps.solve` makes. Its output is committed as
 and asserted line for line by `tests/test_walkthrough.py`.
 
 [The glossary](../reference/glossary.md) defines the nouns this page uses. The
-package builds a program along one of two *lanes*. The relational lane
-(`relational/`) streams a plan to a sink. The linopy lane (`linopy/`) builds a
-`linopy.Model` eagerly.
+package builds a program along one *lane*, the relational lane (`relational/`),
+which streams a plan to a sink. The test suite builds the same program a second
+way, as a `linopy.Model` (`tests/linopy_lane/`), and compares the two: that is
+the oracle.
 
 ## Thesis
 
 A YAML math spec is a **closed AST known before any data is touched**. So the
-whole model can be compiled two ways: to eager xarray/linopy calls, or to a
-logical plan streamed to a sink. Both paths provably mean the same thing. A
+whole model can be compiled two ways: to eager xarray/linopy calls in the test
+oracle, or to a logical plan streamed to a sink. Both paths provably mean the
+same thing. A
 *declared* memory ceiling is not something the package has; see [the memory
 axis](roadmap.md#where-it-is-going).
 
@@ -38,18 +40,17 @@ widest fence in the drawing is `pyproject.toml`, the amber box labelled
 mathspec. Everything in it, the typesetter included, is that one package, and
 it cannot import anything here. **Its passes are named in the box and not
 drawn**; they are mathspec's architecture, documented and tested there. The
-rest is two directories, one per lane.
+rest is the package's lane and, beside it in the test suite, the oracle.
 
 **Data enters below the seam through one door, and both lanes enter by it.** The
 dashed box, `sources.py`, is outside every fence. It reads the schema, which the
 engine never does ([hard rule 2](#hard-rules)). `sources.tidy_sources` reads
 every shape [the data contract](../reference/data.md) accepts into tidy polars
 tables. The relational engine executes its plan against those tables directly.
-`linopy/loader.py` converts them to pandas and xarray at its own boundary, and
-that conversion is all the linopy lane is. So polars is the one representation,
-and pandas is declared with `[linopy]` rather than as a runtime dependency. One
-reader for both lanes costs the linopy lane a copy of what a pandas caller
-passed (#1076).
+The oracle's `tests/linopy_lane/loader.py` converts them to pandas and xarray at
+its own boundary. So polars is the one representation, and pandas is not a
+dependency. One reader for both lanes
+costs the oracle a copy of what a pandas caller passed (#1076).
 
 What a model assumes of its data sits below the seam because it needs values
 rather than a schema. It lives in `assumptions.py`, which the door calls, so
@@ -91,12 +92,12 @@ flowchart TB
 
     SOL --> ANS["<b>Result</b> — the lane runs to the answer<br/>objective · primal · dual · activity · evaluate<br/>polars tables you can join"]
 
-    subgraph LIN["linopy/ — the peer lane"]
+    subgraph LIN["tests/linopy_lane/ — the test oracle, not shipped"]
         direction TB
         LOAD["loader.py<br/>the tidy tables → xr.Dataset"] --> BUILD["builder.py<br/>evaluate the plan"]
     end
 
-    BUILD --> MODEL["<b>a linopy.Model</b> — the lane stops here<br/>yours to solve, and to read back, with linopy"]
+    BUILD --> MODEL["<b>a linopy.Model</b> — the oracle stops here<br/>solved by the tests, and compared with the Result"]
 
     classDef laneL fill:#fdf6ec,stroke:#b7791f,stroke-width:2px,color:#111
     classDef laneR fill:#f0f7f0,stroke:#3a7d44,stroke-width:2px,color:#111
@@ -122,27 +123,26 @@ each lane takes both.
 
 **The lanes are peers in what they take, not in what they hand back.** Both
 accept the same file, attach the same tables and refuse the same constructs.
-`relational/` drains the model through a sink and reads back a `Result`.
-`linopy/` stops at the `linopy.Model`. Its whole surface is `build` and
-`evaluate`, and linopy solves and reads back. A second `Result` there would be a
-wrapper around linopy's own API.
+`relational/` drains the model through a sink and reads back a `Result`. The
+oracle stops at the `linopy.Model`, which the tests solve and read back with
+linopy.
 
 **Ten modules sit outside a fence, and each is legitimately both halves**:
 `sources.py`, `assumptions.py`, `api.py`, `strategy.py`, `lanes.py`,
 `frames.py`, `layout.py`, `archive.py`, `expressions.py` and `errors.py`. Size
 does not buy a place among them. A module only one lane reaches is that lane's, down to a
-24-line contextmanager (`linopy/_notes.py`). See [What counts as
+24-line contextmanager (`tests/linopy_lane/_notes.py`). See [What counts as
 language](#what-counts-as-language).
 
 **Eligibility is decided by attempting the lowering.** `lanes.lowered` returns
 a `Program` or raises `sps.LanguageError`. Both lanes call it, so "neither lane
 accepts a file the other refuses" is mechanical rather than maintained.
-`linopy/` asks only for the verdict and discards the plan. Errors split model
+The oracle asks only for the verdict and discards the plan. Errors split model
 from run. Everything under `LanguageError` is decidable without data,
 `DataError` is what a source failed to supply, and both are `SpecsolveError`
-(`errors.py`). `LaneError` is the third thing that can be wrong. A lane may
-accept what it cannot build, and it says so in its own words ([hard rule
-3](#hard-rules)). Expansion precedes validation in **both** lanes, because a
+(`errors.py`). The third thing that can be wrong is a spec the language
+accepts and specsolve cannot build. That raises `SpecsolveError` itself, naming
+the rewrite ([hard rule 3](#hard-rules)). Expansion precedes validation in **both** lanes, because a
 formulation emits declarations and those are language too.
 
 ## One contract, many consumers
@@ -158,7 +158,7 @@ flowchart LR
     AST["<b>the whole model</b> — <code>Spec</code>, and the <code>Program</code> it lowers to<br/>names typed, dims checked, degree judged<br/><i>before a byte of data is read</i>"]
     AST --> SHOW["<b>show it</b><br/>mathspec.typesetting · its CLI<br/><i>no data, no solver</i>"]
     AST --> CHECK["<b>check it</b><br/>parse → validate → lower<br/><i>no data, no solver</i>"]
-    AST --> RUN["<b>run it</b><br/>solver · LP/MPS file · linopy"]
+    AST --> RUN["<b>run it</b><br/>solver · LP/MPS file"]
     DATA[("your data<br/>parquet · polars · any Arrow table")] --> RUN
     RUN --> ANS(["<b>your answers</b><br/>tables you can join"])
     classDef built fill:#eef6ee,stroke:#3a7d44,stroke-width:1.5px,color:#111
@@ -194,7 +194,7 @@ protects: a new consumer is free, a new primitive is taxed.
 
 ### The Python surface
 
-**Twenty-nine names, and the count is the feature.** The model is the YAML file,
+**Twenty-seven names, and the count is the feature.** The model is the YAML file,
 and Python is how you *run* it. So nothing on the surface constructs math or
 reaches the plan. The names, by role:
 
@@ -231,12 +231,10 @@ every reader on a `Result` raises, and `SpecsolveWarning`, which `check` emits. 
 sweep that records an infeasible scenario rather than dying on it needs both by
 name. None of the five constructs math or reaches the plan.
 
-**The namespace is flat, and a namespace marks a lane rather than a topic.**
-`specsolve.linopy` is the only one: its own dependencies, its own oracle, its own
-surface with its own test. `strategy.py` is not a lane, so `solve_over` and its
-axes sit at the top level beside `solve`. The surface test exempts submodules
-(`not inspect.ismodule`). So moving names under `specsolve.something` moves them
-out from under the list a reviewer reads.
+**The namespace is flat.** `solve_over` and its axes sit at the top level
+beside `solve`. The surface test exempts submodules (`not inspect.ismodule`).
+So moving names under `specsolve.something` moves them out from under the list
+a reviewer reads.
 
 **A handle's methods answer "what do I do with this", never "what is this"**:
 `solve`, `write`, `close` and `update` pass. What the objects carry is [the
@@ -292,7 +290,7 @@ the language's rulebook.
 2. **The engine knows nothing about linopy, xarray or YAML.** `relational/` goes
    plan → engine → a solver sink → solver. It matches linopy's semantics as a
    spec rather than sharing its code. It never sees the schema, the AST, or the
-   linopy builder. **The engine is a directory, not a convention.**
+   oracle's builder. **The engine is a directory, not a convention.**
    `engines/polars/` is one implementation. Everything above it is what any
    implementation answers to: `sinks/`, `status.py`, and the plan vocabulary,
    which is `mathspec.program`'s. An engine package is named for its engine;
@@ -300,23 +298,21 @@ the language's rulebook.
    declared leaf (`errors.py`, in `ENGINE_MAY_IMPORT`), which keeps the
    subpackage extractable. **`errors.py` is a leaf by name and not by cost**: it
    re-exports the language's half of the hierarchy, so importing it loads the
-   language. What the engine raises through it is `DataError` and `LaneError`, a
-   verdict about the *data* or about this lane's reach.
-3. **One language, two lanes, and they are not fast and slow versions of each
-   other.** Both pass the one `lanes.lowered` gate ([above](#thesis)). No operator
-   registry exists that could create a divergence. A construct outside the
-   language is a load error naming the construct and its rewrite, never a
-   redirection to the other lane. What that equality buys is [the
-   oracle](linopy.md#2-it-is-the-oracle).
+   language. What the engine raises through it is `DataError`, a verdict about
+   the *data*, and `SpecsolveError`, a verdict about the engine's reach.
+3. **One language, two builds, and linopy is only the oracle.** The package and
+   the test oracle both pass the one `lanes.lowered` gate ([above](#thesis)). No
+   operator registry exists that could create a divergence. A construct outside
+   the language is a load error naming the construct and its rewrite. What that
+   equality buys is [the oracle](linopy.md#2-it-is-the-oracle). linopy is a test
+   dependency, and nothing under `src/` imports it.
 
    **Accepting is not building, and one construct now separates them.**
-   `linopy.Model.add_constraints` refuses a `QuadraticExpression`, so a
-   quadratic *constraint* has no linopy lane. That is declared
-   (`capabilities.LINOPY_LANE`), answerable before any build (`check(spec,
-   sink='linopy')`) and refused in the language's own words. It is the axis [the
-   ceiling](https://math-spec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself)
-   draws for sinks, one level up. **What it costs is the oracle.** A construct
-   only one lane builds is checked by only one lane. The oracle is two
+   `linopy.Model.add_constraints` refuses a `QuadraticExpression`, so the
+   oracle cannot build a quadratic *constraint*. The oracle declares that in the
+   sinks' vocabulary (`tests/linopy_lane/builder.py`) and refuses it before
+   linopy is asked. **What it costs is the oracle.** A construct only the package
+   builds is checked by the package alone. The oracle is two
    independent encodings reaching one optimum, plus a residual at the returned
    primal.
 4. **Backend-visible YAML files are self-contained.** No Python-side state
@@ -328,15 +324,15 @@ the language's rulebook.
    `Spec` and the `Program` it lowers to. Whether that seam is ever blessed is
    open ([#381](https://github.com/fluxopt/specsolve/issues/381)). The Python
    surface is the runner (`api.py`) and the driver over it (`strategy.py`); the
-   plan is internal. The whole of it is [twenty-nine
+   plan is internal. The whole of it is [twenty-seven
    names](#the-python-surface), pinned by a test.
 
 ## The plan, node for node
 
 **The plan is the vocabulary both lanes speak.** Each node has one meaning per
 lane. This table is what the file writes and what the relational lane's query
-does with it. The linopy call for each row is [what a construct
-becomes](linopy.md#what-a-construct-becomes). `tests/test_docs_site.py` holds it
+does with it. The oracle's linopy call for each row is [what a construct
+becomes in the oracle](linopy.md#what-a-construct-becomes-in-the-oracle). `tests/test_docs_site.py` holds it
 to `mathspec.program.Expression`'s own subclasses, so no node lacks a row.
 
 **The plan decides what is sayable; the engine only builds.** Every refusal
@@ -345,9 +341,9 @@ is validated, and never re-decided on this side of the pin. That covers a
 reduction over a dimension its operand does not span, a mask wider than what it
 masks, a bound reaching past its variable, and a degree no position takes. The
 engine asserts those; reaching one is a program that was never a valid spec. The
-two verdicts it still *raises* are its own: `DataError` about the data, and the
-`LaneError` for the one construct the language accepts and this lane cannot
-build (#1137).
+two verdicts it still *raises* are its own: `DataError` about the data, and a
+`SpecsolveError` for the one construct the language accepts and this lane
+cannot build (#1137).
 
 **Fan-in** is the column the lanes *act* on. It says how an output row's slots
 relate to the input's. `fragments.fan_in` answers it for every node, and the
@@ -384,7 +380,7 @@ regions cover.
 **A read is the one walk where every leaf is a number.** A named expression is
 evaluated after the solve, never built. The relational lane compiles a variable
 to its primal and `dual(c)` to the constraint's row duals, as const fragments.
-The linopy lane reads `.solution` and `.dual` and does xarray arithmetic. So the
+The oracle reads `.solution` and `.dual` and does xarray arithmetic. So the
 language holds an entry the math never reads to no degree. A product of two
 variables, a variable under a power and a division by one are arithmetic over
 values. `Dual` is the one node a build refuses on sight. A solve that left no
@@ -482,8 +478,8 @@ as the caller's sinks demand.
 caller's table through the Arrow PyCapsule protocol without importing any
 dataframe library. `Result.primal` hands back a `polars.DataFrame`, which
 exports the same protocol. That symmetry keeps pandas and pyarrow off the
-dependency list: they are bridges *out* (`to_pandas`, `to_dataarray`), shipped
-with the `[linopy]` extra. The bare-install CI job runs the suite with neither
+dependency list: they are bridges *out* (`to_pandas`, `to_dataarray`), and
+the caller installs them. The bare-install CI job runs the suite with neither
 present.
 
 **Sinks are capped, explicitly.** Four streams and no more: `cols` (bounds,
@@ -545,11 +541,11 @@ is structure.
 | `api.py` | the runner: `check` / `build` / `solve` / `write`, and `load_result` / `scan_result` for an answer read back off disk; linopy-free |
 | `layout.py` | below every verb that solves: what an archive holds — `model.yaml`, `sources/`, `answer/`, `axis.json` — written as one zip or as a directory, because a solve is the one moment all three exist together |
 | `archive.py` | above the runner and the fold: `load_archive` / `scan_archive` and the two values they give back, `SolveArchive` and `SweepArchive`. It reads; it never writes |
-| `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `LANES`, what each lane can build, read by `check` without the extra |
+| `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `lowered`, the one door every verb lowers a spec through |
 | `relational/collect.py` | which polars engine materialises a frame: the streaming one where this polars has it, asked once; a build without it, the browser's, gets the in-memory one |
 | `sources.py` | the one door: caller data (parquet paths, in-memory tables, plain-Python shapes) read into tidy tables and checked against the declarations |
 | `assumptions.py` | the one guard that needs numbers: every `assumptions:` entry the file wrote, and each condition a `piecewise:` method puts on its breakpoints, evaluated as the masks the language states them as |
-| `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the linopy lane |
+| `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the oracle |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `sps.`; a wording lives here only where two modules raise it |
 | `strategy.py` | the driver above the runner: one plan per slice, folded — scenarios, rolling horizon, myopic pathways |
 | `relational/engines/polars/scope.py` | the scope a query is compiled in: the program, its attached data and the variable frames built so far; the product of its dimensions and the one row-major rule every index reads — what every helper takes, and the compiler holds |
@@ -571,21 +567,12 @@ is structure.
 | `relational/sinks/handoff.py` | what every sink reads and no more: the five tables, the batching scalars, and their projection onto the solver's column index |
 | `relational/sinks/capabilities.py` | what a sink can ingest — hard rule 3's *accepts ≠ builds* axis; `lanes.py` declares each **lane** in the same vocabulary |
 | `relational/sinks/` | how a built model leaves, in two families: `solvers/` (one module per solver, chosen by name) and `writers/` (one per format, chosen by suffix) — [README](https://github.com/fluxopt/specsolve/blob/main/src/specsolve/relational/sinks/README.md) |
-| `linopy/__init__.py` | the lane's two verbs: `build` constructing a `linopy.Model`, and `evaluate` valuing an expression at a solved one |
-| `linopy/loader.py` | the crossing into pandas and xarray: `tidy_sources`' tables as master coords, an `xr.Dataset`, and one array per relation; refuses the relation shapes the lane does not build, naming the relational lane |
-| `linopy/coverage.py` | the two positions an absent row has no reading for: a divisor and a constant side |
-| `linopy/absence.py` | the four positions an absent value is spelled differently in; absence is positional in this lane |
-| `linopy/builder.py` | linopy backend: core AST → `linopy.Model` |
-| `linopy/operators.py` | every built-in, evaluated on xarray and linopy |
-| `linopy/where.py` | a resolved `where:` as a boolean array, in the shape linopy's `mask=` takes |
-| `linopy/_notes.py` | attach context to an exception on the way out; no package imports, no opinions |
 
-**Two subpackages, and the directory *is* the rule in both cases.** Everything
+**One subpackage, and the directory *is* the rule.** Everything
 under `relational/` is the relational lane, and it imports nothing else from
 the package. Inside it, `engines/` holds implementations and the rest is what
-they implement. Everything under `linopy/` is the linopy lane, and it is the
-only code allowed to import linopy or xarray. `tests/test_architecture.py`
-reads membership off the path in both cases.
+they implement. No module of the package imports linopy, and none imports
+xarray at module level. `tests/test_architecture.py` holds both rules.
 
 **A fence whose allowlist is empty is a package waiting to happen.** What
 remains points one way. `relational/`'s fence is at one declared leaf,
@@ -665,7 +652,7 @@ consumer, and the ceiling doc is the conversation to have first.
 
 **Add an operator:** two repositories, in this order. First
 [in mathspec](https://math-spec.readthedocs.io/en/latest/contributing/#adding-an-operator),
-landed and tagged. Then **here**, against that tag: linopy implementation →
+landed and tagged. Then **here**, against that tag: the oracle's linopy implementation →
 compiler case → engine → differential test through a solver *and* the LP
 writer, and this file if structural. Nothing here can lower an operator the
 pinned language does not parse.
@@ -677,4 +664,4 @@ The dim rule, the degree verdict and the dense-label assignment
 rows) are not per-operator work: each has
 [one implementation](#what-counts-as-language). What a consumer still owns is
 what is about *building*: the fragment rewrite the relational compiler
-performs, and the linopy call the linopy lane makes.
+performs, and the linopy call the oracle makes.

@@ -62,18 +62,8 @@ on, as in step 3.
 
 ## 5. When the number is wrong and the rows look right
 
-Build the same file on the other lane and compare the objectives:
-
-```python
-from specsolve import linopy as specsolve_linopy
-
-m = specsolve_linopy.build('dispatch.yaml', sources)
-m.solve()
-m.objective.value  # against result.objective
-```
-
-Two lanes agreeing on a number you still believe is wrong means the file says
-something other than what you meant. Render it as math and read the
+Rows that read right and a number you still believe is wrong mean the file
+says something other than what you meant. Render it as math and read the
 constraint as written:
 [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/).
 

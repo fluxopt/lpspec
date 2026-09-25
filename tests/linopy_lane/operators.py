@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import xarray as xr
 
-from specsolve.linopy import absence
+from tests.linopy_lane import absence
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Mapping
@@ -284,7 +284,7 @@ def _gather_by_offset(array: Any, over: str, offset: Any, *, edge: _Edge) -> Any
 
     Out-of-range positions are clipped so the gather stays on the axis, then
     emptied again by ``where``, so an edge means the same thing it does for a
-    scalar shift: absent by default, and :func:`~specsolve.linopy.absence.vacated`
+    scalar shift: absent by default, and :func:`~tests.linopy_lane.absence.vacated`
     fills it where the model asked. Under ``wrap`` nothing is out of range and
     the modulo is the whole of it.
     """

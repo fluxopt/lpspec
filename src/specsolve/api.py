@@ -7,11 +7,8 @@ spec with no variables. ``load_result`` reads back an
 answer :meth:`Result.save` wrote and ``scan_result`` leaves it on disk; the
 question and the answer as one archive is :class:`specsolve.archive.SolveArchive`.
 
-This is the relational lane (docs/about/architecture.md): validated at load
-time, lowered to the plan, executed relationally. The same file builds as a
-``linopy.Model`` through ``specsolve.linopy``, on the same call and the same
-sources — which lane a caller wants is theirs to pick, and this one needs no
-optional extra.
+A model is validated at load time, lowered to the plan, and executed
+relationally (docs/about/architecture.md).
 
 Example::
 
@@ -44,7 +41,7 @@ from specsolve.errors import (
     SpecsolveWarning,
     another_model_behind_this_answer_message,
 )
-from specsolve.lanes import LANES, Buildable, Label, Source, declared, lowered
+from specsolve.lanes import Buildable, Label, Source, declared, lowered
 from specsolve.layout import beside, check_the_target, write_archive
 from specsolve.relational import sinks
 from specsolve.relational.engines.polars.engine import PolarsEngine, expression_readers
@@ -60,7 +57,6 @@ from specsolve.relational.parquet import (
 )
 from specsolve.relational.result import Result, evaluated
 from specsolve.relational.sinks import solver, writer
-from specsolve.relational.sinks.capabilities import lane_cannot_build_message, required
 from specsolve.sources import attachable, tidy_sources, unknown_source_keys_message
 
 if TYPE_CHECKING:
@@ -73,14 +69,6 @@ if TYPE_CHECKING:
 __all__ = ['build', 'check', 'evaluate', 'load_result', 'scan_result', 'solve', 'write']
 
 
-def _portability(program: Program, sink: str) -> str | None:
-    """*sink*'s reason for refusing *program*, or ``None`` where it takes it whole."""
-    if (lane := LANES.get(sink)) is not None:
-        missing = lane.missing(required(program))
-        return lane_cannot_build_message(sink, missing) if missing else None
-    return sinks.refusal(program, sink)
-
-
 def check(spec: Buildable, sink: str | None = None) -> Program:
     """Parse, validate and lower a spec; attach no data.
 
@@ -91,9 +79,9 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
 
     Args:
         spec: A YAML path, a mapping, or a ``Spec``.
-        sink: A solver name (``highs``, ``gurobi``, ``xpress``), an output
-            suffix (``.lp``, ``.mps``), or a lane (``linopy``). ``None`` asks
-            only whether the spec is sayable.
+        sink: A solver name (``highs``, ``gurobi``, ``xpress``) or an output
+            suffix (``.lp``, ``.mps``). ``None`` asks only whether the spec is
+            sayable.
 
     Returns:
         The lowered program: what a build reads rows off, and what every verb
@@ -113,7 +101,7 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
             nothing to stop it. Issued here and nowhere else.
     """
     program = lowered(spec)
-    refused = _portability(program, sink) if sink is not None else None
+    refused = sinks.refusal(program, sink) if sink is not None else None
     for note in advice(program):
         warnings.warn(str(note), SpecsolveWarning, stacklevel=2)
     if refused is not None:

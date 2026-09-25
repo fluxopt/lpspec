@@ -84,11 +84,9 @@ and the tool reads each heading as released because its tag exists.
 - **The label `no changelog`.** Create it under Issues → Labels.
 
 **PyPI refuses a direct reference.** A distribution that names a git URL in its
-metadata is rejected at upload, in a dependency and in an extra alike. One
-stands in `pyproject.toml` today: the `linopy` extra's `linopy @ git+…@master`,
-which becomes a floor once a linopy release carries the arithmetic convention
-the lane needs ([#463](https://github.com/fluxopt/specsolve/issues/463)). Until
-it is gone, the tag and the GitHub release are made and the upload fails.
+metadata is rejected at upload, in a dependency and in an extra alike. None
+stands in `pyproject.toml`: the test oracle's `linopy @ git+…@master` is in the
+`dev` group, which is not package metadata, so PyPI never sees it.
 
 ## Branch protection
 
@@ -126,10 +124,8 @@ deliberately trades coverage for cost. What that gives up:
   (reaching for a newer stdlib feature) but not the reverse: a removal or
   deprecation that only bites on 3.13.
 - **Only two dependency sets are installed:** current-with-dev, and the declared
-  floors bare. The floors are exercised *without* linopy/xarray, so the linopy
-  lane is only ever tested against current linopy — narrow, since the lane
-  resolves to one branch anyway (the `[linopy]` extra's direct reference,
-  pending the v1 release).
+  floors bare. The floors are exercised *without* xarray/pandas, so the
+  bridges out of a result are only ever tested against current xarray.
 
 This list used to carry a third entry, and it is worth keeping the correction
 rather than the claim: *"the PR-title check does not re-run on `synchronize` …

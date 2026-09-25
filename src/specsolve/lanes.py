@@ -1,8 +1,6 @@
-"""What sits above both lanes: what a spec and its sources may arrive as, and what each lane can build.
+"""What a spec and its sources may arrive as, and the one door every verb lowers a spec through.
 
-None of these facts belongs to a lane. ``Buildable`` and ``Source`` are what
-every verb in the package takes; ``LANES`` is read by ``check`` with no extra
-installed and by the linopy lane when it refuses.
+``Buildable`` and ``Source`` are what every verb in the package takes.
 """
 
 from __future__ import annotations
@@ -13,7 +11,6 @@ from mathspec import to_spec
 from mathspec.program import Program
 
 from specsolve.errors import LanguageError, SpecsolveError
-from specsolve.relational.sinks.capabilities import Capabilities
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping
@@ -92,21 +89,6 @@ type Source = (
     | Collection[Label]
     | float
 )
-
-#: What each **lane** can build, beside what each sink can ingest: both lanes
-#: accept the same language, and one cannot build a quadratic constraint —
-#: ``linopy.Model.add_constraints`` refuses a ``QuadraticExpression`` outright
-#: and no reformulation of it is exact.
-LANES: Mapping[str, Capabilities] = {
-    'linopy': Capabilities(
-        supports={
-            'integrality': 'native',
-            'sos': 'native',
-            'quadratic_objective': 'native',
-            'nonconvex_quadratic_objective': 'native',
-        },
-    ),
-}
 
 
 def _case_collision(program: Program) -> str | None:

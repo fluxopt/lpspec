@@ -23,7 +23,7 @@ import polars as pl
 import pytest
 
 import specsolve as sps
-from specsolve.errors import LaneError, SpecsolveError
+from specsolve.errors import SpecsolveError
 from tests.conftest import recomputed_row_values
 
 gurobipy = pytest.importorskip('gurobipy', reason='a quadratic constraint has no other solver sink')
@@ -267,19 +267,17 @@ def test_the_pair_a_row_holds_is_structure_even_at_the_same_coefficient():
 
 
 def test_the_linopy_lane_refuses_it_in_the_languages_own_words(tmp_path):
-    """Hard rule 3's amendment where it bites. Both lanes still *accept* the
-    model — one ``lanes.lowered`` gate — and the refusal names the lane and the
-    way round, where linopy's ``NotImplementedError`` names neither."""
-    from tests.oracle import specsolve_linopy
-
-    with pytest.raises(SpecsolveError, match='linopy lane cannot build'):
-        sps.check(SPEC, sink='linopy')
-
+    """Hard rule 3's amendment where it bites. The oracle still *accepts* the
+    model — one ``lanes.lowered`` gate — and refuses it before linopy is asked,
+    where linopy's ``NotImplementedError`` names nothing."""
     import yaml as pyyaml
+
+    from tests.linopy_lane.loader import OracleCannotBuildError
+    from tests.oracle import specsolve_linopy
 
     path = tmp_path / 'model.yaml'
     path.write_text(pyyaml.safe_dump(SPEC))
-    with pytest.raises(LaneError, match='linopy lane cannot build'):
+    with pytest.raises(OracleCannotBuildError, match='linopy lane cannot build'):
         specsolve_linopy.build(path, SOURCES)
 
 

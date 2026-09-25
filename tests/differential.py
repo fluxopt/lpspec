@@ -14,7 +14,7 @@ skipped that third opinion — so the strength of the claim varied with which
 file you happened to be reading. Here it is one ``lp=True``, and a test that
 does not ask for it is visibly choosing not to.
 
-Importing this module is the ``[linopy]`` guard: it reaches the oracle
+Importing this module is the oracle's guard: it reaches the oracle
 through ``tests.oracle``, so a bare install skips every module that uses the
 harness at collection time, with no filename list to maintain.
 

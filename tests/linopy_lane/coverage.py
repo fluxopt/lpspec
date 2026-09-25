@@ -18,13 +18,13 @@ from typing import TYPE_CHECKING, Any
 from mathspec import program
 
 from specsolve.errors import DataError, sparse_divisor_message, uncovered_constant_message
-from specsolve.linopy import absence
-from specsolve.linopy.where import evaluate_where
+from tests.linopy_lane import absence
+from tests.linopy_lane.where import evaluate_where
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from specsolve.linopy.where import EvaluationContext
+    from tests.linopy_lane.where import EvaluationContext
 
 
 def gaps_under(array: Any, mask: Any) -> int:
@@ -129,7 +129,7 @@ def check_divisors_cover(
     enough, so the requirement is their conjunction, narrowed at a ``cases:``
     region like the constant side is.
 
-    Reached before :func:`~specsolve.linopy.builder._eval`, the last moment the
+    Reached before :func:`~tests.linopy_lane.builder._eval`, the last moment the
     gap is visible: :func:`absence.coefficient` fills an uncovered slot with
     0.0 at the parameter leaf, and from there the division yields an infinity
     and the row is masked out silently.

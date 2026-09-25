@@ -168,7 +168,7 @@ def test_both_lanes_and_the_enumeration_agree(sos_type):
     """The differential claim, plus the one oracle that is nobody's code.
 
     The harness is imported **inside the test**: importing it is the
-    ``[linopy]`` guard, and everything else here is the streaming lane's own
+    oracle's guard, and everything else here is the streaming lane's own
     and has to keep running on the bare install. The harness hands both lanes
     the set written out, so the file leg reads binaries HiGHS takes.
     """

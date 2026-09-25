@@ -39,10 +39,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from specsolve.errors import LaneError
+from specsolve.errors import SpecsolveError
 from tests.conftest import law_data
 from tests.differential import RTOL, NoFiniteAnswerError, differential
 from tests.expression_space import expressions, rewrites, row_spec
+from tests.linopy_lane.loader import OracleCannotBuildError
 
 if TYPE_CHECKING:
     from tests.expression_space import Node, Rewrite
@@ -117,8 +118,12 @@ def _answer(node: Node) -> Answer:
     try:
         with differential(row_spec(node), DATA) as run:
             return Answer(value=float(run.result.objective))
-    except LaneError as exc:
-        return Answer(skipped=f'a lane cannot build it: {str(exc).splitlines()[0]}', refused=True)
+    except OracleCannotBuildError as exc:
+        return Answer(skipped=f'the oracle cannot build it: {str(exc).splitlines()[0]}', refused=True)
+    except SpecsolveError as exc:
+        if 'specsolve cannot build' not in str(exc):
+            raise
+        return Answer(skipped=f'specsolve cannot build it: {str(exc).splitlines()[0]}', refused=True)
     except NoFiniteAnswerError:
         return Answer(skipped='this fixture admits no finite answer')
 

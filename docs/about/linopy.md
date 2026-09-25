@@ -1,25 +1,24 @@
 # Relationship to linopy
 
 Everything about [linopy](https://github.com/PyPSA/linopy) in one place, for a
-reader who arrives from linopy or PyPSA. There are three separate
+reader who arrives from linopy or PyPSA. There are two separate
 relationships:
 
 | | What | Where it matters |
 |---|---|---|
-| **Not a dependency** | solving a model never imports it | packaging |
+| **Not a dependency** | nothing in the package imports it | packaging |
 | **The oracle** | how we know the answers are right | testing |
-| **The lane** | the second thing a file can be built as | what a caller chooses |
 
-## 1. It is not a runtime dependency
+## 1. It is not a dependency
 
 `sps.solve`, `sps.build`, `sps.write` and `sps.check` go YAML → polars → HiGHS
 or file, and import nothing from linopy, xarray or pandas. The bare-install job
-runs the whole suite with none of the three present.
+runs the whole suite with none of the three present. No install of specsolve
+brings linopy: it is a test dependency, in the `dev` group.
 
-`pip install "specsolve[linopy]"` adds linopy, xarray and pandas. The extra buys
-the lane below and the `to_pandas` / `to_dataarray` bridges out of a
-[result](../reference/glossary.md#the-chain), nothing else. The lane is a peer,
-not a fallback: nothing routes to it, and a bare install is a complete one.
+The `to_pandas` / `to_dataarray` bridges out of a
+[result](../reference/glossary.md#the-chain) need pandas and xarray, which the
+caller installs.
 
 **Nothing a bare install can reach names linopy, including a traceback.** The
 public exception tree is rooted at `SpecsolveError`, with no alias
@@ -29,7 +28,9 @@ public exception tree is rooted at `SpecsolveError`, with no alias
 
 Correctness here is **the same YAML, built both ways, produces the same
 model**. The differential suite builds a model through the relational engine
-and through linopy, and compares the two.
+and through linopy, and compares the two. The linopy build is
+`tests/linopy_lane`, a test module that builds a file as a `linopy.Model` from
+the same `sources` `sps.build` takes.
 
 The comparison means something only because both paths consume the *same
 resolved AST*, the narrow waist in
@@ -48,45 +49,10 @@ linopy or PyPSA. But **copy it, do not import it.** The engine may not import
 linopy, so the tables live here. A test imports linopy to assert the copy still
 matches. A copy nobody checks is a copy that rots.
 
-## 3. It is a lane
+### What a construct becomes in the oracle
 
-A [lane](../reference/glossary.md#how-it-runs) is one of the two ways a spec is
-executed. This one builds the same file as a `linopy.Model` instead of attaching
-data relationally, and the caller picks it by an import. The call is the one
-`sps.build` takes: the same first argument (a path, a mapping, or a spec the
-language has already read), the same `sources`, the same index sources.
-
-```python
-from specsolve import linopy as specsolve_linopy
-
-m = specsolve_linopy.build('spec.yaml', {...})  # -> linopy.Model
-m.solve(...)
-specsolve_linopy.evaluate(m, 'spec.yaml', 'co2', {...})  # a quantity, read back
-```
-
-Both calls are *pure*: YAML in, a model or a value out, nothing retained.
-`build` returns a plain `linopy.Model` with no accessor, no attached schema and
-no patched attributes, so nothing is lost across `pickle`, `deepcopy` or
-`to_netcdf`. To inspect the math, re-read the file with `to_spec`. `evaluate`
-is the reader, and the same purity makes it take `sources` again. It values an
-expression written the way
-[`expressions:`](https://math-spec.readthedocs.io/en/latest/reference/language/named/#expressions)
-writes one, a string or the mapping that carries `cases:`, on the solved model.
-It hands back linopy's native `.solution`. A name the file declares is such an
-expression. This is the linopy half of `result.evaluate(...)`, which is what
-lets the differential suite hold the two lanes to one answer.
-
-**This lane constructs; it does not attach.** Math for a `linopy.Model` that
-something else built, a PyPSA network say, has no verb here
-([#845](https://github.com/fluxopt/specsolve/issues/845)). Such a verb would be the
-one file allowed to reference names it did not declare. That exception costs
-the whole language layer for one use case. Build a second model and merge
-it.
-
-### What a construct becomes
-
-What `specsolve.linopy.build` calls for each thing a file can say. Each row lives
-in `linopy/builder.py`, one section per group below.
+What the oracle calls for each thing a file can say. Each row lives in
+`tests/linopy_lane/builder.py`, one section per group below.
 
 | Declaration | linopy |
 |---|---|
@@ -115,64 +81,58 @@ in `linopy/builder.py`, one section per group below.
 | a comparison | the Python comparison operators element-wise, absence reading as false |
 
 Absence has no single row. It is positional: a missing parameter row is zero in a coefficient, an error in `bounds:`, and false in a `where` operand.
-`linopy/absence.py` holds all four spellings, and the builder calls them
+`tests/linopy_lane/absence.py` holds all four spellings, and the builder calls them
 qualified, as `absence.coefficient(...)`, so a reader meets the name at the
 call.
 
 ### The same language, and the same data
 
-**The lane accepts exactly the same language**, which is what makes the oracle
-an oracle. The equality is structural: both lanes run the same `lanes.lowered`
-gate. A construct one lane refuses, the other refuses in the same sentence,
-never with a redirection to the other lane.
+**The oracle accepts exactly the same language**, which is what makes it an
+oracle. The equality is structural: both builds run the same `lanes.lowered`
+gate. A construct one refuses, the other refuses in the same sentence.
 
-**Accepting is not building, and three constructs part the lanes, two on this
-side and one on the other.** None is a language limit: every such file passes
-`check`, and each is built by the lane the other cannot. A `LaneError` names
-the wall *and* the route around it, and that is what parts it from a language
-error.
+**Accepting is not building, and three constructs part the two builds, two on
+the oracle's side and one on the package's.** None is a language limit: every
+such file passes `check`. The refusal names the wall *and* the rewrite, and
+that is what parts it from a language error.
 
-**The first is this lane's wall: an objective carrying a constant.**
+**The first is the oracle's wall: an objective carrying a constant.**
 `linopy.Objective` rejects any expression whose `const` is nonzero:
 *"Constant values in objective function not supported."* There is no slot to
 put one in, which is why PyPSA carries `n.objective_constant` out of band. So
 `examples/ports/osemosys_utopia.yaml`, whose objective carries a fixed cost on
-capacity that already stood in 1990, builds relationally and not here.
-**Dropping the constant is the one repair that must not happen.** The lane is
-the oracle, and a quietly shortened objective would recalibrate every
-differential test on such a model to the wrong number. So `builder.py` checks
-for a constant before linopy is asked and raises `LaneError`, naming the wall
-and the lane that does build the model. `tests/test_corpus_parity.py` carries
+capacity that already stood in 1990, builds in specsolve and not in the
+oracle. **Dropping the constant is the one repair that must not happen.** A
+quietly shortened objective would recalibrate every differential test on such a
+model to the wrong number. So the oracle checks for a constant before linopy is
+asked, and refuses the model. `tests/test_corpus_parity.py` carries
 the strict xfail ([#894](https://github.com/fluxopt/specsolve/issues/894)).
 
-**The second is this lane's too: a relation that is not the single-valued
-map.** The lane holds each value column as one dense array over the dimensions
-the relation's key names, so a walk is an `assign_coords` and a `groupby`, or a
-vectorised `sel`. A bare relation, and a partition grouped by a map keyed on
-more than the dimension it walks or by more than one column, have no such
-array, and `linopy/loader.py` refuses each at the lane's door. The relational
-lane builds every shape the language admits.
+**The second is the oracle's too: a relation that is not the single-valued
+map.** The oracle holds each value column as one dense array over the
+dimensions the relation's key names, so a walk is an `assign_coords` and a
+`groupby`, or a vectorised `sel`. A bare relation, and a partition grouped by a
+map keyed on more than the dimension it walks or by more than one column, have
+no such array, and `tests/linopy_lane/loader.py` refuses each. specsolve builds
+every shape the language admits.
 
-**The third is the relational lane's wall, and it is the mirror: an operator
-acting along a dimension that a constant part does not carry**, beside a term
-that does. Take `sum(x * k + d, over=t)` where `d` is a scalar. The relational
-lane compiles a constant part as its own
-[table](../reference/glossary.md#the-data), and a fragment with no rows for
-`t` has no slots for the operator to act on. This lane has no such split: the
-operand is one masked expression, so the constant is dropped wherever the term
-is, and the lane builds the file as written. All four operators that act along
+**The third is specsolve's wall, and it is the mirror: an operator acting along
+a dimension that a constant part does not carry**, beside a term that does.
+Take `sum(x * k + d, over=t)` where `d` is a scalar. specsolve compiles a
+constant part as its own [table](../reference/glossary.md#the-data), and a
+fragment with no rows for `t` has no slots for the operator to act on. The
+oracle has no such split: the operand is one masked expression, so the constant
+is dropped wherever the term is, and the oracle builds the file as written. All four operators that act along
 a dimension (`sum(over=)`, `sum(by=)`, `shift`, `sum_back`) reach the one wall
 and share one refusal. It names the rewrite: declare the parameter over the
 dimension and supply it there
 ([#1137](https://github.com/fluxopt/specsolve/issues/1137)).
 
-**The lane takes the same data too**
+**The oracle takes the same data too**
 ([#60](https://github.com/fluxopt/specsolve/issues/60)). It reads every shape
 [the data contract](../reference/data.md) accepts and follows every index rule
 in [where coordinates come from](../reference/data.md#where-coordinates-come-from).
-A malformed source gets the same refusal from both lanes, in the same sentence.
-So one `sources` mapping goes to either lane, and an import alone decides which
-lane builds a file.
+A malformed source gets the same refusal from both builds, in the same sentence.
 
 ## Parts of linopy not taken
 

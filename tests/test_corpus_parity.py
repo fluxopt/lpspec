@@ -12,7 +12,7 @@ objective, the relational objective, and the objective HiGHS reaches re-reading
 the written LP file. ``test_ports.py`` supplies the fourth from outside, so a
 model green in both modules has agreed with a published optimum four ways.
 
-Importing ``tests.differential`` is the ``[linopy]`` guard, which is why this is
+Importing ``tests.differential`` is the oracle's guard, which is why this is
 a module of its own rather than three more tests in ``test_ports.py``: that one
 is linopy-free and pandas-free on purpose, and runs on the bare-install job.
 """
@@ -25,15 +25,15 @@ from typing import Any
 import polars as pl
 import pytest
 
-from specsolve.errors import LaneError
 from tests.conftest import PORT_REFERENCES, PORTS_DIR, port_sources, port_spec
 from tests.differential import differential
+from tests.linopy_lane.loader import OracleCannotBuildError
 
 #: The instance files the ports attach, for a test that needs a column the model
 #: does not declare — ``port_sources`` filters those out, as it should.
 PORTS_DATA = PORTS_DIR / 'data'
 
-#: What the linopy lane accepts and cannot build, keyed by model. `LaneError` is
+#: What the linopy lane accepts and cannot build, keyed by model. `OracleCannotBuildError` is
 #: the point of the pair: it pins the xfail to *this* refusal, where the bare
 #: `ValueError` it used to name was satisfied by any bug that raised one.
 #: Strict, so the day linopy grows an objective-constant slot these XPASS, the
@@ -45,7 +45,7 @@ LANE_GAPS: dict[str, str] = {
 
 def _case(name: str) -> Any:
     reason = LANE_GAPS.get(name)
-    marks = [pytest.mark.xfail(reason=reason, raises=LaneError, strict=True)] if reason else []
+    marks = [pytest.mark.xfail(reason=reason, raises=OracleCannotBuildError, strict=True)] if reason else []
     return pytest.param(name, marks=marks, id=name)
 
 

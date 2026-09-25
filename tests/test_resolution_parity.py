@@ -18,7 +18,7 @@ import yaml as pyyaml
 import specsolve as sps
 from tests.conftest import DISPATCH_SPEC, dispatch_spec_path, override
 from tests.differential import differential
-from tests.oracle import pd, specsolve_linopy  # skips the module without the [linopy] extra
+from tests.oracle import pd, specsolve_linopy  # skips the module without the oracle
 
 
 @pytest.mark.parametrize(

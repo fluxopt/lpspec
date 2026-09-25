@@ -789,7 +789,7 @@ def test_no_budget_measures_everything() -> None:
 def test_a_hand_written_arm_builds_the_same_model(case_name: str, dialect: str) -> None:
     """Every arm but `specsolve` is a model somebody typed twice.
 
-    `specsolve.linopy` could never be a different model — it read the same YAML
+    The linopy oracle could never be a different model — it reads the same YAML
     (hard rule 3), which is what made it an oracle. A hand-written dialect has
     no such protection: a transposed index or a load vector read in the wrong
     order builds a *different model* that benchmarks perfectly, and the faster

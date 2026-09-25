@@ -40,7 +40,7 @@ import yaml as pyyaml
 import specsolve as sps
 from specsolve.errors import DataError
 from tests.differential import both_lanes_refuse
-from tests.oracle import pd, specsolve_linopy  # skips the module without the [linopy] extra
+from tests.oracle import pd, specsolve_linopy  # skips the module without the oracle
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -505,7 +505,7 @@ def test_a_dimension_index_is_a_table_on_both_lanes(tmp_path):
 
 
 def test_a_dimension_index_may_be_a_parquet_path_without_pyarrow(tmp_path, monkeypatch):
-    """The `[linopy]` extra ships pandas and xarray, and nothing says it ships pyarrow.
+    """The oracle brings pandas and xarray, and nothing says it brings pyarrow.
 
     The linopy lane read an index path with `polars.read_parquet().to_pandas()`,
     which wants pyarrow for anything Arrow-backed — so the way the runner

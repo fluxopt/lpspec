@@ -147,7 +147,7 @@ def _verdict(record: dict) -> str:
         f'**model for model**: {len(structural["equal"])} blocks equal, {len(structural["region"])} documented splits'
         + (f', {len(structural["recorded"])} recorded deviations' if structural.get('recorded') else '')
         if 'equal' in structural
-        else f'objective only — `specsolve.linopy` stops at `{structural["error"]}`'
+        else f'objective only — the linopy oracle (`tests/linopy_lane`) stops at `{structural["error"]}`'
     )
     shape = parity['structure']['per_name']
     differing = parity['structure']['differences']
@@ -318,7 +318,7 @@ def index(stamped: dict) -> str:
         ' the model handed to HiGHS is the same size on both sides |\n'
         "| **duals** | `result.dual(block)` | `n.model.constraints[name].dual` | every row's dual equal, absolute"
         ' 1e-6 — against the negative where the file writes the row negated; an integer model has none |\n'
-        '| **linopy lane** | `specsolve.linopy.build(file)` | `n.optimize.create_model()` | label for label:'
+        '| **linopy lane** | the test oracle, `tests/linopy_lane` | `n.optimize.create_model()` | label for label:'
         ' coefficients, sense, right-hand side, bounds, integrality, objective terms |\n\n'
         "Both sides solve one object, the network the rung's script builds — PyPSA directly, specsolve through the"
         ' file attached to the tables `prep.py` makes of it. A difference in structure, duals or the linopy lane is allowed only'

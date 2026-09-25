@@ -45,9 +45,10 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 **Every error is one tree, rooted at `SpecsolveError`.** `LanguageError` (with
 `SchemaError`, `DimensionError`) is a fault in the
 spec. `DataError` is a fault in the data attached to it. `LayoutError` is a
-directory or an archive that is not a layout this package reads. `LaneError`
-is a spec one lane cannot build. `NoSolutionError` is a solve that left
-nothing to read.
+directory or an archive that is not a layout this package reads.
+`NoSolutionError` is a solve that left nothing to read. A spec the language
+accepts and specsolve cannot build raises `SpecsolveError` itself, and its
+message names the rewrite that builds the same model.
 Which one you get:
 [errors](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
 
@@ -305,7 +306,7 @@ sps.scan_result(directory)  # the same, read off the directory as you ask for it
 **`primal` returns a `polars.DataFrame`**, one row per coordinate: a *frame*.
 It is Arrow-backed, so it exports the protocol the loader recognises.
 `to_pandas` and `to_dataarray` are the bridges out; they need pandas and
-xarray, from the `[linopy]` extra.
+xarray, which specsolve does not install.
 
 | Rule | |
 |---|---|
@@ -571,11 +572,3 @@ sps.solve('spec.yaml', sources, solver_name='gurobi', solver_options=options)
 
 The options are applied when Gurobi's environment is created, which
 `ComputeServer`, `TokenServer` and `WLSAccessID` require.
-
-## The linopy lane
-
-A *lane* is one of the two ways a spec is executed; the verbs above are the
-relational lane. `specsolve.linopy.build` and `specsolve.linopy.evaluate` (the
-`[linopy]` extra) build the same YAML as a `linopy.Model`, and read an
-expression back off a solved one.
-[Relationship to linopy](../about/linopy.md#3-it-is-a-lane) documents them.

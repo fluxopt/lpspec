@@ -1,9 +1,7 @@
 """Declarative optimisation: YAML math on a streaming engine.
 
 Specs build relationally on polars and stream to the solver — see
-docs/about/architecture.md. linopy is not imported here; with the ``[linopy]``
-extra it is the second lane a file can be built on, and the differential-test
-oracle (``from specsolve import linopy as specsolve_linopy``).
+docs/about/architecture.md.
 
 Example::
 
@@ -27,7 +25,6 @@ from specsolve.archive import SolveArchive, SweepArchive, load_archive, scan_arc
 from specsolve.errors import (
     DataError,
     DimensionError,
-    LaneError,
     LanguageError,
     LayoutError,
     NoSolutionError,
@@ -43,7 +40,6 @@ __all__ = [
     'DimensionError',
     'EachCoordinate',
     'EachWindow',
-    'LaneError',
     'LanguageError',
     'LayoutError',
     'Model',
