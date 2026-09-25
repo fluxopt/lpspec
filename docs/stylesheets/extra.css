@@ -220,7 +220,7 @@
 
 /* A card's icon is chosen by where its link points, so reordering the README
  * list cannot move an icon onto another card. The icons are Material Design
- * Icons, copied from the set the theme bundles. */
+ * Icons, copied from the set the theme bundles, except `split.svg`, drawn here. */
 .md-typeset .landing .grid.cards > ul > li::before {
   display: block;
   width: 1.6rem;
@@ -237,7 +237,7 @@
 
 .md-typeset .landing .grid.cards > ul > li:has(> a[href$="/reference/sweeps/"])::before {
   content: "";
-  mask-image: url("icons/chart-gantt.svg");
+  mask-image: url("icons/split.svg");
 }
 
 .md-typeset .landing .grid.cards > ul > li:has(> a[href$="/about/benchmarks/"])::before {

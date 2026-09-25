@@ -1,0 +1,5 @@
+<!--
+SPDX-FileCopyrightText: specsolve contributors
+SPDX-License-Identifier: MIT
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="1.5" y="7" width="8" height="10" rx="1.5"/><path d="M10.5 11h2.8V8.8L16.5 12l-3.2 3.2V13h-2.8z"/><rect x="17" y="4.5" width="5.5" height="4" rx="1"/><rect x="17" y="10" width="5.5" height="4" rx="1"/><rect x="17" y="15.5" width="5.5" height="4" rx="1"/></svg>
