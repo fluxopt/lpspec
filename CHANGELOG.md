@@ -7,6 +7,8 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
+- feat(api): the feasible region of a model on two of its quantities is traced as a polygon ([#1527](https://github.com/fluxopt/specsolve/pull/1527))
+
 ## 0.2.0 (2026-09-25)
 
 A saved answer now records which layout it was written in and which specsolve

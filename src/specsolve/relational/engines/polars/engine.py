@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Literal
 
 import polars as pl
 
-from specsolve.errors import SpecsolveError
+from specsolve.errors import SpecsolveError, unknown_name_message
 from specsolve.relational import sinks
 from specsolve.relational.engines.polars import readback
 from specsolve.relational.engines.polars.assembly import (
@@ -114,6 +114,33 @@ class PolarsEngine:
         if self._built is None:
             raise SpecsolveError(_no_built_model(f"to read '{name}' out of"))
         return readback.row(self._built, name, coordinate)
+
+    def expression_dims(self, name: str) -> tuple[str, ...]:
+        """The dims named expression *name* comes back over, off the built model and before any solve.
+
+        Raises:
+            KeyError: No named expression is called *name*.
+            SpecsolveError: There is no built model.
+        """
+        if self._built is None:
+            raise SpecsolveError(_no_built_model(f"to read the dims of '{name}' off"))
+        model = self._built
+        try:
+            expression = model.program.expressions[name]
+        except KeyError:
+            raise KeyError(unknown_name_message('named expression', name, model.program.expressions)) from None
+        compiler = PolarsCompiler(Scope(model.program, model.attached, dict(model.variables)))
+        return readback.expression_dims(name, expression.expression, compiler)
+
+    def binding(self, result: Result, tolerance: float) -> pl.DataFrame:
+        """Every bound and row *result* sits on, off the built model — ``(kind, name, dims…, side)``.
+
+        Raises:
+            SpecsolveError: There is no built model.
+        """
+        if self._built is None:
+            raise SpecsolveError(_no_built_model('to read what binds off'))
+        return readback.binding(self._built, result, tolerance)
 
     def write(self, path: str | Path) -> None:
         """Stream the built model to *path*, in the format its suffix names.

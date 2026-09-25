@@ -39,6 +39,10 @@ xpress = [
     # 9.5 is the release that renamed the read-back to `getDuals` and `getSlacks`.
     "xpress>=9.5",
 ]
+# `Region.plot` draws with plotly; the region itself is traced and read without it.
+plot = [
+    "plotly>=5.22",
+]
 
 [project.urls]
 Documentation = "https://specsolve.readthedocs.io"
@@ -113,7 +117,11 @@ python = "3.12.*"
 specsolve = { path = ".", editable = true }
 
 [tool.pixi.feature.dev.pypi-dependencies]
-specsolve = { path = ".", editable = true, extras = ["gurobi", "xpress"] }
+specsolve = { path = ".", editable = true, extras = ["gurobi", "xpress", "plot"] }
+
+# The site runs docs/region.md, whose blocks draw.
+[tool.pixi.feature.docs.pypi-dependencies]
+specsolve = { path = ".", editable = true, extras = ["plot"] }
 
 [tool.pixi.feature.floors]
 # pyyaml has no win-64 wheel. linux-aarch64 lets `pixi install` solve on the CodSpeed runner.
