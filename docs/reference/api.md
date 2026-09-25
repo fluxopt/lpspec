@@ -96,7 +96,7 @@ spec must be able to show you a file. Hand-written math still starts as one.
 
 **A dict-built spec still gets a file.** `to_dict()` and `to_yaml()` are the
 language's, and what they write is
-[its page](https://math-spec.readthedocs.io/en/latest/reference/language/reading/#writing-a-spec-back-out).
+[its page](https://math-spec.readthedocs.io/en/latest/reference/reading/#writing-a-spec-back-out).
 
 ## The sources argument
 
