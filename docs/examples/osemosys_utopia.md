@@ -64,7 +64,7 @@ OSeMOSYS's UTOPIA: what to build and how hard to run it, 1990-2010, to meet thre
 | $`\mathit{built\_capacity}`$ | `built_capacity` over $`\mathcal{T} \times \mathcal{Y}`$ — capacity standing in a year from every vintage still inside its life. A plant's life is read from data and differs by technology, so the window cannot be a fixed shift — it is an incidence table, the shape the KVL port uses for a cycle basis. |
 | $`\mathit{capacity}`$ | `capacity` over $`\mathcal{T} \times \mathcal{Y}`$ — all the capacity standing in a year, including what was already there in 1990 |
 
-Upright is what the model is given — a parameter such as $`\mathrm{still\_live}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{activity}`$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the data supplies — a parameter such as $`\mathrm{still\_live}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{activity}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
@@ -317,7 +317,7 @@ carries `still_live[technology, year, vintage]`, one row per pair that is still
 live, and the standing capacity is a contraction against it. That is the shape
 [`pypsa_kvl`](pypsa_kvl.md) uses for a cycle basis. Building it is arithmetic
 over years, which
-[the limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
+[the limits](https://mathspec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
 count as data preparation.
 
 **Discounting, the annuity and salvage value never reach the model.** OSeMOSYS

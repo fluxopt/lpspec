@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Literal, NoReturn, assert_never
 import polars as pl
 from mathspec import program
 
-from specsolve.errors import LaneError
+from specsolve.errors import SpecsolveError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -126,7 +126,7 @@ class TermFragment:
     kind: Kind
 
     presences: tuple[Presence, ...] = ()
-    """Where the variables under this fragment exist — see :class:`Presence`.
+    """Where the variables under this fragment exist — see [`Presence`][].
 
     Empty is nothing to report: a constant fragment has no variable, and a
     reduction clears it, ``sum`` skipping absent slots rather than propagating
@@ -138,7 +138,7 @@ class TermFragment:
     """
 
     region: program.Mask | None = None
-    """The region of a :class:`~mathspec.program.Cases` this piece was built under.
+    """The region of a `Cases` this piece was built under.
 
     ``None`` where the piece stands over the whole frame, which is everything
     outside a ``cases:`` block. Set, it says the piece covers that region *by
@@ -149,7 +149,7 @@ class TermFragment:
     It travels through the arithmetic, and a product of two regions is the
     conjunction: ``ramp_limit * previous_status`` has a value exactly where
     ``previous_status`` does. A reduction that drops a dim the region reads
-    drops the region with it (:func:`region_over`): it can no longer say which
+    drops the region with it ([`region_over`][]): it can no longer say which
     of the rows summed into a coordinate it claimed.
     """
 
@@ -160,7 +160,7 @@ class TermFragment:
     in ``x + hi`` or in ``sum(x) + sum(hi)``. A parameter a variable stands with
     in a product is a coefficient instead, and a sparse coefficient is a zero
     the absence rules allow, so a term carries none and a product strips the
-    factor that stood beside a variable (:meth:`PolarsCompiler.expression`).
+    factor that stood beside a variable ([`PolarsCompiler.expression`][specsolve.relational.engines.polars.compiler.PolarsCompiler.expression]).
     A divisor is never owed here either: it has its own check.
     """
 
@@ -179,8 +179,8 @@ def refuse_a_fragment_without_the_dims(p: TermFragment, dims: list[str], context
     """Refuse a fragment an operator cannot act on, in the right class.
 
     Two different failures share this shape and must not share a class. A
-    **constant part** lacking the dims is a file the language accepts and the
-    linopy lane builds — `check` passes, so `LanguageError` would be a lie — and
+    **constant part** lacking the dims is a file the language accepts and this
+    engine cannot build — `check` passes, so `LanguageError` would be a lie — and
     it is reachable from ordinary YAML wherever a scalar is added beside a term.
     A **term** lacking them is not reachable that way: `dims_of` gives every
     term the frame dims at load, so reaching here means the plan is
@@ -190,14 +190,12 @@ def refuse_a_fragment_without_the_dims(p: TermFragment, dims: list[str], context
     ``sum(by=…)``, and ``GroupSum`` is a word their file does not contain.
     """
     if p.kind == 'const':
-        raise LaneError(
+        raise SpecsolveError(
             f'in {context}: {operator} acts along {dims}, which a constant part of the expression '
-            f'does not carry, and this lane cannot build that. A constant part compiles to its own '
+            f'does not carry, and specsolve cannot build that. A constant part compiles to its own '
             f'frame, so a fragment with no rows for {dims} has no slots for the operator to act on — '
             f'and under a mask, which slots those are is known only to the rows. Declare the parameter '
-            f'over {dims} and supply it there: the model is the same and the number is unchanged. '
-            f'The linopy lane builds the file as written, so only this lane is short — run it with '
-            f'`specsolve.linopy.build`.'
+            f'over {dims} and supply it there: the model is the same and the number is unchanged.'
         )
     msg = f'in {context}: {operator} along {dims}, which the expression does not span'
     raise AssertionError(msg)
@@ -240,7 +238,7 @@ def absence_restrictions(fragments: Sequence[TermFragment]) -> list[Presence]:
     rules): ``x + y >= 10`` where ``y`` is masked is not ``x >= 10``, it is no
     constraint at all. Only *variable* absence counts — a sparse parameter's
     missing rows mean a zero coefficient — which is why the fragment carries
-    :attr:`TermFragment.presences` separately from its frame.
+    [`TermFragment.presences`][] separately from its frame.
 
     *Having* no dims is not *having nothing to restrict*: a masked scalar
     variable restricts every row of every constraint naming it, all or nothing.
@@ -252,7 +250,7 @@ def absence_restrictions(fragments: Sequence[TermFragment]) -> list[Presence]:
 
 
 #: How a node's output rows relate to its input slots, answered by
-#: :func:`fan_in` for every node.
+#: [`fan_in`][] for every node.
 FanIn = Literal['one-to-one', 'many-to-one', 'one-to-many']
 
 
@@ -260,7 +258,7 @@ def fan_in(expression: program.Expression) -> FanIn:
     """How *expression*'s output rows relate to its input slots.
 
     Both classes other than ``'one-to-one'`` sum several input slots into an
-    output row, so :func:`propagate_absence` runs before them.
+    output row, so [`propagate_absence`][] runs before them.
     """
     if isinstance(expression, program.Named):
         return fan_in(expression.body)
@@ -303,7 +301,7 @@ def propagate_absence(compiled: CompiledExpression) -> CompiledExpression:
     Applied only where the key columns are dims the fragment carries: a
     restriction naming a dim a fragment lacks cannot speak about it.
 
-    **Which operators need it is decided by their fan-in** (:func:`fan_in`),
+    **Which operators need it is decided by their fan-in** ([`fan_in`][]),
     which the compiler reads.
     Many-to-one and one-to-many mix several input slots into an output row:
     the row-level intersection at assembly can say the *row* survives, never
@@ -429,7 +427,7 @@ def join_mul(a: TermFragment, c: TermFragment, kind: Kind, divide: bool = False)
 def join_pow(a: TermFragment, b: TermFragment) -> TermFragment:
     """``a ** b``, both const fragments — one const fragment out.
 
-    :func:`join_mul`'s shape with ``pow`` in place of ``*``, and the same
+    [`join_mul`][]'s shape with ``pow`` in place of ``*``, and the same
     reason for renaming the right-hand value first: both sides carry ``cval``.
     An **inner** join, unlike divide's left: an exponent with no value at a
     coordinate is not a division by a hole, it is a factor the model never
@@ -466,7 +464,7 @@ def join_quad(a: TermFragment, b: TermFragment) -> TermFragment:
 
     Nothing is canonicalised here: which of ``x * y`` and ``y * x`` a pair is
     depends on column labels, which fragments do not carry until the engine
-    places them (:meth:`Assembly._build_objective`).
+    places them ([`Assembly._build_objective`][specsolve.relational.engines.polars.assembly.Assembly._build_objective]).
     """
     shared = [d for d in a.dims if d in b.dims]
     out_dims = a.dims + tuple(d for d in b.dims if d not in a.dims)

@@ -3,77 +3,109 @@ name: Release
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      target-branch:
-        description: 'Release line to run against (e.g. a 0.1.x maintenance branch). Defaults to main.'
-        required: false
-        default: main
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
-  group: release-${{ inputs.target-branch || github.ref_name }}
+  group: release
   cancel-in-progress: false
 
-# secrets are not readable from a step-level `if`, so hoist the check here
-env:
-  HAS_RELEASE_APP: ${{ secrets.APP_CLIENT_ID != '' }}
-
 jobs:
-  release-please:
-    name: Release Please
+  tag:
+    name: Tag the version the changelog names
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.pending.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: pending
+        name: Read the version to release
+        run: echo "version=$(python3 -m tools.changelog pending)" >> "$GITHUB_OUTPUT"
+
+      - name: Tag and open the GitHub release
+        if: steps.pending.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.pending.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 -m tools.changelog notes "$VERSION" > notes.md
+          flags=()
+          if [[ "$VERSION" =~ (a|b|rc)[0-9]+$ ]]; then flags+=(--prerelease); fi
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --notes-file notes.md "${flags[@]}"
+
+  build:
+    name: Build
+    needs: tag
+    if: needs.tag.outputs.version != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/create-github-app-token@v3
-        id: app-token
-        if: env.HAS_RELEASE_APP == 'true'
+      - uses: actions/checkout@v7
         with:
-          client-id: ${{ secrets.APP_CLIENT_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          ref: v${{ needs.tag.outputs.version }}
+          # hatch-vcs reads the tag; a shallow clone builds a .dev version.
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Warn when falling back to GITHUB_TOKEN
-        if: env.HAS_RELEASE_APP != 'true'
-        run: |
-          echo "::warning::APP_CLIENT_ID is unset — using GITHUB_TOKEN. The release PR will not run CI. See RELEASING.md."
-
-      - uses: googleapis/release-please-action@v5
+      - uses: prefix-dev/setup-pixi@v0.10.1
         with:
-          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
-          config-file: .release-please-config.json
-          manifest-file: .release-please-manifest.json
-          target-branch: ${{ inputs.target-branch || 'main' }}
+          run-install: false
 
-      # Auto-merge, because the required checks have not reported on the just-updated PR yet.
-      - name: Merge the release PR when CI passes (temporary, alpha only)
-        if: vars.AUTO_RELEASE != 'false'
+      - run: pixi exec --spec python-build --spec python=3.12 python -m build
+
+      - name: Verify the built version is the released one
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
-          # this job never checks out, so gh has no remote to infer the repo from
-          GH_REPO: ${{ github.repository }}
-          BASE: ${{ inputs.target-branch || 'main' }}
+          VERSION: ${{ needs.tag.outputs.version }}
         run: |
-          set -euo pipefail
-          read -r pr version < <(
-            gh pr list --state open --base "$BASE" --json number,title,headRefName \
-              --jq '[.[] | select(.headRefName | startswith("release-please--"))]
-                    | first
-                    | select(. != null)
-                    | "\(.number) \(.title | split(" ") | last)"'
-          ) || true
+          pixi exec --spec packaging --spec python=3.12 python - <<'PY'
+          import os, pathlib, sys
+          from packaging.utils import parse_sdist_filename, parse_wheel_filename
+          from packaging.version import Version
 
-          if [[ -z "${pr:-}" ]]; then
-            echo "no open release PR against $BASE — nothing to release"
-            exit 0
-          fi
+          version = Version(os.environ['VERSION'])
+          wheels = sorted(pathlib.Path('dist').glob('*.whl'))
+          sdists = sorted(pathlib.Path('dist').glob('*.tar.gz'))
+          if len(wheels) != 1 or len(sdists) != 1:
+              sys.exit(f'expected one wheel and one sdist in dist/, found {[p.name for p in wheels + sdists]}')
+          built = {parse_wheel_filename(wheels[0].name)[1], parse_sdist_filename(sdists[0].name)[1]}
+          if built != {version}:
+              sys.exit(
+                  f'the changelog releases {version}, but dist/ holds {sorted(map(str, built))}. '
+                  'Usually means the tag was not fetched (shallow clone) or the tree is dirty.'
+              )
+          print(f'ok: {wheels[0].name} and {sdists[0].name} are {version}')
+          PY
 
-          if [[ "$version" != *-* ]]; then
-            echo "::notice::#$pr releases $version — the first official version is not automatic. Merge it yourself (RELEASING.md)."
-            exit 0
-          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
-          echo "enabling auto-merge on #$pr ($version) — temporary alpha-stream policy, see RELEASING.md"
-          gh pr merge "$pr" --squash --auto
+  publish:
+    name: Publish to PyPI
+    needs: [tag, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # PyPI's trusted publisher names this workflow and this environment.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/specsolve/${{ needs.tag.outputs.version }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1

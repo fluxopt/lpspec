@@ -1,10 +1,10 @@
 """Reading an archive back: the spec, the data it was solved with, and what came back.
 
-:func:`load_archive` reads it whole; :func:`scan_archive` leaves the frames on
+[`load_archive`][] reads it whole; [`scan_archive`][] leaves the frames on
 disk and reads each at the call that asks for it. Either gives back a
-:class:`SolveArchive` for one solve, or a :class:`SweepArchive` where the
+[`SolveArchive`][] for one solve, or a [`SweepArchive`][] where the
 sources were cut. Nothing here writes one: ``archive=`` on the verbs that
-solve does, through :mod:`specsolve.layout`.
+solve does, through [`specsolve.layout`][].
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from mathspec import to_spec
 
 from specsolve.api import attach_readers, load_result, scan_result
 from specsolve.errors import SpecsolveError
-from specsolve.layout import ANSWER_DIR, AXIS_MEMBER, DIGESTS_MEMBER, MODEL_MEMBER, SOURCES_DIR, opened
+from specsolve.layout import ANSWER_DIR, AXIS_MEMBER, DIGESTS_MEMBER, SOURCES_DIR, SPEC_MEMBER, opened
 from specsolve.relational.parquet import METRICS_FILE, Metrics, digest_of, row_of
 from specsolve.strategy import (
     EachCoordinate,
@@ -50,15 +50,17 @@ class SolveArchive:
     ``sps.solve(archive.spec, archive.sources)`` asks the question again.
 
     Attributes:
-        spec: The spec as written.
+        spec: The spec as written, read back as one ``Spec`` whatever went in.
         sources: What was attached, keyed as the file declares it: a table
-            from :func:`load_archive`, the path to one from :func:`scan_archive`.
+            from [`load_archive`][], the path to one from [`scan_archive`][].
         answer: What came back.
         source_digests: ``(run, source, digest)``, one row per source, so two
             archives of one spec over different numbers name the input that
-            moved.
+            moved. A digest is of the parquet bytes the archive holds, so two
+            polars versions can write one table to different digests, and
+            reading an archive does not verify them.
         metrics: What reaching the answer took, as one
-            :class:`~specsolve.relational.parquet.Metrics`.
+            [`Metrics`][specsolve.relational.parquet.Metrics].
     """
 
     spec: Spec
@@ -78,13 +80,13 @@ class SweepArchive:
     Attributes:
         spec: The spec as written.
         sources: What the sweep was given, uncut. A table or a path, as
-            :class:`SolveArchive` holds them.
+            [`SolveArchive`][] holds them.
         axis: What cut them.
         carry: ``{parameter: variable}`` the slices were chained with, empty
             where they were not.
         answer: Every slice's answer, keyed by slice. Held from
-            :func:`load_archive`, spilled from :func:`scan_archive`.
-        source_digests: As :class:`SolveArchive` holds it, of the uncut
+            [`load_archive`][], spilled from [`scan_archive`][].
+        source_digests: As [`SolveArchive`][] holds it, of the uncut
             sources.
     """
 
@@ -107,15 +109,15 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
             archive, which is read where it lies.
 
     Returns:
-        A :class:`SweepArchive` where the archive carries an axis, a
-        :class:`SolveArchive` where it does not.
+        A [`SweepArchive`][] where the archive carries an axis, a
+        [`SolveArchive`][] where it does not.
 
     Raises:
-        LanguageError: A ``model.yaml`` the language does not accept.
+        LanguageError: A ``spec.yaml`` the language does not accept.
         LayoutError: A member outside the layout, an *into* given for a
             directory, or an answer whose layout has moved since it was
             written.
-        SpecsolveError: An answer that names a different model than the one
+        SpecsolveError: An answer that names a different spec than the one
             beside it.
         zipfile.BadZipFile: A file that is not a zip archive.
     """
@@ -130,14 +132,14 @@ def scan_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
     """Read an archive back off disk: the sources as paths, each frame read at the call that asks for it.
 
     The members have to outlive the value, so *into* is required for a zip
-    and kept. The same values and the same errors as :func:`load_archive`,
+    and kept. The same values and the same errors as [`load_archive`][],
     and ``LayoutError`` for a zip with no *into*.
     """
     return _read(opened(path, into), whole=False)
 
 
 def _read(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
-    spec = to_spec(under / MODEL_MEMBER)
+    spec = to_spec(under / SPEC_MEMBER)
     sources: dict[str, Source] = {
         member.stem: pl.read_parquet(member) if whole else member
         for member in sorted((under / SOURCES_DIR).glob('*.parquet'))
@@ -158,7 +160,7 @@ def _read(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
 
 
 def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
-    """Refuse an archive whose answer came back from a different model than the one beside it.
+    """Refuse an archive whose answer came back from a different spec than the one beside it.
 
     A solve writes both together, so this catches a hand-edited archive. A
     ``None`` digest is an answer solved off a lowered program and is not
@@ -167,6 +169,6 @@ def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
     mine = digest_of(spec.to_yaml())
     if others := sorted({other for other in answered if other is not None and other != mine}):
         raise SpecsolveError(
-            f'this archive holds an answer that came back from a different model: the answer carries '
-            f'{others} and the model.yaml beside it digests to {mine}, so re-solving it would give another answer.'
+            f'this archive holds an answer that came back from a different spec: the answer carries '
+            f'{others} and the spec.yaml beside it digests to {mine}, so re-solving it would give another answer.'
         )

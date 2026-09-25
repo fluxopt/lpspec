@@ -1,7 +1,8 @@
 """linopy, hand-written — the arm a reader means when they see the name.
 
-Not `specsolve.linopy`: that lane read our YAML and measured our own lowering on
-top of linopy's work, which is why it was retired (#1268). Here the model is
+Not the linopy oracle in `tests/linopy_lane`: that reads our YAML and would
+measure our own lowering on top of linopy's work, which is why it left the
+ladder (#1268). Here the model is
 typed out per case in `bench/models/<case>/linopy.py`, the way linopy's own
 docs and this repo's `examples/ports/references/linopy/` write it — the same
 scripts the gallery publishes, which is what makes this arm's formulations

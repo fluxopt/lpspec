@@ -177,12 +177,10 @@ no name on the Python surface.
 ## What a sink can ingest
 
 `capabilities.py` is the second axis of [the
-ceiling](https://math-spec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself) —
+ceiling](https://mathspec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself) —
 what a sink takes, as against what the language may say — and its docstring is
 where the entries are argued. One descriptor per sink, declared in the sink's
-own module: a `ClassVar` on a `Solver`, a field on a `Writer`. The *lanes*
-declare against the same vocabulary, in `lanes.LANES`, since a lane's capability
-is the runner's business and not a sink's.
+own module: a `ClassVar` on a `Solver`, a field on a `Writer`.
 
 Three callers read it, and between them a construct a sink has no spelling for
 cannot reach that sink by any door: `check(spec, sink=...)` before any data is

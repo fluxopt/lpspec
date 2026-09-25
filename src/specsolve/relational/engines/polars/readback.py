@@ -28,7 +28,7 @@ _LABEL_ORDER = '__label order__'
 
 
 def row(model: BuiltModel, name: str, coordinate: Mapping[str, object]) -> ConstraintRow:
-    """One built constraint row, spelled back out. See :meth:`~specsolve.api.Model.row`.
+    """One built constraint row, spelled back out. See [`row`][specsolve.api.Model.row].
 
     Three positional takes against frames the build already keeps, and no scan
     of the matrix: the constraint's own coordinate frame carries the global row
@@ -153,7 +153,7 @@ def laid_out(
 ) -> pl.LazyFrame:
     """One declaration's coordinates in label order, beside its share of *values*.
 
-    The order was never lost: :func:`labels.frame` hands back a
+    The order was never lost: [`labels.frame`][] hands back a
     label-ascending frame, and the solver's vector is positional in the same
     index. The share is attached as a column rather than concatenated as a
     frame, so a mismatched length raises instead of padding with nulls.
@@ -177,10 +177,10 @@ def reordered(
     declared: Mapping[str, program.VariableDeclaration | program.ConstraintDeclaration],
     frames: Mapping[str, pl.DataFrame],
 ) -> pl.Series:
-    """A saved solution's value frames back as the positional vector — the inverse of :func:`laid_out`.
+    """A saved solution's value frames back as the positional vector — the inverse of [`laid_out`][].
 
     Each declaration's ``(dims…, value)`` is aligned to its
-    :class:`~labels.Labelled` frame's label order and the values concatenated in
+    [`Labelled`][labels.Labelled] frame's label order and the values concatenated in
     ``start`` order, rebuilding the vector a solver returned. A rebuild of the
     model over the same spec and sources numbers the labels identically
     (docs/about/architecture.md, "The relational lane").
@@ -208,7 +208,7 @@ def _aligned(
     """One declaration's saved values in its label order — its slice of the vector.
 
     The values are joined onto the rebuilt label frame on the dims, the string
-    ones cast as :func:`laid_out` casts them. A declaration the rebuild masks
+    ones cast as [`laid_out`][] casts them. A declaration the rebuild masks
     away entirely holds no label, so its slice is empty and a missing *stored*
     is no error; a missing one the rebuild does build raises.
     """
@@ -241,7 +241,7 @@ def readers(
     named: Mapping[str, program.ExpressionDeclaration],
     lower: Callable[[str | Mapping[str, object]], program.Expression] | None,
 ) -> tuple[dict[str, Callable[[], pl.DataFrame]], Callable[[str | Mapping[str, object]], pl.DataFrame] | None]:
-    """The reads :meth:`~specsolve.relational.result.Result.evaluate` is built from, over one compiler.
+    """The reads [`evaluate`][specsolve.relational.result.Result.evaluate] is built from, over one compiler.
 
     Every producer of them — a live solve, a rebuilt archive, and the
     variable-free arithmetic path — comes through here, so the read a declared
@@ -253,8 +253,8 @@ def readers(
             or none for pure arithmetic.
         named: The declared named expressions, by name.
         lower: How an expression written the way ``expressions:`` writes one
-            becomes a plan node in the model's namespace, or ``None`` where there
-            is no model as written to lower against — then ad-hoc evaluation is
+            becomes a plan node in the spec's namespace, or ``None`` where there
+            is no spec as written to lower against — then ad-hoc evaluation is
             unavailable and the second element is ``None``.
 
     Returns:

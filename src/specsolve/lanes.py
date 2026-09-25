@@ -1,8 +1,6 @@
-"""What sits above both lanes: what a spec and its sources may arrive as, and what each lane can build.
+"""What a spec and its sources may arrive as, and the one door every verb lowers a spec through.
 
-None of these facts belongs to a lane. ``Buildable`` and ``Source`` are what
-every verb in the package takes; ``LANES`` is read by ``check`` with no extra
-installed and by the linopy lane when it refuses.
+``Buildable`` and ``Source`` are what every verb in the package takes.
 """
 
 from __future__ import annotations
@@ -13,7 +11,6 @@ from mathspec import to_spec
 from mathspec.program import Program
 
 from specsolve.errors import LanguageError, SpecsolveError
-from specsolve.relational.sinks.capabilities import Capabilities
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping
@@ -27,7 +24,7 @@ if TYPE_CHECKING:
 #: Anything a verb takes as the spec: a YAML path, a mapping, or a ``Spec``
 #: the language has already read, its ``piecewise:`` blocks written out
 #: (``to_spec(...).expand('piecewise')``). **Not** a ``Program``: lowering has
-#: no inverse, so an answer from one could not name the model it came from, and
+#: no inverse, so an answer from one could not name the spec it came from, and
 #: nothing built from one can be archived.
 type Buildable = str | Path | Mapping[str, object] | Spec
 
@@ -35,7 +32,7 @@ type Buildable = str | Path | Mapping[str, object] | Spec
 def declared(spec: Buildable) -> Spec:
     """*spec* as the document it is, whatever shape it arrived in.
 
-    The one door every verb reads a model through.
+    The one door every verb reads a spec through.
 
     Args:
         spec: A YAML path, a mapping, or a ``Spec``.
@@ -46,7 +43,7 @@ def declared(spec: Buildable) -> Spec:
     """
     if isinstance(spec, Program):
         raise SpecsolveError(
-            'a lowered Program is not a model this takes. Lowering has no inverse, so an answer from one '
+            'a lowered Program is not a spec this takes. Lowering has no inverse, so an answer from one '
             'could not say which document it came back from, and nothing built from one could be archived. '
             'Pass what it was lowered from — a path, a mapping, or mathspec.to_spec() of either, which is '
             'the form worth keeping, since it carries its program. '
@@ -63,18 +60,18 @@ class ArrowTable(Protocol):
 
 
 #: A pandas Series of any dtype a source may carry: an index's
-#: (:data:`mathspec.program.DimensionDtype`) or a parameter's values'
-#: (:data:`~mathspec.program.ParameterDtype`), which is where ``bool`` comes
+#: (`mathspec.program.DimensionDtype`) or a parameter's values'
+#: (`ParameterDtype`), which is where ``bool`` comes
 #: from. Spelled out because pandas types ``Series`` invariantly: a bare
 #: ``pd.Series`` is ``Series[Any]``, and no single parameter stands for the five.
 type PandasSeries = pd.Series[float] | pd.Series[int] | pd.Series[bool] | pd.Series[str] | pd.Series[datetime]
 
 #: A label along a dimension, and so a slice's key: the Python type of each
-#: dtype an index may declare (:data:`mathspec.program.DimensionDtype`).
+#: dtype an index may declare (`mathspec.program.DimensionDtype`).
 type Label = int | float | str | datetime
 
 #: Anything a verb takes under one name of ``sources``. A parameter: a parquet
-#: path, a table — polars, pandas, or any :class:`ArrowTable` — or one of the
+#: path, a table — polars, pandas, or any [`ArrowTable`][] — or one of the
 #: plain-Python shapes a hand-written model reaches for, a ``{label: value}``
 #: map, a sequence in the dimension's own label order, and one number for
 #: every coordinate. A dimension's index: a table carrying a column named
@@ -92,21 +89,6 @@ type Source = (
     | Collection[Label]
     | float
 )
-
-#: What each **lane** can build, beside what each sink can ingest: both lanes
-#: accept the same language, and one cannot build a quadratic constraint —
-#: ``linopy.Model.add_constraints`` refuses a ``QuadraticExpression`` outright
-#: and no reformulation of it is exact.
-LANES: Mapping[str, Capabilities] = {
-    'linopy': Capabilities(
-        supports={
-            'integrality': 'native',
-            'sos': 'native',
-            'quadratic_objective': 'native',
-            'nonconvex_quadratic_objective': 'native',
-        },
-    ),
-}
 
 
 def _case_collision(program: Program) -> str | None:
@@ -141,8 +123,8 @@ def _case_collision(program: Program) -> str | None:
 def lowered(spec: Buildable) -> Program:
     """*spec* as a program, refusing what this package cannot build or keep apart.
 
-    Every door lowers through here, so what :func:`check` refuses
-    :func:`build` and an archive refuse too. Nothing is expanded here: a model
+    Every door lowers through here, so what [`check`][] refuses
+    [`build`][] and an archive refuse too. Nothing is expanded here: a spec
     still carrying a ``piecewise:`` block is refused, naming ``Spec.expand``,
     because which formulations to write out is the caller's to say.
 

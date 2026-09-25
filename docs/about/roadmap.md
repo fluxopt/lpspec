@@ -28,12 +28,6 @@ understanding the builder. Every rule below follows from that.
 
 ## Where it is going
 
-**One language, more than one place to run it.** The same file builds natively
-on the relational engine or onto a `linopy.Model` that already exists in
-memory. That is neither a fallback nor a dialect: one language, and the second
-[lane](../reference/glossary.md#how-it-runs) is
-[the oracle](linopy.md#2-it-is-the-oracle) for the first.
-
 **A build that streams, with a ceiling you can declare.** The model is tables
 and the build is relational, so nothing dense is ever materialised. Peak memory
 tracks the model rather than a number someone guessed. What is missing is the
@@ -65,7 +59,7 @@ that streams.
 Everything else is scheduling.
 
 The specific refusals, each with its reason and its rewrite, are in
-[the ceiling](https://math-spec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives):
+[the ceiling](https://mathspec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives):
 data prep, arbitrary array ops, domain helpers, normalisation, in-plan
 conditionals, a Python modelling API. Parity with another tool is not by
 itself a reason to add anything.
@@ -76,7 +70,7 @@ itself a reason to add anything.
 subsystem) read-back, a join rather than a scatter; serialisation to parquet;
 elastic relaxation; dualisation, since transposing a COO matrix is swapping two
 column names. Model statistics and coefficient ranges were the first of these
-and already ship ([diagnostics](../reference/api.md#diagnostics)).
+and already ship ([diagnostics](../reference/api.md#specsolve.relational.result.Diagnostics)).
 
 **Ahead of comparable declarative layers:** a sparse-by-construction build with
 no dense intermediate, and a hand-off straight to the solver rather than

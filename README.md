@@ -10,16 +10,15 @@
 
 <!-- --8<-- [end:badges] -->
 
-**Solve an optimisation model written in YAML. Attach your data as tables, and
+**Solve an optimisation problem written in YAML. Attach your data as tables, and
 keep the solver loaded for quick updates and warm starts.**
 
 <!-- --8<-- [start:intro] -->
 
-specsolve builds and solves [math-spec](https://github.com/energy-models/math-spec)
-models. The file states the math, and math-spec checks it before any data
-exists. specsolve attaches your tables, builds the model on polars, and hands it
-to HiGHS, Gurobi or Xpress. The same file can also build a `linopy.Model`
-([linopy](https://specsolve.readthedocs.io/en/latest/about/linopy/)).
+specsolve solves [mathspec](https://github.com/energy-models/mathspec) specs.
+A spec states the math, and mathspec checks it before any data exists.
+specsolve attaches your tables to the spec, builds the resulting model on
+polars, and hands it to HiGHS, Gurobi or Xpress.
 
 <!-- --8<-- [end:intro] -->
 
@@ -27,10 +26,10 @@ to HiGHS, Gurobi or Xpress. The same file can also build a `linopy.Model`
 
 - **Tables in, tables out.** Pass any Arrow table, such as polars, pandas or
   DuckDB, or a parquet path. Results come back as tables, and an archive keeps
-  the model, its data and its results as parquet, ready for queries, plots or
+  the spec, its data and its results as parquet, ready for queries, plots or
   BI. [Tables in, tables out →](https://specsolve.readthedocs.io/en/latest/tables/)
 - **Sweeps and rolling horizons built in.** One call runs scenario sweeps,
-  rolling horizons and myopic pathways over the same model. Each window is
+  rolling horizons and myopic pathways over the same spec. Each window is
   checked against how the model couples before it runs. [Sweep a model →](https://specsolve.readthedocs.io/en/latest/sweep/)
 - **Fast, and hard to get wrong.** Tables hold only the rows that exist, so a
   model's topology does not change its cost. The solver stays loaded:
@@ -107,8 +106,8 @@ print(base.answer.primal('p').group_by('generator').agg(pl.col('value').sum()))
 ## Documentation
 
 The documentation is at <https://specsolve.readthedocs.io>. What a file may
-contain is math-spec's
-[language reference](https://math-spec.readthedocs.io/en/latest/reference/language/).
+contain is mathspec's
+[language reference](https://mathspec.readthedocs.io/en/latest/reference/language/).
 
 ## Installation
 
@@ -116,16 +115,19 @@ contain is math-spec's
 pip install specsolve
 ```
 
-That brings polars, HiGHS and the language. Add the `[linopy]` extra for the
-linopy lane and the pandas and xarray bridges, and `[gurobi]` or `[xpress]` for
-those solvers. To work on specsolve, see [CONTRIBUTING.md](CONTRIBUTING.md).
+That brings polars, HiGHS and the language. Add the `[gurobi]` or `[xpress]`
+extra for those solvers. The bridges out of a result, `to_pandas` and
+`to_dataarray`, need pandas and xarray, which you install yourself. To work on
+specsolve, see
+[CONTRIBUTING.md](https://github.com/fluxopt/specsolve/blob/main/CONTRIBUTING.md).
 
 ## Prior art
 
 The YAML surface comes from [Calliope](https://github.com/calliope-project/calliope),
 and [linopy](https://github.com/PyPSA/linopy) supplies the vocabulary, the
 oracle and every benchmark denominator.
-[Prior art and credit](docs/about/prior-art.md) says what came from each.
+[Prior art and credit](https://specsolve.readthedocs.io/en/latest/about/prior-art/)
+says what came from each.
 
 ## Status
 

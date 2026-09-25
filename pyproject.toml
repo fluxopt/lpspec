@@ -22,7 +22,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "mathspec>=0.1.0",
+    "mathspec>=0.2.0",
     "polars>=1.30",
     "numpy>=1.26",
     # 1.13 is the first highspy with the bulk `changeRowsBounds`.
@@ -30,12 +30,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-linopy = [
-    # Master: linopy's v1 arithmetic convention is in no release yet (#463).
-    "linopy @ git+https://github.com/PyPSA/linopy@master",
-    "xarray>=2024.2.0",
-    "pandas>=2.2",
-]
 gurobi = [
     # 11 is the release whose status codes the sink maps.
     "gurobipy>=11",
@@ -47,15 +41,14 @@ xpress = [
 ]
 
 [project.urls]
-repository = "https://github.com/fluxopt/specsolve"
+Documentation = "https://specsolve.readthedocs.io"
+Repository = "https://github.com/fluxopt/specsolve"
+Issues = "https://github.com/fluxopt/specsolve/issues"
+Changelog = "https://github.com/fluxopt/specsolve/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 source = "vcs"
 fallback-version = "0.0.0"
-
-# The `linopy` extra's git reference needs this.
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/specsolve"]
@@ -76,6 +69,9 @@ codspeed = [
 ]
 docs = [
     "zensical==0.0.62",
+    "mkdocstrings==1.0.6",
+    "mkdocstrings-python==2.0.9",
+    "griffe-sphinx==0.3.0",
     "markdown-exec==1.12.3",
     "pymdown-extensions==11.0.1",
     "pygments==2.20.0",
@@ -91,6 +87,10 @@ dev = [
     "pyarrow>=16",
     "typst>=0.15.0",
     "pyomo>=6.7",
+    # The test oracle. Master: linopy's v1 arithmetic convention is in no release yet (#463).
+    "linopy @ git+https://github.com/PyPSA/linopy@master",
+    "xarray>=2024.2.0",
+    "pandas>=2.2",
 ]
 
 # ---------------------------------------------------------------------------
@@ -104,7 +104,7 @@ platforms = ["linux-64", "linux-aarch64", "osx-arm64", "win-64"]
 # `choices` on a task argument arrived in 0.65.
 requires-pixi = ">=0.65"
 
-# There is no pixi.lock: a lock would pin the `linopy` extra's branch to one commit.
+# There is no pixi.lock: a lock would pin the test oracle's linopy branch to one commit.
 
 [tool.pixi.dependencies]
 python = "3.12.*"
@@ -113,7 +113,7 @@ python = "3.12.*"
 specsolve = { path = ".", editable = true }
 
 [tool.pixi.feature.dev.pypi-dependencies]
-specsolve = { path = ".", editable = true, extras = ["linopy", "gurobi", "xpress"] }
+specsolve = { path = ".", editable = true, extras = ["gurobi", "xpress"] }
 
 [tool.pixi.feature.floors]
 # pyyaml has no win-64 wheel. linux-aarch64 lets `pixi install` solve on the CodSpeed runner.
@@ -128,7 +128,7 @@ specsolve = { path = "." }
 polars = "==1.30"
 numpy = "==1.26"
 highspy = "==1.13"
-mathspec = "==0.1.0"
+mathspec = "==0.2.0"
 pytest = "*"
 pytest-xdist = "*"
 
@@ -170,7 +170,7 @@ cmd = "pytest tests/test_expression_sweep.py -q -n auto --sweep-depth 3 --sweep-
 [tool.pixi.feature.docs.tasks]
 docs = { cmd = "python -m zensical serve", description = "The site at 127.0.0.1:8000, live-reloading" }
 docs-build = { cmd = "python -m zensical build --strict", description = "The site, built the way CI builds it" }
-docs-test = { cmd = "pytest tests/test_docs_math.py -q", description = "The site's math, rendered — what a strict build does not check" }
+docs-test = { cmd = "pytest tests/test_docs_math.py tests/test_docstring_links.py -q", description = "The site's math, rendered, and every docstring link — what a strict build does not check" }
 
 [tool.pixi.feature.bench.tasks]
 density = { cmd = "pytest bench --benchmark-memory --sizes d100 d50 d25 d08 --benchmark-json=bench/results/density.json", description = "The density sweep" }
@@ -303,7 +303,8 @@ show_missing = true
 
 [tool.pyrefly]
 python-version = "3.12"
-project-includes = ["src/specsolve"]
+project-includes = ["src/specsolve", "tests/linopy_lane"]
+search-path = ["src", "."]
 preset = "strict"
 
 [tool.pyrefly.errors]
@@ -327,7 +328,7 @@ variance-mismatch = true
 
 # These trees hold objects of libraries that publish no types this package can name.
 [[tool.pyrefly.sub-config]]
-matches = "src/specsolve/linopy/**"
+matches = "tests/linopy_lane/**"
 errors = { explicit-any = false }
 
 [[tool.pyrefly.sub-config]]

@@ -20,9 +20,10 @@ above are a convenience rather than a step you can forget.
 `pixi task list` prints every task with what it does. The ones you want most:
 `test`, `lint`, `format`, `typecheck`, `check` (all four), `docs`.
 
-The default environment carries the `[linopy]` extra, because the differential
-test suite needs a second lane to compare against, and `[gurobi]` and
-`[xpress]`, because a solver sink is checked against another solver. Both of
+The default environment carries linopy, from the `dev` group, because the
+differential test suite compares every build against the linopy oracle in
+`tests/linopy_lane`. It carries `[gurobi]` and `[xpress]` too, because a solver
+sink is checked against another solver. Both of
 those wheels carry a size-limited licence of their own — gurobipy's needs
 nothing, and xpress's Community licence is active on import — so those tests run
 on a plain checkout with no licence of your own. They skip where the package is
@@ -50,7 +51,7 @@ pixi run pytest --lf  # last failures only
 
 **Named for the construct, not for the module it happens to exercise.**
 `test_shift.py`, `test_absence.py`, `test_grouped_sum.py`, `test_piecewise.py`:
-the same word the [language reference](https://math-spec.readthedocs.io/en/latest/reference/language/) uses,
+the same word the [language reference](https://mathspec.readthedocs.io/en/latest/reference/language/) uses,
 so "where is `shift` specified" and "where is `shift` tested" have one answer.
 It is also the axis that survives the two lanes — a behaviour spans both, while
 a module is on one side of the fence or the other.
@@ -156,8 +157,9 @@ needs deploying by hand.
 **Never commit on `main`.** It takes squash merges through a PR only, and the
 ruleset enforces it.
 
-The PR title is parsed by release-please and becomes the changelog entry, so it
-has to be a conventional-commit subject:
+Merges are squashed, so the **PR title** becomes the commit on `main`. Write it
+so it also works as the line you add to `CHANGELOG.md` by hand. It has to be a
+conventional-commit subject:
 
 ```
 feat: streaming engine for indexed constraints
@@ -165,21 +167,22 @@ fix(parser): where clauses with a trailing comma
 refactor(api): closed helper set, no monkey-patch
 ```
 
-Types: `feat` `fix` `perf` `refactor` `docs` — these appear in the changelog —
-plus `chore` `test` `ci` `build` `style` `revert`, which are hidden. A subject
-that will not parse fails the required check rather than silently dropping the
-entry. Fixing it is an edit to the PR, not a branch rewrite.
-
-**No `!`, and no `BREAKING CHANGE:` footer.** The same check refuses both while
-the version is pinned to the alpha stream, because a breaking marker moves the
-*base* version rather than the alpha counter — the accident is written up in
-[RELEASING.md](RELEASING.md). Describe the break in the PR body instead; the
-next section is why there is nothing for the version to announce.
+A `feat`, `fix`, `perf`, `refactor`, `docs` or `revert` PR adds its title, with
+a link to the PR, under `## Upcoming version` in `CHANGELOG.md`. A `chore`,
+`test`, `ci`, `build` or `style` PR adds no line. The
+`Conventional commit subject` check enforces the format on every pull request,
+and the `Changelog line` check enforces the line. The label `no changelog` opts
+a PR out of the second. Fixing either is an edit to the PR, not a branch
+rewrite.
 
 `main` is protected: no force-push, no deletion, squash-only through a PR, and
-the two required checks above. Approvals are not required, but the PR is.
+the required checks: `ci` and the two above. Approvals are not required, but the
+PR is.
 
-Versioning, the release PR, and how to force a specific version:
+A release is a PR that renames `## Upcoming version` to the version and the day,
+such as `## 0.1.0 (2026-10-01)`, and edits the section into the release notes.
+Merging it tags the release, opens the GitHub release and publishes the package
+to PyPI. The steps, what to do when one fails, and the one-time setup:
 [RELEASING.md](RELEASING.md).
 
 ## Filing issues
@@ -199,19 +202,19 @@ no it becomes a row in the deliberate non-primitives table.
 
 ## Breaking changes are free
 
-**The project is `0.0.1aN` until the first official release, and holds no
-compatibility promise.** So a construct that is named wrong, a default that is
-wrong, or a permissive input that hides a silent wrong answer gets **fixed in
-place**: rename, move and delete outright — no alias for the old spelling, no
-`DeprecationWarning` cycle, no `legacy_` path beside the new one.
+**The project holds no compatibility promise before 1.0.** So a construct that
+is named wrong, a default that is wrong, or a permissive input that hides a
+silent wrong answer gets **fixed in place**: rename, move and delete outright —
+no alias for the old spelling, no `DeprecationWarning` cycle, no `legacy_` path
+beside the new one.
 
 Spend nothing on the retirement either. The closed schema already fails at load
 naming the valid keys and the near miss, and the operator table already names
-what it accepts — that is the whole migration story an alpha owes anyone. A
-hand-written message per retired spelling is a second place the old surface
-lives, it needs a test of its own, and it outlives every file it was written
-for: `shift(by=)` had one for a day before `by=` became a legal keyword again
-and the message started refusing the new spelling.
+what it accepts — that is the whole migration story a release before 1.0 owes
+anyone. A hand-written message per retired spelling is a second place the old
+surface lives, it needs a test of its own, and it outlives every file it was
+written for: `shift(by=)` had one for a day before `by=` became a legal keyword
+again and the message started refusing the new spelling.
 
 This binds **agents working in this repo** too, and it is the habit most often
 imported from elsewhere: asked to change something, change it — do not add
@@ -230,17 +233,17 @@ declared `escape:` island rather than into the language.
 
 Read, in order:
 
-1. [the deliberate non-primitives](https://math-spec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives) — parity with
+1. [the deliberate non-primitives](https://mathspec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives) — parity with
    another tool is not by itself a reason to add anything, and several
    plausible-sounding features are refused there on purpose;
-2. [the limits in mathspec](https://math-spec.readthedocs.io/en/latest/about/limits/#what-a-new-primitive-has-to-satisfy) —
+2. [the limits in mathspec](https://mathspec.readthedocs.io/en/latest/about/limits/#what-a-new-primitive-has-to-satisfy) —
    the admissibility test;
 3. [the extension checklists](docs/about/architecture.md#extension-checklists), which sit directly under that
    test. They stay there rather than moving here: *may I?* and *how?* are one
    question, and splitting them invites answering the second without the first.
 
 A PR that adds, renames or retires a construct updates the [language
-reference](https://math-spec.readthedocs.io/en/latest/reference/language/).
+reference](https://mathspec.readthedocs.io/en/latest/reference/language/).
 Rationale belongs in the PR description or a code comment; "this used to work
 differently" belongs in git.
 

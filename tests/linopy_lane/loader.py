@@ -19,7 +19,7 @@ import pandas as pd
 import xarray as xr
 from mathspec import program as _program
 
-from specsolve.errors import LaneError
+from specsolve.errors import SpecsolveError
 from specsolve.frames import to_pandas
 
 if TYPE_CHECKING:
@@ -29,20 +29,26 @@ if TYPE_CHECKING:
     from mathspec import program
 
 
+class OracleCannotBuildError(SpecsolveError):
+    """The language accepts the spec and this oracle cannot build it."""
+
+
 def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:
     """Refuse a relation shape this lane does not build, before any data is read.
 
     Raises:
-        LaneError: A bare relation, or a partition grouped by a map keyed on
+        OracleCannotBuildError: A bare relation, or a partition grouped by a map keyed on
             more than the dimension it walks or by more than one column.
     """
     for name, relation in program.relations.items():
         if not relation.values:
-            raise LaneError(_relation_shape_message(f"relation '{name}' is a bare relation, which maps nothing"))
+            raise OracleCannotBuildError(
+                _relation_shape_message(f"relation '{name}' is a bare relation, which maps nothing")
+            )
     for node in _partitioning(program):
         assert node.partition is not None, '_partitioning yields only the nodes that carry one'
         if node.partition.joined:
-            raise LaneError(
+            raise OracleCannotBuildError(
                 _relation_shape_message(
                     f"a partition by '{node.partition.name}' groups by a map keyed by {list(node.partition.relation.key)}, "
                     f'and this lane groups a shift, sum_back or position by a map keyed by the dimension it '
@@ -50,7 +56,7 @@ def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:
                 )
             )
         if len(node.partition.group) != 1:
-            raise LaneError(
+            raise OracleCannotBuildError(
                 _relation_shape_message(
                     f"a partition by '{node.partition.name}' groups by {list(node.partition.group)}, and this "
                     f'lane groups a shift, sum_back or position by one column'

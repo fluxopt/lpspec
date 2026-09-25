@@ -1418,11 +1418,11 @@ def test_a_resume_checks_the_layout_it_is_extending_rather_than_restamping_it(tm
     """
     out = tmp_path / 'sweep'
     sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=out)
-    (out / 'format.json').write_text(json.dumps({'answer': 99}))
+    (out / 'format.json').write_text(json.dumps({'layout': 99}))
 
     with pytest.raises(sps.LayoutError, match='layout 99'):
         sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=out)
-    assert json.loads((out / 'format.json').read_text()) == {'answer': 99}, (
+    assert json.loads((out / 'format.json').read_text()) == {'layout': 99}, (
         'and the stamp it was refused over is left as it was found'
     )
 
@@ -1656,12 +1656,12 @@ def test_a_bad_name_is_reported_without_the_optional_dependency(sweep):
     sweep never held 'q'" into "no module named pandas" — a true statement about
     something the caller did not ask about. Resolving the name first is what
     makes the reader's message the same on every install — while a name the
-    sweep does hold still needs the dependency, and says which extra carries it.
+    sweep does hold still needs the dependency, and says which package to install.
     """
     with mock.patch.dict(sys.modules, {'pandas': None}):
         with pytest.raises(sps.SpecsolveError, match="no variable 'q' in this sweep"):
             sweep.to_pandas('q')
-        with pytest.raises(ModuleNotFoundError, match=r'pip install "specsolve\[linopy\]"'):
+        with pytest.raises(ModuleNotFoundError, match='pip install pandas'):
             sweep.to_pandas('p')
 
 
@@ -1892,8 +1892,8 @@ def test_a_key_that_collides_with_a_fixed_column_is_refused(key_name):
 
 
 @pytest.mark.parametrize('make_executor', EXECUTORS[:2])
-def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
-    """The model is parsed once per call, whichever executor runs the slices.
+def test_a_pooled_sweep_parses_the_spec_once(make_executor, monkeypatch):
+    """The spec is parsed once per call, whichever executor runs the slices.
 
     What a worker receives is the document already read, so no slice reads
     the YAML again. Counted at the language's own front door.
@@ -1905,10 +1905,10 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     parsed: list[object] = []
     original = validation.to_spec
 
-    def spy(model):
-        if not isinstance(model, Spec):
-            parsed.append(model)
-        return original(model)
+    def spy(spec):
+        if not isinstance(spec, Spec):
+            parsed.append(spec)
+        return original(spec)
 
     monkeypatch.setattr(validation, 'to_spec', spy)
     monkeypatch.setattr(lanes, 'to_spec', spy)

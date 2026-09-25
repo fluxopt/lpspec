@@ -94,14 +94,14 @@ claim that every row answered the same document, and a null is a row that
 named none, so ask for both:
 
 ```python
-assert table['spec_digest'].n_unique() == 1, 'one model, or this compares nothing'
+assert table['spec_digest'].n_unique() == 1, 'one spec, or this compares nothing'
 assert table['spec_digest'].null_count() == 0, 'and every row named the document it answered'
 ```
 
 ## Find which input changed between two runs
 
 `spec_digest` says two runs answered the same document and nothing about the
-numbers, so two runs of one model over different data carry the same one.
+numbers, so two runs of one spec over different data carry the same one.
 `sources.parquet` separates them, and names the input that moved:
 
 ```python
@@ -130,7 +130,7 @@ inputs.sort('run').with_columns(before=pl.col('digest').shift().over('source')).
 `sources/load.parquet` gives the row back. Two archives of the same data
 written by different versions of polars can differ, and reading an archive
 does not verify the digests
-([the rule](../reference/api.md#archiving-a-model)).
+([the rule](../reference/api.md#specsolve.SolveArchive)).
 
 ## See what the runs cost
 
@@ -143,7 +143,7 @@ metrics.select('run', 'rows', 'nonzeros', 'build_seconds', 'solve_seconds').sort
 )
 ```
 
-The columns are [the metrics](../reference/api.md#diagnostics). A sweep
+The columns are [the metrics](../reference/api.md#specsolve.relational.parquet.Metrics). A sweep
 records a `SliceMetrics` per slice instead, keyed by the axis and stamped
 with `run` like any other row
 ([reading a sweep](../reference/sweeps.md#reading-a-sweep)).

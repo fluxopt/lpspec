@@ -1,0 +1,34 @@
+name: Changelog
+
+on:
+  pull_request:
+    # `edited` for a title that changes the type, `labeled`/`unlabeled` for the opt-out label.
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: changelog-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  line:
+    name: Changelog line
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no changelog') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the PR adds the line it owes
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git show "origin/${BASE_REF}:CHANGELOG.md" > "${RUNNER_TEMP}/base.md"
+          python3 -m tools.changelog entry "$PR_TITLE" "${RUNNER_TEMP}/base.md"

@@ -66,17 +66,15 @@ In the tree nothing is marked: `Co-Authored-By: Claude …` is the record.
 
 ## Breaking changes are free
 
-The project is `0.0.1aN` and holds no compatibility promise. Asked to change
+The project holds no compatibility promise before 1.0. Asked to change
 something, change it: rename, move, delete. No alias, no deprecation cycle, no
 `legacy_` path — and **no hand-written message for the retired spelling**: the
 closed schema's own error names the valid keys, which is the whole migration
 story. **A test asserting the old behaviour is not a blocker**; say in the PR
-what coverage moved where.
-
-The one place this costs something: a breaking marker (`!`, or a
-`BREAKING CHANGE:` footer) in the PR title is **refused** by the
-`Conventional commit subject` check, because it would move the base version
-rather than the alpha counter. Describe the break in the PR body instead.
+what coverage moved where. A release that breaks a model file or an import
+raises the minor version, and its notes name the break. A change to what a
+result, a sweep or an archive writes to disk also raises `LAYOUT` in
+`relational/parquet.py`, so an answer in the old layout is refused by name.
 
 ## A claim carries its evidence
 
@@ -99,7 +97,7 @@ rather than the alpha counter. Describe the break in the PR body instead.
   above; "previously this used to…", "renamed from…", "as of the polars
   rewrite…" belong in git. Neither belongs in the code.
 - **Docs move with the change.** A construct added, renamed or retired updates
-  the [language reference](https://math-spec.readthedocs.io/en/latest/reference/language/) — its ten rules if
+  the [language reference](https://mathspec.readthedocs.io/en/latest/reference/language/) — its ten rules if
   the change moves a law, and it lives in mathspec now; structure updates
   [ARCHITECTURE](docs/about/architecture.md), diagrams included.
 - **After a decision in conversation, sweep for what now contradicts it**, stale
@@ -222,6 +220,11 @@ name is the *caller*, not the implementer.
   that), so a function whose signature already says it takes the one-line
   docstring and no block at all — the guide's own escape, and what most private
   helpers here want. Half a signature restated is what neither rule accepts.
+- **A name is linked as the site links it**: ``[`name`][]`` where the module
+  imports it, ``[`name`][dotted.path]`` where it does not. A name from another
+  package is plain code. The docstrings are
+  [the Python API](docs/reference/api.md), and `pixi run docs-test` refuses a
+  link that lands nowhere, rendered or not; the suite refuses a Sphinx role.
 - **The gate is `src/`**, where a docstring is a contract with a caller. Under
   `tests/`, `bench/`, `tools/` and `examples/` the `D` rules are off and so are
   the bullets above: there a docstring argues for one assertion or narrates a
@@ -243,13 +246,21 @@ def solve(sources: Mapping[str, Any], solver_name: str = 'highs') -> Result:
 
 ## Commit messages and PR titles
 
-**The title is the changelog line.** release-please prints it in `CHANGELOG.md`,
-where the reader has no diff, no issue and none of our vocabulary. It names the
-problem solved — an outcome, not an activity, not a mechanism.
+**The title is the changelog line.** The PR adds it under `## Upcoming version`
+in `CHANGELOG.md` by hand, with a link to the PR, and a release PR edits those
+lines into the release notes. There the reader has no diff, no issue and none of
+our vocabulary. It names the problem solved — an outcome, not an activity, not a
+mechanism.
+
+**Every `feat`, `fix`, `perf`, `refactor`, `docs` or `revert` PR adds that
+line**; the `Changelog line` check refuses one that does not. The label
+`no changelog` opts one out, and only the user sets it. A version heading on top
+of that file releases on merge ([RELEASING.md](RELEASING.md)), so write one only
+when told to cut a release.
 
 **The type is decided by the diff's file list, before a word of the subject is
-written.** `feat fix perf refactor docs` publish, `chore test ci build style`
-hide.
+written.** `feat fix perf refactor docs` owe a changelog line,
+`chore test ci build style` owe none.
 
 | The diff touches                                         | Type                           |
 | -------------------------------------------------------- | ------------------------------ |
@@ -286,8 +297,8 @@ Then the subject:
 - **A subject the changelog reader can name.** Not `a walk`, `a build`, `an arm`,
   `the builder`; not `dim`, `lane`, `sink`, `rung`.
 
-Lower case, no full stop, conventional-commit form and the two forbidden
-markers: [CONTRIBUTING.md](CONTRIBUTING.md#branches-commits-prs). The 72-char
+Lower case, no full stop, conventional-commit form:
+[CONTRIBUTING.md](CONTRIBUTING.md#branches-commits-prs). The 72-char
 warning in `pr-title.yaml` is about `git log --oneline`; the changelog does not
 truncate.
 
@@ -372,4 +383,4 @@ skipped. A body invalidated by a rewrite is closed and re-filed, not annotated.
 - **A language feature is triaged first: macro, primitive, formulation, or refused** — the
   ceiling is relational, degree 2 in the math and 1 beside it. Locality prices a primitive
   rather than barring it. The deliberate non-primitives in
-  [limits.md](https://math-spec.readthedocs.io/en/latest/about/limits/) come first.
+  [limits.md](https://mathspec.readthedocs.io/en/latest/about/limits/) come first.

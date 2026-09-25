@@ -56,9 +56,9 @@ from specsolve.api import Model
 from specsolve.relational.result import Result
 
 try:
-    from specsolve import linopy as linopy_lane
+    from tests import linopy_lane
 except ModuleNotFoundError:
-    linopy_lane = None  # bare install, no [linopy] extra
+    linopy_lane = None  # bare install, no oracle
 
 REPO = Path(__file__).resolve().parent.parent
 TRACKED = [
@@ -96,7 +96,7 @@ def _unresolvable(code: str) -> set[str]:
     return {root for root in ROOT_NAMES - set(ROOTS) if f'{root}.' in code}
 
 
-_EXTRA = 'needs the [linopy] extra to check {}'
+_EXTRA = 'needs the linopy oracle to check {}'
 
 #: A fence may be ``` or ~~~, three or more, indented (inside a list item), and
 #: may carry an info string after the language (```python title="a.py").
@@ -359,7 +359,7 @@ def test_every_block_is_covered() -> None:
 # module docstrings — where the engine leak actually lived
 # --------------------------------------------------------------------------
 
-DOCSTRING_MODULES = ['src/specsolve/__init__.py', 'src/specsolve/api.py', 'src/specsolve/linopy/__init__.py']
+DOCSTRING_MODULES = ['src/specsolve/__init__.py', 'src/specsolve/api.py', 'tests/linopy_lane/__init__.py']
 
 
 def _docstring_examples(path: Path) -> list[str]:

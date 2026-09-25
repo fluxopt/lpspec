@@ -53,7 +53,7 @@ PyPSA linear optimal power flow over passive AC lines under Kirchhoff's voltage 
 | $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
 | $`f`$ | `f` over $`\mathcal{T} \times \mathcal{L}`$ — flow on a line, signed towards its `line_to` bus — not chosen, but whatever the voltage law leaves |
 
-Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the data supplies — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
@@ -260,7 +260,7 @@ different file.
 **Computing the basis is data preparation, outside the language.** Finding a
 cycle basis is a graph algorithm, iteration over a structure discovered from
 data, which the
-[limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
+[limits](https://mathspec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
 refuse. The reference prints the rows PyPSA derived so the two can be
 compared. They need only agree on the cycle space: PyPSA scales its
 coefficients for conditioning, and a row that is `= 0` says the same thing

@@ -54,15 +54,15 @@ table with both as columns. `series.reset_index()` is the whole change.
 in `sources` named after the dimension. That key holds a table with a column of
 that name, a parquet path, or a bare sequence of the labels. The first
 occurrence of each label is its position, and that order is what
-[`shift`](https://math-spec.readthedocs.io/en/latest/reference/language/operators/#shift)
+[`shift`](https://mathspec.readthedocs.io/en/latest/reference/language/operators/#shift)
 reads positionally.
 
 **A dimension nothing supplies raises.** Attach never reads labels out of the
 parameters. Which labels an axis has is data's to say, and that rule is
-[the language's](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/).
+[the language's](https://mathspec.readthedocs.io/en/latest/reference/language/dimensions/).
 
 **A relation goes under
-[its own name](https://math-spec.readthedocs.io/en/latest/reference/language/relations/#the-data-contract)**,
+[its own name](https://mathspec.readthedocs.io/en/latest/reference/language/relations/#the-data-contract)**,
 as a table of the rows it has, one column per column it declares. Attach reads
 every column against the labels its dimension's index supplied: a key no row
 mentions is unmapped, and a value matching no label is refused as a typo. A
@@ -106,7 +106,7 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | a declared map whose labels nothing supplies | names the map, and asks only for the labels |
 | a declared map keyed by something the labels do not carry | names the relation and the strays |
 | a column that is not the declared `dtype` | names both, and the declaration the data would satisfy |
-| a divisor with no value where the model divides by it | names the parameter and how many rows ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/)) |
+| a divisor with no value where the spec divides by it | names the parameter and how many rows ([absence](https://mathspec.readthedocs.io/en/latest/reference/language/absence/)) |
 | a comparison's whole constant side with no value where the row is built | the same, naming the constraint |
 | a bound parameter with no value where the variable exists | names both models the two repairs build |
 
@@ -115,7 +115,7 @@ only NaN, and `None` in a pandas column is NaN by the time either lane sees it.
 | What arrives | What happens |
 |---|---|
 | an undeclared column in a table | ignored |
-| a coordinate with no row | sparse variables; what a missing row means where it is read is [absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/). `diagnostics().sparse_parameters` names the parameters that arrived short of their dims ([api](api.md#diagnostics)) |
+| a coordinate with no row | sparse variables; what a missing row means where it is read is [absence](https://mathspec.readthedocs.io/en/latest/reference/language/absence/). `diagnostics().sparse_parameters` names the parameters that arrived short of their dims ([`Diagnostics`](api.md#specsolve.relational.result.Diagnostics)) |
 | a value that is readable and wrong | bound as given |
 
 ### Stray labels
@@ -132,7 +132,7 @@ generator.
 ## Growing or replacing the data
 
 **A built model takes new numbers with
-[`update`](api.md#re-solving-with-new-numbers).** A sweep over slices of one
+[`update`](api.md#specsolve.Model.update).** A sweep over slices of one
 dimension is [`solve_over`](sweeps.md). Both attach through the rules above.
 
 **The [linopy lane](../about/linopy.md#the-same-language-and-the-same-data)

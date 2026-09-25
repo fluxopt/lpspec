@@ -473,7 +473,7 @@ def test_a_masked_out_scalar_variable_drops_the_row_that_uses_it():
     keyless restriction is a cross join.
 
     Held here as well as in the parity suite because that suite needs the
-    ``[linopy]`` extra, and this has to be true on the bare install too.
+    oracle's linopy, and this has to be true on the bare install too.
 
     """
     data = {'f': ['a', 'b'], 'cost': pl.DataFrame({'f': ['a', 'b'], 'value': [1.0, 2.0]}), 'budget': 120.0}

@@ -4,7 +4,7 @@ Under a directory, ``<kind>/<name>`` for each of the three kinds a solve
 answers with — the primals, the duals, the named expressions — so a
 constraint carrying a variable's name never collides with it. A result
 writes one file under each name; a sweep one per slice, and reads them back
-as one. Beside them is the :class:`Record`, which says how the solve
+as one. Beside them is the [`Record`][], which says how the solve
 terminated: a result writes one row, a sweep one per slice.
 
 A saved result holds two things a sweep does not: ``activity/<name>`` for
@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, NamedTuple, get_args, get_type_hints
 
 import polars as pl
@@ -34,19 +35,26 @@ KINDS = ('primal', 'dual', 'expression')
 LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expression'}
 
 
-#: What the layout under a directory looks like. **Zero while the layout is
-#: still moving**, and it starts counting at one the day that stops. So an
-#: answer another zero-era build wrote reads as current, and what the stamp
-#: catches is one written before there was a stamp. **Compared, never
-#: branched on.**
-ANSWER_FORMAT = 0
+#: What a result, a sweep and an archive write to disk look like. A change to
+#: any of them raises it, and the release notes name the change. No answer
+#: 0.1.0 or earlier wrote carries a ``layout``. **Compared, never branched
+#: on.**
+LAYOUT = 1
 FORMAT_FILE = 'format.json'
 
 
+def _writer() -> str | None:
+    """The specsolve version writing a stamp, or ``None`` from a source tree nothing installed."""
+    try:
+        return version('specsolve')
+    except PackageNotFoundError:
+        return None
+
+
 def write_format(directory: Path) -> None:
-    """Stamp *directory* with the layout its contents are in."""
+    """Stamp *directory* with the layout its contents are in, and the specsolve version that wrote them."""
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / FORMAT_FILE).write_text(json.dumps({'answer': ANSWER_FORMAT}))
+    (directory / FORMAT_FILE).write_text(json.dumps({'layout': LAYOUT, 'specsolve': _writer()}))
 
 
 def check_format(directory: Path) -> None:
@@ -60,13 +68,17 @@ def check_format(directory: Path) -> None:
             answer written before there was one.
     """
     file = directory / FORMAT_FILE
-    found = json.loads(file.read_text())['answer'] if file.is_file() else None
-    if found != ANSWER_FORMAT:
+    stamp = json.loads(file.read_text()) if file.is_file() else {}
+    found = stamp.get('layout')
+    if found != LAYOUT:
+        writer = stamp.get('specsolve')
+        which = f'in layout {found}' if found is not None else 'with no layout stamp'
+        by = f', written by specsolve {writer},' if writer else ''
         raise LayoutError(
-            f'{str(directory)!r} holds a saved answer in layout {found}, and this package reads '
-            f'{ANSWER_FORMAT}. The layout moves while the package is on 0.0.1aN and nothing reads an '
-            f'older one back: solve the model again and save it. An archive that archive= wrote still '
-            f'holds the model and the data to do that with.'
+            f'{str(directory)!r} holds a saved answer {which}{by} and this package reads layout '
+            f'{LAYOUT}. The layout moves before 1.0 and nothing reads another one back: solve '
+            f'the model again and save it. An archive that archive= wrote still holds the model and '
+            f'the data to do that with.'
         )
 
 
@@ -93,11 +105,11 @@ def digest_of(yaml: str) -> str:
     """A short, stable name for a spec — what two answers must share to be comparable.
 
     Over the YAML a ``Spec`` round-trips to, which is exactly what an archive
-    writes as ``model.yaml``: two answers carrying one digest answered the
+    writes as ``spec.yaml``: two answers carrying one digest answered the
     same document, byte for byte. Not the same *model* — that is the document
     with its data, and two scenarios of one spec share this and share nothing
     else. What an archive holds beside it says whether the data agreed too:
-    :func:`digest_of_file` over each member of ``sources/``.
+    [`digest_of_file`][] over each member of ``sources/``.
     """
     return digest_of_bytes(yaml.encode())
 
@@ -115,14 +127,14 @@ class Record(NamedTuple):
     termination_condition: str
     #: What the solve reached, or ``None`` where it reached nothing. Null
     #: rather than ``nan``: nan is a *number* to every aggregate that meets it.
-    #: :attr:`Result.objective` is a float and reads it back as ``nan``, having
+    #: [`Result.objective`][] is a float and reads it back as ``nan``, having
     #: no null to return.
     objective: float | None
     #: Whether the solve produced values, which the condition alone does not
     #: say: a run stopped at a limit before any incumbent is ``ok`` with
     #: nothing to read.
     has_primal: bool
-    #: :func:`digest_of` the spec this answered, or ``None`` where the solve
+    #: A digest of the spec this answered, or ``None`` where the solve
     #: was run off a lowered program and there was no document to digest. Null
     #: on disk, never an empty string.
     spec_digest: str | None
@@ -136,9 +148,8 @@ class Record(NamedTuple):
     #: halves of its name. Stamped when the archive is written and null until
     #: then.
     run: str | None = None
-    #: :attr:`~specsolve.relational.sinks.handoff.Handoff.contents` of the model this
-    #: answered — the spec *and* its data, where :attr:`spec_digest` is the
-    #: document alone. ``None`` for an answer written before this column, and
+    #: A digest of the model this answered — the spec *and* its data, where
+    #: [`spec_digest`][] is the document alone. ``None`` for an answer written before this column, and
     #: for one whose result was never asked for it.
     model_digest: str | None = None
 
@@ -164,7 +175,7 @@ class Record(NamedTuple):
                 values to read — ``nan`` is a *number* to every aggregate.
             has_primal: Whether there are values, which the condition alone
                 does not say.
-            spec_digest: :func:`digest_of` the spec answered, or ``None``.
+            spec_digest: A digest of the spec answered, or ``None``.
             solved_at: When the solver returned, in UTC. ``None`` where the
                 solve carried no clock.
             model_digest: The built model's digest, or ``None`` where this
@@ -220,7 +231,7 @@ def _column_types(record: type[NamedTuple]) -> dict[str, pl.DataType | type[pl.D
     return written
 
 
-#: :class:`Record`'s columns as they are written, so a row whose ``objective``
+#: [`Record`][]'s columns as they are written, so a row whose ``objective``
 #: or ``spec_digest`` is absent writes that column's own type holding null
 #: rather than the ``Null`` one polars would infer from a single row. Passed
 #: as ``schema_overrides``, so a sweep's key column beside them keeps the type
@@ -231,17 +242,17 @@ RECORD_SCHEMA = _column_types(Record)
 class Metrics(NamedTuple):
     """What a build and its solves took, as the row an archive records beside the answer.
 
-    :class:`Record`'s sibling — one says how the solve terminated, this is the
+    [`Record`][]'s sibling — one says how the solve terminated, this is the
     measure of what it took — and the same columns whoever writes them, so
     rows written by runs that never met concatenate into one table.
 
-    The scalars of :class:`~specsolve.relational.result.Diagnostics` and none of
+    The scalars of [`Diagnostics`][specsolve.relational.result.Diagnostics] and none of
     its frames: a coefficient range is a table per declaration, which does not
     fold into a row beside a count.
 
     **Cumulative over the model's life**, as every counter it is read off is.
-    :attr:`solves` says how many solves the clocks cover; it reads ``1`` for
-    the archive :func:`specsolve.solve` writes, that verb building the model it
+    [`solves`][] says how many solves the clocks cover; it reads ``1`` for
+    the archive [`specsolve.solve`][] writes, that verb building the model it
     solves.
     """
 
@@ -260,9 +271,9 @@ class Metrics(NamedTuple):
     #: built model streamed to an LP or MPS file. A phase that never ran writes
     #: zero rather than no column.
     #:
-    #: So :attr:`write_seconds` reads zero on an archive whose caller never
+    #: So [`write_seconds`][] reads zero on an archive whose caller never
     #: asked for a file, which is most of them: it is
-    #: :meth:`~specsolve.api.Model.write`'s clock rather than the archive's own. **What writing the archive cost is
+    #: [`write`][specsolve.api.Model.write]'s clock rather than the archive's own. **What writing the archive cost is
     #: not here and is not anywhere**: a caller who wants that number times the
     #: call.
     attach_seconds: float
@@ -270,18 +281,18 @@ class Metrics(NamedTuple):
     handoff_seconds: float
     solve_seconds: float
     write_seconds: float
-    #: What the archive holding this row was called, as :attr:`Record.run` is
+    #: What the archive holding this row was called, as [`Record.run`][] is
     #: stamped onto the record beside it: the archive's file name without a
     #: ``.zip``. Null until one is written.
     run: str | None = None
 
 
-#: :class:`Metrics`'s columns as they are written, as :data:`RECORD_SCHEMA`.
+#: [`Metrics`][]'s columns as they are written, as [`RECORD_SCHEMA`][].
 METRICS_SCHEMA = _column_types(Metrics)
 
 
 class SliceMetrics(NamedTuple):
-    """What one slice of a sweep took — :class:`Metrics` one dimension in.
+    """What one slice of a sweep took — [`Metrics`][] one dimension in.
 
     Not the same columns, and the fold is what separates them. A slice's clocks
     are its own share rather than a cumulative total; ``loaded`` says whether
@@ -294,7 +305,7 @@ class SliceMetrics(NamedTuple):
     every slice concatenates the way a directory of archives does.
     """
 
-    #: The shape this slice built, as :class:`Metrics` reports a whole model's.
+    #: The shape this slice built, as [`Metrics`][] reports a whole model's.
     columns: int
     rows: int
     nonzeros: int
@@ -320,7 +331,7 @@ def row_of[R](row_type: Callable[..., R], columns: Mapping[str, object], found: 
     it next.
 
     Args:
-        row_type: :class:`Record`, :class:`Metrics` or :class:`SliceMetrics`.
+        row_type: [`Record`][], [`Metrics`][] or [`SliceMetrics`][].
         columns: The row as read, ``name: value``.
         found: What to name in the message — the file or directory it came from.
 
@@ -332,14 +343,14 @@ def row_of[R](row_type: Callable[..., R], columns: Mapping[str, object], found: 
         short = f'is short of {missing}' if missing else f'holds {stray}'
         raise LayoutError(
             f'{str(found)!r} holds a saved {row_type.__name__} row that {short}, so it was written in a '
-            f'layout this package does not read. The layout moves while the package is on 0.0.1aN and '
+            f'layout this package does not read. The layout moves before 1.0 and '
             f'nothing reads an older one back: solve the model again and save it.'
         )
     return row_type(**columns)
 
 
 #: The three files that sit beside the frames — a result and a sweep both
-#: write them, and :func:`specsolve.archive.load_archive` reads back whichever
+#: write them, and [`specsolve.archive.load_archive`][] reads back whichever
 #: wrote: the record of how the solve terminated, what reaching it cost, and
 #: the reasons behind whatever is deliberately not there.
 RECORD_FILE = 'record.parquet'
@@ -405,7 +416,7 @@ def write_reasons(directory: Path, no_duals: str | None, no_expressions: Mapping
 
 
 def read_reasons(directory: Path) -> tuple[str | None, dict[str, str]]:
-    """What :func:`write_reasons` wrote: the duals' reason, and one per named expression."""
+    """What [`write_reasons`][] wrote: the duals' reason, and one per named expression."""
     file = directory / REASONS_FILE
     rows: list[tuple[str, str, str]] = pl.read_parquet(file).rows() if file.is_file() else []
     return (
@@ -415,7 +426,7 @@ def read_reasons(directory: Path) -> tuple[str | None, dict[str, str]]:
 
 
 def reader_kind(kind: str) -> str:
-    """*kind* as one of :data:`KINDS`, which every reader that takes a name takes beside it.
+    """*kind* as one of [`KINDS`][], which every reader that takes a name takes beside it.
 
     Raises:
         SpecsolveError: A *kind* that names no reader.

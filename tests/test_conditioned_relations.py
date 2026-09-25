@@ -25,9 +25,10 @@ import polars as pl
 import pytest
 
 import specsolve as sps
-from specsolve.errors import DataError, LaneError
+from specsolve.errors import DataError
 from tests.conftest import by_coord, override, raw_of
 from tests.differential import RTOL, differential
+from tests.linopy_lane.loader import OracleCannotBuildError
 from tests.oracle import pd, specsolve_linopy
 
 SPEC = """
@@ -231,7 +232,7 @@ def _shaped(relations: dict, expression: str, dims: list[str]) -> dict:
 def test_the_linopy_lane_refuses_a_shape_it_does_not_build_and_names_the_lane_that_does(
     relations: dict, expression: str, dims: list[str], match: str
 ) -> None:
-    """A `LaneError` at the lane's door, before any data is read: the language admits the file, and `check` does.
+    """A `OracleCannotBuildError` at the lane's door, before any data is read: the language admits the file, and `check` does.
 
     The message names the relational lane, which builds every one of these
     (`test_relation_shapes.py`), so the refusal is a limit of the lane rather
@@ -240,7 +241,7 @@ def test_the_linopy_lane_refuses_a_shape_it_does_not_build_and_names_the_lane_th
     """
     spec = _shaped(relations, expression, dims)
     sps.check(spec)
-    with pytest.raises(LaneError, match=match) as caught:
+    with pytest.raises(OracleCannotBuildError, match=match) as caught:
         specsolve_linopy.build(spec, {})
     assert 'sps.build()/sps.solve()' in str(caught.value), 'the refusal names the route around it'
 

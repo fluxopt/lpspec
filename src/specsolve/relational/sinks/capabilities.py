@@ -74,7 +74,7 @@ class Capabilities:
     def missing(self, required: Collection[Capability]) -> list[Capability]:
         """Those of *required* this sink cannot take at all.
 
-        In :data:`CAPABILITIES` order rather than the caller's.
+        In [`CAPABILITIES`][] order rather than the caller's.
         """
         return [c for c in CAPABILITIES if c in required and self.support(c) == 'absent']
 
@@ -83,7 +83,7 @@ class Capabilities:
 
         Returns:
             The excluded set, or ``None``. Each member is one the sink supports
-            on its own; one it simply lacks is :meth:`missing`'s answer.
+            on its own; one it simply lacks is [`missing`][]'s answer.
         """
         for combination in self.excludes:
             if combination <= set(required):
@@ -94,7 +94,7 @@ class Capabilities:
 def required(program: Program, /) -> frozenset[Capability]:
     """What *program* needs a sink to have, decided with no data attached.
 
-    Exactly what the model declares.
+    Exactly what the spec declares.
 
     Only what rule 2 can decide appears here, so convexity never does.
     """
@@ -124,17 +124,3 @@ _SPELLED: Mapping[str, str] = {
 def spelled(capabilities: Collection[str]) -> str:
     """Capabilities as a refusal names them."""
     return ', '.join(_SPELLED[c] for c in capabilities)
-
-
-def lane_cannot_build_message(lane: str, missing: Collection[str]) -> str:
-    """A construct the language accepts and one *lane* cannot construct.
-
-    It names the other lane rather than a rewrite.
-    """
-    return (
-        f'the {lane} lane cannot build {spelled(missing)}, and no reformulation of it is exact. '
-        f'The language accepts it and the streaming lane builds it, so this is a limit of the '
-        f'lane rather than of the spec.\n'
-        f'Build it with sps.build()/sps.solve() instead, and ask check(spec, sink=...) which '
-        f'solver will take it — gurobi does, and an .lp file carries it to anything that does.'
-    )

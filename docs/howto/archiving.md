@@ -3,7 +3,8 @@
 How to keep a solve: the spec, the data it was solved with, and what came
 back, so you can read the answer later, ask the question again, or hand both
 to someone else. The reference is
-[archiving a model](../reference/api.md#archiving-a-model).
+[`load_archive`](../reference/api.md#specsolve.load_archive) and the entries
+beside it.
 
 ## Archive as you solve
 
@@ -13,12 +14,12 @@ import specsolve as sps
 sps.solve('dispatch.yaml', sources, archive='case/')
 ```
 
-That writes `model.yaml`, one `sources/<key>.parquet` per key the file
+That writes `spec.yaml`, one `sources/<key>.parquet` per key the file
 declares, and `answer/` holding everything the solve produced:
 
 ```text
 case/
-    model.yaml
+    spec.yaml
     sources/cost.parquet
     sources/load.parquet
     …
@@ -87,7 +88,7 @@ keep.
 
 `metrics` is a `Metrics`: how big the model was, how many solves the clocks
 cover, and wall-clock seconds in each phase, as one value
-([the attributes](../reference/api.md#diagnostics)).
+([the attributes](../reference/api.md#specsolve.relational.parquet.Metrics)).
 
 ```python
 case = sps.load_archive('case/')

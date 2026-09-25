@@ -22,21 +22,20 @@ from typing import TYPE_CHECKING, Any, assert_never
 import numpy as np
 from mathspec import program
 
-from specsolve.errors import DataError, LaneError, SpecsolveError, null_bounds_message
-from specsolve.lanes import LANES
-from specsolve.linopy import absence
-from specsolve.linopy._notes import note
-from specsolve.linopy.coverage import check_constant_side_covers, check_divisors_cover, gaps_under
-from specsolve.linopy.loader import read_column
-from specsolve.linopy.operators import (
+from specsolve.errors import DataError, SpecsolveError, null_bounds_message
+from specsolve.relational.sinks.capabilities import Capabilities, required, spelled
+from tests.linopy_lane import absence
+from tests.linopy_lane._notes import note
+from tests.linopy_lane.coverage import check_constant_side_covers, check_divisors_cover, gaps_under
+from tests.linopy_lane.loader import OracleCannotBuildError, read_column
+from tests.linopy_lane.operators import (
     operator_at,
     operator_grouped_sum,
     operator_shift,
     operator_sum,
     operator_sum_back,
 )
-from specsolve.linopy.where import EvaluationContext, as_linopy_mask, bound_relation, evaluate_where
-from specsolve.relational.sinks.capabilities import lane_cannot_build_message, required
+from tests.linopy_lane.where import EvaluationContext, as_linopy_mask, bound_relation, evaluate_where
 
 if TYPE_CHECKING:
     import linopy
@@ -140,13 +139,28 @@ def _build_sos(ctx: EvaluationContext) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _refuse_what_the_lane_cannot_build(p: program.Program) -> None:
-    """Refuse a construct the language accepts and this lane cannot build, before linopy is asked.
+#: What this lane can build, in the sinks' vocabulary: it accepts the same
+#: language, and cannot build a quadratic constraint —
+#: ``linopy.Model.add_constraints`` refuses a ``QuadraticExpression`` outright
+#: and no reformulation of it is exact.
+CAPABILITIES = Capabilities(
+    supports={
+        'integrality': 'native',
+        'sos': 'native',
+        'quadratic_objective': 'native',
+        'nonconvex_quadratic_objective': 'native',
+    },
+)
 
-    What the lane lacks is :data:`specsolve.lanes.LANES`'s to say.
-    """
-    if missing := LANES['linopy'].missing(required(p)):
-        raise LaneError(lane_cannot_build_message('linopy', missing))
+
+def _refuse_what_the_lane_cannot_build(p: program.Program) -> None:
+    """Refuse a construct the language accepts and this lane cannot build, before linopy is asked."""
+    if missing := CAPABILITIES.missing(required(p)):
+        raise OracleCannotBuildError(
+            f'the linopy lane cannot build {spelled(missing)}, and no reformulation of it is exact. '
+            f'The language accepts it and specsolve builds it, so this is a limit of the lane rather '
+            f'than of the spec.'
+        )
 
 
 def _build_constraints(ctx: EvaluationContext) -> None:
@@ -245,7 +259,7 @@ def _refuse_an_objective_constant(expr: Any) -> None:
     """Refuse an objective this lane cannot build, before linopy is asked."""
     const = getattr(expr, 'const', None)
     if const is not None and bool(np.any(np.asarray(const) != 0)):
-        raise LaneError(OBJECTIVE_CONSTANT_IS_A_LANE_GAP)
+        raise OracleCannotBuildError(OBJECTIVE_CONSTANT_IS_A_LANE_GAP)
 
 
 # ---------------------------------------------------------------------------
@@ -407,7 +421,7 @@ def _partition(node: program.Translate | program.WindowSum, ctx: EvaluationConte
 
     **Named for the dimension its values are labels of**, not for itself: an
     amount declared over the group's own dim is read through this array by
-    :func:`~specsolve.linopy.operators._per_group`, which pairs the two by that
+    :func:`~tests.linopy_lane.operators._per_group`, which pairs the two by that
     name.
     """
     if node.partition is None:

@@ -4,13 +4,13 @@ The default, and the only one whose dependency ships with the package. Every
 vector crosses as a numpy buffer, with no float→text→parse round trip.
 
 **Nothing textual crosses into numpy**: a row's ``'<='`` becomes a
-:data:`~specsolve.relational.sinks.handoff.SENSE_CODES` byte before it is read
+[`SENSE_CODES`][specsolve.relational.sinks.handoff.SENSE_CODES] byte before it is read
 here.
 
 ``highspy`` is imported inside the function, being optional: importing this
 module stays free for callers that only write LP files.
 
-:class:`Highs` is the same hand-off held open — what a driver that re-solves
+[`Highs`][] is the same hand-off held open — what a driver that re-solves
 one model with new numbers uses, and where the warm basis lives.
 """
 
@@ -62,19 +62,19 @@ def build_highs(
     handoff: Handoff,
     solver_options: Mapping[str, Any] | None = None,
 ) -> Highs:
-    """Load the model into a :class:`highspy.Highs` and stop there.
+    """Load the model into a `highspy.Highs` and stop there.
 
     The hand-off without the simplex. `bench/` ends here, as linopy's
     ``Model.to_highspy()`` does on that side.
 
     Returns:
-        The :class:`Highs` holding the model, at ``.handle``.
+        The [`Highs`][] holding the model, at ``.handle``.
     """
     return Highs(handoff, None, solver_options)
 
 
 def _built(handoff: Handoff, solver_options: Mapping[str, Any] | None) -> Any:
-    """The populated :class:`highspy.Highs`.
+    """The populated `highspy.Highs`.
 
     One ``passModel`` loads the whole model at once — the scalars, the five
     dense vectors, and the matrix as row-wise CSR. Every array crosses as a
@@ -159,7 +159,7 @@ def _pass_hessian(h: Any, handoff: Handoff) -> None:
       — so the stored value is :math:`q` itself.
 
     The whole part goes over at once — there is no incremental Hessian API —
-    but onto the model already loaded, which is what lets :meth:`Highs.push`
+    but onto the model already loaded, which is what lets [`Highs.push`][]
     replace it without a reload.
     """
     import highspy
@@ -190,13 +190,13 @@ def _pass_hessian(h: Any, handoff: Handoff) -> None:
 
 
 class Highs(Solver):
-    """HiGHS, holding one model — :class:`Solver`'s member for the default sink.
+    """HiGHS, holding one model — [`Solver`][]'s member for the default sink.
 
     The second solve of an updated model changes bounds, costs and right-hand
     sides on the model HiGHS already holds and starts from the basis the last
     solve ended on, unless the caller carries the basis across with
-    :meth:`warm_start` and
-    :meth:`~specsolve.relational.sinks.solvers.base.Solver.warm`.
+    [`warm_start`][] and
+    [`warm`][specsolve.relational.sinks.solvers.base.Solver.warm].
     """
 
     #: The loaded model. ``close`` drops it.
@@ -269,7 +269,7 @@ class Highs(Solver):
         """``setBasis`` for a basis, ``setSolution`` for an incumbent.
 
         Both report a refusal by return value, like every hand-off here, so
-        both go through :func:`_took`.
+        both go through [`_took`][].
         """
         import highspy
 

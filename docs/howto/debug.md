@@ -15,7 +15,7 @@ sps.check('dispatch.yaml', sink='highs')
 `check` raises on a construct outside the language, and with `sink=` on one
 the solver cannot take: an `sos:` set on `highs`, which has no such concept,
 until `Spec.expand()` writes it out as binaries
-([checking against a sink](../reference/api.md#checking-against-a-sink)).
+([what each sink takes](../reference/api.md#what-each-sink-takes)).
 
 ## 2. Read the shape the build produced
 
@@ -30,7 +30,7 @@ report.sparse_parameters  # parameters whose table is short of their coordinates
 A count smaller than you expected is a mask, or a table with a row missing.
 `omissions` names the constraint, `sparse_parameters` the parameter; which one
 you have is the difference between a `where:` you wrote and a row you lost
-([diagnostics](../reference/api.md#diagnostics)).
+([diagnostics](../reference/api.md#specsolve.relational.result.Diagnostics)).
 
 ## 3. Read the row that is wrong
 
@@ -43,7 +43,7 @@ The line is the row as the solver got it: every coefficient the data
 produced, and no term for a variable a `where:` removed. Here `solar` is
 absent because its `p_max` is `0.0`. A term you expected and do not see is a
 mask; a coefficient you did not expect is the data
-([reading one row](../reference/api.md#reading-one-row)).
+([`Model.row`](../reference/api.md#specsolve.Model.row)).
 
 ## 4. When the solve is infeasible
 
@@ -62,20 +62,10 @@ on, as in step 3.
 
 ## 5. When the number is wrong and the rows look right
 
-Build the same file on the other lane and compare the objectives:
-
-```python
-from specsolve import linopy as specsolve_linopy
-
-m = specsolve_linopy.build('dispatch.yaml', sources)
-m.solve()
-m.objective.value  # against result.objective
-```
-
-Two lanes agreeing on a number you still believe is wrong means the file says
-something other than what you meant. Render it as math and read the
+Rows that read right and a number you still believe is wrong mean the file
+says something other than what you meant. Render it as math and read the
 constraint as written:
-[typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/).
+[typeset](https://mathspec.readthedocs.io/en/latest/reference/typeset/).
 
 ## 6. When a loop of re-solves is slow
 
@@ -92,4 +82,24 @@ for keep in ('solver', 'progress'):
 
 Take the faster one. `'nothing'` on every iteration means each update moved a
 mask and the model was rebuilt, so the loop is paying for the build, not the
-solve ([re-solving with new numbers](../reference/api.md#re-solving-with-new-numbers)).
+solve ([`Model.update`](../reference/api.md#specsolve.Model.update)).
+
+**`keep='progress'` can lose by an order of magnitude and win by a factor of
+two**, so measure rather than guess. Over six updates on HiGHS
+([#815](https://github.com/fluxopt/specsolve/pull/815)), carrying the solver's
+work cost **76.6 s against 4.3 s** on a dispatch model whose presolve cracks
+the problem outright, an 18× loss, and **111.2 s against 213.9 s** on a
+storage model whose cyclic recurrence presolve cannot crack, a 1.9× win. It
+pays where the model is hard for its solver's preprocessing *and* consecutive
+solves differ by a small step: a rolling horizon, a myopic pathway, a search
+that inches. The answer does not change either way: across both models the
+objectives agreed to 2e-15 relative. No solver option reaches the same thing;
+on both solvers that ship, an option asking for it did not produce it (#815).
+
+**Time with `keep='nothing'`.** It discards the held solver before the load,
+so no basis, incumbent or solver-internal state survives. A benchmark needs
+that, and so does comparing two sets of `solver_options`.
+
+**A rebuild carries no progress.** A cutting-plane master re-solved after
+gaining a cut has gained a *row*, and a basis spans the model it was read
+from. [#382](https://github.com/fluxopt/specsolve/issues/382) tracks that case.

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 #: A section is text, so this format excludes no combination and curvature
 #: costs it nothing — and every construct the language can reach is a section
 #: this writer emits, quadratic rows included. What a descriptor declares is
-#: what :func:`write_lp_file` **emits**.
+#: what [`write_lp_file`][] **emits**.
 #:
 #: What no descriptor promises is that the solver reading the file back parses
 #: what was written — that is a property of a *reader*, and HiGHS's refuses two
@@ -44,7 +44,7 @@ LP_FILE_CAPABILITIES = Capabilities(
 )
 
 
-#: How the LP format spells each comparison, read off :data:`SENSE_CODES` so a
+#: How the LP format spells each comparison, read off [`SENSE_CODES`][] so a
 #: sense added there reaches the file or raises here. The format differs on
 #: one word: it writes an equality as ``=``.
 _LP_SENSE = {sense: '=' if sense == '==' else sense for sense in SENSE_CODES}
@@ -149,7 +149,7 @@ def _quadratic_terms(handoff: Handoff) -> pl.LazyFrame:
     and the off-diagonal does not.
 
     A pair arrives ordered, summed and deduplicated
-    (:meth:`~specsolve.relational.engines.polars.assembly.Assembly._objective_quadratic`),
+    ([`_objective_quadratic`][specsolve.relational.engines.polars.assembly.Assembly._objective_quadratic]),
     so nothing here sorts.
     """
     return handoff.quad.lazy().select(_pair(pl.col('coeff') * 2))
@@ -211,7 +211,7 @@ def _constraint_lines(handoff: Handoff, lo: int, hi: int, entries: pl.DataFrame)
 
     One row per *output line*, interleaved by sorting, so nothing gathers a
     row's terms into a string list first. *entries* is the chunk's slice of the
-    matrix from :meth:`Handoff.matrix_block`, and the anti-join gives a termless
+    matrix from [`Handoff.matrix_block`][], and the anti-join gives a termless
     row the line a solver still needs to parse.
 
     **The order is one integer, and the only other column.** A row's lines

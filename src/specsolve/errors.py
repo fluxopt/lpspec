@@ -1,14 +1,13 @@
 """The run half of the exception hierarchy, and the whole of it re-exported.
 
-The spec half — :class:`LanguageError` and what derives from it, decidable at
+The spec half — `LanguageError` and what derives from it, decidable at
 load time with no data attached — belongs to ``mathspec`` and is re-exported here,
 so one ``except`` clause covers the package. The run half is defined here:
-:class:`DataError` is a fine file with the wrong thing attached to it,
-:class:`LaneError` a file one lane cannot build, :class:`NoSolutionError` a
-solve with nothing to read back.
+[`DataError`][] is a fine file with the wrong thing attached to it, and
+[`NoSolutionError`][] a solve with nothing to read back.
 
-A message lives here only where both lanes raise it. One raiser keeps its
-message beside itself.
+A message lives here only where the engine and the test oracle both raise it.
+One raiser keeps its message beside itself.
 """
 
 from __future__ import annotations
@@ -39,14 +38,6 @@ class SpecsolveWarning(UserWarning):
     """
 
 
-class LaneError(SpecsolveError):
-    """A lane cannot **build** a spec it accepts — the other one can.
-
-    The spec is valid and reaches an answer by the other route. The fix is
-    which lane runs it, not what the file says.
-    """
-
-
 class DataError(SpecsolveError):
     """Data attached to a valid spec is missing or the wrong shape."""
 
@@ -56,7 +47,8 @@ class LayoutError(SpecsolveError):
 
     The target is a directory or archive that ``save`` wrote, or did not. The
     fix is which path was named, or re-solving a model whose layout has moved
-    since it was written.
+    since it was written. The layout is the one
+    [`save`][specsolve.relational.result.Result.save] stamps.
     """
 
 
@@ -64,14 +56,13 @@ class NoSolutionError(SpecsolveError):
     """The solve returned no values to read — infeasible, unbounded, errored.
 
     A scenario sweep catches this and records the outcome; a
-    :class:`LanguageError` instead means the file needs editing.
+    `LanguageError` instead means the file needs editing.
     """
 
 
 __all__ = [
     'DataError',
     'DimensionError',
-    'LaneError',
     'LanguageError',
     'NoSolutionError',
     'SchemaError',
@@ -131,7 +122,7 @@ def no_model_behind_this_answer_message() -> str:
         'this answer has no model behind it, so a quantity the file never named cannot be read from '
         'it: an answer read back off disk carries the values without the model to splice the '
         'expression into. Re-ask with sps.solve(archive.spec, archive.sources), which reads any '
-        'expression; a name the model declares is readable either way.'
+        'expression; a name the spec declares is readable either way.'
     )
 
 

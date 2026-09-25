@@ -60,7 +60,7 @@ _DTYPES = {
 class Measured:
     """What one build measured about itself, and a rebuild replaces wholesale.
 
-    It outlives :class:`BuiltModel`: ``close()`` releases the frames and
+    It outlives [`BuiltModel`][]: ``close()`` releases the frames and
     diagnostics still answer, so everything here is a count or a small frame
     rather than a read of the model. Most of it is taken as it is measured, so a
     build that raises still reports what it got to; the three sizes are written
@@ -98,7 +98,7 @@ class BuiltModel:
 
     program: program.Program
     attached: AttachedSources
-    #: One :class:`~specsolve.relational.engines.polars.labels.Labelled` per
+    #: One [`Labelled`][specsolve.relational.engines.polars.labels.Labelled] per
     #: declaration, one map per label space: columns and rows are numbered
     #: independently, and a model may name a variable and a constraint alike.
     variables: dict[str, labels.Labelled]
@@ -111,8 +111,8 @@ class Assembly:
 
     Every counter here is one a declaration *advances* — a variable claims the
     next run of columns, a constraint the next run of rows — so they cannot be
-    on the frozen product. :meth:`run` turns the lot into a
-    :class:`BuiltModel`, and nothing outside this class writes to any of it.
+    on the frozen product. [`run`][] turns the lot into a
+    [`BuiltModel`][], and nothing outside this class writes to any of it.
     """
 
     def __init__(self, program: program.Program, attached: AttachedSources, measured: Measured) -> None:
@@ -143,7 +143,7 @@ class Assembly:
         The matrix and ``rows`` leave in ``(row, col)`` order, as ``Handoff``
         promises its sinks. The stack already has it — each share leaves
         sorted and owns the next run of rows — so the order is *checked* with
-        one linear scan rather than sorted. :func:`_row_starts` reads the CSR
+        one linear scan rather than sorted. [`_row_starts`][] reads the CSR
         index off that order, after which ``row`` is dropped from the matrix.
         """
         cols = [self._build_variable(name, v) for name, v in self.program.variables.items()]
@@ -286,13 +286,13 @@ class Assembly:
         """One constraint as its ``rows``, its share of the matrix, and its quadratic share.
 
         Terms normalise to the left, constants to the right. Whether the data
-        is there where the row reads it is :mod:`coverage`'s to answer, in the
+        is there where the row reads it is [`coverage`][]'s to answer, in the
         order its table gives: the two questions an aggregation would hide are
         asked of the pieces and the parameters first, and the rows pass then
         carries the third.
 
         Duplicates from ``Sum`` and ``GroupSum`` — which project rather than
-        aggregate — and from ``x + 2 * x`` collapse in :meth:`_matrix_share`'s
+        aggregate — and from ``x + 2 * x`` collapse in [`_matrix_share`][]'s
         terminal aggregate, read off the data rather than reasoned from how
         the fragments were reshaped.
 
@@ -367,7 +367,7 @@ class Assembly:
     ) -> pl.DataFrame | None:
         """One constraint's quadratic entries as ``(row, col_l, col_r, coeff)``, in that order.
 
-        Pairs are ordered by column index for :meth:`_objective_quadratic`'s
+        Pairs are ordered by column index for [`_objective_quadratic`][]'s
         reason.
         """
         if not quads:
@@ -396,7 +396,7 @@ class Assembly:
         coefficient — and all three drop the row.
 
         *kept* is the row set the share had terms for, which is
-        :meth:`_matrix_share`'s to answer: the share it returns has been pruned
+        [`_matrix_share`][]'s to answer: the share it returns has been pruned
         of zero coefficients, so a row missing from it may have had every term
         and every one of them zero. That row stays — ``0 >= 10`` is infeasible
         — where a row that never had a term goes.
@@ -471,7 +471,7 @@ class Assembly:
         leaves here is the algebra and the conversion is theirs.
 
         **It leaves sorted, and that is a contract**:
-        :attr:`~specsolve.relational.sinks.handoff.Handoff.structure` hashes it, and
+        [`structure`][specsolve.relational.sinks.handoff.Handoff.structure] hashes it, and
         the join hands pairs back in whatever order the data made.
         """
         if not quads:
@@ -549,7 +549,7 @@ def _without_zeros(matrix: pl.DataFrame) -> pl.DataFrame:
 
     **A pruned share can no longer say which rows had terms**, and a row whose
     every coefficient is zero still asserts something — ``0 >= 10`` is
-    infeasible — so :meth:`Assembly._matrix_share` reads that row set off each
+    infeasible — so [`Assembly._matrix_share`][] reads that row set off each
     frame before pruning it. Nulls cannot be here: a null coefficient is an
     undefined divisor, refused before this runs.
     """
@@ -576,7 +576,7 @@ def _collapsed(
     crosses chunk boundaries that ``is_sorted`` does not.
 
     Unordered, a repeat is probed by *space*, the dense label count a single
-    integer key was drawn from (:func:`_repeats_a_label`), which is what the
+    integer key was drawn from ([`_repeats_a_label`][]), which is what the
     objective's stack has; adjacency proves nothing there.
 
     Returns:
@@ -619,7 +619,7 @@ def _in_key_order(keys: tuple[str, ...]) -> pl.Expr:
 def _ordered_rows(matrix: pl.DataFrame) -> pl.Series:
     """The distinct ``row`` labels of a matrix already ordered by ``row``.
 
-    Only ever called on what :func:`_collapsed` handed back ordered, which
+    Only ever called on what [`_collapsed`][] handed back ordered, which
     has *established* that order — by probe, by sort, or by the aggregate's
     own sort.
 

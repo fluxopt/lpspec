@@ -60,7 +60,7 @@ print(result.objective)
 
 ## 2. Tables out
 
-[`primal`](reference/api.md#reading-a-result) gives the value of a variable
+[`primal`](reference/api.md#specsolve.Result.primal) gives the value of a variable
 as a polars table: one row per coordinate, keyed by the dimension labels, with
 a `value` column. Solar has no capacity, so `p` has no rows for it:
 
@@ -93,7 +93,7 @@ The two rows add up to the objective.
 ## 3. Archive
 
 `archive=` writes the spec, the sources and the answer to one directory
-([archiving a model](reference/api.md#archiving-a-model)):
+([archiving a solve](howto/archiving.md)):
 
 ```python exec="true" source="material-block" result="text" session="tables"
 case = work / 'case'
@@ -104,7 +104,7 @@ for file in sorted(case.rglob('*')):
         print(file.relative_to(case))
 ```
 
-`model.yaml` is the spec. `sources/` holds one parquet file per key, and
+`spec.yaml` is the spec. `sources/` holds one parquet file per key, and
 `sources.parquet` a digest of each. `answer/` holds the record of the solve,
 its metrics, and one parquet file per variable and constraint. The record is a
 table too:
@@ -113,7 +113,7 @@ table too:
 print(pl.read_parquet(case / 'answer' / 'record.parquet').select('run', 'status', 'objective'))
 ```
 
-[`load_archive`](reference/api.md#loading-or-scanning) reads the directory
+[`load_archive`](reference/api.md#specsolve.load_archive) reads the directory
 back. The spec and the sources in it ask the same question again:
 
 ```python exec="true" source="material-block" result="text" session="tables"

@@ -19,25 +19,17 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Fetch the version manifest
-        uses: actions/checkout@v7
-        with:
-          sparse-checkout: .release-please-manifest.json
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
-
       - name: Validate the subject that will land on main
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
           COMMIT_COUNT: ${{ github.event.pull_request.commits }}
         run: |
           set -euo pipefail
 
-          # keep in sync with changelog-sections in .release-please-config.json
+          # keep in sync with the type table in AGENTS.md and CONTRIBUTING.md
           TYPES='feat|fix|perf|refactor|docs|chore|test|ci|build|style|revert'
           PATTERN="^(${TYPES})(\([a-z0-9._/-]+\))?!?: .+"
 
@@ -57,42 +49,14 @@ jobs:
           }
 
           titles=("PR title|${PR_TITLE}")
-          messages=("the PR body|${PR_BODY:-}")
           if [[ "$COMMIT_COUNT" == "1" ]]; then
             only=$(gh api "repos/${REPO}/pulls/${NUMBER}/commits" --jq '.[0].commit.message')
             titles+=("the single commit's title|$(head -1 <<<"$only")")
-            messages+=("the single commit's message|${only}")
           fi
 
           for entry in "${titles[@]}"; do
             check "${entry%%|*}" "${entry#*|}"
           done
-
-          manifest=.release-please-manifest.json
-          if [[ ! -f "$manifest" ]]; then
-            echo "::error::${manifest} not found — the base-version guard cannot run."
-            exit 1
-          fi
-          base=$(sed -n 's/.*"\.": *"\([^"]*\)".*/\1/p' "$manifest")
-          if [[ -z "$base" ]]; then
-            echo "::error::no \".\" version in ${manifest} — the base-version guard cannot run."
-            exit 1
-          fi
-
-          if [[ "$base" == 0.* ]]; then
-            for entry in "${titles[@]}"; do
-              if [[ "${entry#*|}" =~ ^[a-z]+(\([a-z0-9._/-]+\))?!: ]]; then
-                echo "::error::'!' in ${entry%%|*} bumps the base version off the pinned alpha stream (currently ${base})."
-                fail=1
-              fi
-            done
-            for entry in "${messages[@]}"; do
-              if grep -qE '^BREAKING[ -]CHANGE:' <<<"${entry#*|}"; then
-                echo "::error::a 'BREAKING CHANGE:' footer in ${entry%%|*} bumps the base version off the pinned alpha stream (currently ${base})."
-                fail=1
-              fi
-            done
-          fi
 
           if (( fail )); then
             cat <<EOF
@@ -102,12 +66,7 @@ jobs:
             types    ${TYPES//|/, }
             examples feat: streaming engine for indexed constraints
                      fix(parser): where clauses with a trailing comma
-                     refactor!: closed helper set, no monkey-patch
-
-          A '!' (or a 'BREAKING CHANGE:' footer) is refused while the version is
-          pinned to an alpha stream: it moves the *base* version, not the counter.
-          Describe the break in the PR body instead — the alpha stream carries no
-          compatibility promise, so there is nothing for the version to announce.
+                     refactor(api): closed helper set, no monkey-patch
 
           Fix the PR title — no need to rewrite the branch. Edits re-run this check.
           EOF

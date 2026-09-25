@@ -85,7 +85,7 @@ survives into an explanation page is the part a user needs to make decisions.
 
 The language is not documented here. What a model file may contain is
 mathspec's to state, and the nav links to its
-[language reference](https://math-spec.readthedocs.io/en/latest/reference/language/).
+[language reference](https://mathspec.readthedocs.io/en/latest/reference/language/).
 A page here documents what this package does with a spec: the data it
 attaches, the verbs that attach it, and the models that do both.
 

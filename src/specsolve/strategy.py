@@ -1,14 +1,14 @@
 """Solving strategies: one plan per slice, folded.
 
 A plan cannot contain a loop; a *process* may loop over plans
-(mathspec's docs/about/limits.md). So a strategy is a driver above :mod:`specsolve.api`,
+(mathspec's docs/about/limits.md). So a strategy is a driver above [`specsolve.api`][],
 built from the public verbs — never a language or engine feature.
 
 Every strategy is the same fold: **partition → attach → solve → carry → stitch**.
 Only how the sources are sliced and whether the slices couple differs. A serial fold builds
-once and updates each slice (:func:`_serially`); under a process pool it builds
-per slice (:func:`_pooled`), a built model being the one thing that cannot
-cross. Both yield an :class:`_Answer`, and the fold that absorbs them is
+once and updates each slice ([`_serially`][]); under a process pool it builds
+per slice ([`_pooled`][]), a built model being the one thing that cannot
+cross. Both yield an [`_Answer`][], and the fold that absorbs them is
 written once.
 
     scenario / sweep    ``EachCoordinate('scenario')``            independent
@@ -19,7 +19,7 @@ written once.
 containment check refuses parameter rows outside a narrowed index, so an axis
 rewrites the rows and the index together.
 
-The caller-facing rules are [docs/reference/sweeps.md](../../docs/reference/sweeps.md).
+The caller-facing rules are [sweeps](https://specsolve.readthedocs.io/en/latest/reference/sweeps/).
 """
 
 from __future__ import annotations
@@ -116,7 +116,7 @@ _PHASES = ('attach', 'build', 'handoff', 'solve')
 
 
 def _slice_metrics(after: Diagnostics, before: Diagnostics | None) -> SliceMetrics:
-    """One slice's row of :attr:`Sweep.metrics`, off the model's cumulative counters.
+    """One slice's row of [`Sweep.metrics`][], off the model's cumulative counters.
 
     A serial fold reuses one model, whose clocks and ``loads`` keep summing
     across slices: *before* is what was measured as the previous slice
@@ -154,7 +154,7 @@ class _CarryRule:
         carry collapses; everything else passes through, so a myopic pathway
         hands a whole capacity vector forward rather than one number at a time.
         Nothing here reads data. Whether the dropped dimension is one the axis
-        can answer for is :func:`_check_the_carry`'s.
+        can answer for is [`_check_the_carry`][]'s.
         """
         if parameter not in program.parameters:
             raise SpecsolveError(f'carry writes parameter {parameter!r}, which the spec does not declare')
@@ -212,14 +212,14 @@ class _CarryRule:
 class _Answer:
     """One slice, solved and read out — what the fold absorbs.
 
-    What :func:`_serially` and :func:`_pooled` both produce. Plain data
+    What [`_serially`][] and [`_pooled`][] both produce. Plain data
     throughout — frames, strings and numbers, never a result or a model — so
     it can cross a process.
     """
 
     meta: Record
-    #: This slice's row of :attr:`Sweep.metrics`, from
-    #: :func:`_slice_metrics`.
+    #: This slice's row of [`Sweep.metrics`][], from
+    #: [`_slice_metrics`][].
     metrics: SliceMetrics
     primals: dict[str, pl.DataFrame]
     duals: dict[str, pl.DataFrame]
@@ -239,7 +239,7 @@ class _OriginalIndex:
     *responsible* for — the coordinates its block names, the rest being lookahead the next
     window recomputes. One-way: the lookahead rows are not in it, so a sliced
     frame cannot be rebuilt from it — slicing stays
-    :meth:`EachWindow._slice`'s business.
+    [`EachWindow._slice`][]'s business.
     """
 
     local: str
@@ -320,7 +320,7 @@ class _Spill:
     slice done, so one interrupted part way is solved again rather than read
     back short. ``sweep.json`` names the key and the keys, so a directory
     answers for one sweep and another pointed at it is refused; it also
-    carries what :func:`load_sweep` cannot infer from the frames — whether the
+    carries what [`load_sweep`][] cannot infer from the frames — whether the
     axis was hand-built, and the dimension a window sliced, whose owned
     coordinates go beside it in ``owned.parquet``.
     """
@@ -439,7 +439,7 @@ def _listed(entries: Mapping[str, str]) -> str:
 def _least(program: Program, sources: Mapping[str, Source], name: str) -> int:
     """The least value of parameter *name*, which decides how far its rows read ahead; an empty one reads nowhere.
 
-    Read through :func:`~specsolve.sources.least_value`, which handles every shape
+    Read through [`least_value`][specsolve.sources.least_value], which handles every shape
     a source may arrive in — a parquet path, a table, a scalar, a
     ``{label: value}`` map, a sequence.
 
@@ -501,7 +501,7 @@ class EachCoordinate:
     def _slice(self, sources: Mapping[str, Source], key_name: str) -> tuple[list[_Slice], _OriginalIndex | None]:
         """One slice per coordinate, keyed by it. Sources without *dim* pass through.
 
-        No :class:`_OriginalIndex`: nothing was re-indexed, so a slice's frames
+        No [`_OriginalIndex`][]: nothing was re-indexed, so a slice's frames
         already carry the coordinates they were solved over.
         """
         del key_name
@@ -527,9 +527,13 @@ class EachWindow:
     dense ``0..n-1`` column the model addresses by the name ``into`` gives it,
     which the spec has to declare.
 
-    Whether the model *can* be sliced this way is asked before it is — the
-    coupling, the reach and the lookahead they need are
-    :meth:`_check_the_program`.
+    Whether the model *can* be cut this way is asked before a slice is taken
+    ([separability](https://mathspec.readthedocs.io/en/latest/reference/reading/#asking-whether-an-axis-can-be-cut)):
+    a coupling along ``into`` is refused, naming the declaration and the
+    change that would lift it; ``lookahead`` has to cover what the rows read
+    ahead; and a ``position()`` the model counts warns, since every window
+    restarts it. What the rows read *behind* is the rolling-horizon seed, met
+    by the edge policy, and is not refused.
     """
 
     dim: str
@@ -576,11 +580,11 @@ class EachWindow:
         """Refuse a window the program's rows cannot be whole inside, before one is taken.
 
         The program answers through
-        :attr:`~mathspec.program.Program.separability` and nothing here walks
+        `separability` and nothing here walks
         it: a window needs ``into`` *windowable*, and its lookahead to cover
         what the rows read ahead. Where a reach is an offset the data decides,
         the parameter's least value is read off the data and
-        :meth:`~mathspec.program.Separability.resolved` folds it in.
+        `resolved` folds it in.
 
         What the rows read *behind* is not refused: it is what a window's
         first rows meet the edge policy with, the rolling-horizon seed the
@@ -637,8 +641,8 @@ class EachWindow:
         Sources without *dim* pass through untouched.
 
         **A window owns the coordinates its block names**, and the
-        :class:`_OriginalIndex` records which — the rest is lookahead the next
-        window recomputes. :meth:`_blocks` trims the last block to what is left,
+        [`_OriginalIndex`][] records which — the rest is lookahead the next
+        window recomputes. [`_blocks`][] trims the last block to what is left,
         so the tail window owns all of itself and nothing falls off the end.
         """
         carrying, coordinates = _coordinates(sources, self.dim, 'window')
@@ -708,7 +712,7 @@ Axis = EachCoordinate | EachWindow
 class Sweep:
     """What a fold returned: frames keyed by slice, never a scalar.
 
-    :class:`~specsolve.relational.result.Result`'s readers one dimension wider —
+    [`Result`][specsolve.relational.result.Result]'s readers one dimension wider —
     same names, same shapes, the slice key prepended. Nothing is combined
     across slices: each row says which slice computed it. A windowed sweep
     reads over that key unless a reader asks ``original_index=True``, which
@@ -717,15 +721,14 @@ class Sweep:
     """
 
     key_name: str
-    #: ``(key, status, termination_condition, objective, has_primal, spec_digest)``,
-    #: in slice order — how every slice terminated, whether or not it produced
-    #: an answer, ``has_primal`` saying which of the two it was and ``spec_digest``
-    #: which document every slice answered. A slice that reached no objective
-    #: holds null there rather than ``nan``, so the column aggregates over the
-    #: slices that solved.
+    #: One [`Record`][specsolve.relational.parquet.Record] per slice, the key
+    #: column first, in slice order — how every slice terminated, whether or
+    #: not it produced an answer. A slice that reached no objective holds null
+    #: there rather than ``nan``, so the column aggregates over the slices that
+    #: solved.
     record: pl.DataFrame
-    #: One :class:`~specsolve.relational.parquet.SliceMetrics` per slice, keyed
-    #: and in slice order — :meth:`~specsolve.api.Model.diagnostics` one dimension
+    #: One [`SliceMetrics`][specsolve.relational.parquet.SliceMetrics] per slice, keyed
+    #: and in slice order — [`diagnostics`][specsolve.api.Model.diagnostics] one dimension
     #: wider, its counts and clocks only. ``loaded`` says the solver took the
     #: model from scratch: under a serial fold the first slice does and the
     #: rest are pushed values, so a later ``True`` is a slice whose data moved
@@ -743,11 +746,11 @@ class Sweep:
     #: Whether the axis was a hand-built list, which names no sliced dimension,
     #: so ``original_index`` is refused rather than answered with the keyed
     #: frame. Not the same fact as ``_original is None``, which
-    #: :class:`EachCoordinate` is too and where the keyed frame *is* the answer.
+    #: [`EachCoordinate`][] is too and where the keyed frame *is* the answer.
     _hand_built: bool = field(repr=False, default=False)
     #: Where the frames are instead, for a sweep solved with ``spill_to=``.
     _spill: _Spill | None = field(repr=False, default=None)
-    #: What :meth:`evaluate` lowers an undeclared expression through, wired by
+    #: What [`evaluate`][] lowers an undeclared expression through, wired by
     #: a sweep archive over the spec, sources, axis and carry it carries.
     #: ``None`` on a Sweep a live solve returned, which retains no model to
     #: lower an expression against.
@@ -832,7 +835,7 @@ class Sweep:
 
         Raises:
             SpecsolveError: The sweep was spilled, so nothing is held: the
-                message names :meth:`scan`.
+                message names [`scan`][].
         """
         self._held_here()
         if name not in held:
@@ -848,11 +851,11 @@ class Sweep:
             )
 
     def scan(self, name: str, kind: str = 'primal', *, original_index: bool = False) -> pl.LazyFrame:
-        """One name's values across every slice as a :class:`polars.LazyFrame`, the slice key prepended.
+        """One name's values across every slice as a `polars.LazyFrame`, the slice key prepended.
 
         The reader for a sweep solved with ``spill_to=``, whose frames are on disk;
-        on one held in memory it is :meth:`primal`, :meth:`dual` or
-        :meth:`evaluate` made lazy, so the same line reads either.
+        on one held in memory it is [`primal`][], [`dual`][] or
+        [`evaluate`][] made lazy, so the same line reads either.
 
         Args:
             name: A variable, a constraint or a named expression the spec
@@ -879,7 +882,7 @@ class Sweep:
         """One variable's values across every slice, the slice key prepended.
 
         A slice that reached no solution contributes no rows, so this can be
-        shorter than the sweep; :attr:`record` is one row per slice always.
+        shorter than the sweep; [`record`][] is one row per slice always.
 
         Args:
             name: A variable the sweep's spec declares.
@@ -896,7 +899,7 @@ class Sweep:
     def dual(self, name: str, *, original_index: bool = False) -> pl.DataFrame:
         """One constraint's shadow prices across every slice, the key prepended.
 
-        :meth:`primal`'s shape and arguments. A slice whose model had an
+        [`primal`][]'s shape and arguments. A slice whose model had an
         integer variable contributes no duals; over the original index each
         coordinate carries the price of the window that owns it, never a blend
         of several.
@@ -912,8 +915,8 @@ class Sweep:
     def evaluate(self, expression: str | Mapping[str, object], *, original_index: bool = False) -> pl.DataFrame:
         """The value of *expression* at every slice's solution, the slice key prepended.
 
-        :meth:`~specsolve.relational.result.Result.evaluate` one dimension wider,
-        and :meth:`primal`'s shape and arguments. *expression* is what one
+        [`evaluate`][specsolve.relational.result.Result.evaluate] one dimension wider,
+        and [`primal`][]'s shape and arguments. *expression* is what one
         ``expressions:`` entry takes: a name the file declares, an expression
         string, or the mapping carrying ``cases:`` with ``dims:`` and
         ``otherwise:``.
@@ -924,7 +927,7 @@ class Sweep:
         solution with no re-solve: the slice's model is rebuilt from the
         archive's spec and that slice's cut of the sources, and its saved
         primal put back against it — so it is available on the sweep
-        :func:`~specsolve.archive.load_archive` hands back, which carries the
+        [`load_archive`][specsolve.archive.load_archive] hands back, which carries the
         spec, sources and axis, and a Sweep a live solve returned says it retains
         no model. It reads only what an archive can put back: an expression over
         a parameter the sweep **carried** is refused, that value being a
@@ -944,11 +947,11 @@ class Sweep:
         Raises:
             SpecsolveError: No slice produced a declared *expression* — an
                 evaluation that failed on every slice carries its own reason —
-                a spilled sweep, which :meth:`scan` reads instead; an undeclared
+                a spilled sweep, which [`scan`][] reads instead; an undeclared
                 expression on a Sweep with no model behind it, or one that reads
                 a parameter the sweep carried; or ``original_index`` on a
                 hand-built axis or a quantity reduced over the sliced dimension.
-            LanguageError: A construct outside the language, or a name the model
+            LanguageError: A construct outside the language, or a name the spec
                 does not declare.
         """
         if isinstance(expression, str) and (
@@ -980,8 +983,8 @@ class Sweep:
     def _reindexed(self, frame: _Frame, *, original_index: bool) -> _Frame:
         """*frame* over the dimension the axis sliced, rather than over its slices.
 
-        Three answers, and the axis decides which. :class:`EachWindow` carries
-        the way back. :class:`EachCoordinate` re-indexed nothing and its key
+        Three answers, and the axis decides which. [`EachWindow`][] carries
+        the way back. [`EachCoordinate`][] re-indexed nothing and its key
         column already *is* a coordinate of the answer, so the frame comes back
         unchanged — a satisfied request rather than an ignored one. A hand-built
         list says neither, and there the keyed frame answers a different
@@ -1005,12 +1008,12 @@ class Sweep:
         return self._original.restore(frame, self.key_name)
 
     def _frame(self, name: str, kind: str, *, original_index: bool) -> pl.DataFrame:
-        """*name* through the reader *kind* names — the dispatch every bridge and :meth:`scan` share."""
+        """*name* through the reader *kind* names — the dispatch every bridge and [`scan`][] share."""
         reader = {'primal': self.primal, 'dual': self.dual, 'expression': self.evaluate}[reader_kind(kind)]
         return reader(name, original_index=original_index)
 
     def to_pandas(self, name: str, kind: str = 'primal', *, original_index: bool = False) -> pd.DataFrame:
-        """One name's values across every slice as a tidy :class:`pandas.DataFrame`.
+        """One name's values across every slice as a tidy `pandas.DataFrame`.
 
         The name is resolved before pandas is imported, so a sweep that never
         held *name* says so on any install.
@@ -1026,7 +1029,7 @@ class Sweep:
         return tidy_to_pandas(self._frame(name, kind, original_index=original_index))
 
     def to_dataarray(self, name: str, kind: str = 'primal', *, original_index: bool = False) -> xr.DataArray:
-        """One name's values as a :class:`xarray.DataArray`, the slice key a dimension; :meth:`to_pandas`'s arguments.
+        """One name's values as a `xarray.DataArray`, the slice key a dimension; [`to_pandas`][]'s arguments.
 
         The extra dimension is named by the axis — a scenario sweep gives
         ``(scenario, …)`` and a window ``(<dim>_start, …)``. A slice that
@@ -1038,13 +1041,13 @@ class Sweep:
         return tidy_to_dataarray(self.to_pandas(name, kind, original_index=original_index), name)
 
     def to_dataset(self, *names: str, kind: str = 'primal') -> xr.Dataset:
-        """The named values of one *kind* as one :class:`xarray.Dataset`; all of that kind by default.
+        """The named values of one *kind* as one `xarray.Dataset`; all of that kind by default.
 
         One kind per call: a dual and a variable of the same name would
         collide, and mean something else per row. Name the few you need, or
-        use :meth:`save`, which writes every kind.
+        use [`save`][], which writes every kind.
 
-        No ``original_index``: this and :meth:`save` export what the sweep
+        No ``original_index``: this and [`save`][] export what the sweep
         *holds*, lookahead rows included.
 
         Args:
@@ -1064,7 +1067,7 @@ class Sweep:
         The same layout: ``<kind>/<name>/<position>.parquet`` for every
         primal, dual and expression, the slice key a column of each, with
         ``record/``, ``metrics/`` and the manifest beside them. So the
-        directory is a spilled sweep: :meth:`scan` reads it, and the call
+        directory is a spilled sweep: [`scan`][] reads it, and the call
         that made this sweep, pointed at it with ``spill_to=``, reads it back
         without solving a slice.
 
@@ -1155,15 +1158,15 @@ def _nothing_to_read(kind: str, name: str, held: Mapping[str, object], record: p
 
 
 def load_sweep(directory: str | Path) -> Sweep:
-    """Read back a sweep :meth:`Sweep.save` wrote, or one ``solve_over(spill_to=)`` spilled.
+    """Read back a sweep [`Sweep.save`][] wrote, or one ``solve_over(spill_to=)`` spilled.
 
     The sweep comes back **held**: every slice's frames are in memory when this
     returns, so it is the value a sweep solved without ``spill_to=`` is —
-    :meth:`Sweep.primal`, :meth:`Sweep.to_dataset` and :meth:`Sweep.save` all
+    [`Sweep.primal`][], [`Sweep.to_dataset`][] and [`Sweep.save`][] all
     answer, and it owes *directory* nothing afterwards. A sweep larger than
-    memory is :func:`scan_sweep` instead.
+    memory is [`scan_sweep`][] instead.
 
-    :attr:`Sweep.record` and :attr:`Sweep.metrics` are one row per slice
+    [`Sweep.record`][] and [`Sweep.metrics`][] are one row per slice
     either way, and ``original_index`` works on both, the manifest carrying the
     dimension a window sliced.
 
@@ -1188,21 +1191,21 @@ def load_sweep(directory: str | Path) -> Sweep:
 def scan_sweep(directory: str | Path) -> Sweep:
     """The sweep under *directory*, its frames left where they lie.
 
-    :func:`load_sweep`'s other half, and the value a sweep solved with
+    [`load_sweep`][]'s other half, and the value a sweep solved with
     ``spill_to=`` already is: nothing but the record is read, and
-    :meth:`Sweep.scan` reads a name back as a :class:`polars.LazyFrame` when one
+    [`Sweep.scan`][] reads a name back as a `polars.LazyFrame` when one
     is asked for. That is the reader for a sweep too large to hold, and it
-    costs the frame readers: :meth:`Sweep.primal` and its siblings refuse,
-    naming :meth:`Sweep.scan`.
+    costs the frame readers: [`Sweep.primal`][] and its siblings refuse,
+    naming [`Sweep.scan`][].
 
     *directory* has to outlive the sweep, the frames being read off it as they
     are asked for.
 
     Args:
-        directory: As :func:`load_sweep` takes it.
+        directory: As [`load_sweep`][] takes it.
 
     Raises:
-        LayoutError: As :func:`load_sweep` raises it.
+        LayoutError: As [`load_sweep`][] raises it.
     """
     under = Path(directory)
     manifest = under / _MANIFEST_FILE
@@ -1233,7 +1236,7 @@ def scan_sweep(directory: str | Path) -> Sweep:
 
 
 def axis_manifest(axis: EachCoordinate | EachWindow) -> dict[str, Any]:  # pyrefly: ignore[explicit-any] — the archive's own JSON
-    """*axis* as the JSON an archive carries, read back by :func:`axis_from`."""
+    """*axis* as the JSON an archive carries, read back by [`axis_from`][]."""
     if isinstance(axis, EachCoordinate):
         return {'each': 'coordinate', 'dim': axis.dim}
     steps = axis.steps if isinstance(axis.steps, int) else list(axis.steps)
@@ -1241,7 +1244,7 @@ def axis_manifest(axis: EachCoordinate | EachWindow) -> dict[str, Any]:  # pyref
 
 
 def axis_from(manifest: Mapping[str, Any]) -> EachCoordinate | EachWindow:  # pyrefly: ignore[explicit-any] — the archive's own JSON
-    """The axis :func:`axis_manifest` wrote."""
+    """The axis [`axis_manifest`][] wrote."""
     if manifest['each'] == 'coordinate':
         return EachCoordinate(manifest['dim'])
     return EachWindow(manifest['dim'], steps=manifest['steps'], lookahead=manifest['lookahead'], into=manifest['into'])
@@ -1286,15 +1289,15 @@ def solve_over(
     """Solve *spec* once per slice of *axis* and fold the answers together.
 
     The rules — what a carry copies, how the key column is named, which
-    executor to choose — are [docs/reference/sweeps.md](../../docs/reference/sweeps.md).
+    executor to choose — are [sweeps](https://specsolve.readthedocs.io/en/latest/reference/sweeps/).
 
     Args:
-        spec: As :func:`~specsolve.api.check` takes it. Parsed once, whichever
+        spec: As [`check`][specsolve.api.check] takes it. Parsed once, whichever
             executor runs the slices.
-        sources: As :func:`~specsolve.api.build` takes them, every shape
+        sources: As [`build`][specsolve.api.build] takes them, every shape
             included; the axis filters the tables that carry it and passes
             the rest through.
-        axis: :class:`EachCoordinate`, :class:`EachWindow`, or a list of
+        axis: [`EachCoordinate`][], [`EachWindow`][], or a list of
             ``(key, sources)`` written by hand.
         carry: ``{parameter: variable}`` — one slice's answer copied into the
             next slice's data. Where the two are over different dimensions the
@@ -1303,20 +1306,20 @@ def solve_over(
             takes the parameter from *sources*, its seed.
         key_name: What to call the slice column; a class axis names its own,
             a hand-built list has to be told.
-        executor: Any :class:`concurrent.futures.Executor`; ``None`` runs the
+        executor: Any `concurrent.futures.Executor`; ``None`` runs the
             slices in order on one model. A process pool must be ``spawn``
             or ``forkserver`` — a forked worker hangs.
         workers_share_fs: Whether the executor's workers can read this
             process's paths. Decided for the stdlib pools; anything else is
             assumed not to, and paths travel as bytes.
-        solver_options: As :meth:`~specsolve.api.Model.solve` takes them.
-        solver_name: As :meth:`~specsolve.api.Model.solve` takes it.
-        keep: As :meth:`~specsolve.api.Model.solve` takes it, reaching every
+        solver_options: As [`solve`][specsolve.api.Model.solve] takes them.
+        solver_name: As [`solve`][specsolve.api.Model.solve] takes it.
+        keep: As [`solve`][specsolve.api.Model.solve] takes it, reaching every
             slice. Under an executor every slice is a first solve and keeps
             nothing, whatever was asked.
         spill_to: A directory to write each slice's frames to as the fold goes,
             so the sweep's memory stays at one slice however many there
-            are. Read back through :meth:`Sweep.scan`. A directory holds
+            are. Read back through [`Sweep.scan`][]. A directory holds
             one sweep: run the same sweep at it again and the slices already
             there are not solved again, which is how an interrupted sweep
             resumes.
@@ -1328,7 +1331,10 @@ def solve_over(
             *spill_to*, the spill is what the archive packs, so a sweep too
             large to hold is archived without ever being held. The archive is
             a second copy of the answers on disk; the memory is what
-            *spill_to* bounds.
+            *spill_to* bounds. A sliced source is archived whole, the column
+            the axis cuts on included. A hand-built axis is refused, since a
+            list of ``(key, sources)`` is a set of sources per slice: archive
+            one solve each.
 
     Returns:
         Every slice's answers, keyed by slice.
@@ -1423,7 +1429,7 @@ def attach_sweep_readers(
     axis: EachCoordinate | EachWindow,
     carry: Mapping[str, str],
 ) -> Sweep:
-    """*sweep* with an undeclared expression readable through :meth:`Sweep.evaluate`, over a sweep archive's own inputs.
+    """*sweep* with an undeclared expression readable through [`Sweep.evaluate`][], over a sweep archive's own inputs.
 
     A sweep archive carries the spec, the uncut sources, the axis that cut them
     and the carry that chained them. The frames a save wrote supply each slice's
@@ -1439,7 +1445,7 @@ def _per_slice(
 
     The one place a slice is put back together: the model is rebuilt from that
     slice's cut of the sources and its stored frames are put back against it
-    (:meth:`~specsolve.api.Model.evaluator`). A slice that reached no solution is
+    ([`evaluator`][specsolve.api.Model.evaluator]). A slice that reached no solution is
     skipped.
     """
     primal, dual = _slice_index(sweep, 'primal'), _slice_index(sweep, 'dual')
@@ -1511,7 +1517,7 @@ def _check_the_carry(
 
     A carry that collapses a dimension hands on the last coordinate the slice
     owns, so the dimension has to be the one the axis advances along —
-    :attr:`EachWindow.into`.
+    [`EachWindow.into`][].
     """
     for parameter, rule in plan.items():
         if parameter not in first:
@@ -1544,7 +1550,7 @@ def _serially(
     """Each slice's answer, off one model updated in place.
 
     Every slice of a sweep is the same math over different numbers, which is
-    what :meth:`~specsolve.api.Model.update` is for; a rebuild releases the
+    what [`update`][specsolve.api.Model.update] is for; a rebuild releases the
     previous model before it starts, so the fold holds one slice's model
     however many there are.
 
@@ -1758,9 +1764,9 @@ def _key_column(
 
     Two rules: an axis that cannot name its own key has to be told, and no key
     may be a column the frames already carry — a dimension the spec declares,
-    or one of the fixed names every reader and :attr:`Sweep.record` use. What
+    or one of the fixed names every reader and [`Sweep.record`][] use. What
     a class axis calls its key when it is not told is
-    :meth:`EachCoordinate._key_name` and :meth:`EachWindow._key_name`.
+    [`EachCoordinate._key_name`][] and [`EachWindow._key_name`][].
 
     Raises:
         SpecsolveError: A hand-built axis with no ``key_name``, a name the spec
@@ -1829,7 +1835,7 @@ def _encode(
     as itself.
 
     *memo* keeps a source no slice rewrote from being encoded once per slice.
-    ``bytes`` is what :func:`_decode` reads back, and cannot be confused with a
+    ``bytes`` is what [`_decode`][] reads back, and cannot be confused with a
     path.
     """
     out: dict[str, Any] = {}  # pyrefly: ignore[explicit-any] — a frame crosses as parquet bytes
@@ -1854,7 +1860,7 @@ def _encode(
 
 
 def _decode(encoded: Mapping[str, Any]) -> dict[str, Any]:  # pyrefly: ignore[explicit-any] — a frame crosses as parquet bytes
-    """The inverse of :func:`_encode`, and a pass-through for what never crossed.
+    """The inverse of [`_encode`][], and a pass-through for what never crossed.
 
     Called on every returned frame rather than only the encoded ones: a frame
     that stayed in this process is not ``bytes`` and comes back untouched.

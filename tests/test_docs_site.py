@@ -299,3 +299,35 @@ def test_the_plan_table_names_every_expression_node():
     shown = {name: cell.strip() for name, cell in rows.items()}
     declared = {name: fan_in(node) for name, node in nodes.items()}
     assert shown == declared, f'the table calls these {shown}, the compiler answers {declared}'
+
+
+#: A ``:::`` entry, which mkdocstrings renders from the named object's docstring.
+API_ENTRY = re.compile(r'^::: (\S+)$', re.MULTILINE)
+
+
+def test_every_name_the_package_exports_has_an_entry_on_the_api_page():
+    """The reference is the docstrings, so a name without an entry has no reference at all."""
+    import specsolve
+
+    rendered = set(API_ENTRY.findall((DOCS / 'reference' / 'api.md').read_text()))
+    missing = sorted(name for name in specsolve.__all__ if f'specsolve.{name}' not in rendered)
+    assert not missing, f'names in specsolve.__all__ with no ::: entry on reference/api.md: {missing}'
+
+
+#: A Sphinx role, which mkdocstrings prints as it stands.
+SPHINX_ROLE = re.compile(r':(?:func|class|meth|attr|mod|data|exc|obj):`')
+
+
+def test_no_docstring_links_with_a_sphinx_role():
+    """A ``:func:`build``` prints on the site as the literal text, so a docstring links as ``[`build`][]``.
+
+    The strict build fails on a link of that form that resolves to nothing, but
+    it cannot tell a Sphinx role from prose.
+    """
+    found = [
+        f'{path.relative_to(REPO)}:{number}'
+        for path in sorted((REPO / 'src').rglob('*.py'))
+        for number, line in enumerate(path.read_text().splitlines(), start=1)
+        if SPHINX_ROLE.search(line)
+    ]
+    assert not found, f'Sphinx roles, which the site prints literally: {found}'

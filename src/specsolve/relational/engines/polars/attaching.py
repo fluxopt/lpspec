@@ -1,9 +1,9 @@
 """What a caller's ``sources`` become: the frames the engine reads by name.
 
-The door (:func:`~specsolve.sources.tidy_sources`) has already read and checked
+The door ([`tidy_sources`][specsolve.sources.tidy_sources]) has already read and checked
 every source; this gives each the shape the query is written against, and
 encodes the string dimensions. Everything downstream reads
-:class:`AttachedSources` and nothing else.
+[`AttachedSources`][] and nothing else.
 
 **It is frozen.** Written once by the passes below, then read to construct the
 compiler and the labeller — unlike the one registry that is *live*, the

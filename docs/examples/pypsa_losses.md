@@ -60,7 +60,7 @@ PyPSA transmission losses, tangent form: the quadratic loss on a line, underesti
 | $`f`$ | `f` over $`\mathcal{T} \times \mathcal{L}`$ — flow on a line, signed towards its `to` bus — unbounded here, because the rating covers the flow and its loss and so is a row rather than a bound |
 | $`\mathit{loss}`$ | `loss` over $`\mathcal{T} \times \mathcal{L}`$ — the energy a line dissipates carrying its flow — pushed down by the objective and held up by the tangents, so it settles on the approximated curve rather than needing an equality of its own. A line with no resistance dissipates nothing, which is a loss of zero rather than a quantity with no value, so the balances and ratings that name it keep their rows. |
 
-Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the data supplies — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
@@ -386,7 +386,7 @@ coefficient here takes a name or a number, the same reason
 [storage units](pypsa_storage.md) ships `soc_max` rather than a ratio. This
 port needs no construct the language lacks.
 
-[`method: lp`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#method)
+[`method: lp`](https://mathspec.readthedocs.io/en/latest/reference/language/piecewise/#method)
 emits rows of this shape, one linear row per piece and no auxiliary variable,
 but it is not a drop-in here. It states the lines through consecutive
 breakpoints, which for a convex curve lie above it; PyPSA's tangents lie

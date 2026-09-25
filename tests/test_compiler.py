@@ -47,7 +47,7 @@ import polars as pl
 import pytest
 from mathspec import program
 
-from specsolve.errors import LaneError
+from specsolve.errors import SpecsolveError
 from specsolve.relational.engines.polars.attaching import AttachedSources
 from specsolve.relational.engines.polars.compiler import PolarsCompiler
 from specsolve.relational.engines.polars.labels import Labelled
@@ -318,7 +318,7 @@ def test_wrapping_is_modulo_and_acyclic_is_not():
 
 
 def test_a_shape_operator_along_a_dim_the_expression_lacks_is_refused():
-    with pytest.raises(LaneError, match='shift'):
+    with pytest.raises(SpecsolveError, match='shift'):
         compiler().expression(program.Translate(program.Parameter('cost'), 'snapshot', offset=1, wrap=True), 'test')
 
 

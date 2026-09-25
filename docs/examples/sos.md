@@ -19,7 +19,7 @@ $$p = \sum_k \lambda_k x_k, \quad
 `method:` names two ways to say the last line. `adjacency`, the default,
 *builds* it: a binary per segment, an adjacency row per breakpoint, and one
 more row picking a segment. `sos2` *declares* it: the expansion emits an
-[`sos:` block](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) over
+[`sos:` block](https://mathspec.readthedocs.io/en/latest/reference/language/piecewise/#sos) over
 the same weights and leaves the formulation to the sink. A solver that knows
 what SOS2 means branches on the set directly rather than searching binaries
 written for it. The raw `sos:` block stays in the language for a set that is
@@ -58,7 +58,7 @@ A piecewise-linear cost curve stated as a special-ordered set, so the solver is 
 | $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — dispatched power |
 | $`\mathit{op\_cost}`$ | `op_cost` over $`\mathcal{T} \times \mathcal{G}`$ — operating cost, piecewise-linear in dispatch |
 
-Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{max}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the data supplies — a parameter such as $`\mathrm{p}^{\mathrm{max}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
