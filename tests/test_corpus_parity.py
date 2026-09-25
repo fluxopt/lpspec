@@ -12,7 +12,7 @@ objective, the relational objective, and the objective HiGHS reaches re-reading
 the written LP file. ``test_ports.py`` supplies the fourth from outside, so a
 model green in both modules has agreed with a published optimum four ways.
 
-Importing ``tests.differential`` is the ``[linopy]`` guard, which is why this is
+Importing ``tests.differential`` is the oracle's guard, which is why this is
 a module of its own rather than three more tests in ``test_ports.py``: that one
 is linopy-free and pandas-free on purpose, and runs on the bare-install job.
 """

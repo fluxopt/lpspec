@@ -1,7 +1,7 @@
 """Guarded access to the linopy lane, used as the differential oracle.
 
-Importing this module skips the importing test module when the ``[linopy]``
-extra is absent — ``pytest.importorskip`` raises ``Skipped``, and pytest turns
+Importing this module skips the importing test module when the oracle's
+dependencies (the ``dev`` group's linopy, and xarray and pandas) are absent — ``pytest.importorskip`` raises ``Skipped``, and pytest turns
 that into a skipped module at collection time.
 
 Import the oracle *through here* rather than importing linopy or xarray
@@ -10,8 +10,8 @@ bare ``import xarray`` above a first-party import, and it would then blow up
 as a collection error before any guard ran.
 
 **pandas is re-exported for the same reason.** It is no longer a runtime
-dependency — it ships with the ``[linopy]`` extra, for the oracle and for
-``Result.to_pandas`` — so a bare ``import pandas as pd`` in a test module is
+dependency — it ships with the ``[xarray]`` extra, for ``Result.to_pandas``,
+and with the ``dev`` group, for the oracle — so a bare ``import pandas as pd`` in a test module is
 exactly the ordering bug described above, one dependency down. Test modules
 take ``pd`` from here instead, and the guard covers it.
 
@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import pytest
 
-_REASON = 'needs the [linopy] extra (linopy, xarray, pandas)'
+_REASON = 'needs the oracle (linopy from the dev group, xarray, pandas)'
 
 linopy = pytest.importorskip('linopy', reason=_REASON)
 xr = pytest.importorskip('xarray', reason=_REASON)
@@ -49,10 +49,10 @@ if 'semantics' not in getattr(linopy.options, '_defaults', {}):
         f'linopy {linopy.__version__} has no options["semantics"], so it cannot speak the v1 '
         f'arithmetic convention this package is written against. The oracle would silently '
         f'measure against the legacy convention instead. Install the pin in pyproject.toml '
-        f'(the [linopy] extra: PyPSA/linopy@master) — `pixi install`.'
+        f'(the dev group: PyPSA/linopy@master) — `pixi install`.'
     )
-from specsolve import linopy as specsolve_linopy  # noqa: E402  — must follow the guard above
-from specsolve.linopy import builder, loader, operators, where  # noqa: E402
+from tests import linopy_lane as specsolve_linopy  # noqa: E402  — must follow the guard above
+from tests.linopy_lane import builder, loader, operators, where  # noqa: E402
 
 __all__ = [
     'builder',

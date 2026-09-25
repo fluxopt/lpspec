@@ -8,8 +8,7 @@ pandas is already in ``sys.modules``.
 **Tables in, arrays out.** What is read here is a table: rows under named
 columns, an index being a column wearing a hat. An ``xarray.DataArray`` is a
 dense n-dimensional array rather than a table and is not read. xarray is what
-a result is handed back *as* (``to_dataarray``) and what the linopy lane
-builds internally, never what either lane reads.
+a result is handed back *as* (``to_dataarray``), never what a build reads.
 """
 
 from __future__ import annotations

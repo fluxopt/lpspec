@@ -73,8 +73,8 @@ def unknown_keep_message(keep: object) -> str:
 #: What the bridges out say when the environment cannot serve them, ``{module}``
 #: being pandas or xarray.
 _NEEDS_THE_EXTRA = (
-    '{module} ships with the [linopy] extra rather than with the engine, so this build cannot bridge out '
-    'to it: pip install "specsolve[linopy]". A result needs nothing added to be read as it stands — primal() '
+    '{module} ships with the [xarray] extra rather than with the engine, so this build cannot bridge out '
+    'to it: pip install "specsolve[xarray]". A result needs nothing added to be read as it stands — primal() '
     'and dual() return polars frames, and save() writes one file per declaration.'
 )
 

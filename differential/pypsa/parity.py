@@ -9,25 +9,26 @@ the tables the file declares, every "data prep" parameter computed there.
 This file is the rest of the engine side — prepare, build, solve, compare — and
 it needs a checkout of that repository at the tag `pyproject.toml` pins,
 which is what the `PyPSA parity` workflow hands it. Run with this tree's
-specsolve, `pypsa==1.3.0` and `highspy` installed, and the `[linopy]` extra for
-the model comparison. No pixi environment carries pypsa, so the way to run it
-locally is the workflow's own line, which installs nothing on disk:
+specsolve, `pypsa==1.3.0` and `highspy` installed, and the `dev` group's
+linopy for the model comparison against the oracle in `tests/linopy_lane`. No
+pixi environment carries pypsa, so the way to run it locally is the workflow's
+own line, which installs nothing on disk:
 
-    pixi exec -s uv uv run --with-editable ".[linopy]" \
+    pixi exec -s uv uv run --with-editable ".[xarray]" \
         --with "pypsa==1.3.0" --with "highspy==1.15.1" --with "polars>=1.30" \
         python differential/pypsa/parity.py ../mathspec
 
 Per rung, from the same network, three comparisons:
 
 1. **Spec against model** — PyPSA's ``n.optimize.create_model()`` and
-   ``specsolve.linopy.build``, label for label: coefficients, sense, right-hand
+   the oracle's ``tests.linopy_lane.build``, label for label: coefficients, sense, right-hand
    side, bounds, integrality, objective terms. No solver, so it covers MIP
    and QP alike. The verdict speaks the index table's words: ``equal`` is
    the one block PyPSA builds — **done**; ``region`` is the same rows from
    several ``where:`` blocks — **split**; a difference the file states on
    purpose carries a ``blocks`` reason in ``deviations.yaml`` and comes back
    **recorded**; ``mismatch`` fails the run. A rung
-   whose file `specsolve.linopy` cannot build yet stamps the error instead —
+   whose file `tests.linopy_lane` cannot build yet stamps the error instead —
    the upstream hardening this gate waits on — and its proof stops at (2).
 2. **One solved objective across the fence** — PyPSA's solve against
    `specsolve.relational`'s, both HiGHS, rtol 1e-9 on the generic spine.
@@ -54,7 +55,7 @@ The comparison reads linopy's own ``.flat`` export but does not call
 builders lay the same model out differently — PyPSA pads absent ``_term``
 slots with NaN where specsolve writes -0.0, and term order within a row is the
 builder's own. A canonicalizing ``assert`` upstream would shrink this file.
-PyPSA's model is built before `specsolve.linopy` is imported: that import flips
+PyPSA's model is built before `tests.linopy_lane` is imported: that import flips
 linopy's global ``semantics`` option to ``v1`` and PyPSA speaks ``legacy``,
 so the option is reset around each PyPSA build.
 
@@ -89,6 +90,7 @@ PROJECTIONS = HERE / 'rungs'
 DEVIATIONS = HERE / 'deviations.yaml'
 sys.path.insert(0, str(RUNGS))
 sys.path.insert(0, str(HERE))
+sys.path.append(str(HERE.parents[1]))  # the repository root, for the linopy oracle in tests/
 
 import linopy  # noqa: E402
 import mathspec  # noqa: E402
@@ -699,7 +701,7 @@ def compare(theirs, ours, declared, gc_kinds: dict[str, str]) -> dict[str, objec
 
 def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
     """One rung through everything: the objective across the fence, the model against the model, the coverage."""
-    from specsolve import linopy as lpl
+    from tests import linopy_lane as lpl
 
     theirs = pypsa_model(stem)
     n = network(stem)

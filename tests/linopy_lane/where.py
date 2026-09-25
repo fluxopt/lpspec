@@ -20,8 +20,8 @@ import xarray as xr
 from mathspec import program
 
 from specsolve.errors import DataError, position_out_of_range_message, short_groups_message
-from specsolve.linopy import absence
-from specsolve.linopy.operators import _grouped, operator_at
+from tests.linopy_lane import absence
+from tests.linopy_lane.operators import _grouped, operator_at
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -184,7 +184,7 @@ def _value(side: program.Expression, ctx: EvaluationContext) -> xr.DataArray:
     expressions like any other.
     """
     # in-function: the builder imports this module
-    from specsolve.linopy.builder import _eval
+    from tests.linopy_lane.builder import _eval
 
     value = _eval(side, replace(ctx, absent_parameter=lambda arr: arr))
     return value if isinstance(value, xr.DataArray) else xr.DataArray(value)
@@ -198,7 +198,7 @@ def _pulled_back(node: program.PulledBackPredicate, ctx: EvaluationContext) -> x
     absence ``at`` leaves there, which is false in a mask.
     """
     # in-function: the builder imports this module
-    from specsolve.linopy.builder import _walked_arrays
+    from tests.linopy_lane.builder import _walked_arrays
 
     operand = _eval_node(node.operand.root, ctx)
     for dimension in node.direction.consumed_dims:

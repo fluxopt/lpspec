@@ -1,16 +1,16 @@
 """Shared fixtures and schema helpers for specsolve tests.
 
 Everything here is linopy-free *and pandas-free at import*, so it loads on a
-bare install. On a bare install (no [linopy] extra) the linopy/oracle modules
+bare install. On a bare install (no linopy) the oracle modules
 skip themselves: they reach the oracle through ``tests.oracle``, whose
 ``importorskip`` guard fires at collection. There is no list of filenames to
-keep in sync here — a module that needs the extra says so by importing it. The
+keep in sync here — a module that needs the oracle says so by importing it. The
 differential harness lives in ``tests.differential`` for the same reason:
 importing it *is* the guard.
 
 pandas follows the same discipline one level down. It is no longer a runtime
-dependency (it ships with the ``[linopy]`` extra, for the oracle and for
-``Result.to_pandas``), so a fixture that hands out pandas objects imports it in
+dependency (it ships with the ``[xarray]`` extra, for ``Result.to_pandas``,
+and with the ``dev`` group, for the oracle), so a fixture that hands out pandas objects imports it in
 its own body: requesting the fixture is what asks for the dependency, and the
 bare job never requests it. ``dispatch_inputs`` and ``dispatch_frame_inputs``
 are the same numbers in the two shapes — the oracle lane is pandas-native, the

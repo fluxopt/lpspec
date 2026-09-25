@@ -1,7 +1,7 @@
 """The linopy lane: its verbs, its loader, its where evaluator, its notes.
 
-Everything here needs the ``[linopy]`` extra and nothing here is reachable
-from the native lane, so it is one module rather than four: the guard and the
+Everything here needs the oracle's linopy and nothing here is reachable
+from the package, so it is one module rather than four: the guard and the
 "write a YAML file, feed it to the lane" idiom were being restated in each of
 them.
 
@@ -414,7 +414,7 @@ def test_importing_the_lane_selects_the_v1_convention():
     A subprocess is the only place the claim is falsifiable, so it is the only
     place worth making it.
     """
-    probe = 'import linopy, specsolve.linopy; print(linopy.options["semantics"])'
+    probe = 'import linopy, tests.linopy_lane; print(linopy.options["semantics"])'
     out = subprocess.run([sys.executable, '-c', probe], capture_output=True, text=True, check=True)
     assert out.stdout.strip() == 'v1', f'the lane must select v1 on import, got {out.stdout.strip()!r}'
 
@@ -450,7 +450,7 @@ def test_the_two_lanes_agree_about_a_masked_variable_without_the_harness(tmp_pat
         import warnings; warnings.simplefilter('ignore')
         import pandas as pd, polars as pl
         import specsolve as sps
-        from specsolve import linopy as fkl
+        from tests import linopy_lane as fkl
         data = {{'f': ['a', 'b'], 'gate': pd.Series({{'a': True}}), 'relmax': pd.Series({{'a': 0.5, 'b': 0.5}})}}
         m = fkl.build({str(spec)!r}, data)
         m.solve(solver_name='highs', output_flag=False)

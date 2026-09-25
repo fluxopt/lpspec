@@ -18,8 +18,7 @@ keep the solver loaded for quick updates and warm starts.**
 specsolve builds and solves [math-spec](https://github.com/energy-models/math-spec)
 models. The file states the math, and math-spec checks it before any data
 exists. specsolve attaches your tables, builds the model on polars, and hands it
-to HiGHS, Gurobi or Xpress. The same file can also build a `linopy.Model`
-([linopy](https://specsolve.readthedocs.io/en/latest/about/linopy/)).
+to HiGHS, Gurobi or Xpress.
 
 <!-- --8<-- [end:intro] -->
 
@@ -116,9 +115,8 @@ contain is math-spec's
 pip install specsolve
 ```
 
-That brings polars, HiGHS and the language. Add the `[linopy]` extra for the
-linopy lane and the pandas and xarray bridges, and `[gurobi]` or `[xpress]` for
-those solvers. To work on specsolve, see [CONTRIBUTING.md](CONTRIBUTING.md).
+That brings polars, HiGHS and the language. Add the `[xarray]` extra for the
+pandas and xarray bridges, and `[gurobi]` or `[xpress]` for those solvers. To work on specsolve, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Prior art
 

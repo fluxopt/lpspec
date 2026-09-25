@@ -4,11 +4,11 @@ The spec half — :class:`LanguageError` and what derives from it, decidable at
 load time with no data attached — belongs to ``mathspec`` and is re-exported here,
 so one ``except`` clause covers the package. The run half is defined here:
 :class:`DataError` is a fine file with the wrong thing attached to it,
-:class:`LaneError` a file one lane cannot build, :class:`NoSolutionError` a
-solve with nothing to read back.
+:class:`LaneError` a file the language accepts and this package cannot build,
+:class:`NoSolutionError` a solve with nothing to read back.
 
-A message lives here only where both lanes raise it. One raiser keeps its
-message beside itself.
+A message lives here only where the engine and the test oracle both raise it.
+One raiser keeps its message beside itself.
 """
 
 from __future__ import annotations
@@ -40,10 +40,9 @@ class SpecsolveWarning(UserWarning):
 
 
 class LaneError(SpecsolveError):
-    """A lane cannot **build** a spec it accepts — the other one can.
+    """The language accepts a spec and specsolve cannot **build** it.
 
-    The spec is valid and reaches an answer by the other route. The fix is
-    which lane runs it, not what the file says.
+    The spec is valid. The message names the rewrite that builds the same model.
     """
 
 

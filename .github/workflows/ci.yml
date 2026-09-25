@@ -158,9 +158,9 @@ jobs:
     # lower bounds are real rather than decorative — `>=1.0` on duckdb once sat
     # five minors below the method the sink called.
     #
-    # The environment names no extra on purpose: pixi solves each separately, so
-    # the `[linopy]` extra's `polars>=1.31.1` cannot reach this solve and raise
-    # the floor under test. The pins are checked by `tests/test_tooling_pins.py`
+    # The environment names no extra and no `dev` group on purpose: pixi solves
+    # each separately, so the oracle linopy's `polars>=1.31.1` cannot reach this
+    # solve and raise the floor under test. The pins are checked by `tests/test_tooling_pins.py`
     # and the task asserts linopy is absent before running.
     runs-on: ubuntu-24.04
     timeout-minutes: 15

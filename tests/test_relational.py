@@ -1623,8 +1623,8 @@ class TestWhereTheLanesDifferByDesign:
         """#1137: the refusal is this lane's, so it may not wear the language's class.
 
         `LanguageError` here says the file is unsayable, which is false twice over:
-        `check` passes with no data, and the linopy lane builds the model and reaches
-        *answer*. What is true is that this lane cannot represent a constant
+        `check` passes with no data, and the linopy oracle builds the model and
+        reaches *answer*. What is true is that this lane cannot represent a constant
         fragment with no rows for the dim the operator acts along — which is what
         `LaneError` is for. All four operators reach the same wall, so a fix for one
         that left the others is a fix for a symptom.
@@ -1637,9 +1637,8 @@ class TestWhereTheLanesDifferByDesign:
         text = str(refusal.value)
         assert "constraint 'bal'" in text, 'a refusal names where in the file it happened'
         assert 'Declare the parameter over' in text, 'and the rewrite that reaches the same number'
-        assert 'specsolve.linopy.build' in text, 'and the lane that builds the file as written'
         assert not isinstance(refusal.value, LanguageError), (
-            'a lane gap is not a language error — the file is sayable and the other lane builds it'
+            'a lane gap is not a language error — the file is sayable and the oracle builds it'
         )
 
     @pytest.mark.parametrize(('expression', 'answer'), REWRITE_CASES)

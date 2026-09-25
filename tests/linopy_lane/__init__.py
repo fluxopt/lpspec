@@ -1,17 +1,18 @@
-"""The linopy lane: a YAML spec built as a ``linopy.Model``.
+"""The linopy lane: a YAML spec built as a ``linopy.Model``, the differential-test oracle.
 
-Requires the ``[linopy]`` extra (linopy, xarray).
+A test dependency, not part of the package: linopy and xarray come with the
+``dev`` group, and nothing under ``src/`` imports this.
 
 One language, two lanes: the same file either attaches relationally and solves
-through :mod:`specsolve.api`, or is constructed here as a ``linopy.Model`` the
-caller then owns. Both accept *exactly* the same language, which is what makes
-the differential tests an oracle rather than a comparison of dialects.
+through :mod:`specsolve.api`, or is constructed here as a ``linopy.Model``.
+Both accept *exactly* the same language, which is what makes the differential
+tests an oracle rather than a comparison of dialects.
 
 Two functions — a producer and a reader — and both are **pure**: YAML goes in,
 a model or a value comes out, and nothing is retained. :func:`evaluate` takes
 ``sources`` again rather than remembering what :func:`build` saw::
 
-    from specsolve import linopy as specsolve_linopy
+    from tests import linopy_lane as specsolve_linopy
 
     m = specsolve_linopy.build('spec.yaml', {...})
     m.solve(...)
@@ -42,17 +43,17 @@ try:
     import linopy
     import xarray
 except ModuleNotFoundError as exc:
-    msg = 'The linopy lane requires the [linopy] extra: pip install "specsolve[linopy]"'
+    msg = 'The linopy oracle needs linopy and xarray, which the dev group carries: pixi install'
     raise ModuleNotFoundError(msg) from exc
 
 
 from specsolve import expressions
 from specsolve.lanes import declared, lowered
-from specsolve.linopy._notes import note
-from specsolve.linopy.builder import _eval, build_model
-from specsolve.linopy.loader import dimension_coords, load_parameters, refuse_relations_the_lane_does_not_build
-from specsolve.linopy.where import EvaluationContext
 from specsolve.sources import tidy_sources
+from tests.linopy_lane._notes import note
+from tests.linopy_lane.builder import _eval, build_model
+from tests.linopy_lane.loader import dimension_coords, load_parameters, refuse_relations_the_lane_does_not_build
+from tests.linopy_lane.where import EvaluationContext
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

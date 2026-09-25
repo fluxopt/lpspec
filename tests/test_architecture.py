@@ -18,21 +18,15 @@ if TYPE_CHECKING:
 REPO = Path(__file__).parent.parent
 PKG = REPO / 'src' / 'specsolve'
 
-#: pandas is deliberately absent: it ships with the [linopy] extra too, but the
-#: core lane holds sanctioned lazy imports of it (``Result.to_pandas``), so the
-#: bare-install job is the fence for it rather than this set.
+#: What no module of the package may import at module level. linopy is the
+#: test oracle (``tests/linopy_lane``) and nothing the package runs; xarray is
+#: reached lazily by the bridges out of a result. pandas is deliberately absent:
+#: those bridges hold sanctioned lazy imports of it too, so the bare-install job
+#: is the fence for it rather than this set.
 FORBIDDEN_RUNTIME = {'linopy', 'xarray'}
 
-
-def _in_linopy_lane(path: Path) -> bool:
-    """The linopy/oracle lane — the ONLY modules allowed to import linopy or
-    xarray at module level (they load only via ``import specsolve.linopy``).
-
-    Structural, not a filename allowlist: membership is "lives under
-    ``linopy/``". A new linopy-lane module therefore cannot land outside the
-    fence by being spelled differently.
-    """
-    return 'linopy' in path.relative_to(PKG).parts
+#: The differential-test oracle: the same YAML built as a ``linopy.Model``.
+ORACLE = REPO / 'tests' / 'linopy_lane'
 
 
 def _module_level_imports(path: Path) -> set[str]:
@@ -40,7 +34,7 @@ def _module_level_imports(path: Path) -> set[str]:
 
     Module-level ``try:`` blocks count. An optional-dependency guard is still
     a module-level import, and wrapping one must not evade this check —
-    ``linopy/__init__.py`` uses exactly that pattern, so the rule has to see through it.
+    ``tests/linopy_lane/__init__.py`` uses exactly that pattern, so the rule has to see through it.
     """
     tree = ast.parse(path.read_text())
     found: set[str] = set()
@@ -183,36 +177,32 @@ def test_the_lane_fences_see_running_code_and_only_running_code():
 
 
 def test_runtime_lane_never_imports_linopy_or_xarray():
-    """Hard rule 3: linopy is the oracle lane only — never a runtime import."""
+    """Hard rule 3: linopy is the test oracle only — never a runtime import."""
     offenders = {}
     for path in _all_modules():
-        if _in_linopy_lane(path):
-            continue
         bad = _module_level_imports(path) & FORBIDDEN_RUNTIME
         if bad:
             offenders[str(path.relative_to(PKG))] = sorted(bad)
     assert not offenders, (
         f'runtime modules import linopy-lane packages at module level: {offenders} '
-        f'— make the import lazy or move the module into the linopy lane'
+        f'— linopy belongs to the test oracle, and xarray is reached lazily'
     )
 
 
-#: Modules outside the linopy lane that may reach the oracle *lazily*, with
-#: the reason. Empty, and that is the claim: nothing the streaming lane runs
-#: needs the linopy lane's libraries.
+#: Modules that may reach linopy or xarray *lazily*, with the reason.
 LAZY_ORACLE_ALLOWED: dict[str, str] = {}
 
 
 def test_lazy_oracle_imports_stay_on_the_allowlist():
     """Hard rule 3, the half a module-level check cannot see.
 
-    A lazy ``import xarray`` inside a function is still linopy-lane code, and
-    it hides in a module the streaming lane imports. Every one has to be
-    declared, so adding another is a decision rather than an accident.
+    A lazy ``import linopy`` inside a function is still oracle code, and it
+    hides in a module the package imports. Every one has to be declared, so
+    adding another is a decision rather than an accident.
     """
     offenders = {}
     for path in _all_modules():
-        if _in_linopy_lane(path) or path.name in LAZY_ORACLE_ALLOWED:
+        if path.name in LAZY_ORACLE_ALLOWED:
             continue
         tree = ast.parse(path.read_text())
         bad = set()
@@ -224,8 +214,8 @@ def test_lazy_oracle_imports_stay_on_the_allowlist():
         if bad:
             offenders[str(path.relative_to(PKG))] = sorted(bad)
     assert not offenders, (
-        f'modules outside the linopy lane reach the oracle lazily: {offenders} — '
-        f'move the code to the linopy lane, or add it to LAZY_ORACLE_ALLOWED with a reason'
+        f'modules of the package reach the oracle lazily: {offenders} — '
+        f'move the code to tests/linopy_lane, or add it to LAZY_ORACLE_ALLOWED with a reason'
     )
 
 
@@ -455,10 +445,6 @@ PUBLIC_API = {
     },
 }
 
-#: The linopy lane, which is a surface of its own — deliberately two verbs:
-#: the producer, and the expression reader both lanes owe (#562).
-PUBLIC_API_LINOPY = {'build', 'evaluate'}
-
 
 def test_the_public_surface_is_exactly_what_is_declared():
     """Hard rule 5, in names: the Python surface is narrow, and stays narrow.
@@ -510,26 +496,6 @@ def test_the_public_surface_is_exactly_what_is_declared():
         f'public names outside __all__: {leaked} — a surface that grows by '
         f'accident is not narrow. Import it privately, or declare it.'
     )
-
-
-def test_the_linopy_lane_stays_two_verbs():
-    """The lane constructs a model, and values an expression at its solution.
-
-    ``build`` makes a model and ``evaluate`` values an expression at its
-    solution — the linopy half of a reader both lanes owe (hard rule 3), pure
-    like the producer. What is refused here is a verb that
-    *attaches* to a model something else built: a file references only what it
-    declares (hard rule 5), and the verb that made an exception of that is
-    gone (#845). Read statically: the module imports linopy, and this must run
-    on a bare install.
-    """
-    tree = ast.parse((PKG / 'linopy' / '__init__.py').read_text())
-    declared = next(
-        ast.literal_eval(node.value)
-        for node in tree.body
-        if isinstance(node, ast.Assign) and any(ast.unparse(t) == '__all__' for t in node.targets)
-    )
-    assert set(declared) == PUBLIC_API_LINOPY, f'the linopy lane exports {sorted(declared)}'
 
 
 #: The two sink families. The directory *is* the family, so a member cannot
@@ -710,9 +676,9 @@ def test_every_plan_node_is_handled_by_the_compiler():
     engine_dir = PKG / 'relational' / 'engines' / 'polars'
     walkers = [
         ('program', program.Expression, engine_dir / 'compiler.py'),
-        ('program', program.Expression, PKG / 'linopy' / 'builder.py'),
+        ('program', program.Expression, ORACLE / 'builder.py'),
         ('program', program.Predicate, engine_dir / 'predicates.py'),
-        ('program', program.Predicate, PKG / 'linopy' / 'where.py'),
+        ('program', program.Predicate, ORACLE / 'where.py'),
     ]
     for qualifier, union, module in walkers:
         source = module.read_text()
@@ -954,7 +920,7 @@ def test_both_lanes_dispatch_on_every_plan_node():
     which is what keeps this honest now that the vocabulary is upstream: a node
     mathspec adds arrives with the pin, not with the first model that uses it.
 
-    Read statically: ``linopy/operators.py`` imports xarray at module level,
+    Read statically: ``tests/linopy_lane/operators.py`` imports xarray at module level,
     and this must run on a bare install.
     """
     from typing import get_args
@@ -984,7 +950,7 @@ def test_both_lanes_dispatch_on_every_plan_node():
 
     lanes = {
         'relational': dispatched_on(*(PKG / 'relational' / 'engines' / 'polars').glob('*.py')),
-        'linopy': dispatched_on(*(PKG / 'linopy').glob('*.py')),
+        'linopy': dispatched_on(*ORACLE.glob('*.py')),
     }
     for lane, handled in lanes.items():
         assert not declared - handled, (
@@ -1029,10 +995,6 @@ def test_every_module_is_documented_somewhere():
 #: breaks. Empty, and that is the claim: the layers are ordered with no
 #: exception at all, so a lazy import is only ever a leftover.
 DELIBERATE_LAZY_IMPORTS: dict[tuple[str, str], str] = {
-    ('linopy/where.py', 'specsolve.linopy.builder'): (
-        "a where comparing two expressions reads them with the builder's own walk, and the builder "
-        'reads this module for every mask it puts on a declaration'
-    ),
     ('relational/engines/polars/predicates.py', 'specsolve.relational.engines.polars.compiler'): (
         'the same comparison on the streaming lane, and the compiler reads this module for the mask '
         'walk and the carrier both of its walks join on'

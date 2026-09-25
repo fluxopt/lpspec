@@ -839,7 +839,7 @@ def test_primal_is_a_frame_and_to_pandas_is_the_bridge(dispatch_solution):
 def test_a_bridge_out_names_the_extra_that_carries_it(dispatch_solution, absent, bridge):
     """A bridge out of a bare install says which extra to add.
 
-    pandas and xarray ship with ``[linopy]`` rather than with the engine, so
+    pandas and xarray ship with ``[xarray]`` rather than with the engine, so
     the bare `No module named 'pandas'` names a package no install instruction
     mentions and leaves the reader to guess. The gurobi sink already answers
     the same question with the extra; these three did not.
@@ -849,7 +849,7 @@ def test_a_bridge_out_names_the_extra_that_carries_it(dispatch_solution, absent,
     """
     with (
         mock.patch.dict(sys.modules, {absent: None}),
-        pytest.raises(ModuleNotFoundError, match=r'pip install "specsolve\[linopy\]"'),
+        pytest.raises(ModuleNotFoundError, match=r'pip install "specsolve\[xarray\]"'),
     ):
         getattr(dispatch_solution, bridge)('p')
 

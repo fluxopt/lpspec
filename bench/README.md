@@ -291,8 +291,8 @@ is already false by default, which is the cheap side of the same choice
 `bench/models/<case>/linopy.py` is `examples/ports/references/linopy/<case>.py`
 against the ladder's parquet — scripts #681 reviewed for idiom and the docs
 execute, which is what keeps this arm from being a strawman somebody wrote in
-an afternoon. The retired `specsolve.linopy` lane is not this arm and is not
-measured.
+an afternoon. The linopy oracle in `tests/linopy_lane` is not this arm and is
+not measured.
 
 **A hand-written arm is a model somebody typed twice**, and nothing structural
 stops it being a *different* model that benchmarks beautifully. The linopy arm

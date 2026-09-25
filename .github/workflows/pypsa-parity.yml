@@ -3,9 +3,9 @@
 # and nothing else — solves through PyPSA and through this tree's specsolve, and
 # the runner compares them as deep as the engines allow: one objective and one
 # set of prices across the fence everywhere, the two linopy models label for
-# label where `specsolve.linopy` can build. A rung the linopy lane cannot build
-# yet is stamped, not failed, so this job tightens by itself as the lane
-# hardens.
+# label where the test oracle (`tests/linopy_lane`) can build. A rung the oracle
+# cannot build yet is stamped, not failed, so this job tightens by itself as the
+# oracle hardens.
 #
 # The certificate the runner writes, differential/pypsa/references.json, is
 # committed; the last step fails when a run of this tree would rewrite it, so
@@ -42,10 +42,12 @@ jobs:
       - uses: prefix-dev/setup-pixi@v0.10.1
         with:
           run-install: false
+      # `uv run` syncs this project with its `dev` group, which carries the
+      # oracle's linopy.
       - name: every rung against pypsa, with this tree's specsolve
         run: >
           pixi exec -s uv uv run
-          --with-editable ".[linopy]"
+          --with-editable ".[xarray]"
           --with "pypsa==1.3.0" --with "highspy==1.15.1" --with "polars>=1.30"
           python differential/pypsa/parity.py corpus
       - name: the committed certificate, projections and tables are what this tree produces

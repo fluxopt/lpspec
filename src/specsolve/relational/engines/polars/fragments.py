@@ -179,8 +179,8 @@ def refuse_a_fragment_without_the_dims(p: TermFragment, dims: list[str], context
     """Refuse a fragment an operator cannot act on, in the right class.
 
     Two different failures share this shape and must not share a class. A
-    **constant part** lacking the dims is a file the language accepts and the
-    linopy lane builds — `check` passes, so `LanguageError` would be a lie — and
+    **constant part** lacking the dims is a file the language accepts and this
+    engine cannot build — `check` passes, so `LanguageError` would be a lie — and
     it is reachable from ordinary YAML wherever a scalar is added beside a term.
     A **term** lacking them is not reachable that way: `dims_of` gives every
     term the frame dims at load, so reaching here means the plan is
@@ -192,12 +192,10 @@ def refuse_a_fragment_without_the_dims(p: TermFragment, dims: list[str], context
     if p.kind == 'const':
         raise LaneError(
             f'in {context}: {operator} acts along {dims}, which a constant part of the expression '
-            f'does not carry, and this lane cannot build that. A constant part compiles to its own '
+            f'does not carry, and specsolve cannot build that. A constant part compiles to its own '
             f'frame, so a fragment with no rows for {dims} has no slots for the operator to act on — '
             f'and under a mask, which slots those are is known only to the rows. Declare the parameter '
-            f'over {dims} and supply it there: the model is the same and the number is unchanged. '
-            f'The linopy lane builds the file as written, so only this lane is short — run it with '
-            f'`specsolve.linopy.build`.'
+            f'over {dims} and supply it there: the model is the same and the number is unchanged.'
         )
     msg = f'in {context}: {operator} along {dims}, which the expression does not span'
     raise AssertionError(msg)

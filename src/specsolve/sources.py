@@ -360,13 +360,13 @@ def _parameter_frame(
         raise DataError(
             f"parameter '{name}': an xarray.DataArray is not a source. specsolve reads tables — "
             f'rows under named columns — and hands arrays back rather than taking them. Pass '
-            f'array.to_series().reset_index() for a tidy frame, whose columns attach by name on '
-            f'both lanes. Result.to_dataarray() is the way back out.'
+            f'array.to_series().reset_index() for a tidy frame, whose columns attach by name. '
+            f'Result.to_dataarray() is the way back out.'
         )
     if is_multi_indexed(obj):
         raise DataError(
             f"parameter '{name}': a pandas Series with a MultiIndex is not a source. An index is "
-            f'a pandas idea with no counterpart in the frames both lanes build, and its depth is a '
+            f'a pandas idea with no counterpart in the frames a build reads, and its depth is a '
             f"second claim about what '{name}' is over. Pass a tidy frame carrying {[*p.dims, 'value']} — "
             f'series.reset_index() is the whole change.'
         )

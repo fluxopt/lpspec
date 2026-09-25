@@ -1661,7 +1661,7 @@ def test_a_bad_name_is_reported_without_the_optional_dependency(sweep):
     with mock.patch.dict(sys.modules, {'pandas': None}):
         with pytest.raises(sps.SpecsolveError, match="no variable 'q' in this sweep"):
             sweep.to_pandas('q')
-        with pytest.raises(ModuleNotFoundError, match=r'pip install "specsolve\[linopy\]"'):
+        with pytest.raises(ModuleNotFoundError, match=r'pip install "specsolve\[xarray\]"'):
             sweep.to_pandas('p')
 
 

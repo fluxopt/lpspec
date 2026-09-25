@@ -28,12 +28,6 @@ understanding the builder. Every rule below follows from that.
 
 ## Where it is going
 
-**One language, more than one place to run it.** The same file builds natively
-on the relational engine or onto a `linopy.Model` that already exists in
-memory. That is neither a fallback nor a dialect: one language, and the second
-[lane](../reference/glossary.md#how-it-runs) is
-[the oracle](linopy.md#2-it-is-the-oracle) for the first.
-
 **A build that streams, with a ceiling you can declare.** The model is tables
 and the build is relational, so nothing dense is ever materialised. Peak memory
 tracks the model rather than a number someone guessed. What is missing is the
