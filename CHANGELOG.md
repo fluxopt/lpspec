@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.0.1-alpha.354](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.353...v0.0.1-alpha.354) (2026-09-25)
+
+
+### Refactoring
+
+* **api:** a sweep's answer is a Sweep, read back with load_sweep and scan_sweep ([#1732](https://github.com/fluxopt/specsolve/issues/1732)) ([24b1238](https://github.com/fluxopt/specsolve/commit/24b123840eb8eba1d71a0ade5029b0ba63d3d428))
+* **api:** how each slice of a sweep terminated is runs.record, saved as record.parquet, so objective always means the number ([#1731](https://github.com/fluxopt/specsolve/issues/1731)) ([7c14833](https://github.com/fluxopt/specsolve/commit/7c1483395cc2752e54b0f1c6867121ffc81139b1))
+
+
+### Documentation
+
+* the glossary defines answers, sweeps, relations and assumptions, and no longer shows build taking a Program ([#1730](https://github.com/fluxopt/specsolve/issues/1730)) ([25d594b](https://github.com/fluxopt/specsolve/commit/25d594b9929a584acea48961d8f8fe3ab68db606))
+
 ## [0.0.1-alpha.353](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.352...v0.0.1-alpha.353) (2026-09-24)
 
 
