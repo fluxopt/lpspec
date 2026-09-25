@@ -657,7 +657,7 @@ def test_no_sink_reaches_a_sibling():
 
     ``gurobipy`` stays the ``gurobi`` module's alone only because no other
     sink imports it, directly or by importing the module that does. A leaf
-    reads ``tables.py``, its family's ``base``, and its own dependency —
+    reads ``handoff.py``, its family's ``base``, and its own dependency —
     nothing else in the family.
 
     ``base`` is allowed for the reason the rest is not: it imports no solver,
@@ -671,7 +671,7 @@ def test_no_sink_reaches_a_sibling():
     type of the program ``required`` reads, and that is a ``TYPE_CHECKING``
     import: it runs nothing, so a leaf still carries nothing across.
     """
-    shareable = ('.tables', '.base', '.capabilities')
+    shareable = ('.handoff', '.base', '.capabilities')
     offenders = {}
     for family in ('solvers', 'writers'):
         for path in sorted((SINKS / family).glob('*.py')):
@@ -683,7 +683,7 @@ def test_no_sink_reaches_a_sibling():
             if reached and path.stem != '__init__':
                 offenders[f'{family}/{path.name}'] = sorted(reached)
     assert not offenders, (
-        f'sink modules reaching a sibling: {offenders} — a sink reads tables.py, its family base '
+        f'sink modules reaching a sibling: {offenders} — a sink reads handoff.py, its family base '
         f'and its own dependency; anything else shared belongs on one of those two'
     )
 

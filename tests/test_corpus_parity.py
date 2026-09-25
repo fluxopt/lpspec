@@ -81,7 +81,7 @@ def _same_matrix(name: str, run: Any) -> None:
     ``-0.556229727``. How many terms a row has is a fact about the model; its
     last bit is not.
     """
-    tables = run.engine._model.tables
+    tables = run.engine._model.handoff
     for constraint, block in run.engine._model.constraints.items():
         if not block.height:
             continue

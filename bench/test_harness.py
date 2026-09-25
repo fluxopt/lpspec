@@ -29,7 +29,7 @@ from bench import conftest as harness
 from bench import floor, plot, profile_build, profile_phases, report, results, tidy, warm_payoff
 from bench import results as bench_results
 from bench.arms import ARMS, solved, unmeasurable
-from bench.arms.specsolve import _tables, checked_sources
+from bench.arms.specsolve import _handoff, checked_sources
 from bench.cases import CASES, Shape, _declaration_sweep, _declarations_spec
 from bench.conftest import (
     MIN_ROUNDS,
@@ -1482,7 +1482,7 @@ def test_the_floor_builds_the_model_specsolve_builds() -> None:
 
     sources = checked_sources(case, case.ladder[0].label, paths)
     with sps.build(case.spec, sources) as model:
-        tables = _tables(model)
+        tables = _handoff(model)
         assert floor_model.column_count == tables.column_count, 'the floor holds a different number of variables'
         assert floor_model.row_count == tables.row_count, 'the floor holds a different number of constraints'
         assert floor_model.nonzeros == tables.matrix.height, 'the floor holds a different coefficient matrix'

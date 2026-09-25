@@ -23,7 +23,7 @@ from specsolve.relational.engines.polars import coverage, labels
 from specsolve.relational.engines.polars.compiler import PolarsCompiler
 from specsolve.relational.engines.polars.fragments import TermFragment, absence_restrictions, join_on
 from specsolve.relational.engines.polars.scope import Scope
-from specsolve.relational.sinks.tables import SENSE
+from specsolve.relational.sinks.handoff import SENSE
 
 if TYPE_CHECKING:
     from math_spec.program import ObjectiveSense
@@ -88,9 +88,9 @@ class Measured:
 
 @dataclass(frozen=True)
 class BuiltModel:
-    """One build's product: the tables a sink drains, and what reads them back.
+    """One build's product: the handoff a sink drains, and what reads it back.
 
-    ``tables`` is what every sink reads and no more, in the sink's own
+    ``handoff`` is what every sink reads and no more, in the sink's own
     contract; the rest is what puts a solver's answer back into the model's
     labels. The compiler that built it is not kept: a read builds its own,
     carrying the solution.
@@ -103,7 +103,7 @@ class BuiltModel:
     #: independently, and a model may name a variable and a constraint alike.
     variables: dict[str, labels.Labelled]
     constraints: dict[str, labels.Labelled]
-    tables: sinks.Tables
+    handoff: sinks.Handoff
 
 
 class Assembly:
@@ -140,7 +140,7 @@ class Assembly:
         tail of the label space and every sink downstream takes them as a
         slice; the sort is stable, so file order survives inside each half.
 
-        The matrix and ``rows`` leave in ``(row, col)`` order, as ``Tables``
+        The matrix and ``rows`` leave in ``(row, col)`` order, as ``Handoff``
         promises its sinks. The stack already has it — each share leaves
         sorted and owns the next run of rows — so the order is *checked* with
         one linear scan rather than sorted. :func:`_row_starts` reads the CSR
@@ -159,7 +159,7 @@ class Assembly:
         self.measured.columns = self.n_cols
         self.measured.rows = self.n_rows
         self.measured.nonzeros = matrix.height
-        tables = sinks.Tables(
+        handoff = sinks.Handoff(
             cols=_stack(cols, _COLS),
             obj=_stack([objective] if objective is not None else [], _OBJ),
             quad=_stack([] if self.quad is None else [self.quad], _QUAD),
@@ -173,7 +173,7 @@ class Assembly:
             objective_sense=self.obj_sense,
             objective_constant=self.obj_const,
         )
-        return BuiltModel(self.program, self.attached, self.variables, self.constraints, tables)
+        return BuiltModel(self.program, self.attached, self.variables, self.constraints, handoff)
 
     def _matrix_share(
         self, pieces: list[pl.LazyFrame], name: str, *expressions: program.Expression
@@ -471,7 +471,7 @@ class Assembly:
         leaves here is the algebra and the conversion is theirs.
 
         **It leaves sorted, and that is a contract**:
-        :attr:`~specsolve.relational.sinks.tables.Tables.structure` hashes it, and
+        :attr:`~specsolve.relational.sinks.handoff.Handoff.structure` hashes it, and
         the join hands pairs back in whatever order the data made.
         """
         if not quads:

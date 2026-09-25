@@ -10,7 +10,7 @@ disagree about the model they load. Two things differ:
   ``[gurobi]`` extra carries scipy.
 - **Nothing is batched.** The columns cannot be, since ``addMConstr`` writes
   into one ``MVar`` spanning the model. See
-  :meth:`~specsolve.relational.sinks.tables.Tables.row_blocks`.
+  :meth:`~specsolve.relational.sinks.handoff.Handoff.row_blocks`.
 
 ``gurobipy`` and ``scipy`` are imported inside the functions, so importing
 this module stays free for a caller who never solves with it.
@@ -23,8 +23,8 @@ from typing import TYPE_CHECKING, Any
 
 from specsolve.errors import SpecsolveError
 from specsolve.relational.sinks.capabilities import Capabilities
+from specsolve.relational.sinks.handoff import solver_vector, spelled_senses
 from specsolve.relational.sinks.solvers.base import SolveAnswer, Solver, WarmStart
-from specsolve.relational.sinks.tables import solver_vector, spelled_senses
 from specsolve.relational.status import SolveStatus
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     import polars as pl
 
-    from specsolve.relational.sinks.tables import RowVectors, Tables
+    from specsolve.relational.sinks.handoff import Handoff, RowVectors
 
 
 #: Gurobi status -> termination condition. Copied from linopy's own
@@ -68,7 +68,7 @@ _LINOPY_DIVERGENCES = {
 
 
 def build_gurobi(
-    tables: Tables,
+    handoff: Handoff,
     batch_rows: int | None = None,
     solver_options: Mapping[str, Any] | None = None,
 ) -> Gurobi:
@@ -77,14 +77,14 @@ def build_gurobi(
     :func:`~specsolve.relational.sinks.solvers.highs.build_highs`'s seam.
     ``batch_rows`` is a *nonzero* budget that splits the matrix across calls;
     it defaults to one call — see
-    :meth:`~specsolve.relational.sinks.tables.Tables.row_blocks`.
+    :meth:`~specsolve.relational.sinks.handoff.Handoff.row_blocks`.
 
     Returns:
         The :class:`Gurobi` holding the model, at ``.handle``. ``close``, or
         leaving a ``with``, releases both the model and its environment in the
         order Gurobi wants.
     """
-    return Gurobi(tables, batch_rows, solver_options)
+    return Gurobi(handoff, batch_rows, solver_options)
 
 
 class Gurobi(Solver):
@@ -103,7 +103,7 @@ class Gurobi(Solver):
       than the solver.
     - **Nothing pushes ``Sense``.** A row's comparison comes from the YAML and
       no data can move it, so a model whose senses differ is one
-      :attr:`~specsolve.relational.sinks.tables.Tables.structure` has already
+      :attr:`~specsolve.relational.sinks.handoff.Handoff.structure` has already
       sent back to be loaded again. gurobipy would refuse the array anyway.
     - **``update`` before ``optimize``**, gurobipy's changes being queued.
     """
@@ -148,8 +148,8 @@ class Gurobi(Solver):
         }
     )
 
-    def _load(self, tables: Tables, batch_rows: int | None) -> None:
-        self._m, self._x, self._blocks, self._qrows, self._env = _built(tables, batch_rows, self._options)
+    def _load(self, handoff: Handoff, batch_rows: int | None) -> None:
+        self._m, self._x, self._blocks, self._qrows, self._env = _built(handoff, batch_rows, self._options)
         self._release = weakref.finalize(self, _released, self._m, self._env)
 
     def dual_ray(self) -> pl.Series | None:
@@ -181,21 +181,21 @@ class Gurobi(Solver):
     def handle(self) -> Any:
         return self._m
 
-    def push(self, tables: Tables) -> None:
+    def push(self, handoff: Handoff) -> None:
         """Whole vectors, in as many calls as there are blocks.
 
         The matrix API writes an attribute across an ``MVar`` or an
         ``MConstr`` at a time.
         """
         gurobipy = _gurobipy()
-        cols = tables.dense_columns(gurobipy.GRB.INFINITY)
+        cols = handoff.dense_columns(gurobipy.GRB.INFINITY)
         self._x.LB, self._x.UB, self._x.Obj = cols.lb, cols.ub, cols.cost
 
-        rhs = tables.dense_rows(gurobipy.GRB.INFINITY).rhs
+        rhs = handoff.dense_rows(gurobipy.GRB.INFINITY).rhs
         for block, rows in self._per_block(rhs):
             block.RHS = rows
-        self._m.ObjCon = tables.objective_constant
-        _set_quadratic(self._m, self._x, tables, cols.cost)
+        self._m.ObjCon = handoff.objective_constant
+        _set_quadratic(self._m, self._x, handoff, cols.cost)
         self._m.update()
 
     def warm_start(self) -> WarmStart | None:
@@ -252,7 +252,7 @@ class Gurobi(Solver):
             yield block, vector[at : at + block.shape[0]]
             at += block.shape[0]
 
-    def _run(self, tables: Tables) -> SolveAnswer:
+    def _run(self, handoff: Handoff) -> SolveAnswer:
         """Solve what is loaded and read it back.
 
         Gurobi refuses the attribute where there is no primal or no dual
@@ -317,7 +317,7 @@ def _released(m: Any, environment: Any) -> None:
 
 
 def _built(
-    tables: Tables,
+    handoff: Handoff,
     batch_rows: int | None,
     solver_options: Mapping[str, Any] | None,
 ) -> tuple[Any, Any, list[Any], list[Any], Any]:
@@ -338,43 +338,43 @@ def _built(
     environment = gurobipy.Env(params={'OutputFlag': 0, **dict(solver_options or {})})
     m = gurobipy.Model(env=environment)
     try:
-        return m, *_filled(m, tables, batch_rows, gurobipy), environment
+        return m, *_filled(m, handoff, batch_rows, gurobipy), environment
     except BaseException:
         _released(m, environment)
         raise
 
 
-def _filled(m: Any, tables: Tables, batch_rows: int | None, gurobipy: Any) -> tuple[Any, list[Any], list[Any]]:
+def _filled(m: Any, handoff: Handoff, batch_rows: int | None, gurobipy: Any) -> tuple[Any, list[Any], list[Any]]:
     """Everything :func:`_built` loads after the environment exists."""
     import numpy as np
     import scipy.sparse
 
-    cols = tables.dense_columns(gurobipy.GRB.INFINITY)
+    cols = handoff.dense_columns(gurobipy.GRB.INFINITY)
     discrete: dict[str, Any] = {'vtype': np.where(cols.integral, 'I', 'C')} if cols.integral.any() else {}
-    x = m.addMVar(tables.column_count, lb=cols.lb, ub=cols.ub, obj=cols.cost, **discrete)
+    x = m.addMVar(handoff.column_count, lb=cols.lb, ub=cols.ub, obj=cols.cost, **discrete)
 
-    rows = tables.dense_rows(gurobipy.GRB.INFINITY)
+    rows = handoff.dense_rows(gurobipy.GRB.INFINITY)
     spelling = _spelled(gurobipy)
     blocks = []
-    for chunk in tables.row_blocks(batch_rows):
+    for chunk in handoff.row_blocks(batch_rows):
         entries = chunk.entries
         block = scipy.sparse.csr_matrix(
             (entries['coeff'].to_numpy(), entries['col'].to_numpy(), np.append(chunk.starts, entries.height)),
-            shape=(chunk.height, tables.column_count),
+            shape=(chunk.height, handoff.column_count),
         )
         blocks.append(m.addMConstr(block, x, spelling[rows.sense[chunk.lo : chunk.hi]], rows.rhs[chunk.lo : chunk.hi]))
 
-    _add_sets(m, x, tables, gurobipy)
-    quadratic = _add_quadratic_rows(m, x, tables, rows, spelling)
-    if tables.objective_sense == 'maximize':
+    _add_sets(m, x, handoff, gurobipy)
+    quadratic = _add_quadratic_rows(m, x, handoff, rows, spelling)
+    if handoff.objective_sense == 'maximize':
         m.ModelSense = gurobipy.GRB.MAXIMIZE
-    m.ObjCon = tables.objective_constant
-    _set_quadratic(m, x, tables, cols.cost)
+    m.ObjCon = handoff.objective_constant
+    _set_quadratic(m, x, handoff, cols.cost)
     m.update()
     return x, blocks, quadratic
 
 
-def _add_quadratic_rows(m: Any, x: Any, tables: Tables, rows: RowVectors, spelling: Any) -> list[Any]:
+def _add_quadratic_rows(m: Any, x: Any, handoff: Handoff, rows: RowVectors, spelling: Any) -> list[Any]:
     r"""Every quadratic constraint, one ``addMQConstr`` call each.
 
     The second stream with no bulk form — ``addSOS`` is the first: the API
@@ -394,24 +394,24 @@ def _add_quadratic_rows(m: Any, x: Any, tables: Tables, rows: RowVectors, spelli
     import scipy.sparse
 
     added = []
-    for row, pairs in tables.quadratic_blocks():
+    for row, pairs in handoff.quadratic_blocks():
         quadratic = scipy.sparse.csr_matrix(
             (pairs['coeff'].to_numpy(), (pairs['col_l'].to_numpy(), pairs['col_r'].to_numpy())),
-            shape=(tables.column_count, tables.column_count),
+            shape=(handoff.column_count, handoff.column_count),
         )
-        entries = tables.matrix_block(row, row + 1)
-        linear = np.zeros(tables.column_count, dtype=np.float64)
+        entries = handoff.matrix_block(row, row + 1)
+        linear = np.zeros(handoff.column_count, dtype=np.float64)
         linear[entries['col'].to_numpy()] = entries['coeff'].to_numpy()
         added.append(m.addMQConstr(quadratic, linear, spelling[rows.sense[row]], float(rows.rhs[row]), x, x, x))
     return added
 
 
-def _set_quadratic(m: Any, x: Any, tables: Tables, cost: Any) -> None:
+def _set_quadratic(m: Any, x: Any, handoff: Handoff, cost: Any) -> None:
     r"""The objective's quadratic part, as the matrix Gurobi reads.
 
     ``setMObjective`` takes :math:`Q` in :math:`x^\top Q x` — **no halving** —
     so the unordered-pair form the engine hands over
-    (:attr:`~specsolve.relational.sinks.tables.Tables.quad`) goes in as it
+    (:attr:`~specsolve.relational.sinks.handoff.Handoff.quad`) goes in as it
     stands, one entry per pair in the upper triangle.
 
     It sets the *whole* objective, so the cost vector already on the columns is
@@ -420,30 +420,30 @@ def _set_quadratic(m: Any, x: Any, tables: Tables, cost: Any) -> None:
     """
     import scipy.sparse
 
-    if not tables.quad.height:
+    if not handoff.quad.height:
         return
     pairs = scipy.sparse.csr_matrix(
         (
-            tables.quad['coeff'].to_numpy(),
-            (tables.quad['col_l'].to_numpy(), tables.quad['col_r'].to_numpy()),
+            handoff.quad['coeff'].to_numpy(),
+            (handoff.quad['col_l'].to_numpy(), handoff.quad['col_r'].to_numpy()),
         ),
-        shape=(tables.column_count, tables.column_count),
+        shape=(handoff.column_count, handoff.column_count),
     )
-    m.setMObjective(pairs, cost, tables.objective_constant, x, x, x)
+    m.setMObjective(pairs, cost, handoff.objective_constant, x, x, x)
 
 
-def _add_sets(m: Any, x: Any, tables: Tables, gurobipy: Any) -> None:
+def _add_sets(m: Any, x: Any, handoff: Handoff, gurobipy: Any) -> None:
     """Every special-ordered set, one ``addSOS`` call each.
 
     The one stream with no bulk form: ``addSOS`` takes a list of ``Var`` and
     their weights, so a set is a call and its members are Python objects. The
     ``MVar`` is sliced rather than ``getVars()`` walked.
     """
-    if not tables.sos.height:
+    if not handoff.sos.height:
         return
     order = {1: gurobipy.GRB.SOS_TYPE1, 2: gurobipy.GRB.SOS_TYPE2}
     columns = x.tolist()
-    for set_type, cols, weights in tables.sets():
+    for set_type, cols, weights in handoff.sets():
         m.addSOS(order[set_type], [columns[at] for at in cols], weights.to_list())
 
 

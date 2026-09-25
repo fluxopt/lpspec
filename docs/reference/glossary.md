@@ -122,9 +122,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 : A polars `DataFrame` with one column per dimension, a `value` column and one
   row per coordinate: what a parameter arrives as, and what `primal` hands
   back. A [relation](#the-data)'s table is the exception, one column per
-  column it declares. The code calls one a **frame** and means the same thing. The plural
-  [Tables](#the-built-form) is a different noun: the built model as a sink sees
-  it.
+  column it declares. The code calls one a **frame** and means the same thing.
 
 **Relation**
 : A named map between dimensions, supplied under its own key as a table of the
@@ -156,7 +154,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   data and hands them to a sink.
 
 **Sink**
-: Where the built [tables](#the-built-form) land: a solver (`highs`, `gurobi`,
+: Where the [handoff](#the-built-form) lands: a solver (`highs`, `gurobi`,
   `xpress`) or a file writer (`.lp`, `.mps`). `linopy` is a lane, not a sink.
   What a sink can ingest is its **capability**: a special-ordered set is one,
   and a sink without it refuses a model carrying a set rather than rewriting
@@ -172,10 +170,11 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 
 ## The built form
 
-**Tables**
-: The built model as a sink sees it: `cols` (bounds, type), `obj`, `rows`,
-  `matrix` (CSR), `quad` (the objective's quadratic part), `qmatrix` (the
-  constraints') and `sos`.
+**Handoff**
+: The built model as a sink sees it, and all a sink sees: `cols` (bounds,
+  type), `obj`, `rows`, `matrix` (CSR), `quad` (the objective's quadratic
+  part), `qmatrix` (the constraints') and `sos`. Handing it over is the phase
+  the metrics clock as `handoff_seconds`.
 
 **keep**
 : How much of a session `model.solve` carries to the next solve: `solver`

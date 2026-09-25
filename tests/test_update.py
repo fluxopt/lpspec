@@ -378,7 +378,7 @@ def test_only_a_update_that_moves_a_label_loads_the_solver_again(dispatch_yaml, 
 def _tables(spec: Any) -> Any:
     """*model*'s solver tables, read off it built on the reach data."""
     with sps.build(spec, reach_sources()) as built:
-        return built._engine._model.tables
+        return built._engine._model.handoff
 
 
 #: The three fields of the digest **no rung above can reach**: a variable's
@@ -438,12 +438,12 @@ def _hashes(monkeypatch) -> list[int]:
     A plain property in place of the `cached_property`, so one object asked
     twice counts twice. Each count below is one object asked once.
     """
-    from specsolve.relational.sinks import tables as tables_module
+    from specsolve.relational.sinks.handoff import Handoff
 
     taken: list[int] = []
-    real = tables_module.Tables.structure.func
+    real = Handoff.structure.func
     monkeypatch.setattr(
-        tables_module.Tables,
+        Handoff,
         'structure',
         property(lambda self: (taken.append(1), real(self))[1]),
     )
@@ -512,7 +512,7 @@ def test_a_rebuild_leaves_the_held_solver_pinning_none_of_the_old_model(model):
     solving. No answer changes either way, so reachability is asked directly.
     """
     model.solve()
-    released = weakref.ref(model._engine._model.tables.matrix)
+    released = weakref.ref(model._engine._model.handoff.matrix)
     model.update({'load': pl.DataFrame({'snapshot': SNAPSHOTS, 'value': [12.0, 22.0, 32.0, 42.0]})})
     gc.collect()
     assert released() is None, "the rebuilt-over model's matrix is still reachable, so the solver kept a whole model"
@@ -736,13 +736,13 @@ def test_a_cost_falling_to_zero_shrinks_the_objective_and_keeps_the_solver():
     given = reach_sources()
     with sps.build(REACH, given) as model:
         model.solve()
-        before = model._engine._model.tables.obj.height
+        before = model._engine._model.handoff.obj.height
         assert model.diagnostics().loads == 1, 'the first solve has nothing loaded to keep'
 
         zeroed = pl.DataFrame({'plant': PLANTS, 'value': [0.0, 2.0, 3.0, 4.0]})
         updated = model.update({'cost': zeroed}).solve()
 
-        assert model._engine._model.tables.obj.height == before - 1, (
+        assert model._engine._model.handoff.obj.height == before - 1, (
             'the zero cost should have left the objective frame'
         )
         assert model.diagnostics().loads == 1, 'a cost is pushed, so a cost falling to zero may not reload'

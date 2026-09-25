@@ -23,8 +23,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from specsolve.relational.sinks.capabilities import Capabilities
+from specsolve.relational.sinks.handoff import solver_vector, spelled_senses
 from specsolve.relational.sinks.solvers.base import SolveAnswer, Solver, WarmStart
-from specsolve.relational.sinks.tables import solver_vector, spelled_senses
 from specsolve.relational.status import SolveStatus
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     import polars as pl
 
-    from specsolve.relational.sinks.tables import Tables
+    from specsolve.relational.sinks.handoff import Handoff
 
 
 #: Xpress solution status -> termination condition. Copied from linopy's own
@@ -61,7 +61,7 @@ _SOLVE_FAILED = 2
 
 
 def build_xpress(
-    tables: Tables,
+    handoff: Handoff,
     batch_rows: int | None = None,
     solver_options: Mapping[str, Any] | None = None,
 ) -> Xpress:
@@ -73,7 +73,7 @@ def build_xpress(
         The :class:`Xpress` holding the problem, at ``.handle``. The problem
         owns its licence and releases it when it is collected.
     """
-    return Xpress(tables, batch_rows, solver_options)
+    return Xpress(handoff, batch_rows, solver_options)
 
 
 class Xpress(Solver):
@@ -88,7 +88,7 @@ class Xpress(Solver):
       the read-back.
     - **Nothing pushes a row's comparison.** A sense comes from the YAML and no
       data can move it, so a model whose senses differ is one
-      :attr:`~specsolve.relational.sinks.tables.Tables.structure` has already
+      :attr:`~specsolve.relational.sinks.handoff.Handoff.structure` has already
       sent back to be loaded again.
     - **Duals are refused rather than zero-filled** on a model that has none,
       as on Gurobi, so the refusal is the answer.
@@ -107,14 +107,14 @@ class Xpress(Solver):
     #: hand it one**.
     capabilities = Capabilities(supports={'integrality': 'native', 'sos': 'native'})
 
-    def _load(self, tables: Tables, batch_rows: int | None) -> None:
-        self._p = _built(tables, batch_rows, self._options)
+    def _load(self, handoff: Handoff, batch_rows: int | None) -> None:
+        self._p = _built(handoff, batch_rows, self._options)
 
     @property
     def handle(self) -> Any:
         return self._p
 
-    def push(self, tables: Tables) -> None:
+    def push(self, handoff: Handoff) -> None:
         """Whole vectors by index, in three calls.
 
         Both bounds go in one ``chgBounds``: it takes a column per entry and a
@@ -123,15 +123,15 @@ class Xpress(Solver):
         import numpy as np
 
         xpress = _xpress()
-        cols = tables.dense_columns(xpress.infinity)
-        every = np.arange(tables.column_count, dtype=np.int64)
+        cols = handoff.dense_columns(xpress.infinity)
+        every = np.arange(handoff.column_count, dtype=np.int64)
         self._p.chgBounds(
             np.concatenate([every, every]),
-            ['L'] * tables.column_count + ['U'] * tables.column_count,
+            ['L'] * handoff.column_count + ['U'] * handoff.column_count,
             np.concatenate([cols.lb, cols.ub]),
         )
-        self._p.chgObj(np.append(every, -1), np.append(cols.cost, -tables.objective_constant))
-        self._p.chgRHS(np.arange(tables.row_count, dtype=np.int64), tables.dense_rows(xpress.infinity).rhs)
+        self._p.chgObj(np.append(every, -1), np.append(cols.cost, -handoff.objective_constant))
+        self._p.chgRHS(np.arange(handoff.row_count, dtype=np.int64), handoff.dense_rows(xpress.infinity).rhs)
 
     def warm_start(self) -> WarmStart | None:
         """The basis the last solve left, or its incumbent where that is not valid.
@@ -177,10 +177,10 @@ class Xpress(Solver):
             )
             self._p.addMipSol(ws.column_values)
 
-    def _run(self, tables: Tables) -> SolveAnswer:
+    def _run(self, handoff: Handoff) -> SolveAnswer:
         """Solve what is loaded and read it back.
 
-        The objective constant is already the loaded model's, so *tables* is
+        The objective constant is already the loaded model's, so *handoff* is
         asked for nothing.
         """
         self._p.optimize()
@@ -228,7 +228,7 @@ class Xpress(Solver):
 
 
 def _built(
-    tables: Tables,
+    handoff: Handoff,
     batch_rows: int | None,
     solver_options: Mapping[str, Any] | None,
 ) -> Any:
@@ -236,7 +236,7 @@ def _built(
 
     Columns arrive with no entries — ``start`` is all zeros — because the
     matrix goes in row-wise afterwards, which is the form
-    :meth:`~specsolve.relational.sinks.tables.Tables.row_blocks` already
+    :meth:`~specsolve.relational.sinks.handoff.Handoff.row_blocks` already
     hands over.
 
     ``chgColType`` is called only when some column is integral.
@@ -249,10 +249,10 @@ def _built(
     p = xpress.problem()
     p.setControl({'outputlog': 0, **dict(solver_options or {})})
 
-    cols = tables.dense_columns(xpress.infinity)
+    cols = handoff.dense_columns(xpress.infinity)
     p.addCols(
         objcoef=cols.cost,
-        start=np.zeros(tables.column_count + 1, dtype=np.int64),
+        start=np.zeros(handoff.column_count + 1, dtype=np.int64),
         rowind=np.empty(0, dtype=np.int64),
         rowcoef=np.empty(0, dtype=np.float64),
         lb=cols.lb,
@@ -262,9 +262,9 @@ def _built(
         integral = np.flatnonzero(cols.integral)
         p.chgColType(integral, ['I'] * integral.size)
 
-    rows = tables.dense_rows(xpress.infinity)
+    rows = handoff.dense_rows(xpress.infinity)
     spelling = spelled_senses(_XPRESS_SENSE)
-    for chunk in tables.row_blocks(batch_rows):
+    for chunk in handoff.row_blocks(batch_rows):
         entries = chunk.entries
         p.addRows(
             rowtype=spelling[rows.sense[chunk.lo : chunk.hi]].tolist(),
@@ -274,23 +274,23 @@ def _built(
             rowcoef=entries['coeff'].to_numpy(),
         )
 
-    _add_sets(p, tables, xpress)
-    if tables.objective_sense == 'maximize':
+    _add_sets(p, handoff, xpress)
+    if handoff.objective_sense == 'maximize':
         p.chgObjSense(xpress.maximize)
-    if tables.objective_constant:
-        p.chgObj([-1], [-tables.objective_constant])
+    if handoff.objective_constant:
+        p.chgObj([-1], [-handoff.objective_constant])
     return p
 
 
-def _add_sets(p: Any, tables: Tables, xpress: Any) -> None:
+def _add_sets(p: Any, handoff: Handoff, xpress: Any) -> None:
     """Every special-ordered set, one ``addSOS`` call each.
 
     The one stream with no bulk form, as on Gurobi — a set is a call, its
     members a list of column indices and their weights.
     """
-    if not tables.sos.height:
+    if not handoff.sos.height:
         return
-    for set_type, cols, weights in tables.sets():
+    for set_type, cols, weights in handoff.sets():
         p.addSOS(cols.to_list(), weights.cast(float).to_list(), type=set_type)
 
 

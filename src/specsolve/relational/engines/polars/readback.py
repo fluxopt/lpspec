@@ -44,9 +44,9 @@ def row(model: BuiltModel, name: str, coordinate: Mapping[str, object]) -> Const
         raise KeyError(unknown_name_message('constraint', name, sorted(model.constraints)))
 
     at, ordered = _row_index(model, name, coordinate)
-    starts = model.tables.row_starts
-    entries = model.tables.matrix.slice(int(starts[at]), int(starts[at + 1] - starts[at]))
-    stated = model.tables.rows.slice(at, 1)
+    starts = model.handoff.row_starts
+    entries = model.handoff.matrix.slice(int(starts[at]), int(starts[at + 1] - starts[at]))
+    stated = model.handoff.rows.slice(at, 1)
     return ConstraintRow(
         name=name,
         coordinate=ordered,

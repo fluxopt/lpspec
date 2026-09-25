@@ -18,11 +18,11 @@ import polars as pl
 from math_spec import program
 
 from specsolve.relational.sinks.capabilities import Capabilities
-from specsolve.relational.sinks.tables import SENSE_CODES
+from specsolve.relational.sinks.handoff import SENSE_CODES
 from specsolve.relational.sinks.writers.base import chunk_key, digits, number, sink
 
 if TYPE_CHECKING:
-    from specsolve.relational.sinks.tables import Tables
+    from specsolve.relational.sinks.handoff import Handoff
 
 
 #: A section is text, so this format excludes no combination and curvature
@@ -62,7 +62,7 @@ _LP_DOMAIN_SECTION = {
 EMIT_BUDGET = 2_000_000
 
 
-def write_lp_file(tables: Tables, path: str | Path) -> None:
+def write_lp_file(handoff: Handoff, path: str | Path) -> None:
     """Write the model as LP text.
 
     ``cols`` is positional, so the bounds section's index is added inside the
@@ -70,9 +70,9 @@ def write_lp_file(tables: Tables, path: str | Path) -> None:
     since a chunk's rendered lines are held until it is sunk.
     """
     path = Path(path)
-    objective = tables.obj.lazy().sort('col').select(_term(pl.col('coeff'), pl.col('col')))
+    objective = handoff.obj.lazy().sort('col').select(_term(pl.col('coeff'), pl.col('col')))
     bounds = (
-        tables.cols.lazy()
+        handoff.cols.lazy()
         .with_row_index('col')
         .select(
             pl.concat_str(
@@ -86,39 +86,39 @@ def write_lp_file(tables: Tables, path: str | Path) -> None:
     )
 
     with open(path, 'wb') as f:
-        f.write((b'max' if tables.objective_sense == 'maximize' else b'min') + b'\n\nobj:\n')
-        if tables.objective_constant:
-            f.write(f'{tables.objective_constant:+.17g}\n'.encode())
+        f.write((b'max' if handoff.objective_sense == 'maximize' else b'min') + b'\n\nobj:\n')
+        if handoff.objective_constant:
+            f.write(f'{handoff.objective_constant:+.17g}\n'.encode())
         sink(objective, f)
-        if tables.quad.height:
+        if handoff.quad.height:
             f.write(b'+ [\n')
-            sink(_quadratic_terms(tables), f)
+            sink(_quadratic_terms(handoff), f)
             f.write(b'] / 2\n')
 
         f.write(b'\ns.t.\n\n')
-        for block in tables.row_blocks(EMIT_BUDGET):
-            sink(_constraint_lines(tables, block.lo, block.hi, tables.matrix_block(block.lo, block.hi)), f)
-        for row, pairs in tables.quadratic_blocks():
-            sink(_quadratic_row_lines(tables, row, pairs), f)
+        for block in handoff.row_blocks(EMIT_BUDGET):
+            sink(_constraint_lines(handoff, block.lo, block.hi, handoff.matrix_block(block.lo, block.hi)), f)
+        for row, pairs in handoff.quadratic_blocks():
+            sink(_quadratic_row_lines(handoff, row, pairs), f)
 
         f.write(b'\nbounds\n')
         sink(bounds, f)
 
         for domain, keyword in _LP_DOMAIN_SECTION.items():
-            chosen = tables.cols.lazy().with_row_index('col').filter(pl.col('vtype') == domain)
+            chosen = handoff.cols.lazy().with_row_index('col').filter(pl.col('vtype') == domain)
             if chosen.select(pl.len()).collect().item() == 0:
                 continue
             f.write(f'\n{keyword}\n'.encode())
             sink(chosen.select(pl.concat_str(pl.lit('x'), digits(pl.col('col')))), f)
 
-        if tables.sos.height:
+        if handoff.sos.height:
             f.write(b'\nsos\n')
-            sink(_set_lines(tables), f)
+            sink(_set_lines(handoff), f)
 
         f.write(b'\nend\n')
 
 
-def _quadratic_row_lines(tables: Tables, row: int, pairs: pl.DataFrame) -> pl.LazyFrame:
+def _quadratic_row_lines(handoff: Handoff, row: int, pairs: pl.DataFrame) -> pl.LazyFrame:
     r"""One quadratic constraint, linear part then bracketed quadratic part.
 
     ``c7: +1 x0 + [ 2 x0 * x1 ] >= 4``. **Not** halved, unlike the objective's
@@ -127,18 +127,18 @@ def _quadratic_row_lines(tables: Tables, row: int, pairs: pl.DataFrame) -> pl.La
     Written a row at a time, after the linear rows and still in label order —
     the quadratic rows *are* the tail.
     """
-    entries = tables.matrix_block(row, row + 1)
+    entries = handoff.matrix_block(row, row + 1)
     header = pl.LazyFrame({'line': [f'c{row}:']})
     linear = entries.lazy().sort('col').select(_term(pl.col('coeff'), pl.col('col')).alias('line'))
     opened = pl.LazyFrame({'line': ['+ [']})
     quadratic = pairs.lazy().select(_pair(pl.col('coeff')).alias('line'))
     closed = (
-        tables.rows.lazy().filter(pl.col('row') == row).select(pl.concat_str(pl.lit('] '), _footer()).alias('line'))
+        handoff.rows.lazy().filter(pl.col('row') == row).select(pl.concat_str(pl.lit('] '), _footer()).alias('line'))
     )
     return pl.concat([header, linear, opened, quadratic, closed])
 
 
-def _quadratic_terms(tables: Tables) -> pl.LazyFrame:
+def _quadratic_terms(handoff: Handoff) -> pl.LazyFrame:
     r"""The objective's quadratic part, one ``+2 x3 * x7`` line per pair.
 
     **The section is divided by two, so every coefficient here is doubled.**
@@ -152,7 +152,7 @@ def _quadratic_terms(tables: Tables) -> pl.LazyFrame:
     (:meth:`~specsolve.relational.engines.polars.assembly.Assembly._objective_quadratic`),
     so nothing here sorts.
     """
-    return tables.quad.lazy().select(_pair(pl.col('coeff') * 2))
+    return handoff.quad.lazy().select(_pair(pl.col('coeff') * 2))
 
 
 def _pair(coeff: pl.Expr) -> pl.Expr:
@@ -171,7 +171,7 @@ def _pair(coeff: pl.Expr) -> pl.Expr:
     )
 
 
-def _set_lines(tables: Tables) -> pl.LazyFrame:
+def _set_lines(handoff: Handoff) -> pl.LazyFrame:
     """Each special-ordered set as one ``s0: S2 :: x3:1 x4:2`` line.
 
     linopy's spelling of the section, so a file this writes and a file the
@@ -185,7 +185,7 @@ def _set_lines(tables: Tables) -> pl.LazyFrame:
     its parser says so.
     """
     return (
-        tables.sos.lazy()
+        handoff.sos.lazy()
         .group_by('set', maintain_order=True)
         .agg(
             pl.col('type').first(),
@@ -206,12 +206,12 @@ def _set_lines(tables: Tables) -> pl.LazyFrame:
     )
 
 
-def _constraint_lines(tables: Tables, lo: int, hi: int, entries: pl.DataFrame) -> pl.LazyFrame:
+def _constraint_lines(handoff: Handoff, lo: int, hi: int, entries: pl.DataFrame) -> pl.LazyFrame:
     """Every constraint line for rows ``[lo, hi)``, one sorted stream.
 
     One row per *output line*, interleaved by sorting, so nothing gathers a
     row's terms into a string list first. *entries* is the chunk's slice of the
-    matrix from :meth:`Tables.matrix_block`, and the anti-join gives a termless
+    matrix from :meth:`Handoff.matrix_block`, and the anti-join gives a termless
     row the line a solver still needs to parse.
 
     **The order is one integer, and the only other column.** A row's lines
@@ -222,12 +222,12 @@ def _constraint_lines(tables: Tables, lo: int, hi: int, entries: pl.DataFrame) -
     The terms are sorted although they arrive sorted: the union sort merges
     pre-ordered runs rather than permuting them.
     """
-    slots = tables.cols.height + 3
+    slots = handoff.cols.height + 3
 
     def _key(within: pl.Expr) -> pl.Expr:
         return chunk_key(pl.col('row'), lo, slots, within)
 
-    rows = tables.rows.lazy().filter(pl.col('row').is_between(lo, hi, closed='left'))
+    rows = handoff.rows.lazy().filter(pl.col('row').is_between(lo, hi, closed='left'))
     matrix = entries.lazy()
     header = rows.select(
         _key(pl.lit(0, dtype=pl.Int64)),

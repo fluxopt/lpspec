@@ -232,7 +232,7 @@ def test_the_row_read_is_the_row_the_solver_was_given() -> None:
     still return plausible terms — this is what says they are *that* row's.
     """
     with sps.build(COMMITMENT, COMMITMENT_DATA) as model:
-        tables = model._engine._model.tables
+        tables = model._engine._model.handoff
         for name in ('commit', 'balance'):
             block = model._engine._model.constraints[name]
             coordinates = block.frame.collect()

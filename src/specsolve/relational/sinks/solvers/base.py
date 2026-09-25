@@ -6,7 +6,7 @@ numbers *pushed* onto what the solver already has and re-solves from the basis
 the last one ended on.
 
 **This module imports no solver.** It is the one thing ``solvers/`` members may
-read besides ``tables.py``.
+read besides ``handoff.py``.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     import polars as pl
 
     from specsolve.relational.sinks.capabilities import Capabilities
-    from specsolve.relational.sinks.tables import Tables
+    from specsolve.relational.sinks.handoff import Handoff
     from specsolve.relational.status import SolveStatus
 
 
@@ -102,8 +102,8 @@ class Solver(ABC):
     is the whole of "reuse or load again", and what it hands back is run and,
     eventually, closed::
 
-        solver = solvers.loaded(held, name, tables, options)
-        solver.run(tables)  # …repeatedly
+        solver = solvers.loaded(held, name, handoff, options)
+        solver.run(handoff)  # …repeatedly
         solver.close()
 
     This class records the structure of what was loaded and the options it was
@@ -113,22 +113,22 @@ class Solver(ABC):
 
     def __init__(
         self,
-        tables: Tables,
+        handoff: Handoff,
         batch_rows: int | None = None,
         solver_options: Mapping[str, Any] | None = None,
     ) -> None:
         #: The options the loaded model was told, set at the load.
         self._options = dict(solver_options or {})
-        self._load(tables, batch_rows)
+        self._load(handoff, batch_rows)
         #: The build's own frames, until :meth:`structure` reads their digest
         #: and lets them go.
-        self._tables: Tables | None = tables
+        self._handoff: Handoff | None = handoff
         #: The digest of everything a re-solve may not change, or ``None``
         #: before :meth:`structure` is first asked. Read through it, never here.
         self._structure: bytes | None = None
         #: The loaded model's spans, read by :meth:`_takes` alone.
-        self._columns = tables.column_count
-        self._rows = tables.row_count
+        self._columns = handoff.column_count
+        self._rows = handoff.row_count
 
     #: The packages this member imports lazily, and so the ones an environment
     #: has to have for it to run at all.
@@ -149,14 +149,14 @@ class Solver(ABC):
         Reading it lets the frames go. Idempotent.
         """
         if self._structure is None:
-            assert self._tables is not None, 'a solver holds the tables it loaded until their digest replaces them'
-            self._structure = self._tables.structure
-            self._tables = None
+            assert self._handoff is not None, 'a solver holds the handoff it loaded until its digest replaces it'
+            self._structure = self._handoff.structure
+            self._handoff = None
         return self._structure
 
-    def keeps(self, tables: Tables, solver_options: Mapping[str, Any] | None) -> bool:
-        """Whether this held solver may keep its load and take *tables* by value."""
-        return self._options == dict(solver_options or {}) and self.structure() == tables.structure
+    def keeps(self, handoff: Handoff, solver_options: Mapping[str, Any] | None) -> bool:
+        """Whether this held solver may keep its load and take *handoff* by value."""
+        return self._options == dict(solver_options or {}) and self.structure() == handoff.structure
 
     @classmethod
     def imported(cls) -> Any:
@@ -182,18 +182,18 @@ class Solver(ABC):
         return all(importlib.util.find_spec(package.partition('.')[0]) is not None for package in cls.requires)
 
     @abstractmethod
-    def _load(self, tables: Tables, batch_rows: int | None) -> None:
-        """Hand *tables* to the solver and hold whatever reads it back.
+    def _load(self, handoff: Handoff, batch_rows: int | None) -> None:
+        """Hand *handoff* to the solver and hold whatever reads it back.
 
         Called by ``__init__`` rather than by a caller.
         """
 
     @abstractmethod
-    def push(self, tables: Tables) -> None:
-        """*tables*'s bounds, costs and right-hand sides onto the loaded model.
+    def push(self, handoff: Handoff) -> None:
+        """*handoff*'s bounds, costs and right-hand sides onto the loaded model.
 
         Everything an update may change without moving a label, and only ever
-        after *tables*'s digest matched the loaded one. Whole vectors rather
+        after *handoff*'s digest matched the loaded one. Whole vectors rather
         than a diff.
         """
 
@@ -263,17 +263,17 @@ class Solver(ABC):
         :class:`WarmStart` says they do.
         """
 
-    def run(self, tables: Tables) -> SolveAnswer:
+    def run(self, handoff: Handoff) -> SolveAnswer:
         """Solve what is loaded, read it back, and refuse a vector that lies.
 
         Reading a solution back is positional, so a vector that does not span
         the model is an answer about a *different* one, and is refused here.
         """
-        answer = self._run(tables)
-        self._check_span('primal', answer.primal, tables.column_count)
-        self._check_span('dual', answer.dual, tables.row_count)
-        self._check_span('activity', answer.activity, tables.row_count)
-        self._check_span('dual ray', answer.dual_ray, tables.row_count)
+        answer = self._run(handoff)
+        self._check_span('primal', answer.primal, handoff.column_count)
+        self._check_span('dual', answer.dual, handoff.row_count)
+        self._check_span('activity', answer.activity, handoff.row_count)
+        self._check_span('dual ray', answer.dual_ray, handoff.row_count)
         return answer
 
     def _check_span(self, quantity: str, values: pl.Series | None, expected: int) -> None:
@@ -295,10 +295,10 @@ class Solver(ABC):
             )
 
     @abstractmethod
-    def _run(self, tables: Tables) -> SolveAnswer:
+    def _run(self, handoff: Handoff) -> SolveAnswer:
         """Solve what is loaded and read it back.
 
-        *tables* is asked only for what has no column and so was never loaded —
+        *handoff* is asked only for what has no column and so was never loaded —
         the objective's constant. When either vector may be ``None`` is
         :class:`SolveAnswer`'s docstring. An infeasible solve calls
         :meth:`dual_ray` and returns what it gives.

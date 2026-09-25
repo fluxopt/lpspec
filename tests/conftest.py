@@ -479,7 +479,7 @@ def recomputed_row_values(engine, result) -> Any:
     Scattered rather than ``reduceat``-ed: a purely quadratic row owns no
     linear entries, and ``reduceat`` repeats the previous row on an empty span.
     """
-    tables = engine._model.tables
+    tables = engine._model.handoff
     x = np.zeros(tables.column_count)
     for name, block in engine._model.variables.items():
         x[block.start : block.start + block.height] = result.primal(name)['value'].to_numpy()
