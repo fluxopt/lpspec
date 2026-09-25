@@ -948,7 +948,7 @@ class Sweep:
                 expression on a Sweep with no model behind it, or one that reads
                 a parameter the sweep carried; or ``original_index`` on a
                 hand-built axis or a quantity reduced over the sliced dimension.
-            LanguageError: A construct outside the language, or a name the model
+            LanguageError: A construct outside the language, or a name the spec
                 does not declare.
         """
         if isinstance(expression, str) and (

@@ -295,7 +295,7 @@ class Diagnostics:
     rhs_range: pl.DataFrame
 
     #: The same pair for the objective's coefficients, or ``None`` where the
-    #: model declares no objective and where every term of one cancelled.
+    #: spec declares no objective and where every term of one cancelled.
     objective_range: tuple[float, float] | None
 
     #: How many times this model has been solved, and how many of those solves
@@ -411,8 +411,8 @@ class Result:
     #: One deferred reader per declared named expression, and the ad-hoc
     #: evaluator — what :meth:`evaluate` reads through and what :meth:`save`
     #: writes. Nothing is compiled until a reader is called; the pair is
-    #: composed above the lane so the evaluator may read the model as written
-    #: (hard rule 2). ``_evaluate`` is ``None`` where there is no such model —
+    #: composed above the lane so the evaluator may read the spec as written
+    #: (hard rule 2). ``_evaluate`` is ``None`` where there is no such spec —
     #: a build off an already-lowered ``Program``, or an answer read back off
     #: disk. Released with the primals by :meth:`close`, since each holds this
     #: build's frames and values.
@@ -668,8 +668,8 @@ class Result:
         :meth:`primal`'s shape and order.
 
         A declared name is served by its own reader, compiled on this call and
-        never lowered again, so a model whose expressions go unread compiles
-        none of them. Anything else lowers the model as written, which costs
+        never lowered again, so a spec whose expressions go unread compiles
+        none of them. Anything else lowers the spec as written, which costs
         what ``check`` costs.
 
         Raises:
@@ -679,7 +679,7 @@ class Result:
                 nothing to lower an undeclared expression against; or a divisor
                 with no value where the expression divides.
             LanguageError: A construct outside the language, or a name the
-                model does not declare.
+                spec does not declare.
         """
         self._readable(self._primals, 'an expression')
         return evaluated(self._expressions or {}, self._evaluate, expression)

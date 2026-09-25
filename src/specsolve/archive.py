@@ -20,7 +20,7 @@ from mathspec import to_spec
 
 from specsolve.api import attach_readers, load_result, scan_result
 from specsolve.errors import SpecsolveError
-from specsolve.layout import ANSWER_DIR, AXIS_MEMBER, DIGESTS_MEMBER, MODEL_MEMBER, SOURCES_DIR, opened
+from specsolve.layout import ANSWER_DIR, AXIS_MEMBER, DIGESTS_MEMBER, SOURCES_DIR, SPEC_MEMBER, opened
 from specsolve.relational.parquet import METRICS_FILE, Metrics, digest_of, row_of
 from specsolve.strategy import (
     EachCoordinate,
@@ -111,11 +111,11 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
         :class:`SolveArchive` where it does not.
 
     Raises:
-        LanguageError: A ``model.yaml`` the language does not accept.
+        LanguageError: A ``spec.yaml`` the language does not accept.
         LayoutError: A member outside the layout, an *into* given for a
             directory, or an answer whose layout has moved since it was
             written.
-        SpecsolveError: An answer that names a different model than the one
+        SpecsolveError: An answer that names a different spec than the one
             beside it.
         zipfile.BadZipFile: A file that is not a zip archive.
     """
@@ -137,7 +137,7 @@ def scan_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
 
 
 def _read(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
-    spec = to_spec(under / MODEL_MEMBER)
+    spec = to_spec(under / SPEC_MEMBER)
     sources: dict[str, Source] = {
         member.stem: pl.read_parquet(member) if whole else member
         for member in sorted((under / SOURCES_DIR).glob('*.parquet'))
@@ -158,7 +158,7 @@ def _read(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
 
 
 def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
-    """Refuse an archive whose answer came back from a different model than the one beside it.
+    """Refuse an archive whose answer came back from a different spec than the one beside it.
 
     A solve writes both together, so this catches a hand-edited archive. A
     ``None`` digest is an answer solved off a lowered program and is not
@@ -167,6 +167,6 @@ def _check_the_pairing(spec: Spec, answered: Sequence[str | None]) -> None:
     mine = digest_of(spec.to_yaml())
     if others := sorted({other for other in answered if other is not None and other != mine}):
         raise SpecsolveError(
-            f'this archive holds an answer that came back from a different model: the answer carries '
-            f'{others} and the model.yaml beside it digests to {mine}, so re-solving it would give another answer.'
+            f'this archive holds an answer that came back from a different spec: the answer carries '
+            f'{others} and the spec.yaml beside it digests to {mine}, so re-solving it would give another answer.'
         )

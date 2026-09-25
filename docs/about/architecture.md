@@ -28,7 +28,7 @@ the oracle.
 ## Thesis
 
 A YAML math spec is a **closed AST known before any data is touched**. So the
-whole model can be compiled two ways: to eager xarray/linopy calls in the test
+whole spec can be compiled two ways: to eager xarray/linopy calls in the test
 oracle, or to a logical plan streamed to a sink. Both paths provably mean the
 same thing. A
 *declared* memory ceiling is not something the package has; see [the memory
@@ -52,7 +52,7 @@ its own boundary. So polars is the one representation, and pandas is not a
 dependency. One reader for both lanes
 costs the oracle a copy of what a pandas caller passed (#1076).
 
-What a model assumes of its data sits below the seam because it needs values
+What a spec assumes of its data sits below the seam because it needs values
 rather than a schema. It lives in `assumptions.py`, which the door calls, so
 neither lane can enter without it. Data goes no further **up** than here, so
 nothing above the seam has ever seen a value.
@@ -99,14 +99,14 @@ flowchart TB
 
     BUILD --> MODEL["<b>a linopy.Model</b> — the oracle stops here<br/>solved by the tests, and compared with the Result"]
 
-    classDef laneL fill:#fdf6ec,stroke:#b7791f,stroke-width:2px,color:#111
-    classDef laneR fill:#f0f7f0,stroke:#3a7d44,stroke-width:2px,color:#111
-    classDef laneE fill:#eef1fb,stroke:#4a5fc1,stroke-width:2px,color:#111
-    classDef laneT fill:#f7f0f7,stroke:#8b3a7d,stroke-width:2px,color:#111
-    classDef waist fill:#e9edfa,stroke:#4a5fc1,stroke-width:3px,color:#111
-    classDef flat fill:#fffdf5,stroke:#8a8578,stroke-width:2px,stroke-dasharray:4 3,color:#111
-    classDef data fill:#fdf4e8,stroke:#b7791f,stroke-width:1.5px,color:#111
-    classDef out fill:#eef6ee,stroke:#3a7d44,stroke-width:2px,color:#111
+    classDef laneL stroke:#b7791f,stroke-width:2px
+    classDef laneR stroke:#3a7d44,stroke-width:2px
+    classDef laneE stroke:#4a5fc1,stroke-width:2px
+    classDef laneT stroke:#8b3a7d,stroke-width:2px
+    classDef waist stroke:#4a5fc1,stroke-width:3px
+    classDef flat stroke:#8a8578,stroke-width:2px,stroke-dasharray:4 3
+    classDef data stroke:#b7791f,stroke-width:1.5px
+    classDef out stroke:#3a7d44,stroke-width:2px
     class MS laneL
     class REL laneR
     class LIN laneE
@@ -137,7 +137,7 @@ language](#what-counts-as-language).
 **Eligibility is decided by attempting the lowering.** `lanes.lowered` returns
 a `Program` or raises `sps.LanguageError`. Both lanes call it, so "neither lane
 accepts a file the other refuses" is mechanical rather than maintained.
-The oracle asks only for the verdict and discards the plan. Errors split model
+The oracle asks only for the verdict and discards the plan. Errors split spec
 from run. Everything under `LanguageError` is decidable without data,
 `DataError` is what a source failed to supply, and both are `SpecsolveError`
 (`errors.py`). The third thing that can be wrong is a spec the language
@@ -148,31 +148,31 @@ formulation emits declarations and those are language too.
 ## One contract, many consumers
 
 The AST is a **narrow waist**. Everything upstream emits it, everything
-downstream reads it, and nothing else has to agree on anything. So the model
-you write once is the same model that gets checked, solved, typeset and read
+downstream reads it, and nothing else has to agree on anything. So the spec
+you write once is the same spec that gets checked, solved, typeset and read
 back.
 
 ```mermaid
 flowchart LR
     Y(["your math, written once<br/>one YAML file"]) --> AST
-    AST["<b>the whole model</b> — <code>Spec</code>, and the <code>Program</code> it lowers to<br/>names typed, dims checked, degree judged<br/><i>before a byte of data is read</i>"]
+    AST["<b>the whole spec</b> — <code>Spec</code>, and the <code>Program</code> it lowers to<br/>names typed, dims checked, degree judged<br/><i>before a byte of data is read</i>"]
     AST --> SHOW["<b>show it</b><br/>mathspec.typesetting · its CLI<br/><i>no data, no solver</i>"]
     AST --> CHECK["<b>check it</b><br/>parse → validate → lower<br/><i>no data, no solver</i>"]
     AST --> RUN["<b>run it</b><br/>solver · LP/MPS file"]
     DATA[("your data<br/>parquet · polars · any Arrow table")] --> RUN
     RUN --> ANS(["<b>your answers</b><br/>tables you can join"])
-    classDef built fill:#eef6ee,stroke:#3a7d44,stroke-width:1.5px,color:#111
-    classDef waist fill:#e9edfa,stroke:#4a5fc1,stroke-width:3px,color:#111
-    classDef data fill:#fdf4e8,stroke:#b7791f,stroke-width:1.5px,color:#111
+    classDef built stroke:#3a7d44,stroke-width:1.5px
+    classDef waist stroke:#4a5fc1,stroke-width:3px
+    classDef data stroke:#b7791f,stroke-width:1.5px
     class Y,SHOW,CHECK,RUN,ANS built
     class AST waist
     class DATA data
 ```
 
-The diagram shows one YAML file becoming the whole model, and three consumers
+The diagram shows one YAML file becoming the whole spec, and three consumers
 reading it: show it, check it and run it.
 
-**Only the run arrow carries data, and it arrives after the model is already
+**Only the run arrow carries data, and it arrives after the spec is already
 judged.** A `Spec` is complete before a source is attached: names typed, dims
 checked, degree decided. `check` is the build's own front half, stopped before
 attaching. That is why it is a CI verb, costs seconds, and needs nothing but
@@ -184,7 +184,7 @@ renderer is a tree walk, a check is a pass with no data attached, and a new
 output format is one module in `relational/sinks/writers/`.
 
 **The renderer is that claim cashed, and it is not here.**
-`mathspec.typesetting` typesets any model the lanes can build, in one walk of
+`mathspec.typesetting` typesets any spec the lanes can build, in one walk of
 the resolved AST. A `piecewise:` block prints as the curve it states, and its
 expansion as the rows. It lives in the package that owns the language, and this package does not
 depend on it. A consumer that reads the AST and nothing else needs no part of
@@ -194,7 +194,7 @@ protects: a new consumer is free, a new primitive is taxed.
 
 ### The Python surface
 
-**Twenty-seven names, and the count is the feature.** The model is the YAML file,
+**Twenty-seven names, and the count is the feature.** The spec is the YAML file,
 and Python is how you *run* it. So nothing on the surface constructs math or
 reaches the plan. The names, by role:
 
@@ -221,7 +221,7 @@ choosing to*: a `LanguageError` arrives unbidden out of `sps.solve`.
 
 **Nothing here reads a `Spec`.** Attaching, the guards and both lanes take the
 `Program`. A verb reads a `Spec` only for the `Program` it carries, through
-`lanes.lowered`. The model *as written* is `mathspec`'s side of the
+`lanes.lowered`. The spec *as written* is `mathspec`'s side of the
 line: editing it, dumping it and typesetting it.
 
 **What a verb hands back is part of its signature.** A caller that *wraps* this
@@ -280,7 +280,7 @@ the language's rulebook.
    value position. The plan, the query and the xarray are private to their lane.
    The AST crossing that seam is **fully resolved**, with names typed
    `Variable`/`Parameter`/`Dimension`. So a lane cannot hold its own opinion
-   about what a name refers to. What a model *means* cannot depend on what is
+   about what a name refers to. What a spec *means* cannot depend on what is
    done with it, because the package that decides the meaning cannot import this
    one ([above](#thesis)). **Our half of it is checked**: every `mathspec`
    import under `src/specsolve` names the package and never a module inside it
@@ -317,9 +317,9 @@ the language's rulebook.
    primal.
 4. **Backend-visible YAML files are self-contained.** No Python-side state
    (registries, session objects) may change what a file means.
-5. **The public interface is a declared model, not a Python API.** YAML is what
+5. **The public interface is a declared spec, not a Python API.** YAML is what
    we ship and document. A `.yaml` file is the thing you review, diff and cite.
-   There is no API for *constructing* a model, no way to hand in a plan, and no
+   There is no API for *constructing* a spec, no way to hand in a plan, and no
    registry to populate. The contract underneath is the language's two states, a
    `Spec` and the `Program` it lowers to. Whether that seam is ever blessed is
    open ([#381](https://github.com/fluxopt/specsolve/issues/381)). The Python
@@ -460,7 +460,7 @@ in the lane is order-free, which is what lets the query planner rearrange it.
   table, which was numbered in that order, and the LP sink writes it.
 
 **The plan is affine-by-design.** No node introduces variables or constraints as
-a side effect of an expression; formulations are model *transformations*.
+a side effect of an expression; formulations are spec *transformations*.
 Variable *types* are not formulations. Binary and integer are a `vtype` column,
 LP `binary`/`general` sections and HiGHS integrality, which keeps basic MILP
 inside the relational lane. **`sos:` is the same shape.** It is a
@@ -470,8 +470,8 @@ that has the concept. Reimplementing a reformulation pass inside the plan is
 rejected: the language writes a formulation out itself (`Spec.expand`), and a
 sink with no SOS concept is handed the model so written rather than a rewrite
 of the built tables. The same rule decides the door: a `piecewise:` block
-states rows nothing lowers, and specsolve refuses a model still carrying one
-rather than expanding it unasked, so a model arrives with its curves expanded, and the sets expanded or not
+states rows nothing lowers, and specsolve refuses a spec still carrying one
+rather than expanding it unasked, so a spec arrives with its curves expanded, and the sets expanded or not
 as the caller's sinks demand.
 
 **A frame is the boundary in both directions.** `frames.py` recognises a
@@ -539,7 +539,7 @@ is structure.
 |---|---|
 | `mathspec` (a dependency) | the whole language, read, expanded, resolved, judged and lowered there; what crosses is a `Spec` and the `Program` it lowers to — [its own reference](https://mathspec.readthedocs.io/en/latest/reference/language/) |
 | `api.py` | the runner: `check` / `build` / `solve` / `write`, and `load_result` / `scan_result` for an answer read back off disk; linopy-free |
-| `layout.py` | below every verb that solves: what an archive holds — `model.yaml`, `sources/`, `answer/`, `axis.json` — written as one zip or as a directory, because a solve is the one moment all three exist together |
+| `layout.py` | below every verb that solves: what an archive holds — `spec.yaml`, `sources/`, `answer/`, `axis.json` — written as one zip or as a directory, because a solve is the one moment all three exist together |
 | `archive.py` | above the runner and the fold: `load_archive` / `scan_archive` and the two values they give back, `SolveArchive` and `SweepArchive`. It reads; it never writes |
 | `lanes.py` | above both lanes: `Buildable` and `Source`, what every verb takes; `Label`, a dimension's labels and a sweep's keys; `lowered`, the one door every verb lowers a spec through |
 | `relational/collect.py` | which polars engine materialises a frame: the streaming one where this polars has it, asked once; a build without it, the browser's, gets the in-memory one |
@@ -562,7 +562,7 @@ is structure.
 | `relational/engines/polars/readback.py` | a built row, a solve's tables and a named expression, spelled back out in the model's own labels |
 | `relational/engines/polars/engine.py` | the lifecycle: build, hand to a sink, read back; the counters and clocks `diagnostics()` reports; and the one read with no build, a spec of parameters and expressions valued as arithmetic |
 | `relational/result.py` | what a solve returned: status, objective, the label joins that read values back, and the deferred expression readers |
-| `expressions.py` | expressions spliced into the model as written and lowered with it — what a reader values when the file never named the quantity |
+| `expressions.py` | expressions spliced into the spec as written and lowered with it — what a reader values when the file never named the quantity |
 | `relational/parquet.py` | answers on disk: the `<kind>/<name>` layout a result and a sweep both write, and the writer that lands a file whole |
 | `relational/sinks/handoff.py` | what every sink reads and no more: the five tables, the batching scalars, and their projection onto the solver's column index |
 | `relational/sinks/capabilities.py` | what a sink can ingest — hard rule 3's *accepts ≠ builds* axis; `lanes.py` declares each **lane** in the same vocabulary |
@@ -603,7 +603,7 @@ are language.
 The test also says what cannot follow. `assumptions.py` answers a question two
 consumers answering separately *would* be a bug, so by the rule it is language.
 It is here because the answer needs numbers, and the language has never seen
-one. The half that does not need them is upstream: a model's `assumptions` name
+one. The half that does not need them is upstream: a spec's `assumptions` name
 each condition, `assumption_message` words the refusal, and the caller holding
 the values does the checking. A rule is only ours when data is what decides it,
 which is what the top level is *for* ([the ten above](#thesis)). A flat module

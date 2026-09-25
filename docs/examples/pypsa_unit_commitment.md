@@ -46,7 +46,7 @@ PyPSA unit commitment: which generators are on, not just how much they produce �
 | $`\mathit{start\_up}`$ | `start_up` over $`\mathcal{T} \times \mathcal{G}`$ — does this unit come up entering this snapshot? |
 | $`\mathit{shut\_down}`$ | `shut_down` over $`\mathcal{T} \times \mathcal{G}`$ — does this unit go down entering this snapshot? |
 
-Upright is what the model is given — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the data supplies — a parameter such as $`\mathrm{p}^{\mathrm{nom}}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 $`\mathrm{pos}(t)`$ denotes where index $`t`$ sits along its dimension's own order — the order `shift` steps along, not the order labels sort in — counted from $`0`$. The index itself stays the coordinate, so $`t`$ compares against labels and $`\mathrm{pos}(t)`$ against positions.
 

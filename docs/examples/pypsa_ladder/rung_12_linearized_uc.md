@@ -48,7 +48,7 @@ One rung of [the PyPSA corpus](https://mathspec.readthedocs.io/en/latest/example
 <details markdown="1">
 <summary>The same model, as math</summary>
 
-The relaxed class of a plain `n.optimize()`: `linearized_unit_commitment`, stated on rung 1's transport surface in a file of its own. The status, its starts and its stops are shares in \[0, 1\] rather than binaries — a domain is the model's, not the data's — and four rows PyPSA adds only under the keyword tighten the relaxation where a unit's start and stop cost the same. `examples/pypsa.yaml` stays the integer one.
+The relaxed class of a plain `n.optimize()`: `linearized_unit_commitment`, stated on rung 1's transport surface in a file of its own. The status, its starts and its stops are shares in \[0, 1\] rather than binaries — a domain is the spec's, not the data's — and four rows PyPSA adds only under the keyword tighten the relaxation where a unit's start and stop cost the same. `examples/pypsa.yaml` stays the integer one.
 
 #### Sets
 
@@ -298,8 +298,8 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
     ```yaml
     description: 'The relaxed class of a plain `n.optimize()`: `linearized_unit_commitment`, stated on rung
       1''s transport surface in a file of its own. The status, its starts and its stops are shares in [0,
-      1] rather than binaries — a domain is the model''s, not the data''s — and four rows PyPSA adds only
-      under the keyword tighten the relaxation where a unit''s start and stop cost the same. `examples/pypsa.yaml`
+      1] rather than binaries — a domain is the spec''s, not the data''s — and four rows PyPSA adds only under
+      the keyword tighten the relaxation where a unit''s start and stop cost the same. `examples/pypsa.yaml`
       stays the integer one.'
     dimensions:
       snapshot: {description: dispatch periods, dtype: datetime}

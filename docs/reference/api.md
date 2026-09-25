@@ -77,7 +77,7 @@ to_spec(spec).to_yaml()  # the review copy — a dict-built spec still gets a fi
 to a verb is not read again.
 
 **A formulation is written out before a verb reads it.** A `piecewise:` block
-states rows nothing lowers, so specsolve refuses a model still carrying one, at
+states rows nothing lowers, so specsolve refuses a spec still carrying one, at
 every verb, rather than expanding it unasked, and names the way in: `to_spec(spec).expand('piecewise')` writes each
 curve out as the variables and constraints it states and keeps every `sos:`
 block, for a sink that branches on a set; `to_spec(spec).expand()` writes the
@@ -222,7 +222,7 @@ the `Model`'s to answer.
 ### Reading one row
 
 `row` says what one constraint says at one *coordinate*, once the data is on
-it. `to_latex` renders the model before any data, and `result.dual('balance')`
+it. `to_latex` renders the spec before any data, and `result.dual('balance')`
 gives a row's number without its terms; `row` is the third question, and the
 one a wrong model is debugged by.
 
@@ -314,7 +314,7 @@ xarray, which specsolve does not install.
 | **reading with no primal raises** | `NoSolutionError`; `objective` is `nan`. `save` is the exception: it writes the record and no frames, an infeasible run being an answer a set of saved cases needs on disk |
 | **`dual_ray` is the one reader an infeasible solve answers** | a weight per row, `dual`'s shape, certifying that the rows cannot all hold: weight each row by its value and the combination demands more than the columns can deliver inside their bounds. It is what a Benders feasibility cut is built from ([decomposition](../about/decomposition.md#when-the-subproblem-is-infeasible)). **The sign is the row's own**, one convention across the sinks, so a driver never asks who solved. A solve that found an answer has nothing to certify and says so |
 | **a certificate is computed only where it was asked for** | `highs` always produces one. `gurobi` needs `solver_options={'InfUnbdInfo': 1}` and `xpress` needs `solver_options={'presolve': 0}`, both set before the solve; without them the model is still refused as infeasible, and `dual_ray` raises naming the option. A ray is live-only: `save` does not write one, and no sweep spills one |
-| **`evaluate` takes what an `expressions:` entry takes** | a name the file declares, an expression string, or the mapping that carries `cases:`. A declared name is the value of that [named expression](https://mathspec.readthedocs.io/en/latest/reference/language/named/#expressions) at the solution, aggregated to its own dimensions, served by the reader already holding it and compiled at the read, so unread expressions cost nothing. Anything else lowers the model again, which costs what `check` costs. It may use every name the solved model declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read |
+| **`evaluate` takes what an `expressions:` entry takes** | a name the file declares, an expression string, or the mapping that carries `cases:`. A declared name is the value of that [named expression](https://mathspec.readthedocs.io/en/latest/reference/language/named/#expressions) at the solution, aggregated to its own dimensions, served by the reader already holding it and compiled at the read, so unread expressions cost nothing. Anything else lowers the spec again, which costs what `check` costs. It may use every name the spec declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read |
 | **an undeclared expression names nothing** | so it is not a *kind*: `save` does not write it and a sweep does not spill it. A declared expression is: `save` writes it under `expression/`, and it rides every bridge as `kind='expression'`. To keep a quantity, declare it under `expressions:` and read it by name |
 | **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `SpecsolveError`. Any integer or binary variable makes duals undefined |
 | **an expanded set makes a model mixed-integer** | an [`sos:`](https://mathspec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set written out with `Spec.expand()` is binaries, so an otherwise continuous model solved that way has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
@@ -428,7 +428,7 @@ case.answer.primal('p')  # what came back
 sps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
-**An archive is the spec, its data and its answer**: `model.yaml`,
+**An archive is the spec, its data and its answer**: `spec.yaml`,
 `sources/<key>.parquet` for every key the file declares, `sources.parquet`
 digesting those members, `answer/` holding what `result.save` or `sweep.save`
 writes plus `answer/metrics.parquet`, and `axis.json` for a sweep.
@@ -457,10 +457,10 @@ The recipes are [archiving a solve](../howto/archiving.md) and
 
 | Rule | |
 |---|---|
-| **the spec is held as written** | `model.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in |
-| **anything outside the layout is refused** | a member the layout does not name, or no `model.yaml`. A zip is refused before it is unpacked |
+| **the spec is held as written** | `spec.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in |
+| **anything outside the layout is refused** | a member the layout does not name, or no `spec.yaml`. A zip is refused before it is unpacked |
 | **a saved answer is stamped with its layout** | `format.json` beside the frames, `0` while the layout is still moving. Nothing reads an older layout back: the stamp turns a missing column into a sentence naming the way out, which is to solve the model again and save it |
-| **`spec_digest` says whether a comparison compares like with like** | a digest of the spec, written into every answer's record and checked when an archive is read back: an archive whose answer names another model is refused. Across the records of cases solved apart, one distinct non-null `spec_digest` is the claim that every row answered the same document |
+| **`spec_digest` says whether a comparison compares like with like** | a digest of the spec, written into every answer's record and checked when an archive is read back: an archive whose answer names another spec is refused. Across the records of cases solved apart, one distinct non-null `spec_digest` is the claim that every row answered the same document |
 | **the sources are digested, one row each** | `archive.source_digests` is `(run, source, digest)` for every member of `sources/`, held as `sources.parquet`. Two archives of one document over different numbers agree on `spec_digest` and differ here, and the rows that differ name the input that moved. The digest is of the parquet bytes the archive holds, so two polars versions can write one table to different digests. Reading an archive does not verify them |
 | **the metrics are the solve's, not `save`'s** | `archive.metrics` is a `Metrics` ([the attributes](#diagnostics)), held as `answer/metrics.parquet`. `result.save` writes none: the counters cover the model's whole life, and `solves` says how many solves that is. A sweep's are `archive.answer.metrics`, a `SliceMetrics` per slice |
 | **every row is stamped with `run`** | the archive's own name, on the record, the metrics and the digest table, so a directory of archives reads as one table without parsing paths |
@@ -495,7 +495,7 @@ case = sps.scan_archive('case.zip', 'case/')  # read as asked for, off 'case/'
 **The pairs are `load_archive` / `scan_archive`, `load_result` / `scan_result`
 and `load_sweep` / `scan_sweep`.** Each pair takes the same arguments, hands back
 the same type, and refuses the same things: a directory holding no answer, and
-an archive whose answer names another model. The one difference is the `into=`
+an archive whose answer names another spec. The one difference is the `into=`
 a zip needs, which the table above gives.
 
 **A loaded value is fixed and a scanned one is not.** A load leaves nothing to
