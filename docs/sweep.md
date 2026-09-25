@@ -42,7 +42,7 @@ print(sweep.record.select('scenario', 'termination_condition', 'objective'))
 ```
 
 `sweep.record` has one row per scenario. The readers of a
-[result](reference/api.md#reading-a-result) read a sweep too, with the
+[result](reference/api.md#specsolve.Result) read a sweep too, with the
 scenario column in front:
 
 ```python exec="true" source="material-block" result="text" session="sweep"

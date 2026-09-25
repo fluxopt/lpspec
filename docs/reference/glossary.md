@@ -28,7 +28,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 : The spec lowered to the plan a build reads its rows off: what [`check`](api.md)
   returns, still with no data, for reading the plan. No verb takes one back:
   lowering has no inverse, so keep the `Spec`
-  ([the spec argument](api.md#the-spec-argument)). The two states are the
+  ([`check`](api.md#specsolve.check)). The two states are the
   language's
   ([`Spec` and `Program`](https://mathspec.readthedocs.io/en/latest/reference/reading/#spec-and-program)).
 
@@ -36,7 +36,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 : A block that states rows nothing lowers, `piecewise:` today. Every verb
   refuses a spec still carrying one; `to_spec(spec).expand('piecewise')` or
   `.expand()` writes it out first
-  ([the spec argument](api.md#the-spec-argument)).
+  ([`check`](api.md#specsolve.check)).
 
 **Model**
 : A spec with data attached, the language's own meaning of the word
@@ -50,7 +50,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 **Result**
 : One answer read back from a solve: `objective`, `primal(name)`,
   `dual(name)`, `evaluate(expression)` and the rest of
-  [reading a result](api.md#reading-a-result). It owns its tables, so it
+  [`Result`](api.md#specsolve.Result). It owns its tables, so it
   outlives its model.
 
 **Answer**
@@ -62,7 +62,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 
 **Archive**
 : A spec, the data it was solved with and what came back, written together as
-  one zip or one directory by `archive=` ([archiving](api.md#archiving-a-model)).
+  one zip or one directory by `archive=` ([archiving](../howto/archiving.md)).
   It reads back as a `SolveArchive`, or a `SweepArchive` where the sources were
   cut. Its `run` is the archive's own name, stamped into the answer when it is
   written. Never "artifact".
@@ -79,7 +79,8 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 : `check(spec)` validates and lowers; `check(spec, sink)` also asks whether
   that sink takes it. `build(spec, sources)` returns a [Model](#the-chain).
   `solve` and `write` build and then solve or stream in one call. There is no
-  Python API for constructing a spec.
+  Python API for constructing a spec. Each has
+  [its entry](api.md#run-a-spec).
 
 **evaluate**
 : `evaluate(spec, sources, expression)` values one expression of a spec that
@@ -95,7 +96,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   `load_archive` read **whole**, so the directory is free afterwards.
   `scan_result`, `scan_sweep` and `scan_archive` read each frame at the call
   that asks for it, so the files have to outlive the value
-  ([loading or scanning](api.md#loading-or-scanning)). Never "open".
+  ([reading one too big to hold](../howto/archiving.md#read-one-too-big-to-hold)). Never "open".
 
 **Buildable**
 : The type alias for a spec argument: `str | Path | Mapping | Spec`. The
@@ -183,7 +184,8 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 
 **keep**
 : How much of a session `model.solve` carries to the next solve: `solver`
-  (default), `progress` (its work too) or `nothing` ([the verbs](api.md)).
+  (default), `progress` (its work too) or `nothing`
+  ([`Model.solve`](api.md#specsolve.Model.solve)).
 
 ## Sweeps
 
@@ -219,16 +221,11 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 ## Row types
 
 **Record** · **Metrics** · **SliceMetrics**
-: The three saved rows, each a `NamedTuple` that names its own columns. Where
-  a column is nullable, the type also derives the schema it is written with,
-  so an all-null column keeps its own type instead of the one a single row
-  infers. **Record** is how a solve terminated, one per solve, and what
-  `result.record` hands back. **Metrics** is
-  what it took — the sizes, what the sink added to them, the counters and the
-  clocks, every clock naming its unit — and is what `archive.metrics` hands
-  back ([the attributes](api.md#diagnostics)). **SliceMetrics** is one slice of
-  a sweep's share of that, in its own columns, and is the row behind
-  `sweep.metrics`.
+: The three saved rows, each a `NamedTuple` that names its own columns:
+  [`Record`](api.md#specsolve.relational.parquet.Record), how a solve
+  terminated; [`Metrics`](api.md#specsolve.relational.parquet.Metrics), what
+  it took; and [`SliceMetrics`](api.md#specsolve.relational.parquet.SliceMetrics),
+  one slice of a sweep's share of that.
 
   A **row** is a value and gets a type; a **table** stays a
   [Table](#the-data). So a result hands back its one `Record`, while

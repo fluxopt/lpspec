@@ -72,27 +72,40 @@ __all__ = ['build', 'check', 'evaluate', 'load_result', 'scan_result', 'solve', 
 def check(spec: Buildable, sink: str | None = None) -> Program:
     """Parse, validate and lower a spec; attach no data.
 
+    The CI verb: with no data and no solver, a spec repository validates every
+    commit. Every other verb reads the spec through the same door, so what this
+    refuses they refuse too.
+
     With *sink*, also: **will that sink take it?** Bare ``check`` says nothing
     about portability. The answer is read off a declared table with no data
-    attached, so it needs no solver installed. The solver-independent advice
-    is issued either way.
+    attached, so it needs no solver installed, and [`solve`][] and
+    [`write`][] read the same table, so the refusal comes whether or not it was
+    asked for. The solver-independent advice is issued either way.
 
     Args:
-        spec: A YAML path, a mapping, or a ``Spec``.
+        spec: A YAML path, a mapping, or a ``Spec`` — what ``mathspec.to_spec``
+            takes, so a framework that emits declarations passes the mapping
+            and writes no file. A ``Spec`` is not read again. A lowered
+            ``Program`` is not taken. A ``piecewise:`` block is written out
+            first: ``to_spec(spec).expand('piecewise')`` keeps every ``sos:``
+            set for a sink that takes one, and ``to_spec(spec).expand()``
+            writes the sets out too, as binaries every sink takes.
         sink: A solver name (``highs``, ``gurobi``, ``xpress``) or an output
             suffix (``.lp``, ``.mps``). ``None`` asks only whether the spec is
             sayable.
 
     Returns:
-        The lowered program: what a build reads rows off, and what every verb
-        here takes back without parsing the file again. It is the language's
-        own type — typeset it, or read its declarations, through
+        The lowered program: what a build reads rows off, for reading the plan.
+        No verb takes it back; keep the ``Spec`` for that. It is the
+        language's own type — typeset it, or read its declarations, through
         `mathspec`.
 
     Raises:
-        LanguageError: A construct outside the streaming language.
-        SpecsolveError: A *sink* that cannot take this spec, or a name belonging
-            to no sink.
+        LanguageError: A construct outside the streaming language, or a
+            ``piecewise:`` block still to be written out.
+        SpecsolveError: A *sink* that cannot take this spec, naming the
+            construct and the sinks that do; a name belonging to no sink; or
+            two declarations whose names differ only by case.
         ValueError: A schema or expression that does not parse.
 
     Warns:
@@ -245,6 +258,10 @@ class Model:
         retained result keeps its build's label frames alive until it is
         dropped or [`close`][specsolve.relational.result.Result.close] is called.
 
+        A loop whose next numbers depend on the last answer is this; a sweep, a
+        rolling horizon or a myopic pathway is [`solve_over`][specsolve.strategy.solve_over],
+        which runs the loop.
+
         Args:
             sources: Only what changed; the rest keeps what [`build`][]
                 attached. A dimension's labels as well as a parameter, which is
@@ -254,7 +271,9 @@ class Model:
             This object, so a driver can chain.
 
         Raises:
-            DataError: A name the spec does not declare.
+            DataError: A name the spec does not declare, since an update that
+                named nothing would solve the old numbers again. An update that
+                raises releases the model, as a build that raises does.
         """
         _refuse_unknown(sources, attachable(self._program))
         self._sources.update(sources)
@@ -278,10 +297,15 @@ class Model:
         [`kept`][specsolve.relational.result.Result.kept].
 
         Args:
-            solver_name: ``highs``, which ships with the package, or
-                ``gurobi``, which needs the ``[gurobi]`` extra.
+            solver_name: ``highs``, which ships with the package; ``gurobi``,
+                which needs the ``[gurobi]`` extra; or ``xpress``, which needs
+                the ``[xpress]`` extra. The caller chooses: nothing in the spec
+                names a solver.
             solver_options: Forwarded to the solver verbatim, in its own
-                vocabulary (``{'time_limit': 60}``).
+                vocabulary, so a time limit is ``time_limit``, ``TimeLimit`` or
+                ``timelimit``. Gurobi's are applied when its environment is
+                created, so ``ComputeServer``, ``TokenServer`` and
+                ``WLSAccessID`` reach it too.
             keep: How much of the session this solve may keep: ``solver``,
                 ``progress`` or ``nothing``. ``solver``, the
                 default, reuses the solver holding the model and discards the
@@ -297,7 +321,11 @@ class Model:
                 the model solves again from the file alone. A ``.zip`` suffix
                 packs it into one file and anything else is a directory. What
                 the build and its solves have spent goes in beside the answer,
-                as [`Metrics`][specsolve.relational.parquet.Metrics].
+                as [`Metrics`][specsolve.relational.parquet.Metrics]. The
+                sources go in through the door [`build`][] reads them through:
+                a parquet path is copied as its own bytes, anything else is
+                written as the table it stands for, and members are stored
+                uncompressed.
 
         Returns:
             The solution, holding this model.
@@ -362,7 +390,8 @@ class Model:
         that never reached a solver — and it is the built row, so a term whose
         variable was absent is missing from it and a row a ``where`` masked out
         is not there at all. It shows what the model says rather than what the
-        file appears to say.
+        file appears to say. A column has no reader: a variable's bounds are in
+        the spec, and its coefficients are this read transposed.
 
         Args:
             name: A declared constraint. Positional, so that a dimension may
@@ -376,8 +405,9 @@ class Model:
 
         Raises:
             KeyError: No constraint is called *name*.
-            SpecsolveError: The coordinate names the wrong dims, matches no row
-                the build produced, or the model has been closed.
+            SpecsolveError: The coordinate names the wrong dims, holds a label
+                its dimension cannot hold, matches no row the build produced,
+                or the model has been closed.
 
         Example:
             >>> print(model.row('balance', snapshot=1))  # doctest: +SKIP
@@ -455,7 +485,10 @@ def build(spec: Buildable, sources: Mapping[str, Source]) -> Model:
         spec: As [`check`][] takes it.
         sources: Parameter names to parquet paths or in-memory tables, and
             dimension names to their labels — an index table, a parquet path,
-            or a bare sequence — wherever the YAML declares none.
+            or a bare sequence — wherever the YAML declares none. The whole
+            of the build's input: the shapes a value may take, and what
+            attaching refuses, are
+            [the data contract](https://specsolve.readthedocs.io/en/latest/reference/data/).
 
     Returns:
         The built model. It feeds any number of sinks — ``model.solve()`` and
@@ -490,10 +523,8 @@ def solve(
     Args:
         spec: As [`check`][] takes it.
         sources: As [`build`][] takes them.
-        solver_name: ``highs``, which ships with the package, or ``gurobi``,
-            which needs the ``[gurobi]`` extra.
-        solver_options: Forwarded to the solver verbatim, in its own
-            vocabulary (``{'time_limit': 60}``).
+        solver_name: As [`Model.solve`][] takes it.
+        solver_options: As [`Model.solve`][] takes them.
         archive: Where to write the spec, its data and this answer, as
             [`Model.solve`][] takes it — a ``.zip``, or a directory.
 
@@ -523,7 +554,8 @@ def write(
     Args:
         spec: As [`check`][] takes it.
         sources: As [`build`][] takes them.
-        out: Where to write; ``.lp`` and ``.mps`` are what ship.
+        out: Where to write; ``.lp`` and ``.mps`` are what ship. The two
+            describe one model and name its columns and rows the same way.
 
     Returns:
         The path written.
@@ -625,7 +657,8 @@ def scan_result(directory: str | Path) -> Result:
     unread costs nothing to open.
 
     The files stay where they are, so **they have to outlive the result**: a
-    name read after the directory is gone raises where the scan is collected.
+    name read after the directory is gone raises where the scan is collected,
+    and a file rewritten underneath it comes back changed.
 
     Args:
         directory: As [`load_result`][] takes it.

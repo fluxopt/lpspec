@@ -50,13 +50,15 @@ class SolveArchive:
     ``sps.solve(archive.spec, archive.sources)`` asks the question again.
 
     Attributes:
-        spec: The spec as written.
+        spec: The spec as written, read back as one ``Spec`` whatever went in.
         sources: What was attached, keyed as the file declares it: a table
             from [`load_archive`][], the path to one from [`scan_archive`][].
         answer: What came back.
         source_digests: ``(run, source, digest)``, one row per source, so two
             archives of one spec over different numbers name the input that
-            moved.
+            moved. A digest is of the parquet bytes the archive holds, so two
+            polars versions can write one table to different digests, and
+            reading an archive does not verify them.
         metrics: What reaching the answer took, as one
             [`Metrics`][specsolve.relational.parquet.Metrics].
     """
