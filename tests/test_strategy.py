@@ -1418,11 +1418,11 @@ def test_a_resume_checks_the_layout_it_is_extending_rather_than_restamping_it(tm
     """
     out = tmp_path / 'sweep'
     sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=out)
-    (out / 'format.json').write_text(json.dumps({'answer': 99}))
+    (out / 'format.json').write_text(json.dumps({'layout': 99}))
 
     with pytest.raises(sps.LayoutError, match='layout 99'):
         sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=out)
-    assert json.loads((out / 'format.json').read_text()) == {'answer': 99}, (
+    assert json.loads((out / 'format.json').read_text()) == {'layout': 99}, (
         'and the stamp it was refused over is left as it was found'
     )
 

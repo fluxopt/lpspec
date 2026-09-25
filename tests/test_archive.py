@@ -870,7 +870,7 @@ def test_a_saved_answer_is_stamped_with_its_layout_and_the_specsolve_that_wrote_
     with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
         out = solved.save(tmp_path / 'solution')
 
-    assert json.loads((out / 'format.json').read_text()) == {'answer': 1, 'specsolve': sps.__version__}, (
+    assert json.loads((out / 'format.json').read_text()) == {'layout': 1, 'specsolve': sps.__version__}, (
         'layout 1 is what 0.1.0 writes, beside the version that wrote it'
     )
 
@@ -882,20 +882,24 @@ def test_an_answer_in_another_layout_is_refused_by_name(
 
     Nothing reads another layout back — there is no migration and there will
     not be one — so the stamp exists to turn a missing column into a sentence
-    naming what to do instead. Layout 0 is every answer written before 0.1.0.
+    naming what to do instead. An answer written before 0.1.0 has no `layout` at all.
     """
     with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
         out = solved.save(tmp_path / 'solution')
-    (out / 'format.json').write_text(json.dumps({'answer': 0, 'specsolve': '0.0.1a359'}))
+    (out / 'format.json').write_text(json.dumps({'layout': 0, 'specsolve': '0.0.1a359'}))
 
     with pytest.raises(sps.LayoutError, match='solve the model again and save it') as refused:
         sps.load_result(out)
-    assert 'layout 0, written by specsolve 0.0.1a359, and this package reads 1' in str(refused.value), (
+    assert 'layout 0, written by specsolve 0.0.1a359, and this package reads layout 1' in str(refused.value), (
         'the refusal names the layout it found and the version that wrote it'
     )
 
+    (out / 'format.json').write_text(json.dumps({'answer': 0}))
+    with pytest.raises(sps.LayoutError, match='with no layout stamp'):
+        sps.load_result(out)
+
     (out / 'format.json').unlink()
-    with pytest.raises(sps.LayoutError, match='layout None'):
+    with pytest.raises(sps.LayoutError, match='with no layout stamp'):
         sps.load_result(out)
 
 

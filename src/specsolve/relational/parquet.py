@@ -37,9 +37,9 @@ LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expre
 
 #: What a result, a sweep and an archive write to disk look like. **1 is the
 #: layout 0.1.0 writes.** A change to any of them raises it, and the release
-#: notes name the change. Every answer written before 0.1.0 is stamped 0, or
-#: not at all. **Compared, never branched on.**
-ANSWER_FORMAT = 1
+#: notes name the change. No answer written before 0.1.0 carries a
+#: ``layout``. **Compared, never branched on.**
+LAYOUT = 1
 FORMAT_FILE = 'format.json'
 
 
@@ -54,7 +54,7 @@ def _writer() -> str | None:
 def write_format(directory: Path) -> None:
     """Stamp *directory* with the layout its contents are in, and the specsolve version that wrote them."""
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / FORMAT_FILE).write_text(json.dumps({'answer': ANSWER_FORMAT, 'specsolve': _writer()}))
+    (directory / FORMAT_FILE).write_text(json.dumps({'layout': LAYOUT, 'specsolve': _writer()}))
 
 
 def check_format(directory: Path) -> None:
@@ -69,13 +69,14 @@ def check_format(directory: Path) -> None:
     """
     file = directory / FORMAT_FILE
     stamp = json.loads(file.read_text()) if file.is_file() else {}
-    found = stamp.get('answer')
-    if found != ANSWER_FORMAT:
+    found = stamp.get('layout')
+    if found != LAYOUT:
         writer = stamp.get('specsolve')
+        which = f'in layout {found}' if found is not None else 'with no layout stamp'
         by = f', written by specsolve {writer},' if writer else ''
         raise LayoutError(
-            f'{str(directory)!r} holds a saved answer in layout {found}{by} and this package reads '
-            f'{ANSWER_FORMAT}. The layout moves before 1.0 and nothing reads another one back: solve '
+            f'{str(directory)!r} holds a saved answer {which}{by} and this package reads layout '
+            f'{LAYOUT}. The layout moves before 1.0 and nothing reads another one back: solve '
             f'the model again and save it. An archive that archive= wrote still holds the model and '
             f'the data to do that with.'
         )
