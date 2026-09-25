@@ -3,8 +3,7 @@
 The spec half — :class:`LanguageError` and what derives from it, decidable at
 load time with no data attached — belongs to ``mathspec`` and is re-exported here,
 so one ``except`` clause covers the package. The run half is defined here:
-:class:`DataError` is a fine file with the wrong thing attached to it,
-:class:`LaneError` a file the language accepts and this package cannot build,
+:class:`DataError` is a fine file with the wrong thing attached to it, and
 :class:`NoSolutionError` a solve with nothing to read back.
 
 A message lives here only where the engine and the test oracle both raise it.
@@ -39,13 +38,6 @@ class SpecsolveWarning(UserWarning):
     """
 
 
-class LaneError(SpecsolveError):
-    """The language accepts a spec and specsolve cannot **build** it.
-
-    The spec is valid. The message names the rewrite that builds the same model.
-    """
-
-
 class DataError(SpecsolveError):
     """Data attached to a valid spec is missing or the wrong shape."""
 
@@ -70,7 +62,6 @@ class NoSolutionError(SpecsolveError):
 __all__ = [
     'DataError',
     'DimensionError',
-    'LaneError',
     'LanguageError',
     'NoSolutionError',
     'SchemaError',

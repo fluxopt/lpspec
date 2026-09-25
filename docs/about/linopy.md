@@ -16,8 +16,9 @@ or file, and import nothing from linopy, xarray or pandas. The bare-install job
 runs the whole suite with none of the three present. No install of specsolve
 brings linopy: it is a test dependency, in the `dev` group.
 
-`pip install "specsolve[xarray]"` adds xarray and pandas, for the `to_pandas` /
-`to_dataarray` bridges out of a [result](../reference/glossary.md#the-chain).
+The `to_pandas` / `to_dataarray` bridges out of a
+[result](../reference/glossary.md#the-chain) need pandas and xarray, which the
+caller installs.
 
 **Nothing a bare install can reach names linopy, including a traceback.** The
 public exception tree is rooted at `SpecsolveError`, with no alias
@@ -92,7 +93,7 @@ gate. A construct one refuses, the other refuses in the same sentence.
 
 **Accepting is not building, and three constructs part the two builds, two on
 the oracle's side and one on the package's.** None is a language limit: every
-such file passes `check`. A `LaneError` names the wall *and* the rewrite, and
+such file passes `check`. The refusal names the wall *and* the rewrite, and
 that is what parts it from a language error.
 
 **The first is the oracle's wall: an objective carrying a constant.**
@@ -104,7 +105,7 @@ capacity that already stood in 1990, builds in specsolve and not in the
 oracle. **Dropping the constant is the one repair that must not happen.** A
 quietly shortened objective would recalibrate every differential test on such a
 model to the wrong number. So the oracle checks for a constant before linopy is
-asked, and raises `LaneError`. `tests/test_corpus_parity.py` carries
+asked, and refuses the model. `tests/test_corpus_parity.py` carries
 the strict xfail ([#894](https://github.com/fluxopt/specsolve/issues/894)).
 
 **The second is the oracle's too: a relation that is not the single-valued

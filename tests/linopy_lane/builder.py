@@ -22,12 +22,12 @@ from typing import TYPE_CHECKING, Any, assert_never
 import numpy as np
 from mathspec import program
 
-from specsolve.errors import DataError, LaneError, SpecsolveError, null_bounds_message
+from specsolve.errors import DataError, SpecsolveError, null_bounds_message
 from specsolve.relational.sinks.capabilities import Capabilities, required, spelled
 from tests.linopy_lane import absence
 from tests.linopy_lane._notes import note
 from tests.linopy_lane.coverage import check_constant_side_covers, check_divisors_cover, gaps_under
-from tests.linopy_lane.loader import read_column
+from tests.linopy_lane.loader import OracleCannotBuildError, read_column
 from tests.linopy_lane.operators import (
     operator_at,
     operator_grouped_sum,
@@ -156,7 +156,7 @@ CAPABILITIES = Capabilities(
 def _refuse_what_the_lane_cannot_build(p: program.Program) -> None:
     """Refuse a construct the language accepts and this lane cannot build, before linopy is asked."""
     if missing := CAPABILITIES.missing(required(p)):
-        raise LaneError(
+        raise OracleCannotBuildError(
             f'the linopy lane cannot build {spelled(missing)}, and no reformulation of it is exact. '
             f'The language accepts it and specsolve builds it, so this is a limit of the lane rather '
             f'than of the spec.'
@@ -259,7 +259,7 @@ def _refuse_an_objective_constant(expr: Any) -> None:
     """Refuse an objective this lane cannot build, before linopy is asked."""
     const = getattr(expr, 'const', None)
     if const is not None and bool(np.any(np.asarray(const) != 0)):
-        raise LaneError(OBJECTIVE_CONSTANT_IS_A_LANE_GAP)
+        raise OracleCannotBuildError(OBJECTIVE_CONSTANT_IS_A_LANE_GAP)
 
 
 # ---------------------------------------------------------------------------

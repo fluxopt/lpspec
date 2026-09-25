@@ -21,7 +21,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from specsolve.errors import DataError, LaneError, LanguageError, SpecsolveError
+from specsolve.errors import DataError, LanguageError, SpecsolveError
 from specsolve.sources import tidy_sources
 from tests.conftest import EXAMPLES_DIR, expanded, schema_of
 from tests.differential import differential
@@ -863,7 +863,7 @@ def test_a_construct_this_lane_cannot_build_is_refused_in_its_own_words():
     assert sps.solve(OBJECTIVE_CONSTANT, {'t': [0, 1], 'standing': 5.0}).objective == pytest.approx(5.0), (
         'the streaming lane builds it, so the model is not the problem'
     )
-    with pytest.raises(LaneError) as refusal:
+    with pytest.raises(loader.OracleCannotBuildError) as refusal:
         specsolve_linopy.build(OBJECTIVE_CONSTANT, {'t': [0, 1], 'standing': 5.0})
 
     assert str(refusal.value) == builder.OBJECTIVE_CONSTANT_IS_A_LANE_GAP, (

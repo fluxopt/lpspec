@@ -9,8 +9,8 @@ differential harness lives in ``tests.differential`` for the same reason:
 importing it *is* the guard.
 
 pandas follows the same discipline one level down. It is no longer a runtime
-dependency (it ships with the ``[xarray]`` extra, for ``Result.to_pandas``,
-and with the ``dev`` group, for the oracle), so a fixture that hands out pandas objects imports it in
+dependency (the ``dev`` group carries it, for ``Result.to_pandas`` and for
+the oracle), so a fixture that hands out pandas objects imports it in
 its own body: requesting the fixture is what asks for the dependency, and the
 bare job never requests it. ``dispatch_inputs`` and ``dispatch_frame_inputs``
 are the same numbers in the two shapes — the oracle lane is pandas-native, the

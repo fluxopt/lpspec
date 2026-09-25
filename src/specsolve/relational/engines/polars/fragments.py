@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Literal, NoReturn, assert_never
 import polars as pl
 from mathspec import program
 
-from specsolve.errors import LaneError
+from specsolve.errors import SpecsolveError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -190,7 +190,7 @@ def refuse_a_fragment_without_the_dims(p: TermFragment, dims: list[str], context
     ``sum(by=…)``, and ``GroupSum`` is a word their file does not contain.
     """
     if p.kind == 'const':
-        raise LaneError(
+        raise SpecsolveError(
             f'in {context}: {operator} acts along {dims}, which a constant part of the expression '
             f'does not carry, and specsolve cannot build that. A constant part compiles to its own '
             f'frame, so a fragment with no rows for {dims} has no slots for the operator to act on — '

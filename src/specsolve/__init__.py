@@ -25,7 +25,6 @@ from specsolve.archive import SolveArchive, SweepArchive, load_archive, scan_arc
 from specsolve.errors import (
     DataError,
     DimensionError,
-    LaneError,
     LanguageError,
     LayoutError,
     NoSolutionError,
@@ -41,7 +40,6 @@ __all__ = [
     'DimensionError',
     'EachCoordinate',
     'EachWindow',
-    'LaneError',
     'LanguageError',
     'LayoutError',
     'Model',

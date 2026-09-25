@@ -83,7 +83,7 @@ def build(spec: Buildable, sources: Mapping[str, Source]) -> linopy.Model:
             verdict :func:`specsolve.check` gives, reached through the same
             lowering pass, so neither lane accepts a file the other refuses.
         DataError: A source that is missing, unreadable, or the wrong shape.
-        LaneError: A relation shape this lane does not build — a bare
+        OracleCannotBuildError: A relation shape this lane does not build — a bare
             relation, or a partition grouped by a map keyed on more than the
             dimension it walks or by more than one column.
     """

@@ -14,7 +14,8 @@ linopy for the model comparison against the oracle in `tests/linopy_lane`. No
 pixi environment carries pypsa, so the way to run it locally is the workflow's
 own line, which installs nothing on disk:
 
-    pixi exec -s uv uv run --with-editable ".[xarray]" \
+    pixi exec -s uv uv run --with-editable . \
+        --with "$(grep -o 'linopy @ git+[^"]*' pyproject.toml)" \
         --with "pypsa==1.3.0" --with "highspy==1.15.1" --with "polars>=1.30" \
         python differential/pypsa/parity.py ../mathspec
 

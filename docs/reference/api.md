@@ -45,10 +45,10 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 **Every error is one tree, rooted at `SpecsolveError`.** `LanguageError` (with
 `SchemaError`, `DimensionError`) is a fault in the
 spec. `DataError` is a fault in the data attached to it. `LayoutError` is a
-directory or an archive that is not a layout this package reads. `LaneError`
-is a spec the language accepts and specsolve cannot build; its message names
-the rewrite that builds the same model. `NoSolutionError` is a solve that left
-nothing to read.
+directory or an archive that is not a layout this package reads.
+`NoSolutionError` is a solve that left nothing to read. A spec the language
+accepts and specsolve cannot build raises `SpecsolveError` itself, and its
+message names the rewrite that builds the same model.
 Which one you get:
 [errors](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
 
@@ -306,7 +306,7 @@ sps.scan_result(directory)  # the same, read off the directory as you ask for it
 **`primal` returns a `polars.DataFrame`**, one row per coordinate: a *frame*.
 It is Arrow-backed, so it exports the protocol the loader recognises.
 `to_pandas` and `to_dataarray` are the bridges out; they need pandas and
-xarray, from the `[xarray]` extra.
+xarray, which specsolve does not install.
 
 | Rule | |
 |---|---|

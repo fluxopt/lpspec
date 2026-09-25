@@ -435,7 +435,6 @@ PUBLIC_API = {
     'catch it': {
         'SpecsolveError',
         'LanguageError',
-        'LaneError',
         'DataError',
         'DimensionError',
         'LayoutError',

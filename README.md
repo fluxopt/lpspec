@@ -115,8 +115,9 @@ contain is math-spec's
 pip install specsolve
 ```
 
-That brings polars, HiGHS and the language. Add the `[xarray]` extra for the
-pandas and xarray bridges, and `[gurobi]` or `[xpress]` for those solvers. To work on specsolve, see [CONTRIBUTING.md](CONTRIBUTING.md).
+That brings polars, HiGHS and the language. Add the `[gurobi]` or `[xpress]`
+extra for those solvers. The bridges out of a result, `to_pandas` and
+`to_dataarray`, need pandas and xarray, which you install yourself. To work on specsolve, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Prior art
 

@@ -836,20 +836,16 @@ def test_primal_is_a_frame_and_to_pandas_is_the_bridge(dispatch_solution):
         pytest.param('xarray', 'to_dataset', id='to_dataset-without-xarray'),
     ],
 )
-def test_a_bridge_out_names_the_extra_that_carries_it(dispatch_solution, absent, bridge):
-    """A bridge out of a bare install says which extra to add.
+def test_a_bridge_out_names_the_package_to_install(dispatch_solution, absent, bridge):
+    """A bridge out of a bare install says which package to add.
 
-    pandas and xarray ship with ``[xarray]`` rather than with the engine, so
-    the bare `No module named 'pandas'` names a package no install instruction
-    mentions and leaves the reader to guess. The gurobi sink already answers
-    the same question with the extra; these three did not.
-
-    The assertion is the extra, not the missing package: on an install that
-    has neither, `to_dataarray` fails at the pandas half and reports that one.
+    specsolve installs neither pandas nor xarray, so the bare `No module named
+    'pandas'` leaves the reader to guess whether the package is broken. The
+    message says the package is the caller's to install.
     """
     with (
         mock.patch.dict(sys.modules, {absent: None}),
-        pytest.raises(ModuleNotFoundError, match=r'pip install "specsolve\[xarray\]"'),
+        pytest.raises(ModuleNotFoundError, match=f'pip install {absent}'),
     ):
         getattr(dispatch_solution, bridge)('p')
 

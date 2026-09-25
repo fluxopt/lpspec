@@ -48,8 +48,8 @@ engine never does ([hard rule 2](#hard-rules)). `sources.tidy_sources` reads
 every shape [the data contract](../reference/data.md) accepts into tidy polars
 tables. The relational engine executes its plan against those tables directly.
 The oracle's `tests/linopy_lane/loader.py` converts them to pandas and xarray at
-its own boundary. So polars is the one representation, and pandas is declared
-with `[xarray]` rather than as a runtime dependency. One reader for both lanes
+its own boundary. So polars is the one representation, and pandas is not a
+dependency. One reader for both lanes
 costs the oracle a copy of what a pandas caller passed (#1076).
 
 What a model assumes of its data sits below the seam because it needs values
@@ -140,9 +140,9 @@ accepts a file the other refuses" is mechanical rather than maintained.
 The oracle asks only for the verdict and discards the plan. Errors split model
 from run. Everything under `LanguageError` is decidable without data,
 `DataError` is what a source failed to supply, and both are `SpecsolveError`
-(`errors.py`). `LaneError` is the third thing that can be wrong. A lane may
-accept what it cannot build, and it says so in its own words, naming the
-rewrite ([hard rule 3](#hard-rules)). Expansion precedes validation in **both** lanes, because a
+(`errors.py`). The third thing that can be wrong is a spec the language
+accepts and specsolve cannot build. That raises `SpecsolveError` itself, naming
+the rewrite ([hard rule 3](#hard-rules)). Expansion precedes validation in **both** lanes, because a
 formulation emits declarations and those are language too.
 
 ## One contract, many consumers
@@ -194,7 +194,7 @@ protects: a new consumer is free, a new primitive is taxed.
 
 ### The Python surface
 
-**Twenty-nine names, and the count is the feature.** The model is the YAML file,
+**Twenty-seven names, and the count is the feature.** The model is the YAML file,
 and Python is how you *run* it. So nothing on the surface constructs math or
 reaches the plan. The names, by role:
 
@@ -298,8 +298,8 @@ the language's rulebook.
    declared leaf (`errors.py`, in `ENGINE_MAY_IMPORT`), which keeps the
    subpackage extractable. **`errors.py` is a leaf by name and not by cost**: it
    re-exports the language's half of the hierarchy, so importing it loads the
-   language. What the engine raises through it is `DataError` and `LaneError`, a
-   verdict about the *data* or about this lane's reach.
+   language. What the engine raises through it is `DataError`, a verdict about
+   the *data*, and `SpecsolveError`, a verdict about the engine's reach.
 3. **One language, two builds, and linopy is only the oracle.** The package and
    the test oracle both pass the one `lanes.lowered` gate ([above](#thesis)). No
    operator registry exists that could create a divergence. A construct outside
@@ -324,7 +324,7 @@ the language's rulebook.
    `Spec` and the `Program` it lowers to. Whether that seam is ever blessed is
    open ([#381](https://github.com/fluxopt/specsolve/issues/381)). The Python
    surface is the runner (`api.py`) and the driver over it (`strategy.py`); the
-   plan is internal. The whole of it is [twenty-nine
+   plan is internal. The whole of it is [twenty-seven
    names](#the-python-surface), pinned by a test.
 
 ## The plan, node for node
@@ -341,9 +341,9 @@ is validated, and never re-decided on this side of the pin. That covers a
 reduction over a dimension its operand does not span, a mask wider than what it
 masks, a bound reaching past its variable, and a degree no position takes. The
 engine asserts those; reaching one is a program that was never a valid spec. The
-two verdicts it still *raises* are its own: `DataError` about the data, and the
-`LaneError` for the one construct the language accepts and this lane cannot
-build (#1137).
+two verdicts it still *raises* are its own: `DataError` about the data, and a
+`SpecsolveError` for the one construct the language accepts and this lane
+cannot build (#1137).
 
 **Fan-in** is the column the lanes *act* on. It says how an output row's slots
 relate to the input's. `fragments.fan_in` answers it for every node, and the
@@ -478,8 +478,8 @@ as the caller's sinks demand.
 caller's table through the Arrow PyCapsule protocol without importing any
 dataframe library. `Result.primal` hands back a `polars.DataFrame`, which
 exports the same protocol. That symmetry keeps pandas and pyarrow off the
-dependency list: they are bridges *out* (`to_pandas`, `to_dataarray`), shipped
-with the `[xarray]` extra. The bare-install CI job runs the suite with neither
+dependency list: they are bridges *out* (`to_pandas`, `to_dataarray`), and
+the caller installs them. The bare-install CI job runs the suite with neither
 present.
 
 **Sinks are capped, explicitly.** Four streams and no more: `cols` (bounds,

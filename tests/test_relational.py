@@ -47,7 +47,7 @@ from mathspec.program import (
 )
 
 import specsolve as sps
-from specsolve.errors import DataError, LaneError, LanguageError, SpecsolveError
+from specsolve.errors import DataError, LanguageError, SpecsolveError
 from specsolve.relational.engines.polars.compiler import PolarsCompiler
 from specsolve.relational.engines.polars.engine import PolarsEngine
 from specsolve.relational.engines.polars.scope import Scope
@@ -1625,14 +1625,14 @@ class TestWhereTheLanesDifferByDesign:
         `LanguageError` here says the file is unsayable, which is false twice over:
         `check` passes with no data, and the linopy oracle builds the model and
         reaches *answer*. What is true is that this lane cannot represent a constant
-        fragment with no rows for the dim the operator acts along — which is what
-        `LaneError` is for. All four operators reach the same wall, so a fix for one
+        fragment with no rows for the dim the operator acts along, so the refusal is
+        a `SpecsolveError` that names the rewrite. All four operators reach the same wall, so a fix for one
         that left the others is a fix for a symptom.
         """
         spec = _constant_beside_a_term(expression)
         sps.check(spec)
 
-        with pytest.raises(LaneError) as refusal:
+        with pytest.raises(SpecsolveError) as refusal:
             sps.solve(spec, _constant_beside_a_term_sources(expression))
         text = str(refusal.value)
         assert "constraint 'bal'" in text, 'a refusal names where in the file it happened'

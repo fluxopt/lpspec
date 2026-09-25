@@ -10,8 +10,8 @@ bare ``import xarray`` above a first-party import, and it would then blow up
 as a collection error before any guard ran.
 
 **pandas is re-exported for the same reason.** It is no longer a runtime
-dependency — it ships with the ``[xarray]`` extra, for ``Result.to_pandas``,
-and with the ``dev`` group, for the oracle — so a bare ``import pandas as pd`` in a test module is
+dependency — the ``dev`` group carries it, for ``Result.to_pandas`` and for the
+oracle — so a bare ``import pandas as pd`` in a test module is
 exactly the ordering bug described above, one dependency down. Test modules
 take ``pd`` from here instead, and the guard covers it.
 
