@@ -280,6 +280,7 @@ coefficients are the transpose of `row`, which nothing exposes.
 ```python
 result.status, result.termination_condition, result.objective
 result.spec_digest  # a digest of the spec this answered
+result.record  # all of it as one Record: the row save writes, and one row of sweep.record
 result.is_ok  # rolled-up verdict: not an error, abort or refusal
 result.has_primal  # narrower: are there values to read
 result.kept  # how much of the session this solve kept: 'nothing', 'solver' or 'progress'
