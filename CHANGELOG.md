@@ -7,6 +7,8 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
+- docs(sweeps): the sweep reference says how many sessions a sweep opens on a remote Gurobi ([#1771](https://github.com/fluxopt/specsolve/pull/1771))
+
 ## 0.1.0 (2026-09-25)
 
 🎉 specsolve is officially on PyPI!
