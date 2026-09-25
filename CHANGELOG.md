@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.1-alpha.358](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.357...v0.0.1-alpha.358) (2026-09-25)
+
+
+### Documentation
+
+* a tutorial feeds the dispatch model from parquet, reads the answer as tables and queries its archive ([#1747](https://github.com/fluxopt/specsolve/issues/1747)) ([5ecc2ec](https://github.com/fluxopt/specsolve/commit/5ecc2ecd4195094ec21806a55619558496c9de11))
+* a tutorial solves one model once per scenario and then window by window ([#1746](https://github.com/fluxopt/specsolve/issues/1746)) ([7c15f18](https://github.com/fluxopt/specsolve/commit/7c15f18fe81577875494360450ef3e56eb41a855))
+* the readme and home page lead with four benefits for energy system modellers, in cards with icons, and the readme is under half its length ([#1743](https://github.com/fluxopt/specsolve/issues/1743)) ([e14f3b8](https://github.com/fluxopt/specsolve/commit/e14f3b822129c37738375ec51375e267baa3d013))
+
 ## [0.0.1-alpha.357](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.356...v0.0.1-alpha.357) (2026-09-25)
 
 
