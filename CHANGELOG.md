@@ -7,6 +7,22 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
+## 0.1.1 (2026-09-25)
+
+A saved answer now records which layout it was written in and which specsolve
+wrote it, so a later release can name an answer it no longer reads. The Python
+API reference is now rendered from the docstrings.
+
+This release breaks one thing:
+
+- An answer or an archive that 0.1.0 or earlier wrote is refused with a
+  `LayoutError` that says to solve the model again and save it. Its
+  `format.json` reads `{"answer": 0}`; 0.1.1 writes
+  `{"layout": 1, "specsolve": "0.1.1"}`. An archive still holds the spec and
+  the data it was solved with, under `spec.yaml` and `sources/`.
+
+The pull requests since 0.1.0:
+
 - feat(api)!: a saved answer is stamped with layout 1 and the specsolve version that wrote it, and one written by 0.1.0 or earlier is refused by name ([#1765](https://github.com/fluxopt/specsolve/pull/1765))
 - docs: each fact about the Python API is stated once, in the docstring of the name it belongs to ([#1769](https://github.com/fluxopt/specsolve/pull/1769))
 - docs: the Python API page renders every public name from its docstring ([#1766](https://github.com/fluxopt/specsolve/pull/1766))
