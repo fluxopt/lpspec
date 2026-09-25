@@ -232,11 +232,11 @@ def test_lazy_oracle_imports_stay_on_the_allowlist():
 #: Package modules the engine may import: dependency-free leaves that carry no
 #: YAML, schema or AST knowledge. ``errors.py`` is one — without it there is no
 #: single exception class a caller can catch across both lanes.
-#: ``math_spec.program`` is the other and is not this package's at all: the
+#: ``mathspec.program`` is the other and is not this package's at all: the
 #: language writes the plan and the engine reads it, so the vocabulary the two
 #: speak lives upstream of both, and a fence cannot enclose what neither side
 #: owns.
-ENGINE_MAY_IMPORT = {'specsolve.errors', 'math_spec.program'}
+ENGINE_MAY_IMPORT = {'specsolve.errors', 'mathspec.program'}
 
 
 def test_engine_is_isolated():
@@ -269,7 +269,7 @@ def test_no_contract_module_names_an_engine():
 
     ``sinks/``, ``status.py`` and ``result.py`` say what an
     engine answers to and what a sink reads; ``engines/`` implements that. What
-    a model *is* is ``math_spec.program``, upstream of both. A contract module naming a class
+    a model *is* is ``mathspec.program``, upstream of both. A contract module naming a class
     out of ``engines/`` inverts the two, and a second engine then has to
     satisfy a type written for the first.
 
@@ -305,37 +305,37 @@ def _repository_modules() -> list[Path]:
 def test_the_language_is_imported_as_one_package():
     """Hard rule 1, the half of it that is still ours to keep.
 
-    The language moved to ``math_spec`` and took its fence with it: the
+    The language moved to ``mathspec`` and took its fence with it: the
     allowlist that said the directory imports nothing from this package is a
     dependency edge now, and no test here can step over it. What a test here
     *can* still hold is the traffic in the other direction — that this
-    repository depends on the one ``__all__`` math-spec pins rather than on the
+    repository depends on the one ``__all__`` mathspec pins rather than on the
     union of whatever its submodules expose.
 
     A submodule path is a contract nobody agreed to. It can carry a private
     name, it is not counted in the surface upstream pins in both directions,
     and it survives a refactor there that the package export would have caught.
-    ``from math_spec import Spec`` fails loudly the day ``Spec`` stops being
-    exported; ``from math_spec.model import Spec`` keeps working until it does
+    ``from mathspec import Spec`` fails loudly the day ``Spec`` stops being
+    exported; ``from mathspec.model import Spec`` keeps working until it does
     not.
 
-    A submodule ``__all__`` itself exports is not inside: ``math_spec.program``
+    A submodule ``__all__`` itself exports is not inside: ``mathspec.program``
     is a pinned name, so the vocabulary a program is written in travels under
     the same promise the package makes — the resolved where nodes included,
     since the parser they once lived beside went package-private.
     """
-    import math_spec
+    import mathspec
 
-    exported = set(math_spec.__all__)
+    exported = set(mathspec.__all__)
 
     offenders = {}
     for path in _repository_modules():
         inside = []
         for node in ast.walk(ast.parse(path.read_text())):
-            if isinstance(node, ast.ImportFrom) and (node.module or '').startswith('math_spec.'):
+            if isinstance(node, ast.ImportFrom) and (node.module or '').startswith('mathspec.'):
                 reached = [f'{node.module}.{alias.name}' for alias in node.names]
             elif isinstance(node, ast.Import):
-                reached = [alias.name for alias in node.names if alias.name.startswith('math_spec.')]
+                reached = [alias.name for alias in node.names if alias.name.startswith('mathspec.')]
             else:
                 continue
             inside += [name for name in reached if name.split('.')[1] not in exported]
@@ -343,7 +343,7 @@ def test_the_language_is_imported_as_one_package():
             offenders[str(path.relative_to(REPO))] = sorted(inside)
     assert not offenders, (
         f'modules reach past the language package surface: {offenders} — import the name from '
-        f'`math_spec` itself, or from a submodule its `__all__` exports'
+        f'`mathspec` itself, or from a submodule its `__all__` exports'
     )
 
 
@@ -472,7 +472,7 @@ def test_the_public_surface_is_exactly_what_is_declared():
     verb's signature: a caller wrapping this package annotates what it hands
     back and catches what its readers raise, and neither is reachable through a
     call. Nothing of the language's is: ``check`` hands back a ``Program`` and
-    the verbs take a ``Spec``, and both belong to ``math_spec`` — a caller
+    the verbs take a ``Spec``, and both belong to ``mathspec`` — a caller
     annotating one imports it from the package that owns it, and is already
     there, because obtaining either means calling that package too.
 
@@ -624,7 +624,7 @@ def test_the_door_gives_every_declared_dimension_dtype_a_column():
     fail an empty index with a ``KeyError`` rather than at load with a
     sentence.
     """
-    from math_spec.program import DimensionDtype
+    from mathspec.program import DimensionDtype
 
     from specsolve.sources import _DECLARED
 
@@ -638,7 +638,7 @@ def test_the_door_accepts_the_declared_parameter_dtype_vocabulary():
     attach with a ``KeyError`` on the first parameter that declared it, rather
     than at load with a sentence.
     """
-    from math_spec.program import ParameterDtype
+    from mathspec.program import ParameterDtype
 
     from specsolve.sources import _COLUMNS, ACCEPTED_VALUE_TYPES
 
@@ -705,7 +705,7 @@ def test_every_plan_node_is_handled_by_the_compiler():
     """
     from typing import get_args
 
-    from math_spec import program
+    from mathspec import program
 
     engine_dir = PKG / 'relational' / 'engines' / 'polars'
     walkers = [
@@ -741,7 +741,7 @@ def test_the_model_argument_is_what_the_language_takes_minus_the_lowered_form():
     """
     import inspect
 
-    from math_spec import to_spec
+    from mathspec import to_spec
 
     def members(annotation: str) -> set[str]:
         return {part.strip() for part in annotation.split('|')}
@@ -840,7 +840,7 @@ def test_every_shape_operator_declares_its_fan_in():
     disagreeing about a constant at a masked slot — caught here before any
     differential case has to.
     """
-    from math_spec import program
+    from mathspec import program
 
     from specsolve.relational.engines.polars.fragments import fan_in
 
@@ -866,7 +866,7 @@ def test_every_shape_operator_declares_its_fan_in():
 
 #: A kwarg no built-in declares, passed to :func:`call_shape_error` to make it
 #: answer with the usage line it refuses against. A probe rather than a read of
-#: the descriptors, which are math-spec-private (hard rule 1).
+#: the descriptors, which are mathspec-private (hard rule 1).
 _NOT_A_KEYWORD = '#no such keyword'
 
 
@@ -952,14 +952,14 @@ def test_both_lanes_dispatch_on_every_plan_node():
 
     The kinds are the language's two unions rather than a scan of a file here,
     which is what keeps this honest now that the vocabulary is upstream: a node
-    math-spec adds arrives with the pin, not with the first model that uses it.
+    mathspec adds arrives with the pin, not with the first model that uses it.
 
     Read statically: ``linopy/operators.py`` imports xarray at module level,
     and this must run on a bare install.
     """
     from typing import get_args
 
-    from math_spec import program
+    from mathspec import program
 
     declared = {node.__name__ for union in (program.Expression, program.Predicate) for node in get_args(union)}
     assert declared, 'no plan node classes found — the census has nothing to run over'

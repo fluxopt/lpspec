@@ -1,6 +1,6 @@
 """The scoping divergences, checked against the oracle lane itself.
 
-The rules themselves are math-spec's and are swept there. This module checks
+The rules themselves are mathspec's and are swept there. This module checks
 the thing that actually mattered: that the *linopy* lane refuses what the
 relational lane refuses, in the same place, for the same reason. Before
 resolution was a pass, each of these built a model on one lane and raised on
@@ -142,7 +142,7 @@ def test_every_resolved_predicate_is_parity_tested():
     import dataclasses
     from typing import get_args
 
-    from math_spec import program, to_spec
+    from mathspec import program, to_spec
 
     # resolved-only: the Unresolved* nodes left the union with the parser
     expected = set(get_args(program.Predicate))

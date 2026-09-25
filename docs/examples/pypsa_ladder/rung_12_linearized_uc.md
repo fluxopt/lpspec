@@ -714,7 +714,7 @@ u_{t,g} \ge 0 \qquad \forall\, t \in \mathcal{T},\ g \in \mathcal{G} \,:\, \math
     The network, `rung_12_linearized_uc.py` in the corpus — the spine plus what this rung adds:
 
     ```python
-    # SPDX-FileCopyrightText: math-spec Contributors
+    # SPDX-FileCopyrightText: mathspec Contributors
     #
     # SPDX-License-Identifier: MIT
 

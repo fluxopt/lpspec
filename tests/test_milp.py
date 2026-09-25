@@ -13,7 +13,7 @@ from typing import get_args
 import numpy as np
 import polars as pl
 import pytest
-from math_spec import program
+from mathspec import program
 
 from specsolve.relational.sinks.solvers.highs import Highs
 from tests.differential import differential

@@ -19,7 +19,7 @@ from unittest import mock
 
 import polars as pl
 import pytest
-from math_spec import to_spec
+from mathspec import to_spec
 
 import specsolve as sps
 from specsolve import strategy
@@ -1222,7 +1222,7 @@ def test_the_model_and_its_plan_both_cross_a_process():
 
     Both used to be refused by a pool that crosses a process, because the
     language sealed its groups behind a `MappingProxyType` that pickle
-    refuses; the seal pickles since math-spec alpha.78. A slice reads no file:
+    refuses; the seal pickles since mathspec alpha.78. A slice reads no file:
     it is handed the `Spec`, and re-validating one it already has costs
     nothing.
     """
@@ -1898,7 +1898,7 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     What a worker receives is the document already read, so no slice reads
     the YAML again. Counted at the language's own front door.
     """
-    from math_spec import Spec, validation
+    from mathspec import Spec, validation
 
     from specsolve import lanes
 

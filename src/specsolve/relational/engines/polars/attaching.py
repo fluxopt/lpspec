@@ -21,7 +21,7 @@ import polars as pl
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from math_spec import program
+    from mathspec import program
 
 #: Scratch column carrying a source row's position while first-occurrence
 #: order is computed. The spaces make it unrepresentable as a declared name, so

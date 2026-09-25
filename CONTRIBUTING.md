@@ -188,7 +188,7 @@ Versioning, the release PR, and how to force a specific version:
 outlives several refactors; one written against internals dies with the next and
 takes its argument with it — four have had to be closed and re-filed for exactly
 that. So write `bounds accept a parameter name or a number, not an expression
-(math_spec/model.py)`, not a line number inside the loop that enforces it.
+(mathspec/model.py)`, not a line number inside the loop that enforces it.
 
 **`now` is the only order label**, capped at five; everything else is backlog.
 Grouping is sub-issue parentage — a track is a parent issue — because parentage
@@ -233,7 +233,7 @@ Read, in order:
 1. [the deliberate non-primitives](https://math-spec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives) — parity with
    another tool is not by itself a reason to add anything, and several
    plausible-sounding features are refused there on purpose;
-2. [the limits in math-spec](https://math-spec.readthedocs.io/en/latest/about/limits/#what-a-new-primitive-has-to-satisfy) —
+2. [the limits in mathspec](https://math-spec.readthedocs.io/en/latest/about/limits/#what-a-new-primitive-has-to-satisfy) —
    the admissibility test;
 3. [the extension checklists](docs/about/architecture.md#extension-checklists), which sit directly under that
    test. They stay there rather than moving here: *may I?* and *how?* are one

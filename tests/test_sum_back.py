@@ -403,7 +403,7 @@ def test_a_literal_width_is_a_whole_number_of_positions(width: str):
 
     A negative width is the case the sign has to survive to reach: stripped
     before the ``at least 1`` test, ``-2`` reads as ``2``, passes, and arrives
-    at lowering as the one node kind it has no case for (math-spec#222).
+    at lowering as the one node kind it has no case for (mathspec#222).
     """
     spec = up_time_spec(None)
     spec['constraints']['stays_up_its_own_time']['expression'] = f'sum_back(started, along=t, window={width}) <= on'

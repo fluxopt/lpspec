@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Literal, assert_never
 
 import numpy as np
 import polars as pl
-from math_spec import program
+from mathspec import program
 
 from specsolve.errors import SpecsolveError
 from specsolve.relational.collect import polars_engine
@@ -119,8 +119,10 @@ class PolarsCompiler:
             subject = f"bound parameter '{name}' of variable '{variable}'"
             return self.scope.parameter_join(f, name, v.dims, alias, subject, maintain_order='left')
 
-        def bound(e: program.Expression) -> pl.Expr:
-            """A bound is a number or a parameter name; lowering admits nothing else."""
+        def bound(e: program.Expression | None, open_side: float) -> pl.Expr:
+            """A bound is a number, a parameter name, or ``None`` where that side is open; lowering admits nothing else."""
+            if e is None:
+                return pl.lit(open_side, dtype=pl.Float64)
             if isinstance(e, program.Constant):
                 return pl.lit(float(e.value), dtype=pl.Float64)
             if isinstance(e, program.Parameter):
@@ -129,7 +131,7 @@ class PolarsCompiler:
             msg = f"unsupported node {type(e).__name__} in bounds of variable '{variable}'"
             raise AssertionError(msg)
 
-        lower, upper = bound(v.lower), bound(v.upper)
+        lower, upper = bound(v.lower, -math.inf), bound(v.upper, math.inf)
         return carrier.frame.with_columns(lower.alias('lb'), upper.alias('ub'))
 
     def _aligned_bound(
@@ -177,7 +179,7 @@ class PolarsCompiler:
         *quadratic* is the position's ceiling, passed by the caller that knows
         it: the objective can hold a product of two variables and a constraint
         row cannot. The language has already refused what it refuses
-        (``math_spec.degree``), so this is the **plan-boundary backstop** —
+        (``mathspec.degree``), so this is the **plan-boundary backstop** —
         a degree-2 node arriving by any other route dies here rather than
         becoming a term whose second variable is silently dropped.
 
@@ -249,7 +251,7 @@ class PolarsCompiler:
         def power(a: CompiledExpression, b: CompiledExpression) -> CompiledExpression:
             """``a ** b``, where neither side carries a variable.
 
-            The language refuses one that does in the math (``math_spec.degree``),
+            The language refuses one that does in the math (``mathspec.degree``),
             before a plan exists to carry it, so a variable under a power is an
             invariant here rather than a refusal — folding its coefficient into
             a base is what the assert stands in front of. At a read a variable
@@ -343,7 +345,7 @@ class PolarsCompiler:
             out: the language proved them apart before any data attached, so a
             coordinate is carried by exactly one of them and the rest are
             empty there. Adding is therefore the whole of it, and the same
-            concatenation :class:`~math_spec.program.Add` does.
+            concatenation :class:`~mathspec.program.Add` does.
             """
             built = [region(r) for r in e.regions]
             return CompiledExpression(

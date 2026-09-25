@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import polars as pl
-from math_spec import advice
+from mathspec import advice
 
 from specsolve import expressions
 from specsolve.errors import (
@@ -66,7 +66,7 @@ from specsolve.sources import attachable, tidy_sources, unknown_source_keys_mess
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from math_spec.program import Expression, Program
+    from mathspec.program import Expression, Program
 
     from specsolve.relational.result import ConstraintRow, Diagnostics, Keep
 
@@ -99,7 +99,7 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
         The lowered program: what a build reads rows off, and what every verb
         here takes back without parsing the file again. It is the language's
         own type — typeset it, or read its declarations, through
-        :mod:`math_spec`.
+        :mod:`mathspec`.
 
     Raises:
         LanguageError: A construct outside the streaming language.

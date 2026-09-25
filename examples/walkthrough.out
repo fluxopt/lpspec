@@ -2,7 +2,7 @@ The whole architecture, one model, one stage at a time — run it and read.
 
 spec: examples/walkthrough.yaml
 
-[1] YAML text -> validated Spec  (math_spec.to_spec)
+[1] YAML text -> validated Spec  (mathspec.to_spec)
     dimensions   snapshot, generator
     parameters   p_max, load, cost
     variables    p
@@ -89,13 +89,13 @@ spec: examples/walkthrough.yaml
     └──────────┴───────┘
                  ^ the named expression, read back at the solution
 
-[7] and what the language refuses  (math_spec)
+[7] and what the language refuses  (mathspec)
 
     an operator that is not in the closed built-in set:
     caught by check() as SchemaError
       Constraint 'cumulative': Unknown operator 'cumsum'.
       Available: ['at', 'dual', 'shift', 'sum', 'sum_back']
-      Define 'cumsum' as a macro under 'macros:' if it composes built-ins; if the math is not sayable in the language, use a declared escape.
+      Define 'cumsum' as a macro under 'macros:' if it composes built-ins. A file cannot add an operator: see docs/about/limits.md.
 
     variable x variable x variable — the ceiling is degree 2, not "nonlinear is fine":
     caught by check() as SchemaError

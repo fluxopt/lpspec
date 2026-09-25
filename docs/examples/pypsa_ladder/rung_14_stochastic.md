@@ -489,7 +489,7 @@ CVaR \in \mathbb{R}
     The network, `rung_14_stochastic.py` in the corpus — the spine plus what this rung adds:
 
     ```python
-    # SPDX-FileCopyrightText: math-spec Contributors
+    # SPDX-FileCopyrightText: mathspec Contributors
     #
     # SPDX-License-Identifier: MIT
 

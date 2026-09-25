@@ -19,7 +19,7 @@ with the LP about it (#1046).
 from __future__ import annotations
 
 import pytest
-from math_spec import to_spec
+from mathspec import to_spec
 
 from tests.differential import differential
 from tests.oracle import pd  # through the guard: a bare import would beat it

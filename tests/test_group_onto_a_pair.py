@@ -30,7 +30,7 @@ model whose technologies are deliberately not alphabetical.
 from __future__ import annotations
 
 import pytest
-from math_spec.program import GroupSum, Variable
+from mathspec.program import GroupSum, Variable
 
 from specsolve.errors import SchemaError
 from tests.conftest import by_coord, override, raw_of, schema_of
@@ -59,7 +59,7 @@ parameters:
 variables:
   p:
     dims: [generator]
-    bounds: {lower: 0, upper: .inf}
+    bounds: {lower: 0}
     description: output of a generator
 
 constraints:

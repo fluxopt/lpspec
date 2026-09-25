@@ -6,7 +6,7 @@ Renaming one breaks tests; changing one changes what the docs claim, and a test
 will say so.
 
 **A new model says which side it is on.** The language is being extracted to
-[math-spec](https://github.com/energy-models/math-spec), and almost everything
+[mathspec](https://github.com/energy-models/mathspec), and almost everything
 here stays: a model with a gallery page is read by a person and solved by an
 engine, and both of those are specsolve's. What moves is
 `operators/` — one construct per file, no page — because the operator

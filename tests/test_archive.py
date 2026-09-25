@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 import yaml as pyyaml
-from math_spec import to_spec
+from mathspec import to_spec
 
 import specsolve as sps
 from specsolve.api import attach_readers
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from pathlib import Path
 
-    from math_spec import Spec
+    from mathspec import Spec
 
 
 def _question(archive: sps.SolveArchive | sps.SweepArchive) -> tuple[Spec, Mapping[str, object]]:
@@ -299,7 +299,7 @@ def test_the_archive_lands_whole(dispatch_yaml: Path, dispatch_frame_inputs, tmp
     reader that finds it finds all of it: a parent directory that does not
     exist is made, and a failure after the archive is open leaves nothing
     under either name."""
-    from math_spec import Spec
+    from mathspec import Spec
 
     out = tmp_path / 'nested' / 'dispatch.zip'
     _archived(dispatch_yaml, dispatch_frame_inputs, out)

@@ -12,7 +12,7 @@ import re
 import warnings
 
 import pytest
-from math_spec import to_spec
+from mathspec import to_spec
 
 import specsolve as sps
 from specsolve.errors import SpecsolveError, SpecsolveWarning

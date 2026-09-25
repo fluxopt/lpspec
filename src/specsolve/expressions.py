@@ -16,8 +16,8 @@ from specsolve.lanes import lowered
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from math_spec import Spec
-    from math_spec.program import Expression
+    from mathspec import Spec
+    from mathspec.program import Expression
 
 #: The name a single unnamed expression is spliced under. Stepped over rather
 #: than overwritten where a model declares it — :func:`_free_name`.

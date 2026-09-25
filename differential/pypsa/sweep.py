@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: math-spec Contributors
+# SPDX-FileCopyrightText: mathspec Contributors
 #
 # SPDX-License-Identifier: MIT
 
@@ -25,7 +25,7 @@ def untested_conjuncts(name: str, program: Any, stamps: list[Mapping[str, Any]])
     p_nom_mod > 0` passes while `committable` is true at every coordinate of
     every rung — and a regime guarded by that conjunct alone would be missing
     with nothing to say so. That is the shape the negative-`p_min_pu` gap had,
-    found by hand (math-spec#312); this is the sweep that would have found it.
+    found by hand (mathspec#312); this is the sweep that would have found it.
 
     Each rung records one character per conjunct — ``t`` held everywhere, ``f``
     nowhere, ``b`` at some coordinates, ``-`` no frame at all. A conjunct is

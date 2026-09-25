@@ -49,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--rounds', type=int, default=9, help='timed builds per arm; the minimum is reported')
     args = parser.parse_args(argv)
 
-    from math_spec import to_spec
+    from mathspec import to_spec
 
     from specsolve.relational.engines.polars import engine as executor_module
     from specsolve.relational.engines.polars.assembly import Assembly

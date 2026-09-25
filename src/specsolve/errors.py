@@ -1,7 +1,7 @@
 """The run half of the exception hierarchy, and the whole of it re-exported.
 
 The spec half — :class:`LanguageError` and what derives from it, decidable at
-load time with no data attached — belongs to ``math_spec`` and is re-exported here,
+load time with no data attached — belongs to ``mathspec`` and is re-exported here,
 so one ``except`` clause covers the package. The run half is defined here:
 :class:`DataError` is a fine file with the wrong thing attached to it,
 :class:`LaneError` a file one lane cannot build, :class:`NoSolutionError` a
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from math_spec import (
+from mathspec import (
     DimensionError,
     LanguageError,
     MathSpecError,

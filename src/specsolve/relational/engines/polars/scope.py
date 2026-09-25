@@ -23,7 +23,7 @@ from specsolve.relational.engines.polars.fragments import join_on
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
 
-    from math_spec import program
+    from mathspec import program
     from polars._typing import JoinStrategy, MaintainOrderJoin
 
     from specsolve.relational.engines.polars.attaching import AttachedSources

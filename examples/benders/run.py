@@ -38,7 +38,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import polars as pl
-from math_spec import to_spec
+from mathspec import to_spec
 
 import specsolve as sps
 

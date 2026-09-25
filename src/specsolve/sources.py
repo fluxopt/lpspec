@@ -25,7 +25,7 @@ from specsolve.frames import as_frame, is_dense_array, is_multi_indexed
 from specsolve.relational.collect import polars_engine
 
 if TYPE_CHECKING:
-    from math_spec.program import DimensionDeclaration, ParameterDeclaration, Program, RelationDeclaration
+    from mathspec.program import DimensionDeclaration, ParameterDeclaration, Program, RelationDeclaration
 
     from specsolve.lanes import Label, Source
 

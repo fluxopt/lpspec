@@ -73,7 +73,7 @@ def test_outside_the_language_is_a_load_error(patch, match):
     """The refusal reaches the caller through ``sps.check``, with no data attached.
 
     Two rows, one per position the verb has to reach — which rules it enforces
-    there is the language's inventory and is swept in math-spec's own
+    there is the language's inventory and is swept in mathspec's own
     ``test_degree.py``. Asked of ``sps.check`` rather than of
     ``Spec.program``, because the verb is the claim: the affine guard once
     needed data attached, so ``check`` accepted the model and it blew up at build
@@ -95,5 +95,5 @@ def test_an_unknown_operator_names_its_context_and_teaches_the_rewrite():
 
     reason = str(exc.value)
     assert 'power_balance' in reason, 'the reason carries its context'
-    assert 'escape' in reason, 'and the rewrite, rather than a pointer to another lane'
+    assert 'macro' in reason, 'and the rewrite, rather than a pointer to another lane'
     assert 'linopy' not in reason.lower()

@@ -231,7 +231,7 @@ def test_the_translation_table_names_every_built_in_operator():
     gained, since an operator with no row is an operator nobody wrote down the
     linopy call for.
     """
-    from math_spec import BUILTIN_NAMES
+    from mathspec import BUILTIN_NAMES
 
     page = (DOCS / 'about' / 'linopy.md').read_text()
     section = page.split('### What a construct becomes')[1].split('### The same language')[0]
@@ -259,7 +259,7 @@ def test_the_plan_table_names_every_expression_node():
     off :func:`fan_in`, since that column is one the compiler *acts* on rather
     than merely documents.
     """
-    from math_spec import program
+    from mathspec import program
 
     from specsolve.relational.engines.polars.fragments import fan_in
 

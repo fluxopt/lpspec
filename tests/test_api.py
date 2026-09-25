@@ -21,7 +21,7 @@ from unittest import mock
 import numpy as np
 import polars as pl
 import pytest
-from math_spec import Spec, to_spec
+from mathspec import Spec, to_spec
 
 import specsolve as sps
 from specsolve.errors import DimensionError
@@ -336,9 +336,9 @@ def test_check_and_the_spec_program_need_no_data(dispatch_yaml):
 def test_check_reports_language_errors_before_any_data_is_bound(
     dispatch_yaml, dispatch_frame_inputs, expression, match
 ):
-    """The CI verb enforces the ceiling with no data attached (math-spec's docs/about/limits.md).
+    """The CI verb enforces the ceiling with no data attached (mathspec's docs/about/limits.md).
 
-    The refusal is the language's, at load (math-spec's ``test_degree.py``);
+    The refusal is the language's, at load (mathspec's ``test_degree.py``);
     what is asserted here is that both verbs surface it, ``build`` saying the
     same thing rather than deferring it to the solver. The raw file is
     assembled by hand because validating it is the refusal.
@@ -861,7 +861,7 @@ def test_no_operator_registry_on_this_package():
     This is what makes the two lanes accept the same language, and hence what
     makes the differential tests an oracle rather than a comparison of
     dialects (docs/about/architecture.md, "The expressive ceiling"). What
-    ``math_spec`` exports is pinned name by name in math-spec's own suite, so
+    ``mathspec`` exports is pinned name by name in mathspec's own suite, so
     the surface asserted here is this package's.
     """
     assert not hasattr(sps, 'register')
@@ -1034,7 +1034,7 @@ def test_a_closed_result_says_it_was_closed(dispatch_yaml, dispatch_frame_inputs
 def test_check_catches_a_dim_error_with_no_sources_bound():
     """`check` is a CI verb, and this is what makes it one.
 
-    Every dim rule is decided from declarations alone — math-spec's own suite
+    Every dim rule is decided from declarations alone — mathspec's own suite
     is the whole set (#1150) — so the claim worth making *here* is
     not that the rule exists but that the runner reaches it without a byte of
     data. Kept on this side of the split for that reason: it is an assertion

@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING, Any
 import highspy
 import numpy as np
 import polars as pl
-from math_spec import to_spec
+from mathspec import to_spec
 
 import specsolve as sps
 from bench.cases import Shape, _seed

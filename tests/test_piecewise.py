@@ -18,7 +18,7 @@ import numpy as np
 import polars as pl
 import pytest
 import yaml as pyyaml
-from math_spec import DimensionError
+from mathspec import DimensionError
 
 import specsolve as sps
 from specsolve.errors import DataError, SpecsolveError

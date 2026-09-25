@@ -1,6 +1,6 @@
 """The math a page prints for GitHub has to reach MathJax on the site as well.
 
-``math_spec.to_markdown`` writes GitHub-flavoured Markdown, and its inline math
+``mathspec.to_markdown`` writes GitHub-flavoured Markdown, and its inline math
 is the verbatim pair ``$`…`$`` — delimiters GitHub hands to MathJax untouched.
 Arithmatex reads neither that pair nor a ```math fence. The fence is a
 ``superfences`` entry in ``mkdocs.yml`` and the pair is
@@ -23,7 +23,7 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / 'docs'
 
-#: A math span as math-spec's typesetter prints it for GitHub — a fence, which
+#: A math span as mathspec's typesetter prints it for GitHub — a fence, which
 #: may be indented inside a tab or a list, and the verbatim inline pair.
 _FENCED_MATH = re.compile(r'^[ \t]*```math$', re.MULTILINE)
 _INLINE_MATH = re.compile(r'\$`[^`\n]+`\$')

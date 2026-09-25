@@ -100,7 +100,7 @@ rather than the alpha counter. Describe the break in the PR body instead.
   rewrite…" belong in git. Neither belongs in the code.
 - **Docs move with the change.** A construct added, renamed or retired updates
   the [language reference](https://math-spec.readthedocs.io/en/latest/reference/language/) — its ten rules if
-  the change moves a law, and it lives in math-spec now; structure updates
+  the change moves a law, and it lives in mathspec now; structure updates
   [ARCHITECTURE](docs/about/architecture.md), diagrams included.
 - **After a decision in conversation, sweep for what now contradicts it**, stale
   rationale included: a stale sentence outranks correct code in every reader's
@@ -273,7 +273,7 @@ cases the table decides and a writer still gets wrong:
   changelog has.
 - **A dependency bump that changes what this package accepts is `feat`/`fix` on
   that outcome**, not `build` on the bump — the type names the problem solved,
-  for the same reason the subject does. A math-spec bump that only follows the
+  for the same reason the subject does. A mathspec bump that only follows the
   pin is `build`.
 
 Then the subject:

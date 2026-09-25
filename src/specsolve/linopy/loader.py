@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 import xarray as xr
-from math_spec import program as _program
+from mathspec import program as _program
 
 from specsolve.errors import LaneError
 from specsolve.frames import to_pandas
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
 
     import polars as pl
-    from math_spec import program
+    from mathspec import program
 
 
 def refuse_relations_the_lane_does_not_build(program: program.Program) -> None:

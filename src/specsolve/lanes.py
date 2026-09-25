@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from math_spec import to_spec
-from math_spec.program import Program
+from mathspec import to_spec
+from mathspec.program import Program
 
 from specsolve.errors import LanguageError, SpecsolveError
 from specsolve.relational.sinks.capabilities import Capabilities
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
     import polars as pl
-    from math_spec import Spec
+    from mathspec import Spec
 
 #: Anything a verb takes as the spec: a YAML path, a mapping, or a ``Spec``
 #: the language has already read, its ``piecewise:`` blocks written out
@@ -48,7 +48,7 @@ def declared(spec: Buildable) -> Spec:
         raise SpecsolveError(
             'a lowered Program is not a model this takes. Lowering has no inverse, so an answer from one '
             'could not say which document it came back from, and nothing built from one could be archived. '
-            'Pass what it was lowered from — a path, a mapping, or math_spec.to_spec() of either, which is '
+            'Pass what it was lowered from — a path, a mapping, or mathspec.to_spec() of either, which is '
             'the form worth keeping, since it carries its program. '
             'sps.check() still hands back the Program, for reading the plan.'
         )
@@ -63,14 +63,14 @@ class ArrowTable(Protocol):
 
 
 #: A pandas Series of any dtype a source may carry: an index's
-#: (:data:`math_spec.program.DimensionDtype`) or a parameter's values'
-#: (:data:`~math_spec.program.ParameterDtype`), which is where ``bool`` comes
+#: (:data:`mathspec.program.DimensionDtype`) or a parameter's values'
+#: (:data:`~mathspec.program.ParameterDtype`), which is where ``bool`` comes
 #: from. Spelled out because pandas types ``Series`` invariantly: a bare
 #: ``pd.Series`` is ``Series[Any]``, and no single parameter stands for the five.
 type PandasSeries = pd.Series[float] | pd.Series[int] | pd.Series[bool] | pd.Series[str] | pd.Series[datetime]
 
 #: A label along a dimension, and so a slice's key: the Python type of each
-#: dtype an index may declare (:data:`math_spec.program.DimensionDtype`).
+#: dtype an index may declare (:data:`mathspec.program.DimensionDtype`).
 type Label = int | float | str | datetime
 
 #: Anything a verb takes under one name of ``sources``. A parameter: a parquet

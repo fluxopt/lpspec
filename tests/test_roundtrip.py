@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 import yaml as pyyaml
-from math_spec import to_spec
+from mathspec import to_spec
 
 from tests.conftest import SPEC_PATHS
 
@@ -144,13 +144,10 @@ def test_absence_is_dropped_and_values_are_kept():
 
 
 def test_json_carries_a_model_too():
-    """`model_dump_json` round-trips, because nothing infinite survives to it.
+    """`model_dump_json` round-trips, because an open bound is `null` and not an infinity.
 
-    JSON has no infinity, so an unbounded `-inf` bound used to come back as
-    `null` and read as *absent*. It is absent — that is what an infinite bound
-    means — so the serializer drops it and the two agree instead of one being
-    quietly wrong. Held here because the fix is easy to undo by "restoring" a
-    bound that was never information.
+    JSON has no infinity. An open side is absent, so the serializer drops it
+    and JSON and `to_dict` agree.
     """
     spec = to_spec(
         {
@@ -163,6 +160,6 @@ def test_json_carries_a_model_too():
     assert to_spec(json.loads(spec.model_dump_json())).to_dict() == spec.to_dict()
 
     out = spec.to_dict()['variables']
-    assert out['x']['bounds'] == {'lower': 0.0}, 'a real bound stays, its infinite partner does not'
+    assert out['x']['bounds'] == {'lower': 0.0}, 'a stated bound stays, its open partner does not'
     assert 'bounds' not in out['y'], 'unbounded on both sides is no bounds block at all'
-    assert to_spec(spec.to_dict()).variables['y'].bounds.lower == float('-inf')
+    assert to_spec(spec.to_dict()).variables['y'].bounds.lower is None

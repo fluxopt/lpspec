@@ -179,7 +179,7 @@ is a choice, and **How** shows the one that was made here.
 === "How"
 
     ```python
-    import math_spec as ms
+    import mathspec as ms
 
     symbols = {
         'notation': 'latex',
@@ -209,11 +209,11 @@ is a choice, and **How** shows the one that was made here.
     emits a document that compiles rather than a fragment to `\input`:
 
     ```bash
-    python -m math_spec latex dispatch.yaml --symbols dispatch.symbols.yaml
-    python -m math_spec typst dispatch.yaml --standalone -o dispatch.typ
+    python -m mathspec latex dispatch.yaml --symbols dispatch.symbols.yaml
+    python -m mathspec typst dispatch.yaml --standalone -o dispatch.typ
     ```
 
-    The renderer is [math-spec](https://math-spec.readthedocs.io/en/latest/reference/typeset/)'s,
+    The renderer is [mathspec](https://math-spec.readthedocs.io/en/latest/reference/typeset/)'s,
     and reads the same file this page solves.
 <!-- home-math:end -->
 

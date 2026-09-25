@@ -1,7 +1,7 @@
 """Every rung page shows the files that ran, byte for byte, and is current.
 
 The projection, the script and the tables under `differential/pypsa/` are what
-the parity runner wrote from the pinned math-spec; the `PyPSA parity` workflow
+the parity runner wrote from the pinned mathspec; the `PyPSA parity` workflow
 holds them to the corpus. Here, with no pypsa on the install, what is held is
 the page: each fence is one of those files verbatim, and every page is what
 `tools.ladder` prints from them and the certificate.
@@ -201,7 +201,7 @@ def _conjunct_stamps(marks: str) -> list[dict]:
     ],
 )
 def test_a_conjunct_no_rung_varies_is_reported(marks, expected):
-    """The half the block-level sweep cannot reach — math-spec#312.
+    """The half the block-level sweep cannot reach — mathspec#312.
 
     A mask of `a AND b` is exercised as a whole the moment `a` varies, so a `b`
     true at every coordinate of every rung passes unnoticed and a regime it

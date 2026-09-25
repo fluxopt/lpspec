@@ -24,8 +24,8 @@ from dataclasses import replace
 import numpy as np
 import polars as pl
 import pytest
-from math_spec import Spec
-from math_spec.program import (
+from mathspec import Spec
+from mathspec.program import (
     Add,
     Constant,
     ConstraintDeclaration,

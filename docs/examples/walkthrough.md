@@ -135,7 +135,7 @@ language refuses and why. The committed output is
 
 It is the only model here that uses **tier 2**: a macro and a named
 expression. The macro does not survive the language's expansion, so nothing
-downstream of `math_spec` knows it existed. The named expression is
+downstream of `mathspec` knows it existed. The named expression is
 substituted the same way wherever a constraint uses it, and its name survives
 on the model: stage 6 reads `total_supply` back at the solution with
 `evaluate()`, lowered on that read rather than at build.

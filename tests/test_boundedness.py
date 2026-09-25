@@ -6,7 +6,7 @@ import warnings
 
 import pytest
 import yaml
-from math_spec import advice, to_spec
+from mathspec import advice, to_spec
 
 import specsolve as sps
 from specsolve.errors import SpecsolveWarning
@@ -32,7 +32,7 @@ def _check(**overrides):
 
 def test_the_note_reaches_the_caller_as_a_warning_off_check():
     """The surface, not the inventory: which models earn a note is
-    ``advice``'s rule and is swept in math-spec's own
+    ``advice``'s rule and is swept in mathspec's own
     ``test_boundedness.py``. What is asserted here is that ``check`` asks for
     the notes at all and hands each one to the caller whole — the wording is
     what the caller reads, so a note truncated to its first clause would pass

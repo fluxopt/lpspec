@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, get_args
 
 import numpy as np
 import polars as pl
-from math_spec import program
+from mathspec import program
 
 from specsolve.errors import DataError, null_bounds_message
 from specsolve.relational import sinks
@@ -26,7 +26,7 @@ from specsolve.relational.engines.polars.scope import Scope
 from specsolve.relational.sinks.handoff import SENSE
 
 if TYPE_CHECKING:
-    from math_spec.program import ObjectiveSense
+    from mathspec.program import ObjectiveSense
     from polars._typing import MaintainOrderJoin
 
     from specsolve.relational.engines.polars.attaching import AttachedSources

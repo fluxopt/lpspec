@@ -22,7 +22,7 @@ import itertools
 from typing import TYPE_CHECKING, assert_never
 
 import polars as pl
-from math_spec import program
+from mathspec import program
 
 from specsolve.errors import DataError, position_out_of_range_message, short_groups_message
 from specsolve.relational.engines.polars.fragments import join_on

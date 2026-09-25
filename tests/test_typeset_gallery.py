@@ -1,6 +1,6 @@
 """The gallery's math, and every model in it rendered.
 
-The renderer's own tests are math-spec's, over fixtures that travel with it.
+The renderer's own tests are mathspec's, over fixtures that travel with it.
 What is asserted here is about **this repository's corpus** — that every gallery
 model renders in every format, and that each page's generated math block is
 current. The renderer is the tool; the gallery is specsolve's documentation.
@@ -13,7 +13,7 @@ import subprocess  # noqa: F401  — used by the typst compile check
 from pathlib import Path
 
 import pytest
-from math_spec import FORMATS, SymbolTable, to_latex, to_markdown, to_spec, to_typst, typeset
+from mathspec import FORMATS, SymbolTable, to_latex, to_markdown, to_spec, to_typst, typeset
 
 from tests.conftest import SPEC_PATHS
 from tools import gallery_math

@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 import pytest
-from math_spec import to_spec
+from mathspec import to_spec
 
 from tools import constructs, gallery_math
 
@@ -304,7 +304,7 @@ def test_no_tab_without_a_reference() -> None:
 
 
 #: Hand-written prose that shows model YAML, checked against the models that
-#: run. `docs/guide.md` is not here: the language is math-spec's and the guide
+#: run. `docs/guide.md` is not here: the language is mathspec's and the guide
 #: links it rather than teaching it, so it shows no expressions to check.
 #: `README.md`'s block is what `docs/index.md` includes as the whole thing in
 #: one model.

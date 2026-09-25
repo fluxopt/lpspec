@@ -84,7 +84,7 @@ argument unreadable. Most rationale belongs in the PR, per `AGENTS.md`; what
 survives into an explanation page is the part a user needs to make decisions.
 
 The language is not documented here. What a model file may contain is
-math-spec's to state, and the nav links to its
+mathspec's to state, and the nav links to its
 [language reference](https://math-spec.readthedocs.io/en/latest/reference/language/).
 A page here documents what this package does with a spec: the data it
 attaches, the verbs that attach it, and the models that do both.
@@ -167,7 +167,7 @@ not
   `docs/reference/glossary.md` rather than redefine it.
   The glossary holds the one definition; a second copy drifts.
 - **Link the reference section at a construct's first mention** on the page.
-  A language construct links to math-spec's reference; a verb links to
+  A language construct links to mathspec's reference; a verb links to
   `docs/reference/api.md`.
 
 ## 7. Sentences
@@ -267,7 +267,7 @@ PY
 - **Argument for a settled decision.** That is the PR.
 - **A promise about the future.** "Will support…" ages into a lie.
 - **Anything that duplicates another page.** One fact, one home; link instead.
-  A second copy drifts silently. A rule of the language is math-spec's page,
+  A second copy drifts silently. A rule of the language is mathspec's page,
   not a paraphrase here.
 - **Generated content.** The catalogue, construct matrix and reference table
   in `docs/examples/index.md`, the *"the same model, as math"* block on each

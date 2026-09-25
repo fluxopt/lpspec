@@ -25,7 +25,7 @@ from specsolve.relational.sinks.writers import WRITERS, writer
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
 
-    from math_spec import program
+    from mathspec import program
 
 __all__ = [
     'SOLVERS',
@@ -107,7 +107,7 @@ def _sink_refuses_message(sink: str, missing: Sequence[str], takers: Sequence[st
     sink with no SOS concept is named beside the sinks that have one.
     """
     way_out = (
-        ' Or write the sets out: math_spec.to_spec(...).expand() states each as binaries and linking '
+        ' Or write the sets out: mathspec.to_spec(...).expand() states each as binaries and linking '
         'rows, which every sink takes.'
         if 'sos' in missing
         else ''

@@ -1,6 +1,6 @@
 """The polars engine: plan → frames → `sinks.Handoff`.
 
 Everything here is engine-private. The contract is either side of it —
-`math_spec.program` going in, `relational/sinks/handoff.py` coming out — and
+`mathspec.program` going in, `relational/sinks/handoff.py` coming out — and
 nothing outside this package may reach past those two.
 """

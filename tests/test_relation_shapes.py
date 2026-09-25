@@ -1,6 +1,6 @@
 """Every shape of relation the language admits, built by the relational lane.
 
-math-spec's relation is a table over any number of dimensions, keyed by any
+mathspec's relation is a table over any number of dimensions, keyed by any
 number of its columns, walked in whichever direction a call names. The
 single-valued map — two columns, one of them the key — is one shape of it. The
 others each ask something of the engine that the map did not:

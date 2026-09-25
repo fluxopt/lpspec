@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import polars as pl
-from math_spec import to_spec
+from mathspec import to_spec
 
 from specsolve.api import attach_readers, load_result, scan_result
 from specsolve.errors import SpecsolveError
@@ -35,7 +35,7 @@ from specsolve.strategy import (
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from math_spec import Spec
+    from mathspec import Spec
 
     from specsolve.lanes import Source
     from specsolve.relational.result import Result
