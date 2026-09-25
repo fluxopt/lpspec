@@ -230,7 +230,7 @@
   mask: center / contain no-repeat;
 }
 
-.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/howto/data/"])::before {
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/howto/archiving/"])::before {
   content: "";
   mask-image: url("icons/table-arrow-right.svg");
 }
@@ -240,7 +240,7 @@
   mask-image: url("icons/split.svg");
 }
 
-.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/about/benchmarks/"])::before {
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/about/benchmarks-scaling.html"])::before {
   content: "";
   mask-image: url("icons/speedometer.svg");
 }
