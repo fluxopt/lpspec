@@ -51,7 +51,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 **Answer**
 : What came back, whichever verb asked: a `Result` for one solve, a
   [`Runs`](#sweeps) for a sweep. `save` writes one as a directory —
-  `objective.parquet` for how it terminated, then `primal/`, `dual/`,
+  `record.parquet` for how it terminated, then `primal/`, `dual/`,
   `activity/` and `expression/` — and an archive holds that directory as
   `answer/`.
 
@@ -232,7 +232,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 
   A **row** is a value and gets a type; a **table** stays a
   [Table](#the-data). So `Record` and `SliceMetrics` are the rows behind
-  `runs.objective` and `runs.metrics` rather than what those hand back, and
+  `runs.record` and `runs.metrics` rather than what those hand back, and
   a reader that wants one row of a table asks the frame for it.
 
 ## `bound` means one thing

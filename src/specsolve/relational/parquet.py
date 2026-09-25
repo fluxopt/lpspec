@@ -342,7 +342,7 @@ def row_of[R](row_type: Callable[..., R], columns: Mapping[str, object], found: 
 #: write them, and :func:`specsolve.archive.load_archive` reads back whichever
 #: wrote: the record of how the solve terminated, what reaching it cost, and
 #: the reasons behind whatever is deliberately not there.
-RECORD_FILE = 'objective.parquet'
+RECORD_FILE = 'record.parquet'
 METRICS_FILE = 'metrics.parquet'
 REASONS_FILE = 'reasons.parquet'
 
@@ -351,7 +351,7 @@ def consolidated(under: Path, file: str) -> pl.DataFrame:
     """The table *file* names under *under*, whichever shape wrote it, as one frame.
 
     A spill writes it one file per slice under a directory named for what the
-    file holds — ``objective.parquet`` beside ``objective/`` — so the name of
+    file holds — ``record.parquet`` beside ``record/`` — so the name of
     one gives the other and only the file is passed.
 
     Reads both shapes, so one reader serves an archive and the spill it was

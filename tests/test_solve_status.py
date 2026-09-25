@@ -179,10 +179,10 @@ def test_a_solve_that_left_no_values_writes_the_record_and_no_frames(tmp_path):
     """
     with sps.solve(*CASES['INFEASIBLE']) as solution:
         out = solution.save(tmp_path / 'infeasible')
-    assert sorted(entry.name for entry in out.iterdir()) == ['format.json', 'objective.parquet'], (
+    assert sorted(entry.name for entry in out.iterdir()) == ['format.json', 'record.parquet'], (
         'the record and the layout it is in; no values, so no primal/, dual/ or expression/'
     )
-    record = pl.read_parquet(out / 'objective.parquet')
+    record = pl.read_parquet(out / 'record.parquet')
     assert record.row(0, named=True)['termination_condition'] == 'infeasible'
     assert record['objective'].to_list() == [None], 'no objective was reached, so the column holds none'
 
@@ -200,7 +200,7 @@ def test_a_case_that_reached_no_objective_does_not_poison_the_others(tmp_path):
         with sps.solve(*CASES[case]) as solution:
             solution.save(tmp_path / name)
 
-    table = pl.read_parquet(tmp_path / '*' / 'objective.parquet')
+    table = pl.read_parquet(tmp_path / '*' / 'record.parquet')
     assert table['objective'].null_count() == 1, 'one of the two cases reached no objective'
     assert table['objective'].is_nan().sum() == 0, 'and it is written as no value rather than as nan'
     assert table['objective'].mean() == table.filter('has_primal')['objective'].item(), (
