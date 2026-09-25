@@ -3,7 +3,7 @@
 This page describes what each verb takes, returns, guarantees and refuses, for
 anyone who runs a spec from Python. A *spec* is the YAML file; what it may
 contain is
-[the language](https://math-spec.readthedocs.io/en/latest/reference/language/).
+[the language](https://mathspec.readthedocs.io/en/latest/reference/language/).
 
 ```python
 import specsolve as sps
@@ -37,7 +37,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `sps.load_sweep(directory)` | a sweep `sweep.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Sweep` |
 | `sps.scan_archive` / `scan_result` / `scan_sweep` | the same three left on disk and read as they are asked for: [loading or scanning](#loading-or-scanning) |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
-| `mathspec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
+| `mathspec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://mathspec.readthedocs.io/en/latest/reference/typeset/) |
 | `sps.Model` / `sps.Result` / `sps.Sweep` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `mathspec.Spec` |
 
 ## Errors and warnings
@@ -50,7 +50,7 @@ directory or an archive that is not a layout this package reads.
 accepts and specsolve cannot build raises `SpecsolveError` itself, and its
 message names the rewrite that builds the same model.
 Which one you get:
-[errors](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
+[errors](https://mathspec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
 
 **`SpecsolveWarning` is the one warning category**, and carries `check`'s advice.
 `warnings.simplefilter('error', sps.SpecsolveWarning)` makes a spec repository
@@ -97,7 +97,7 @@ spec must be able to show you a file. Hand-written math still starts as one.
 
 **A dict-built spec still gets a file.** `to_dict()` and `to_yaml()` are the
 language's, and what they write is
-[its page](https://math-spec.readthedocs.io/en/latest/reference/reading/#writing-a-spec-back-out).
+[its page](https://mathspec.readthedocs.io/en/latest/reference/reading/#writing-a-spec-back-out).
 
 ## The sources argument
 
@@ -147,7 +147,7 @@ beside a variable `p` is accepted. The two are written under `dual/` and
 
 Whether a spec is *sayable* does not depend on the solver. Where it can *land*
 is
-[a separate question](https://math-spec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself),
+[a separate question](https://mathspec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself),
 and `sink=` asks it:
 
 ```python
@@ -314,10 +314,10 @@ xarray, which specsolve does not install.
 | **reading with no primal raises** | `NoSolutionError`; `objective` is `nan`. `save` is the exception: it writes the record and no frames, an infeasible run being an answer a set of saved cases needs on disk |
 | **`dual_ray` is the one reader an infeasible solve answers** | a weight per row, `dual`'s shape, certifying that the rows cannot all hold: weight each row by its value and the combination demands more than the columns can deliver inside their bounds. It is what a Benders feasibility cut is built from ([decomposition](../about/decomposition.md#when-the-subproblem-is-infeasible)). **The sign is the row's own**, one convention across the sinks, so a driver never asks who solved. A solve that found an answer has nothing to certify and says so |
 | **a certificate is computed only where it was asked for** | `highs` always produces one. `gurobi` needs `solver_options={'InfUnbdInfo': 1}` and `xpress` needs `solver_options={'presolve': 0}`, both set before the solve; without them the model is still refused as infeasible, and `dual_ray` raises naming the option. A ray is live-only: `save` does not write one, and no sweep spills one |
-| **`evaluate` takes what an `expressions:` entry takes** | a name the file declares, an expression string, or the mapping that carries `cases:`. A declared name is the value of that [named expression](https://math-spec.readthedocs.io/en/latest/reference/language/named/#expressions) at the solution, aggregated to its own dimensions, served by the reader already holding it and compiled at the read, so unread expressions cost nothing. Anything else lowers the model again, which costs what `check` costs. It may use every name the solved model declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read |
+| **`evaluate` takes what an `expressions:` entry takes** | a name the file declares, an expression string, or the mapping that carries `cases:`. A declared name is the value of that [named expression](https://mathspec.readthedocs.io/en/latest/reference/language/named/#expressions) at the solution, aggregated to its own dimensions, served by the reader already holding it and compiled at the read, so unread expressions cost nothing. Anything else lowers the model again, which costs what `check` costs. It may use every name the solved model declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read |
 | **an undeclared expression names nothing** | so it is not a *kind*: `save` does not write it and a sweep does not spill it. A declared expression is: `save` writes it under `expression/`, and it rides every bridge as `kind='expression'`. To keep a quantity, declare it under `expressions:` and read it by name |
 | **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `SpecsolveError`. Any integer or binary variable makes duals undefined |
-| **an expanded set makes a model mixed-integer** | an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set written out with `Spec.expand()` is binaries, so an otherwise continuous model solved that way has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
+| **an expanded set makes a model mixed-integer** | an [`sos:`](https://mathspec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set written out with `Spec.expand()` is binaries, so an otherwise continuous model solved that way has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
 | **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `save` |
 | **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default. One kind per call |
@@ -511,7 +511,7 @@ any of them.
 | Field | |
 |---|---|
 | `columns`, `rows`, `nonzeros` | the shape the build produced; `check` cannot answer this, having no data |
-| `omissions` | rows a constraint declared but did not build ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/#rows-with-no-variable-terms)) |
+| `omissions` | rows a constraint declared but did not build ([absence](https://mathspec.readthedocs.io/en/latest/reference/language/absence/#rows-with-no-variable-terms)) |
 | `sparse_parameters` | `(parameter, coordinates, rows, missing)`, one row per parameter whose source is short of the coordinates its dimensions reach. Sparsity is how a model masks, so this reports rather than judges: a table that lost a row and a `where:` that removed one build the same model, and nothing else says which |
 | `coefficient_range` | `(constraint, smallest, largest)`, the coefficient **magnitudes** each block put in the matrix. `largest / smallest` over the table is the conditioning to compare against the solver's own |
 | `bound_range` | `(variable, smallest, largest)`, the **bound** magnitudes each variable block put on its columns, zero and infinity excluded. HiGHS reports this axis (`Consider scaling the bounds by …`) and does not repair it. A large `largest` is usually a big number standing in for "uncapped", and wants no upper bound rather than a rounder one |

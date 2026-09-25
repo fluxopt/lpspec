@@ -475,7 +475,7 @@ The cycle basis carries impedance rather than reactance alone. PyPSA applies
 the voltage law with `x` inside an AC sub-network and `r` inside a DC one, and
 this network has one meshed loop of each. Which value belongs in the row is
 decided in data preparation, where
-[the limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
+[the limits](https://mathspec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
 put graph work; the language sees one incidence table either way.
 
 No new construct was needed.

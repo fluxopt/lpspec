@@ -165,7 +165,7 @@ call.
     python -m mathspec typst dispatch.yaml --standalone -o dispatch.typ
     ```
 
-    The renderer is [mathspec](https://math-spec.readthedocs.io/en/latest/reference/typeset/)'s,
+    The renderer is [mathspec](https://mathspec.readthedocs.io/en/latest/reference/typeset/)'s,
     and reads the same file this page solves.
 <!-- home-math:end -->
 
@@ -180,7 +180,7 @@ call.
   table per parameter, and [what attaching refuses](reference/data.md).
 - [Python API](reference/api.md): attach, build, solve and read back, and
   [sweep](reference/sweeps.md) one model over scenarios.
-- [The language](https://math-spec.readthedocs.io/en/latest/reference/language/):
+- [The language](https://mathspec.readthedocs.io/en/latest/reference/language/):
   what a file may contain, on math-spec's site.
 - [About](about/index.md): the architecture, the measured cost, and what will
   never be built.

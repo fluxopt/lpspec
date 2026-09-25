@@ -138,7 +138,7 @@ A malformed source gets the same refusal from both builds, in the same sentence.
 
 specsolve does not take array operations (`merge`, `reindex`, `stack`), the Python
 modeling API, or the solver layer. The first is data prep
-([the limits](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#what-the-language-will-not-express)).
+([the limits](https://mathspec.readthedocs.io/en/latest/reference/language/errors/#what-the-language-will-not-express)).
 The second is [hard rule 5](architecture.md#hard-rules): the model is the file
 you review and diff. The third is
 [#106](https://github.com/fluxopt/specsolve/issues/106), where specsolve adopts

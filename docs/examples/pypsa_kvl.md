@@ -260,7 +260,7 @@ different file.
 **Computing the basis is data preparation, outside the language.** Finding a
 cycle basis is a graph algorithm, iteration over a structure discovered from
 data, which the
-[limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
+[limits](https://mathspec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
 refuse. The reference prints the rows PyPSA derived so the two can be
 compared. They need only agree on the cycle space: PyPSA scales its
 coefficients for conditioning, and a row that is `= 0` says the same thing

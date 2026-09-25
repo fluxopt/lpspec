@@ -6,9 +6,9 @@ the language.
 
 A PR that changes the structure described here updates this file. The language
 is
-[the language reference](https://math-spec.readthedocs.io/en/latest/reference/language/).
+[the language reference](https://mathspec.readthedocs.io/en/latest/reference/language/).
 What may enter it is
-[the limits of the language](https://math-spec.readthedocs.io/en/latest/about/limits/). Plans
+[the limits of the language](https://mathspec.readthedocs.io/en/latest/about/limits/). Plans
 and refusals are [the roadmap](roadmap.md). Measured results are
 [the benchmarks](benchmarks.md), produced by the harness in
 [bench/](https://github.com/fluxopt/specsolve/blob/main/bench/README.md), which is
@@ -189,7 +189,7 @@ the resolved AST. A `piecewise:` block prints as the curve it states, and its
 expansion as the rows. It lives in the package that owns the language, and this package does not
 depend on it. A consumer that reads the AST and nothing else needs no part of
 this repository to run. The waist is **closed**, which is what [the limits of
-the language](https://math-spec.readthedocs.io/en/latest/about/limits/)
+the language](https://mathspec.readthedocs.io/en/latest/about/limits/)
 protects: a new consumer is free, a new primitive is taxed.
 
 ### The Python surface
@@ -489,7 +489,7 @@ from here is `genconstr`, plus a semi-continuous threshold on `cols`.
 
 **The fourth stream is the one that lands unevenly**, because its destination
 differs per sink (see [what each tool decides for
-itself](https://math-spec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself)).
+itself](https://mathspec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself)).
 So a solver **declares** whether it takes one, and the *family* acts on the
 answer (`sinks.refusal`): a sink with no SOS concept refuses the model, and the
 refusal names `Spec.expand()`, which writes each set out as binaries and
@@ -537,7 +537,7 @@ is structure.
 
 | Module | Role |
 |---|---|
-| `mathspec` (a dependency) | the whole language, read, expanded, resolved, judged and lowered there; what crosses is a `Spec` and the `Program` it lowers to — [its own reference](https://math-spec.readthedocs.io/en/latest/reference/language/) |
+| `mathspec` (a dependency) | the whole language, read, expanded, resolved, judged and lowered there; what crosses is a `Spec` and the `Program` it lowers to — [its own reference](https://mathspec.readthedocs.io/en/latest/reference/language/) |
 | `api.py` | the runner: `check` / `build` / `solve` / `write`, and `load_result` / `scan_result` for an answer read back off disk; linopy-free |
 | `layout.py` | below every verb that solves: what an archive holds — `model.yaml`, `sources/`, `answer/`, `axis.json` — written as one zip or as a directory, because a solve is the one moment all three exist together |
 | `archive.py` | above the runner and the fold: `load_archive` / `scan_archive` and the two values they give back, `SolveArchive` and `SweepArchive`. It reads; it never writes |
@@ -582,7 +582,7 @@ is not here.
 ### What counts as language
 
 The rule is
-[its own page](https://math-spec.readthedocs.io/en/latest/about/what-counts-as-language/),
+[its own page](https://mathspec.readthedocs.io/en/latest/about/what-counts-as-language/),
 because it decides what may live here rather than how this package is
 arranged:
 
@@ -614,7 +614,7 @@ should be arguable.
 The same construct passes through three of mathspec's layers, and each names
 it in full with the layer as the suffix: `VariableBlock`, `VariableNode`,
 `Variable`. The table and the two rules a new construct keeps are
-[mathspec's](https://math-spec.readthedocs.io/en/latest/contributing/#naming-across-the-layers).
+[mathspec's](https://mathspec.readthedocs.io/en/latest/contributing/#naming-across-the-layers).
 A rename upstream that collides here is a thing to notice. The one place
 abbreviation survives on this side is column names inside the engine, which
 are not Python identifiers.
@@ -651,7 +651,7 @@ its own, depending on `mathspec` and not on this one. It reads
 consumer, and the ceiling doc is the conversation to have first.
 
 **Add an operator:** two repositories, in this order. First
-[in mathspec](https://math-spec.readthedocs.io/en/latest/contributing/#adding-an-operator),
+[in mathspec](https://mathspec.readthedocs.io/en/latest/contributing/#adding-an-operator),
 landed and tagged. Then **here**, against that tag: the oracle's linopy implementation →
 compiler case → engine → differential test through a solver *and* the LP
 writer, and this file if structural. Nothing here can lower an operator the

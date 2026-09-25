@@ -95,7 +95,7 @@ raises the minor version, and its notes name the break.
   above; "previously this used to…", "renamed from…", "as of the polars
   rewrite…" belong in git. Neither belongs in the code.
 - **Docs move with the change.** A construct added, renamed or retired updates
-  the [language reference](https://math-spec.readthedocs.io/en/latest/reference/language/) — its ten rules if
+  the [language reference](https://mathspec.readthedocs.io/en/latest/reference/language/) — its ten rules if
   the change moves a law, and it lives in mathspec now; structure updates
   [ARCHITECTURE](docs/about/architecture.md), diagrams included.
 - **After a decision in conversation, sweep for what now contradicts it**, stale
@@ -376,4 +376,4 @@ skipped. A body invalidated by a rewrite is closed and re-filed, not annotated.
 - **A language feature is triaged first: macro, primitive, formulation, or refused** — the
   ceiling is relational, degree 2 in the math and 1 beside it. Locality prices a primitive
   rather than barring it. The deliberate non-primitives in
-  [limits.md](https://math-spec.readthedocs.io/en/latest/about/limits/) come first.
+  [limits.md](https://mathspec.readthedocs.io/en/latest/about/limits/) come first.
