@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.359](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.358...v0.0.1-alpha.359) (2026-09-25)
+
+
+### Documentation
+
+* the configuration files keep a one-line reason only where a setting would look like a mistake ([#1756](https://github.com/fluxopt/specsolve/issues/1756)) ([7491f91](https://github.com/fluxopt/specsolve/commit/7491f91f538332efdcf1cc9c53aea701d904adf4))
+
 ## [0.0.1-alpha.358](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.357...v0.0.1-alpha.358) (2026-09-25)
 
 
