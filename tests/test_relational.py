@@ -1146,7 +1146,7 @@ class TestWhatReachesTheSolverAsAnEntry:
         """An absent upper bound must reach HiGHS as infinity, not as a number."""
         gens, load = dispatch_data
         base = dispatch_program()
-        unbounded = replace(base, variables={'p': replace(base.variables['p'], upper=Constant(float('inf')))})
+        unbounded = replace(base, variables={'p': replace(base.variables['p'], upper=None)})
         with PolarsEngine() as engine:
             engine.build(unbounded, tidy_sources(unbounded, dispatch_sources(gens, load)))
             assert engine._model.handoff.cols['ub'].is_infinite().all()
