@@ -7,7 +7,7 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
-## 0.1.1 (2026-09-25)
+## 0.2.0 (2026-09-25)
 
 A saved answer now records which layout it was written in and which specsolve
 wrote it, so a later release can name an answer it no longer reads. The Python
@@ -17,8 +17,8 @@ This release breaks one thing:
 
 - An answer or an archive that 0.1.0 or earlier wrote is refused with a
   `LayoutError` that says to solve the model again and save it. Its
-  `format.json` reads `{"answer": 0}`; 0.1.1 writes
-  `{"layout": 1, "specsolve": "0.1.1"}`. An archive still holds the spec and
+  `format.json` reads `{"answer": 0}`; 0.2.0 writes
+  `{"layout": 1, "specsolve": "0.2.0"}`. An archive still holds the spec and
   the data it was solved with, under `spec.yaml` and `sources/`.
 
 The pull requests since 0.1.0:
