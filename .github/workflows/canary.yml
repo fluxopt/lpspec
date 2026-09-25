@@ -43,7 +43,7 @@ jobs:
       # the thing a named environment is deliberately bad at: overriding a pin
       # for one run is not a shape `[tool.pixi.environments]` has, and an
       # environment carrying the same package at a second ref does not resolve.
-      # So this is a one-off tool invocation, like the build in publish.yaml —
+      # So this is a one-off tool invocation, like the build in release.yaml —
       # `pixi exec` fetches uv, and `--with` overrides the pin for this run
       # only, so nothing on disk is edited and a failure is about mathspec's
       # `main` rather than about a half-applied bump.

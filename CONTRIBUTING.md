@@ -156,8 +156,9 @@ needs deploying by hand.
 **Never commit on `main`.** It takes squash merges through a PR only, and the
 ruleset enforces it.
 
-The PR title is parsed by release-please and becomes the changelog entry, so it
-has to be a conventional-commit subject:
+Merges are squashed, so the **PR title** becomes the commit on `main`. Write it
+so it also works as the line you add to `CHANGELOG.md` by hand. It has to be a
+conventional-commit subject:
 
 ```
 feat: streaming engine for indexed constraints
@@ -165,21 +166,22 @@ fix(parser): where clauses with a trailing comma
 refactor(api): closed helper set, no monkey-patch
 ```
 
-Types: `feat` `fix` `perf` `refactor` `docs` — these appear in the changelog —
-plus `chore` `test` `ci` `build` `style` `revert`, which are hidden. A subject
-that will not parse fails the required check rather than silently dropping the
-entry. Fixing it is an edit to the PR, not a branch rewrite.
-
-**No `!`, and no `BREAKING CHANGE:` footer.** The same check refuses both while
-the version is pinned to the alpha stream, because a breaking marker moves the
-*base* version rather than the alpha counter — the accident is written up in
-[RELEASING.md](RELEASING.md). Describe the break in the PR body instead; the
-next section is why there is nothing for the version to announce.
+A `feat`, `fix`, `perf`, `refactor`, `docs` or `revert` PR adds its title, with
+a link to the PR, under `## Upcoming version` in `CHANGELOG.md`. A `chore`,
+`test`, `ci`, `build` or `style` PR adds no line. The
+`Conventional commit subject` check enforces the format on every pull request,
+and the `Changelog line` check enforces the line. The label `no changelog` opts
+a PR out of the second. Fixing either is an edit to the PR, not a branch
+rewrite.
 
 `main` is protected: no force-push, no deletion, squash-only through a PR, and
-the two required checks above. Approvals are not required, but the PR is.
+the required checks: `ci` and the two above. Approvals are not required, but the
+PR is.
 
-Versioning, the release PR, and how to force a specific version:
+A release is a PR that renames `## Upcoming version` to the version and the day,
+such as `## 0.1.0 (2026-10-01)`, and edits the section into the release notes.
+Merging it tags the release, opens the GitHub release and publishes the package
+to PyPI. The steps, what to do when one fails, and the one-time setup:
 [RELEASING.md](RELEASING.md).
 
 ## Filing issues

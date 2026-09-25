@@ -93,9 +93,8 @@ on:
     # **Only what cannot change what the benchmark executes.** A merge that
     # leaves the built model, the workload and the installed versions identical
     # would spend a metered macro run reproducing the previous commit's number.
-    # The release commit is the standing case — release-please writes CHANGELOG
-    # and manifest and touches no source, the git tag being the version — and at
-    # the alpha cadence those are a large share of merges.
+    # A release commit is the standing case — a release PR edits CHANGELOG.md
+    # and touches no source, the git tag being the version.
     #
     # That principle is the whole of the list, and it excludes some entries that
     # look obviously safe. `pyproject.toml` decides which polars is installed —
@@ -130,8 +129,6 @@ on:
       - .readthedocs.yaml
       - .pre-commit-config.yaml
       - .github/dependabot.yml
-      - .release-please-config.json
-      - .release-please-manifest.json
   # required for a report to have somewhere to land. `labeled` is on the list
   # because the default triple stops at `reopened`, and without it applying
   # `trigger:bench` to an open pull request would re-trigger nothing — the

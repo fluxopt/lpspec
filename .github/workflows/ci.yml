@@ -30,6 +30,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The changelog check below tells a new version from a released one
+          # by the tags.
+          fetch-depth: 0
+
+      # A pull request that puts a version heading on top of CHANGELOG.md
+      # releases it on merge, so the heading is checked here, before the merge
+      # can act on it. Standard library only, on the runner's own Python.
+      # See RELEASING.md.
+      - name: Check the changelog headings
+        run: python3 -m tools.changelog check
 
       # No `python-version:`: the interpreter is `[tool.pixi.dependencies]`, so
       # which Python a gate runs on has one home. `run-install: false` because
