@@ -1,40 +1,10 @@
 name: Bench
 
-# Cost, in the same terms as ci.yml: a second billed job at ~35-45 billed
-# minutes — two suite passes plus the install, one pass measuring ~20 on a free
-# runner. That is the floor for a *comparison*: a benchmark against no baseline
-# is a number without a claim, and two passes is what having a baseline costs.
-#
-# **Asked for, never guessed.** Label a PR `trigger:bench` and it runs. This is
-# `workflow_dispatch` in spirit, with the one thing dispatch cannot give: a pull
-# request to report into. The numbers are a comparison against *this* PR's base,
-# so they only mean anything somewhere a base exists.
-#
-# The label is removed when the run finishes, which makes it a button rather
-# than a state — re-label to re-run, after a flaky result or a new push. It also
-# keeps the label from reading as "this PR was benchmarked" long after the
-# commit it measured.
-#
-# A `paths:` filter was the alternative and is deliberately not used. It runs
-# unasked on anything touching the engine, which sounds safer until it drifts:
-# it is an allowlist, so code moving out from under it makes the job stop
-# running, and a job that does not run looks exactly like one that passed.
-# Asking is explicit and cannot fail that way.
-#
-# Not a required check. It gates on memory, which is deterministic, and reports
-# time without gating, which is not (see the job comments).
-
 on:
   pull_request:
     types: [labeled]
 
 env:
-  # The regression slice of the ladder. There is one arm and no gate to skip;
-  # both flags were dropped with the linopy arm.
-  #
-  # It is the *budget* that is sized to the slice and not the other way round —
-  # see `timeout-minutes` below, and shrink this only to buy minutes, knowing
-  # what coverage each case and rung is worth.
   SELECT: >-
     --sizes s m
     --cases dispatch nodal transport profiled
@@ -52,11 +22,7 @@ jobs:
   bench:
     if: github.event.label.name == 'trigger:bench'
     runs-on: ubuntu-24.04
-    # Sized for *two* passes of SELECT on a free runner, which 20 could not
-    # hold: run 34720933380 was killed at the deadline still inside the
-    # baseline pass, 19m53s in, so `report` found no autosave and the gate
-    # never evaluated. A budget under the work does not report a regression —
-    # it reports nothing, and a job that dies looks much like one that passed.
+    # Two passes of SELECT; at 20 minutes run 34720933380 died inside the baseline pass.
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
@@ -70,14 +36,8 @@ jobs:
           path: ~/.cache/rattler/cache
           key: pixi-bench-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
           restore-keys: pixi-bench-${{ runner.os }}-
-      # The `bench` environment is the dev one plus the harness: the ladder
-      # measures specsolve against linopy, so both lanes have to be installed.
       - run: pixi install -e bench
 
-      # Generate the parquet inputs once, outside both measured passes, so
-      # neither pass is charged for it and both read byte-identical data. The
-      # session fixture would do this anyway; doing it here keeps the base pass
-      # from being the one that pays.
       - name: warm the data cache
         run: |
           pixi run -e bench python - <<'PY'
@@ -88,9 +48,7 @@ jobs:
                   CASES[case].data(CASES[case].shape(size))
           PY
 
-      # Vary the engine, hold the harness fixed. Checking out only src/ from the
-      # base is what makes the two passes comparable: if the benchmark code
-      # differed too, a harness change would read as a performance change.
+      # Only src/ from the base, so a harness change cannot read as a performance change.
       - name: baseline — the engine as it is on the base branch
         run: |
           git checkout ${{ github.event.pull_request.base.sha }} -- src/
@@ -100,8 +58,6 @@ jobs:
       - name: this PR's engine
         run: pixi run -e bench pytest bench $SELECT --benchmark-memory --benchmark-autosave -q
 
-      # The table goes in the job summary whether or not the gate trips, because
-      # "no regression" is also a result worth being able to read.
       - name: report
         if: always()
         run: |
@@ -115,35 +71,13 @@ jobs:
             echo '`rss` and `time` are reported but never gated: a shared runner'"'"'s wall clock and page cache are noise.'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Gate on peak only, at 20%, and both halves of that are measured rather
-      # than picked.
-      #
-      # The floor is noise: four runs of `dispatch-m` on *identical code* gave a
-      # 5.6% spread in memray peak, and the smallest workload — where a fixed
-      # ~30 MiB is most of the number — gave 16%. A 10% gate would cry wolf.
-      #
-      # The ceiling is what we actually want caught: every real change measured
-      # so far moved peak or build by 40-60% (the label sort 41%, vtype 45%,
-      # the objective aggregate 63%). Nothing we care about hides under 20%.
-      #
-      # Time is deliberately not gated. Back-to-back runs of the same code on
-      # the same machine differed by 80% on the small workload — a shared CI
-      # runner is worse. It is reported so a human can look; a machine must not
-      # branch on it.
+      # Peak only, at 20%: identical code spreads up to 16%, real changes moved peak 40-60%.
       - name: gate
         run: |
           pixi run -e bench benchmem compare .benchmarks/*/0001_*.json .benchmarks/*/0002_*.json \
             --columns peak --fail-on peak:20%
 
-
-      # `always()`, so a failed gate still clears the label: leaving it on would
-      # mean the next push re-runs the job unasked, which is the automatic
-      # behaviour this trigger exists to avoid. The run's own conclusion is the
-      # record of what happened; the label is only the request.
-      #
-      # Best-effort by design. A PR from a fork gets a read-only token whatever
-      # the permissions block says, so this cannot remove the label there — and
-      # a housekeeping step must not turn a green run red, hence `|| true`.
+      # Best-effort: a fork PR's token is read-only, and housekeeping must not fail the run.
       - name: hand the label back
         if: always()
         env:

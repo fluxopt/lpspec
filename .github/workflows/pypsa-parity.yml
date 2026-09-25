@@ -1,15 +1,3 @@
-# The PyPSA parity gate. Every rung of mathspec's PyPSA corpus — checked out
-# here at the tag pyproject.toml pins, so the corpus follows the language pin
-# and nothing else — solves through PyPSA and through this tree's specsolve, and
-# the runner compares them as deep as the engines allow: one objective and one
-# set of prices across the fence everywhere, the two linopy models label for
-# label where `specsolve.linopy` can build. A rung the linopy lane cannot build
-# yet is stamped, not failed, so this job tightens by itself as the lane
-# hardens.
-#
-# The certificate the runner writes, differential/pypsa/references.json, is
-# committed; the last step fails when a run of this tree would rewrite it, so
-# a stale stamp is a red diff rather than a passing string.
 name: PyPSA parity
 
 on:
@@ -31,13 +19,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - name: the corpus is mathspec at the tag pyproject.toml pins
+      - name: the corpus is mathspec at the release pyproject.toml floors
         id: pin
-        run: echo "ref=$(grep -o 'mathspec@v[^"]*' pyproject.toml | cut -d@ -f2)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(grep -o 'mathspec>=[^"]*' pyproject.toml | cut -d= -f2)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
           repository: energy-models/mathspec
-          ref: ${{ steps.pin.outputs.ref }}
+          ref: v${{ steps.pin.outputs.version }}
           path: corpus
       - uses: prefix-dev/setup-pixi@v0.10.1
         with:
@@ -46,6 +34,7 @@ jobs:
         run: >
           pixi exec -s uv uv run
           --with-editable ".[linopy]"
+          --with "mathspec==${{ steps.pin.outputs.version }}"
           --with "pypsa==1.3.0" --with "highspy==1.15.1" --with "polars>=1.30"
           python differential/pypsa/parity.py corpus
       - name: the committed certificate, projections and tables are what this tree produces

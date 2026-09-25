@@ -84,12 +84,11 @@ and the tool reads each heading as released because its tag exists.
 - **The label `no changelog`.** Create it under Issues → Labels.
 
 **PyPI refuses a direct reference.** A distribution that names a git URL in its
-metadata is rejected at upload, in a dependency and in an extra alike. Two stand
-in `pyproject.toml` today: `mathspec @ git+…`, which becomes a floor once
-mathspec is on PyPI, and the `linopy` extra's `linopy @ git+…@master`, which
-becomes a floor once a linopy release carries the arithmetic convention the lane
-needs ([#463](https://github.com/fluxopt/specsolve/issues/463)). Until both are
-gone, the tag and the GitHub release are made and the upload fails.
+metadata is rejected at upload, in a dependency and in an extra alike. One
+stands in `pyproject.toml` today: the `linopy` extra's `linopy @ git+…@master`,
+which becomes a floor once a linopy release carries the arithmetic convention
+the lane needs ([#463](https://github.com/fluxopt/specsolve/issues/463)). Until
+it is gone, the tag and the GitHub release are made and the upload fails.
 
 ## Branch protection
 
