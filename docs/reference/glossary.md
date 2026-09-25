@@ -20,7 +20,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   `mathspec.to_spec`. It carries no numbers, and every verb takes it first.
   A `Spec` carries its own program, so one handed back to a verb is not read
   again. What it may contain is
-  [the language](https://math-spec.readthedocs.io/en/latest/reference/language/).
+  [the language](https://mathspec.readthedocs.io/en/latest/reference/language/).
 
 **Program**
 : The spec lowered to the plan a build reads its rows off: what [`check`](api.md)
@@ -28,7 +28,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   lowering has no inverse, so keep the `Spec`
   ([the spec argument](api.md#the-spec-argument)). The two states are the
   language's
-  ([`Spec` and `Program`](https://math-spec.readthedocs.io/en/latest/reference/reading/#spec-and-program)).
+  ([`Spec` and `Program`](https://mathspec.readthedocs.io/en/latest/reference/reading/#spec-and-program)).
 
 **Formulation**
 : A block that states rows nothing lowers, `piecewise:` today. Every verb
@@ -117,7 +117,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 : One point of a declaration's dimensions: one snapshot for one generator. A
   parameter has a value at each coordinate it covers, or no row there. The
   language calls the dimensions themselves the declaration's *frame*
-  ([named expressions](https://math-spec.readthedocs.io/en/latest/reference/language/named/#expressions)).
+  ([named expressions](https://mathspec.readthedocs.io/en/latest/reference/language/named/#expressions)).
 
 **Table**
 : A polars `DataFrame` with one column per dimension, a `value` column and one
@@ -139,7 +139,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 
 **Mask**
 : The `where:` on a declaration. What an excluded coordinate means is
-  [absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/).
+  [absence](https://mathspec.readthedocs.io/en/latest/reference/language/absence/).
 
 ## How it runs
 

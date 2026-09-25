@@ -107,7 +107,7 @@ print(base.answer.primal('p').group_by('generator').agg(pl.col('value').sum()))
 
 The documentation is at <https://specsolve.readthedocs.io>. What a file may
 contain is math-spec's
-[language reference](https://math-spec.readthedocs.io/en/latest/reference/language/).
+[language reference](https://mathspec.readthedocs.io/en/latest/reference/language/).
 
 ## Installation
 

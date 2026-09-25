@@ -212,7 +212,7 @@ is a join, and a join does not care how many rows a group holds
 itself, `travel`'s `where` is that parameter, and absence spreads, so no row
 mentioning a self-arc is built. No `i ≠ j` guard is written anywhere.
 [Dimension-to-dimension comparison is not in the
-language](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#where-strings),
+language](https://mathspec.readthedocs.io/en/latest/reference/language/expressions/#where-strings),
 and here it is not needed.
 
 ## What it finds

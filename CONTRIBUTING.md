@@ -51,7 +51,7 @@ pixi run pytest --lf  # last failures only
 
 **Named for the construct, not for the module it happens to exercise.**
 `test_shift.py`, `test_absence.py`, `test_grouped_sum.py`, `test_piecewise.py`:
-the same word the [language reference](https://math-spec.readthedocs.io/en/latest/reference/language/) uses,
+the same word the [language reference](https://mathspec.readthedocs.io/en/latest/reference/language/) uses,
 so "where is `shift` specified" and "where is `shift` tested" have one answer.
 It is also the axis that survives the two lanes — a behaviour spans both, while
 a module is on one side of the fence or the other.
@@ -233,17 +233,17 @@ declared `escape:` island rather than into the language.
 
 Read, in order:
 
-1. [the deliberate non-primitives](https://math-spec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives) — parity with
+1. [the deliberate non-primitives](https://mathspec.readthedocs.io/en/latest/about/limits/#deliberate-non-primitives) — parity with
    another tool is not by itself a reason to add anything, and several
    plausible-sounding features are refused there on purpose;
-2. [the limits in mathspec](https://math-spec.readthedocs.io/en/latest/about/limits/#what-a-new-primitive-has-to-satisfy) —
+2. [the limits in mathspec](https://mathspec.readthedocs.io/en/latest/about/limits/#what-a-new-primitive-has-to-satisfy) —
    the admissibility test;
 3. [the extension checklists](docs/about/architecture.md#extension-checklists), which sit directly under that
    test. They stay there rather than moving here: *may I?* and *how?* are one
    question, and splitting them invites answering the second without the first.
 
 A PR that adds, renames or retires a construct updates the [language
-reference](https://math-spec.readthedocs.io/en/latest/reference/language/).
+reference](https://mathspec.readthedocs.io/en/latest/reference/language/).
 Rationale belongs in the PR description or a code comment; "this used to work
 differently" belongs in git.
 

@@ -15,7 +15,7 @@ snapshots. A study that models 2030 hourly and 2050 in four-hour blocks wants
 the opposite.
 
 So `snapshot` is one flat dimension carrying $\mathrm{period}$ as a
-[relation](https://math-spec.readthedocs.io/en/latest/reference/language/relations/), as `generator`
+[relation](https://mathspec.readthedocs.io/en/latest/reference/language/relations/), as `generator`
 carries $\mathrm{bus}$ in [transport](transport.md). Ragged periods then cost
 nothing: a relation is a per-row column, and four snapshots in 2030 beside two in
 2050 is a column with four of one value and two of another.

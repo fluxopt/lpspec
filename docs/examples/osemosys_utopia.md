@@ -317,7 +317,7 @@ carries `still_live[technology, year, vintage]`, one row per pair that is still
 live, and the standing capacity is a contraction against it. That is the shape
 [`pypsa_kvl`](pypsa_kvl.md) uses for a cycle basis. Building it is arithmetic
 over years, which
-[the limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
+[the limits](https://mathspec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
 count as data preparation.
 
 **Discounting, the annuity and salvage value never reach the model.** OSeMOSYS

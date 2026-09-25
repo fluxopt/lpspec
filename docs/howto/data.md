@@ -97,6 +97,6 @@ sources = {
 ```
 
 `gen_bus` is a
-[relation](https://math-spec.readthedocs.io/en/latest/reference/language/relations/),
+[relation](https://mathspec.readthedocs.io/en/latest/reference/language/relations/),
 so it arrives under its own name as a table, one column per column it declares:
 PyPSA's `bus` column as it stands, not merged into an index.
