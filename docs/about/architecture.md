@@ -201,10 +201,10 @@ reaches the plan. The names, by role:
 - the five verbs `check`, `build`, `evaluate`, `solve` and `write`;
 - the fold `solve_over` with its two axes;
 - the two archives that carry a spec, its data and its answer, `SolveArchive`
-  and `SweepArchive`, with `load_archive`, `load_result` and `load_runs` to read
-  one back whole and `scan_archive`, `scan_result` and `scan_runs` to read it
+  and `SweepArchive`, with `load_archive`, `load_result` and `load_sweep` to read
+  one back whole and `scan_archive`, `scan_result` and `scan_sweep` to read it
   off the directory it lies in;
-- the three types a verb hands back, `Model`, `Result` and `Runs`;
+- the three types a verb hands back, `Model`, `Result` and `Sweep`;
 - the error tree under `SpecsolveError`, `NoSolutionError` and `SpecsolveWarning`.
 
 What each one takes and returns is [the Python API](../reference/api.md).
@@ -226,7 +226,7 @@ line: editing it, dumping it and typesetting it.
 
 **What a verb hands back is part of its signature.** A caller that *wraps* this
 package writes the type down. A type it cannot import is a type it cannot write.
-So `Model`, `Result` and `Runs` are named here. So are `NoSolutionError`, which
+So `Model`, `Result` and `Sweep` are named here. So are `NoSolutionError`, which
 every reader on a `Result` raises, and `SpecsolveWarning`, which `check` emits. A
 sweep that records an infeasible scenario rather than dying on it needs both by
 name. None of the five constructs math or reaches the plan.

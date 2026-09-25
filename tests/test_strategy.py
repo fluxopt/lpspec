@@ -211,13 +211,13 @@ WINDOW_AXIS = sps.EachWindow('snapshot', steps=4, lookahead=0, into='t')
 
 
 @pytest.fixture(scope='module')
-def sweep() -> strategy.Runs:
+def sweep() -> strategy.Sweep:
     """The scenario sweep, solved once for every test that only reads it."""
     return sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'))
 
 
 @pytest.fixture(scope='module')
-def overlapping() -> strategy.Runs:
+def overlapping() -> strategy.Sweep:
     """The overlapping-window sweep, solved once for every test that only reads it."""
     return sps.solve_over(
         WINDOW,
@@ -245,7 +245,7 @@ def builds(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def answer_of(runs: strategy.Runs) -> pl.DataFrame:
+def answer_of(runs: strategy.Sweep) -> pl.DataFrame:
     """A sweep's record without the two columns that belong to a *run* rather than an answer.
 
     `solved_at` differs between two solves of one sweep by design, and `run`
@@ -598,7 +598,7 @@ SPENDING = override(
 
 
 @pytest.fixture(scope='module')
-def priced() -> strategy.Runs:
+def priced() -> strategy.Sweep:
     """The overlapping-window sweep of the expression-bearing model, solved once."""
     return sps.solve_over(
         SPENDING,
@@ -1491,7 +1491,7 @@ def test_a_sweep_that_solved_nothing_still_saves_its_records(tmp_path):
         'every slice terminated infeasible, and the record says so'
     )
     assert not (out / 'primal').exists(), 'and no frames are written, there being none'
-    assert sps.load_runs(out).record.height == records.height, 'the saved study reads back'
+    assert sps.load_sweep(out).record.height == records.height, 'the saved study reads back'
 
 
 @pytest.mark.parametrize('lost', ['record', 'metrics'], ids=str)
@@ -1501,34 +1501,34 @@ def test_a_sweep_directory_missing_its_record_is_refused_by_name(lost: str, tmp_
     Both are written per slice as the fold goes, so a directory holding one
     and not the other was edited or interrupted before the layout existed.
     Read without this, the missing one surfaces as whatever the frame reader
-    makes of nothing — an empty scan, or a `Runs` whose record has no rows —
+    makes of nothing — an empty scan, or a `Sweep` whose record has no rows —
     rather than as the directory being wrong.
     """
     out = sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=tmp_path / 'sweep')
-    assert sps.load_runs(out._spill.directory).record.height == 3, 'the whole one reads back first'
+    assert sps.load_sweep(out._spill.directory).record.height == 3, 'the whole one reads back first'
     shutil.rmtree(out._spill.directory / lost)
 
     with pytest.raises(sps.LayoutError, match=f"no '{lost}.parquet'"):
-        sps.load_runs(out._spill.directory)
+        sps.load_sweep(out._spill.directory)
 
 
 def test_a_loaded_sweep_is_held_and_a_scanned_one_is_spilled(tmp_path):
     """The two verbs give the same study and differ in where its frames are.
 
-    A spilled sweep is what `spill_to=` leaves and what `scan_runs` hands
+    A spilled sweep is what `spill_to=` leaves and what `scan_sweep` hands
     back: the frames stay on disk, `scan` reads them, and the readers that
     return a frame refuse rather than collecting a study on a caller's
-    behalf. `load_runs` reads them in, so what comes back is the value a
+    behalf. `load_sweep` reads them in, so what comes back is the value a
     sweep solved without spilling is — every reader answers, and the
     directory is free afterwards.
     """
     spilled = sps.solve_over(DISPATCH, scenario_sources(), sps.EachCoordinate('scenario'), spill_to=tmp_path / 'sweep')
     expected = spilled.scan('p').collect()
-    loaded = sps.load_runs(tmp_path / 'sweep')
-    scanned = sps.scan_runs(tmp_path / 'sweep')
+    loaded = sps.load_sweep(tmp_path / 'sweep')
+    scanned = sps.scan_sweep(tmp_path / 'sweep')
 
     assert scanned.scan('p').collect().equals(expected), 'both read the study the spill wrote'
-    with pytest.raises(sps.SpecsolveError, match=r'runs\.scan'):
+    with pytest.raises(sps.SpecsolveError, match=r'sweep\.scan'):
         scanned.primal('p')
     shutil.rmtree(tmp_path / 'sweep')
 
@@ -1616,7 +1616,7 @@ def test_key_overrides_what_an_axis_derived_and_refuses_a_collision():
 def test_duals_come_back_keyed_by_slice_and_are_never_combined(sweep):
     """A shadow price belongs to the slice that priced it.
 
-    The refusal `Runs` used to carry was against *aggregating* duals, which is
+    The refusal `Sweep` used to carry was against *aggregating* duals, which is
     a different thing from not having them: a price curve concatenated across
     windows is wrong in a way nothing complains about, but so is one summed
     across scenarios, and `primal` has never been asked to guess either. Keyed
@@ -1980,7 +1980,7 @@ PRICED_AXIS = sps.EachWindow('snapshot', steps=3, lookahead=3, into='t')
 PRICED_CARRY = {'soc_initial': 'soc'}
 
 
-def _spilled(directory, **kwargs) -> strategy.Runs:
+def _spilled(directory, **kwargs) -> strategy.Sweep:
     return sps.solve_over(SPENDING, horizon_sources(12), PRICED_AXIS, carry=PRICED_CARRY, spill_to=directory, **kwargs)
 
 
@@ -2041,7 +2041,7 @@ def test_the_frame_readers_refuse_a_spilled_sweep_and_name_scan(read, tmp_path):
     """One meaning per name: `primal` returns a frame in memory or raises,
     never a frame it would have to read off disk first. The message names `scan`."""
     runs = _spilled(tmp_path)
-    with pytest.raises(sps.SpecsolveError, match=r'runs\.scan'):
+    with pytest.raises(sps.SpecsolveError, match=r'sweep\.scan'):
         read(runs)
 
 
@@ -2195,7 +2195,7 @@ def test_a_carried_sweep_reruns_from_its_archive_with_the_stored_carry(tmp_path)
 
 
 def test_a_sweep_archive_evaluates_a_quantity_the_file_never_named_per_slice(tmp_path):
-    """`Runs.evaluate` reads an undeclared quantity at each slice's own solution — matches solving that slice alone."""
+    """`Sweep.evaluate` reads an undeclared quantity at each slice's own solution — matches solving that slice alone."""
     axis = sps.EachCoordinate('scenario')
     sps.solve_over(DISPATCH, scenario_sources(), axis, archive=tmp_path / 'study.zip')
     sweep = sps.load_archive(tmp_path / 'study.zip', tmp_path / 'out')
@@ -2218,7 +2218,7 @@ def test_a_scanned_sweep_archive_evaluates_the_same(tmp_path):
 
 
 def test_a_live_sweep_has_no_model_to_evaluate_against():
-    """A Runs a live solve returned retains no model, so an undeclared expression says why — the archive is what carries one — while a declared name is stitched from what the sweep holds."""
+    """A Sweep a live solve returned retains no model, so an undeclared expression says why — the archive is what carries one — while a declared name is stitched from what the sweep holds."""
     spec = override(DISPATCH, **{'expressions.spend': 'sum(p * cost, over=generator)'})
     runs = sps.solve_over(spec, scenario_sources(), sps.EachCoordinate('scenario'))
     with pytest.raises(sps.SpecsolveError, match='no model behind it'):

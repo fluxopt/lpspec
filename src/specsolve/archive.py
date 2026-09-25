@@ -25,11 +25,11 @@ from specsolve.relational.parquet import METRICS_FILE, Metrics, digest_of, row_o
 from specsolve.strategy import (
     EachCoordinate,
     EachWindow,
-    Runs,
+    Sweep,
     attach_sweep_readers,
     axis_from,
-    load_runs,
-    scan_runs,
+    load_sweep,
+    scan_sweep,
 )
 
 if TYPE_CHECKING:
@@ -92,7 +92,7 @@ class SweepArchive:
     sources: Mapping[str, Source]
     axis: EachCoordinate | EachWindow
     carry: Mapping[str, str]
-    answer: Runs
+    answer: Sweep
     source_digests: pl.DataFrame
 
 
@@ -152,7 +152,7 @@ def _read(under: Path, *, whole: bool) -> SolveArchive | SweepArchive:
         return SolveArchive(spec, sources, answer, digests, metrics)
     manifest = json.loads(axis_member.read_text())
     axis, carry = axis_from(manifest), manifest.get('carry', {})
-    answer = attach_sweep_readers((load_runs if whole else scan_runs)(saved), spec, sources, axis, carry)
+    answer = attach_sweep_readers((load_sweep if whole else scan_sweep)(saved), spec, sources, axis, carry)
     _check_the_pairing(spec, answer.record['spec_digest'].to_list())
     return SweepArchive(spec, sources, axis, carry, answer, digests)
 
