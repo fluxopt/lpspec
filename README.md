@@ -28,8 +28,9 @@ to HiGHS, Gurobi or Xpress. The same file can also build a `linopy.Model`
 - **Straight to the solver.** YAML and tables in, a loaded solver out. At 10M
   variables it loads HiGHS faster than linopy does, with less peak memory.
   [Benchmarks →](https://specsolve.readthedocs.io/en/latest/about/benchmarks/)
-- **Pays for the rows it has.** A mask is an absent row, not a NaN in a dense
-  array, so a sparse model costs what it holds.
+- **Tidy, sparse tables.** Every parameter, variable and constraint is a tidy
+  table, with one row per coordinate that exists. A mask is an absent row, not
+  a NaN in a dense array.
   [Architecture →](https://specsolve.readthedocs.io/en/latest/about/architecture/)
 - **Checked against somebody else.** Every ported model matches an optimum from
   GAMS, PyPSA, OSeMOSYS, OR-Library or TSPLIB, and its duals where the
