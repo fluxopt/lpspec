@@ -7,6 +7,8 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
+- fix: the PyPI page links the docs, issues and changelog, and a stale saved answer says the layout moves before 1.0 ([#1763](https://github.com/fluxopt/specsolve/pull/1763))
+
 ## 0.1.0rc1 (2026-09-25)
 
 The release candidate for 0.1.0, the first release on PyPI:

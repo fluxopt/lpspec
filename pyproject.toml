@@ -41,7 +41,10 @@ xpress = [
 ]
 
 [project.urls]
-repository = "https://github.com/fluxopt/specsolve"
+Documentation = "https://specsolve.readthedocs.io"
+Repository = "https://github.com/fluxopt/specsolve"
+Issues = "https://github.com/fluxopt/specsolve/issues"
+Changelog = "https://github.com/fluxopt/specsolve/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 source = "vcs"

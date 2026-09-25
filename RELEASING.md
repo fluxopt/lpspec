@@ -116,8 +116,7 @@ validates both, so neither can slip through.
 ### Relaxed while in early development
 
 Actions bills per job, rounded up to the minute, and the suite takes ~5s. So CI
-cost is job count, and while the project has no downstream users to break, it
-deliberately trades coverage for cost. What that gives up:
+cost is job count, and before 1.0 it deliberately trades coverage for cost. What that gives up:
 
 - **Only Python 3.12 is tested.** The 3.13 classifier in `pyproject.toml` is an
   untested claim. 3.12 is the floor, so it catches the common breakage
@@ -136,10 +135,9 @@ and GitHub waits for one that never arrives — every visible check green, merge
 blocked, nothing to click. #269 sat like that for hours and was reported as CI
 hanging. The trigger is back; the saving was one ~5s job per push.
 
-Tighten these before 0.1.0 — that is the point where a
-missed regression reaches somebody rather than just us. A Python matrix is the
-first thing to add back, behind a gate job. Until then, prefer spending minutes
-on the suite over spending them on matrix breadth.
+A Python matrix, behind a gate job, is the first thing to add back when these
+are tightened. Until then, prefer spending minutes on the suite over spending
+them on matrix breadth.
 
 ## Consuming an unreleased branch
 
