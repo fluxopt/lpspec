@@ -674,7 +674,7 @@ would read as a single curve that is really two shapes.
 
 ## Adding a case
 
-Add `bench/models/<case>/model.yaml`, and a data generator and a ladder to
+Add `bench/models/<case>/spec.yaml`, and a data generator and a ladder to
 `CASES` in `bench/cases.py`. Nothing else: the parametrization reads `CASES`,
 and the report is case-agnostic.
 
@@ -729,7 +729,7 @@ every consumer whichever of the two the case has.
 | file | |
 |---|---|
 | `cases.py` | the models, the data generators, the ladders |
-| `models/<case>/` | one directory per case: `model.yaml`, and the same model in each hand-written dialect |
+| `models/<case>/` | one directory per case: `spec.yaml`, and the same model in each hand-written dialect |
 | `arms/` | one module per arm — `prepare` before the clock, then build-and-emit, build-only, objective. Picklable, and the library imported inside the verb |
 | `conftest.py` | selection flags, the ragged parametrization, the data fixture, the machine interlock |
 | `test_ladder.py` | the two benchmarks: build-and-emit, and rebuild-in-one-process |

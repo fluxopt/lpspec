@@ -123,7 +123,7 @@ class Case:
             if self.spec is None:
                 raise ValueError(f'{self.name}: neither a spec file nor a generator — nothing to build')
             return self.spec
-        dest = cache / self.name / shape.key / 'model.yaml'
+        dest = cache / self.name / shape.key / 'spec.yaml'
         if not dest.exists():
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(self.generate_spec(shape))
@@ -734,19 +734,19 @@ def _density_sweep(
 CASES: dict[str, Case] = {
     'dispatch': Case(
         name='dispatch',
-        spec=MODELS / 'dispatch' / 'model.yaml',
+        spec=MODELS / 'dispatch' / 'spec.yaml',
         ladder=_ladder({'generator': 100}, (100, 1_000, 10_000, 100_000, 400_000, 1_200_000), per_snapshot=100),
         write=_dispatch_data,
     ),
     'commitment': Case(
         name='commitment',
-        spec=MODELS / 'commitment' / 'model.yaml',
+        spec=MODELS / 'commitment' / 'spec.yaml',
         ladder=_ladder({'generator': 50}, (10, 100, 1_000, 10_000, 40_000, 120_000), per_snapshot=100),
         write=_commitment_data,
     ),
     'fleet': Case(
         name='fleet',
-        spec=MODELS / 'fleet' / 'model.yaml',
+        spec=MODELS / 'fleet' / 'spec.yaml',
         ladder=_ladder({'unit': 50}, (20, 200, 2_000, 20_000, 80_000, 240_000), per_snapshot=600),
         write=_fleet_data,
     ),
@@ -758,7 +758,7 @@ CASES: dict[str, Case] = {
     ),
     'nodal': Case(
         name='nodal',
-        spec=MODELS / 'nodal' / 'model.yaml',
+        spec=MODELS / 'nodal' / 'spec.yaml',
         ladder=(
             *_ladder(
                 {'node': 50, 'tech': 12}, (20, 200, 2_000, 20_000, 80_000, 240_000), per_snapshot=600, density=0.25
@@ -769,7 +769,7 @@ CASES: dict[str, Case] = {
     ),
     'sector': Case(
         name='sector',
-        spec=MODELS / 'sector' / 'model.yaml',
+        spec=MODELS / 'sector' / 'spec.yaml',
         ladder=_ladder(
             {'node': 50, 'tech': 12, 'carrier': 5},
             (20, 200, 2_000, 20_000, 80_000, 240_000),
@@ -780,13 +780,13 @@ CASES: dict[str, Case] = {
     ),
     'profiled': Case(
         name='profiled',
-        spec=MODELS / 'profiled' / 'model.yaml',
+        spec=MODELS / 'profiled' / 'spec.yaml',
         ladder=_ladder({'node': 50, 'tech': 12}, (20, 200, 2_000, 20_000, 80_000, 240_000), per_snapshot=600),
         write=_profiled_data,
     ),
     'transport': Case(
         name='transport',
-        spec=MODELS / 'transport' / 'model.yaml',
+        spec=MODELS / 'transport' / 'spec.yaml',
         ladder=(
             *_ladder(
                 {'generator': 100, 'bus': 20, 'line': 40}, (70, 700, 7_000, 70_000, 280_000, 840_000), per_snapshot=140
@@ -797,7 +797,7 @@ CASES: dict[str, Case] = {
     ),
     'storage': Case(
         name='storage',
-        spec=MODELS / 'storage' / 'model.yaml',
+        spec=MODELS / 'storage' / 'spec.yaml',
         ladder=(
             *_ladder(
                 {'generator': 40, 'store': 20}, (100, 1_000, 10_000, 100_000, 400_000, 1_200_000), per_snapshot=100

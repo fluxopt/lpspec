@@ -64,7 +64,7 @@ def _tidy(**cols: list[Any]) -> pl.DataFrame:
 
 def _written(tmp_path: Path, spec: dict) -> Path:
     """*spec* on disk, because the linopy lane only takes a path."""
-    path = tmp_path / 'model.yaml'
+    path = tmp_path / 'spec.yaml'
     path.write_text(pyyaml.safe_dump(spec))
     return path
 
