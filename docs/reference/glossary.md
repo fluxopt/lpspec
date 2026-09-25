@@ -117,7 +117,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 : One point of a declaration's dimensions: one snapshot for one generator. A
   parameter has a value at each coordinate it covers, or no row there. The
   language calls the dimensions themselves the declaration's *frame*
-  ([named expressions](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions)).
+  ([named expressions](https://math-spec.readthedocs.io/en/latest/reference/language/named/#expressions)).
 
 **Table**
 : A polars `DataFrame` with one column per dimension, a `value` column and one

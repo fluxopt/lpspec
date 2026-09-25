@@ -70,7 +70,7 @@ no patched attributes, so nothing is lost across `pickle`, `deepcopy` or
 `to_netcdf`. To inspect the math, re-read the file with `to_spec`. `evaluate`
 is the reader, and the same purity makes it take `sources` again. It values an
 expression written the way
-[`expressions:`](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions)
+[`expressions:`](https://math-spec.readthedocs.io/en/latest/reference/language/named/#expressions)
 writes one, a string or the mapping that carries `cases:`, on the solved model.
 It hands back linopy's native `.solution`. A name the file declares is such an
 expression. This is the linopy half of `result.evaluate(...)`, which is what

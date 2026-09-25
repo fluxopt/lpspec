@@ -314,7 +314,7 @@ the language's rulebook.
    quadratic *constraint* has no linopy lane. That is declared
    (`capabilities.LINOPY_LANE`), answerable before any build (`check(spec,
    sink='linopy')`) and refused in the language's own words. It is the axis [the
-   ceiling](https://math-spec.readthedocs.io/en/latest/about/limits/#solver-capability)
+   ceiling](https://math-spec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself)
    draws for sinks, one level up. **What it costs is the oracle.** A construct
    only one lane builds is checked by only one lane. The oracle is two
    independent encodings reaching one optimum, plus a residual at the returned
@@ -492,8 +492,8 @@ special-ordered sets as `(set, type, col, weight)`. The upgrade path
 from here is `genconstr`, plus a semi-continuous threshold on `cols`.
 
 **The fourth stream is the one that lands unevenly**, because its destination
-differs per sink (see [Capability is not the
-ceiling](https://math-spec.readthedocs.io/en/latest/about/limits/#solver-capability)).
+differs per sink (see [what each tool decides for
+itself](https://math-spec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself)).
 So a solver **declares** whether it takes one, and the *family* acts on the
 answer (`sinks.refusal`): a sink with no SOS concept refuses the model, and the
 refusal names `Spec.expand()`, which writes each set out as binaries and
