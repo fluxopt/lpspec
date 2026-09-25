@@ -25,20 +25,21 @@ to HiGHS, Gurobi or Xpress. The same file can also build a `linopy.Model`
 
 <!-- --8<-- [start:benefits] -->
 
-- **Straight to the solver.** YAML and tables in, a loaded solver out. At 10M
-  variables it loads HiGHS faster than linopy does, with less peak memory.
+- **Tables in, tables out.** Pass any Arrow table, such as polars, pandas or
+  DuckDB, or a parquet path. Results come back as tables, and an archive keeps
+  the model, its data and its results as parquet, ready for queries, plots or
+  BI. [Your data →](https://specsolve.readthedocs.io/en/latest/howto/data/)
+- **Decomposition built in.** One call runs scenario sweeps, rolling horizons
+  and myopic pathways over the same model. Each window is checked against how
+  the model couples before it runs. [Sweeps →](https://specsolve.readthedocs.io/en/latest/reference/sweeps/)
+- **Fast, and hard to get wrong.** Tables hold only the rows that exist, so a
+  model's topology does not change its cost. The API is a handful of verbs,
+  and a sweep keeps the solver loaded between runs. There is nothing to tune.
   [Benchmarks →](https://specsolve.readthedocs.io/en/latest/about/benchmarks/)
-- **Tidy, sparse tables.** Every parameter, variable and constraint is a tidy
-  table, with one row per coordinate that exists. A mask is an absent row, not
-  a NaN in a dense array.
-  [Architecture →](https://specsolve.readthedocs.io/en/latest/about/architecture/)
-- **Checked against somebody else.** Every ported model matches an optimum from
-  GAMS, PyPSA, OSeMOSYS, OR-Library or TSPLIB, and its duals where the
-  reference records them.
-  [The models →](https://specsolve.readthedocs.io/en/latest/examples/)
-- **Your tables in, tables out.** Pass polars, pandas or pyarrow objects, or
-  parquet paths. Results come back as tables, with bridges to pandas and xarray.
-  [Your data →](https://specsolve.readthedocs.io/en/latest/howto/data/)
+- **Validated against PyPSA.** PyPSA's model is one file here, grown rung by
+  rung through storage, unit commitment, multi-period and stochastic runs. All
+  16 rungs match PyPSA's objective, and 12 match its duals row for row.
+  [The PyPSA ladder →](https://specsolve.readthedocs.io/en/latest/examples/pypsa_ladder/)
 
 <!-- --8<-- [end:benefits] -->
 

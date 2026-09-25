@@ -230,24 +230,24 @@
   mask: center / contain no-repeat;
 }
 
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/howto/data/"])::before {
+  content: "";
+  mask-image: url("icons/table-arrow-right.svg");
+}
+
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/reference/sweeps/"])::before {
+  content: "";
+  mask-image: url("icons/chart-gantt.svg");
+}
+
 .md-typeset .landing .grid.cards > ul > li:has(> a[href$="/about/benchmarks/"])::before {
   content: "";
   mask-image: url("icons/speedometer.svg");
 }
 
-.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/about/architecture/"])::before {
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/examples/pypsa_ladder/"])::before {
   content: "";
-  mask-image: url("icons/grid.svg");
-}
-
-.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/examples/"])::before {
-  content: "";
-  mask-image: url("icons/check-decagram-outline.svg");
-}
-
-.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/howto/data/"])::before {
-  content: "";
-  mask-image: url("icons/table-arrow-right.svg");
+  mask-image: url("icons/transmission-tower.svg");
 }
 
 /* --- Anchor target highlight ---
