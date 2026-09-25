@@ -7,6 +7,12 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
+## 0.1.0rc1 (2026-09-25)
+
+The release candidate for 0.1.0, the first release on PyPI:
+`pip install specsolve==0.1.0rc1`. The `0.0.1-alpha.N` releases below were tags
+and GitHub releases only.
+
 - refactor(api): specsolve no longer builds a linopy model, and its linopy extra and LaneError are gone ([#1755](https://github.com/fluxopt/specsolve/pull/1755))
 - docs: the solve example archives its run and reads it back, with annotations that name the other options ([#1748](https://github.com/fluxopt/specsolve/pull/1748))
 
