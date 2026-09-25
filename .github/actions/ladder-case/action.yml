@@ -3,15 +3,6 @@ description: >
   Measure one case on one sink, and upload what it produced before anything else
   can take the box.
 
-# Results live only on the runner until an artifact step runs, and a runner that
-# *dies* skips every remaining step — `if: always()` included. So a run that
-# measured three cases and lost the box on the fourth came back with nothing at
-# all (runs 12, 16, 18, 19 of the published benchmark). Uploading per case bounds
-# that loss to the case the box died on.
-#
-# The path is the whole results directory rather than this case's file, so the
-# newest artifact is the complete set and a reader needs only one.
-
 inputs:
   sink:
     description: highs or gurobi
@@ -37,9 +28,6 @@ runs:
         BENCH_SIZES: ${{ inputs.sizes }}
         SINK: ${{ inputs.sink }}
         CASE: ${{ inputs.case }}
-      # `ladder-ci` starts the watchdog itself and traps it, so a run by hand is
-      # watched the way this one is. Starting a second here would leave two
-      # holding a `pkill` over one case.
       run: pixi run -e bench ladder-ci "$SINK" "$CASE"
 
     - if: ${{ !cancelled() }}

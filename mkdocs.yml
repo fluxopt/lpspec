@@ -6,23 +6,7 @@ repo_name: fluxopt/specsolve
 edit_uri: edit/main/docs/
 strict: true
 
-# `docs/` is the site *and* what contributors read on GitHub, so every page here
-# is a file that already had to make sense on its own. Two consequences:
-#
-#   - `README.md` stays as the folder view GitHub renders when you browse to
-#     `docs/`, and `index.md` does that job on the site. zensical builds no page
-#     from a `README.md` and still validates its links, so this one obeys the
-#     rule below like every other page rather than being exempted from it.
-#   - A link to something *outside* `docs/` is written as a full GitHub URL, not
-#     as `../CONTRIBUTING.md` — the site has no such file, and a relative link
-#     would resolve in the repo and 404 here. `tests/test_docs_site.py` enforces
-#     both halves of that. Everything inside `docs/` stays relative and the
-#     build validates it.
-
 validation:
-  # Under `strict: true` a warning is a failed build, which is the point: a
-  # model page added without a nav entry, or a link that stopped resolving,
-  # fails CI rather than shipping.
   nav:
     omitted_files: warn
     not_found: warn
@@ -34,12 +18,6 @@ validation:
 
 nav:
   - Home: index.md
-  # Arranged by what a page is for — tutorial, how-to guide, reference,
-  # explanation (https://diataxis.fr). `.claude/skills/docs-writing/SKILL.md`
-  # says how one kind is told from another, and the folders under `docs/`
-  # follow the same split. The model pages and the ladder are reference in
-  # their own form, and sit at the end of the Reference section, after the
-  # four pages a reader looks things up in.
   - Tutorials:
       - Run a model: guide.md
       - Change a model: interactive.md
@@ -130,22 +108,11 @@ nav:
           - Rung 14: examples/pypsa_ladder/rung_14_stochastic.md
           - Rung 15: examples/pypsa_ladder/rung_15_multi_period.md
           - Rung 16: examples/pypsa_ladder/rung_16_link_delay.md
-  # Everything a reader does not need in order to write or run a model: design
-  # notes, measured cost, project direction. One section, so the user path
-  # above stays the whole of the top level.
   - About:
       - about/index.md
       - Architecture: about/architecture.md
       - Decomposition: about/decomposition.md
-      # The results themselves: charts and their numbers, one page. A source
-      # file rather than a generated one — mkdocs copies it through and the nav
-      # links it like any other — because the charts are hand-written SVG and
-      # only the `const DATA` line inside it is mechanical.
       - Benchmarks: about/benchmarks-scaling.html
-      # How those numbers were taken, and what is not measured. Separate because
-      # a reader comparing libraries and a reader checking the method want
-      # different pages, and putting both in one made the first scroll past the
-      # second.
       - Benchmarks — method: about/benchmarks.md
       - Relationship to linopy: about/linopy.md
       - Prior art and credit: about/prior-art.md
@@ -154,9 +121,6 @@ nav:
 
 theme:
   palette:
-    # Dark first = default for new visitors (no auto/system-pref entry).
-    # Icon represents the CURRENT scheme — moon when active is dark,
-    # sun when active is light. The `name` describes the toggle action.
     - scheme: slate
       primary: custom
       accent: custom
@@ -175,11 +139,7 @@ theme:
 
   features:
     - header.autohide
-    # `docs/javascripts/mathjax.js` subscribes to `document$` and re-typesets,
-    # which is what makes this safe: instant navigation swaps the document
-    # without a reload, so a page reached from one with no math would otherwise
-    # render every equation as literal text. The theme re-renders a mermaid
-    # diagram itself on the same signal.
+    # Safe with MathJax because docs/javascripts/mathjax.js re-typesets on `document$`.
     - navigation.instant
     - navigation.instant.progress
     - navigation.tracking
@@ -205,12 +165,7 @@ markdown_extensions:
   - tables
   - toc:
       permalink: true
-      # GitHub's slug rules, not mkdocs'. The pages here are read in both
-      # places and already cross-link by anchor — `ROADMAP.md#track-4--sink-
-      # capabilities`, whose double hyphen is the em dash GitHub drops. The
-      # default slugifier collapses that to one, so every such link would 404
-      # on the site while working in the repo. Same file, same anchor, both
-      # renderings.
+      # GitHub's slug rules, so an anchor resolves the same on GitHub and on the site.
       slugify: { object: pymdownx.slugs.slugify, kwds: { case: lower } }
   - pymdownx.highlight:
       anchor_linenums: true
@@ -220,30 +175,17 @@ markdown_extensions:
       generic: true
   - pymdownx.superfences:
       custom_fences:
-        # README and ARCHITECTURE both draw the lane diagram in mermaid.
         - name: mermaid
           class: mermaid
           format: pymdownx.superfences.fence_code_format
-        # A ```math fence is how GitHub takes block math verbatim, and is what
-        # mathspec's typesetter prints into every generated page here.
-        # Arithmatex reads `$$…$$`, so the fence hands it over — indented inside
-        # a tab or a list included, which is why this is superfences' job and
-        # not the hook's regex.
+        # A ```math fence hands its body to arithmatex, as GitHub renders it.
         - name: math
           class: arithmatex
           format: { object: pymdownx.arithmatex.arithmatex_fenced_format, kwds: { which: generic } }
   - pymdownx.details
-  # `check_paths` so a renamed include fails the build rather than rendering as
-  # nothing. `docs/index.md` pulls four named sections of the README through
-  # this, and `docs/about/changelog.md` is the whole of CHANGELOG.md. It is what
-  # retired mkdocs-include-markdown-plugin, which zensical does not run.
   - pymdownx.snippets:
       check_paths: true
-  # The other half of the math, beside the `arithmatex` entry above: the
-  # verbatim `$`…`$` pair mathspec's typesetter prints for GitHub, rewritten
-  # into the `$…$` arithmatex reads. It is a preprocessor rather than a hook
-  # because zensical has no hooks, and because the suite can then load it
-  # without a site.
+  # Rewrites the GitHub inline math mathspec prints into the `$…$` arithmatex reads.
   - tools.mdx_github_math
   - pymdownx.tabbed:
       alternate_style: true
@@ -253,17 +195,6 @@ markdown_extensions:
 
 plugins:
   - search
-  # `docs/interactive.md` and `docs/lifecycle.md` hold their code in
-  # `python exec="true"` blocks, which markdown-exec runs during the build. So
-  # every number, frame and rendered equation on those two pages came from the
-  # code above it, on the commit being built, and a block that raises fails the
-  # build — which is what stops a page from teaching a call that no longer
-  # works. It is the same bargain mkdocs-jupyter's `execute: true` struck for
-  # the notebooks these pages replaced, without a kernel and without a second
-  # copy of the tutorial in the tree.
-  #
-  # Execution needs the package importable, which is why `.readthedocs.yaml`
-  # installs the project and the `docs` environment carries it.
   - markdown-exec
 
 extra_css:

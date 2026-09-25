@@ -1,9 +1,5 @@
 name: Publish
 
-# The only publish path: pushing a v* tag ships it. Every route to a release —
-# release-please merging on main, the prerelease dispatch, a hand-pushed tag —
-# converges here. See RELEASING.md.
-
 on:
   push:
     tags: ["v*"]
@@ -45,11 +41,7 @@ jobs:
         with:
           run-install: false
 
-      # `pixi exec` rather than an environment of its own: this is a one-off
-      # tool, run once per tag, and nothing else in the tree needs a build
-      # backend on hand. The wheel is `py3-none-any`, so which interpreter runs
-      # the build decides nothing about what ships — it is pinned to `publish`'s
-      # only so the two halves of this workflow do not disagree.
+      # The wheel is py3-none-any; python=3.12 only matches the `publish` environment.
       - run: pixi exec --spec python-build --spec python=3.12 python -m build
 
       - name: Verify the built version matches the tag
@@ -101,8 +93,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          # release-please already cut the release for its own tags; attach the
-          # artifacts there rather than failing. Dashed tags (v1.2.0-rc.1) are prereleases.
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           elif [[ "$TAG" == *-* ]]; then
@@ -112,8 +102,7 @@ jobs:
           fi
 
   pypi:
-    # Off until a PyPI trusted publisher exists for specsolve. Flip the repo
-    # variable PUBLISH_TO_PYPI to "true" to go live — see RELEASING.md.
+    # Off until a PyPI trusted publisher exists for specsolve; see RELEASING.md.
     name: PyPI
     needs: [build]
     if: vars.PUBLISH_TO_PYPI == 'true'

@@ -1,16 +1,3 @@
-# The PyPSA parity gate. Every rung of mathspec's PyPSA corpus — checked out
-# here at the release pyproject.toml floors and run with that same release
-# installed, so the corpus follows the language pin and nothing else — solves
-# through PyPSA and through this tree's specsolve, and the runner compares them
-# as deep as the engines allow: one objective and one set of prices across the
-# fence everywhere, the two linopy models label for label where
-# `specsolve.linopy` can build. A rung the linopy lane cannot build
-# yet is stamped, not failed, so this job tightens by itself as the lane
-# hardens.
-#
-# The certificate the runner writes, differential/pypsa/references.json, is
-# committed; the last step fails when a run of this tree would rewrite it, so
-# a stale stamp is a red diff rather than a passing string.
 name: PyPSA parity
 
 on:
