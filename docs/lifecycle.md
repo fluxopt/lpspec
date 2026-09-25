@@ -123,5 +123,5 @@ relationship is
 
 ## Where next
 
-[Sweep a model](sweep.md) solves one model once per scenario, and then
-window by window.
+[Tables in, tables out](tables.md) feeds a model from parquet, reads the answer
+as tables and queries its archive.

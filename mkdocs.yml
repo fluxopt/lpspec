@@ -44,6 +44,7 @@ nav:
       - Run a model: guide.md
       - Change a model: interactive.md
       - Fix, relax, remove: lifecycle.md
+      - Tables in, tables out: tables.md
       - Sweep a model: sweep.md
   - How-to guides:
       - Preparing the data: howto/data.md
