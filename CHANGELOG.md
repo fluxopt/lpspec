@@ -7,7 +7,7 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
-- refactor(api): specsolve no longer builds a linopy model, and the pandas and xarray bridges move to an xarray extra ([#1755](https://github.com/fluxopt/specsolve/pull/1755))
+- refactor(api): specsolve no longer builds a linopy model, and its linopy extra and LaneError are gone ([#1755](https://github.com/fluxopt/specsolve/pull/1755))
 - docs: the solve example archives its run and reads it back, with annotations that name the other options ([#1748](https://github.com/fluxopt/specsolve/pull/1748))
 
 ## [0.0.1-alpha.358](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.357...v0.0.1-alpha.358) (2026-09-25)
