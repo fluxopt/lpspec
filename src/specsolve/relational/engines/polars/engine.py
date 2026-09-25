@@ -35,7 +35,7 @@ from specsolve.relational.result import KEEPS, ConstraintRow, Diagnostics, Keep,
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping, Sequence
 
-    from math_spec import program
+    from mathspec import program
     from polars._typing import PolarsDataType
 
     from specsolve.relational.status import SolveStatus

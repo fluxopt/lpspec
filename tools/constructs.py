@@ -43,7 +43,7 @@ import yaml
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-from math_spec import program, to_spec
+from mathspec import program, to_spec
 
 ROOT = Path(__file__).resolve().parent.parent
 GALLERY = ROOT / 'docs' / 'examples'

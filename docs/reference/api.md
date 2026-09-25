@@ -25,7 +25,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | | |
 |---|---|
 | `sps.check(spec, sink=None)` | parse, validate and lower; attach no data. With a `sink`, also say whether that sink takes it. Returns the lowered `Program`, for reading the plan — no verb takes one back |
-| `math_spec.to_spec(spec)` | the file as written, for editing and typesetting; the language's own verb |
+| `mathspec.to_spec(spec)` | the file as written, for editing and typesetting; the language's own verb |
 | `sps.build(spec, sources)` | attach data and build; returns a `Model` |
 | `sps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
 | `sps.evaluate(spec, sources, expression)` | a spec of parameters and expressions, no variables: one expression read as arithmetic, with no solver; returns its frame |
@@ -37,8 +37,8 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `sps.load_sweep(directory)` | a sweep `sweep.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Sweep` |
 | `sps.scan_archive` / `scan_result` / `scan_sweep` | the same three left on disk and read as they are asked for: [loading or scanning](#loading-or-scanning) |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
-| `math_spec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
-| `sps.Model` / `sps.Result` / `sps.Sweep` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `math_spec.Spec` |
+| `mathspec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
+| `sps.Model` / `sps.Result` / `sps.Sweep` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `mathspec.Spec` |
 
 ## Errors and warnings
 
@@ -58,7 +58,7 @@ fail CI on it.
 ## The spec argument
 
 **Every verb takes the spec as a path, a `str`, a `dict` or a `Spec`**: what
-`math_spec.to_spec` takes, which is never a lowered `Program`. So a
+`mathspec.to_spec` takes, which is never a lowered `Program`. So a
 framework that emits declarations never writes a temporary file to run them:
 
 ```python
@@ -85,7 +85,7 @@ the two is the caller's to say, because the sinks disagree: HiGHS has no SOS
 concept and refuses a set, Gurobi and Xpress take one whole.
 
 ```python
-from math_spec import to_spec
+from mathspec import to_spec
 
 sps.solve(to_spec('piecewise.yaml').expand(), sources)  # curves and sets written out — any sink
 sps.solve(to_spec('sos.yaml').expand('piecewise'), sources, 'gurobi')  # the set reaches the solver as a set

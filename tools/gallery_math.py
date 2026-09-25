@@ -59,7 +59,7 @@ import sys
 from pathlib import Path
 
 import yaml as pyyaml
-from math_spec import to_latex, to_markdown
+from mathspec import to_latex, to_markdown
 
 from tools.constructs import GALLERY, ROOT, models, replace_between
 
@@ -138,7 +138,7 @@ def _home_block() -> str:
 
 
 _HOW = """```python
-import math_spec as ms
+import mathspec as ms
 
 {symbols}
 
@@ -157,11 +157,11 @@ Or from a shell, where the table is that same YAML on disk and `--standalone`
 emits a document that compiles rather than a fragment to `\\input`:
 
 ```bash
-python -m math_spec latex dispatch.yaml --symbols dispatch.symbols.yaml
-python -m math_spec typst dispatch.yaml --standalone -o dispatch.typ
+python -m mathspec latex dispatch.yaml --symbols dispatch.symbols.yaml
+python -m mathspec typst dispatch.yaml --standalone -o dispatch.typ
 ```
 
-The renderer is [math-spec](https://math-spec.readthedocs.io/en/latest/reference/typeset/)'s,
+The renderer is [mathspec](https://math-spec.readthedocs.io/en/latest/reference/typeset/)'s,
 and reads the same file this page solves."""
 
 

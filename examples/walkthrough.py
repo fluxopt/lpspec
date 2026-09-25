@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import polars as pl
-from math_spec import Spec, to_spec
+from mathspec import Spec, to_spec
 
 import specsolve as sps
 from specsolve.relational.engines.polars.engine import PolarsEngine
@@ -93,7 +93,7 @@ def validated_model() -> Spec:
     template, used or not. After this call the spec is known to be
     well-formed; no data has been touched.
     """
-    banner(1, 'YAML text -> validated Spec', 'math_spec.to_spec')
+    banner(1, 'YAML text -> validated Spec', 'mathspec.to_spec')
     schema = to_spec(SPEC)
     print(f'    dimensions   {", ".join(schema.dimensions)}')
     print(f'    parameters   {", ".join(schema.parameters)}')
@@ -114,8 +114,8 @@ def expanded_ast(schema: Spec) -> None:
     body under it, and stage 6 reads it back by name at the solution.
 
     Substitution is the language's own business, and so are the passes that do
-    it: this asks ``math_spec`` for the finished AST rather than walking it
-    through their stages, which are math-spec's to rearrange.
+    it: this asks ``mathspec`` for the finished AST rather than walking it
+    through their stages, which are mathspec's to rearrange.
     """
     banner(2, 'expand macros -> core AST', 'Spec.program')
     objective_text = schema.objective.expression
@@ -229,7 +229,7 @@ def refusals() -> None:
 
     ``LanguageError`` is a ``ValueError`` subclass, so that is what is caught.
     """
-    banner(7, 'and what the language refuses', 'math_spec')
+    banner(7, 'and what the language refuses', 'mathspec')
     for label, patch in _REFUSED:
         print(f'\n    {label}:')
         spec = {**_raw(SPEC), **patch}

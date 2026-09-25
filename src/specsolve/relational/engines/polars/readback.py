@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import polars as pl
-from math_spec import program
+from mathspec import program
 
 from specsolve.errors import SpecsolveError, unknown_name_message
 from specsolve.relational.collect import polars_engine

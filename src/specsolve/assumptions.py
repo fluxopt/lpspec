@@ -3,7 +3,7 @@
 Everything decidable without data is decided at load, and an ``assumptions:``
 entry is what is left over: a predicate only the numbers can answer. The
 language states each one — the predicate, the coordinates it is checked at,
-and the sentence :func:`~math_spec.program.assumption_message` refuses in — and
+and the sentence :func:`~mathspec.program.assumption_message` refuses in — and
 every condition a ``piecewise:`` method puts on its breakpoints arrives the
 same way. What is decided here is whether the data holds it, and where not.
 
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from math_spec.program import assumption_message
+from mathspec.program import assumption_message
 
 from specsolve.errors import DataError
 from specsolve.relational.engines.polars.attaching import attach
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     import polars as pl
-    from math_spec.program import Assumption, Program
+    from mathspec.program import Assumption, Program
 
 
 def validate_assumptions(program: Program, sources: Mapping[str, pl.LazyFrame]) -> None:

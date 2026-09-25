@@ -12,7 +12,7 @@ and `lifecycle.md`, at the root), how-to guides (`howto/`), reference
 has to meet are
 [the docs-writing skill](https://github.com/fluxopt/specsolve/blob/main/.claude/skills/docs-writing/SKILL.md).
 The language is a dependency documented with itself, so the nav links out to
-math-spec.
+mathspec.
 
 **Two link rules**, enforced by `tests/test_docs_site.py`: inside `docs/`,
 link relatively; outside it, write the full GitHub URL, because the relative

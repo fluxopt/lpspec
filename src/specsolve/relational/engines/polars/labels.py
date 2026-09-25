@@ -31,7 +31,7 @@ from specsolve.relational.engines.polars.scope import UNIT, ordinal
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from math_spec import program
+    from mathspec import program
 
     from specsolve.relational.engines.polars.fragments import Presence
     from specsolve.relational.engines.polars.scope import Scope

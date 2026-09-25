@@ -559,7 +559,7 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
     The network, `rung_13_losses.py` in the corpus — the spine plus what this rung adds:
 
     ```python
-    # SPDX-FileCopyrightText: math-spec Contributors
+    # SPDX-FileCopyrightText: mathspec Contributors
     #
     # SPDX-License-Identifier: MIT
 

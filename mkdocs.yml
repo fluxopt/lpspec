@@ -222,7 +222,7 @@ markdown_extensions:
           class: mermaid
           format: pymdownx.superfences.fence_code_format
         # A ```math fence is how GitHub takes block math verbatim, and is what
-        # math-spec's typesetter prints into every generated page here.
+        # mathspec's typesetter prints into every generated page here.
         # Arithmatex reads `$$…$$`, so the fence hands it over — indented inside
         # a tab or a list included, which is why this is superfences' job and
         # not the hook's regex.
@@ -237,7 +237,7 @@ markdown_extensions:
   - pymdownx.snippets:
       check_paths: true
   # The other half of the math, beside the `arithmatex` entry above: the
-  # verbatim `$`…`$` pair math-spec's typesetter prints for GitHub, rewritten
+  # verbatim `$`…`$` pair mathspec's typesetter prints for GitHub, rewritten
   # into the `$…$` arithmatex reads. It is a preprocessor rather than a hook
   # because zensical has no hooks, and because the suite can then load it
   # without a site.

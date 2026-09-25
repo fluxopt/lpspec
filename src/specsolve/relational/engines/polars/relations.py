@@ -1,6 +1,6 @@
 """A relation's table as a call reads it — the one place a role becomes a column.
 
-The plan's :class:`~math_spec.program.Direction` names *roles*: which columns of
+The plan's :class:`~mathspec.program.Direction` names *roles*: which columns of
 a relation an operator consumes, produces and joins on. The engine reads by
 *dimension*, since an operand carries its coordinates under the dimensions'
 names. Everything here is that translation, spelled once:
@@ -8,7 +8,7 @@ names. Everything here is that translation, spelled once:
 - a group or a pullback trades the dimensions its direction consumes for the
   ones it produces through :func:`walk_join`, against the :func:`mapping`
   table;
-- a :class:`~math_spec.program.Partition` ranks the dimension it steps along
+- a :class:`~mathspec.program.Partition` ranks the dimension it steps along
   inside a :class:`Grouping`.
 
 Nothing here reads data or holds state: every function takes the attached
@@ -25,7 +25,7 @@ import polars as pl
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from math_spec import program
+    from mathspec import program
 
     from specsolve.relational.engines.polars.attaching import AttachedSources
 

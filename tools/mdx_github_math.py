@@ -1,6 +1,6 @@
 """GitHub's verbatim inline math, as a Markdown extension the site enables.
 
-``math_spec.to_markdown`` prints GitHub-flavoured Markdown, where inline math
+``mathspec.to_markdown`` prints GitHub-flavoured Markdown, where inline math
 is delimited ``$`…`$`` so that GitHub hands the span to MathJax untouched.
 Arithmatex has no syntax for it: python-markdown's own inline code processor
 claims the backtick span first. So the site rewrites the pair into the ``$…$``
@@ -32,7 +32,7 @@ FENCED_BLOCK = re.compile(
     re.DOTALL | re.MULTILINE,
 )
 
-#: GitHub's verbatim inline math, `$`…`$` — the pair math-spec's typesetter
+#: GitHub's verbatim inline math, `$`…`$` — the pair mathspec's typesetter
 #: prints so that GitHub's escape pass cannot reach into the span. A backtick on
 #: either outer edge means a code span quoting the syntax rather than math using
 #: it.

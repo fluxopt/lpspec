@@ -25,7 +25,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, NoReturn, assert_never
 
 import polars as pl
-from math_spec import program
+from mathspec import program
 
 from specsolve.errors import LaneError
 
@@ -138,7 +138,7 @@ class TermFragment:
     """
 
     region: program.Mask | None = None
-    """The region of a :class:`~math_spec.program.Cases` this piece was built under.
+    """The region of a :class:`~mathspec.program.Cases` this piece was built under.
 
     ``None`` where the piece stands over the whole frame, which is everything
     outside a ``cases:`` block. Set, it says the piece covers that region *by
@@ -458,7 +458,7 @@ def join_quad(a: TermFragment, b: TermFragment) -> TermFragment:
 
     A join on the dims the two share: aligned is an equi-join, broadcast joins
     on the coarser side, and the cross join is refused upstream
-    (``math_spec.degree``).
+    (``mathspec.degree``).
 
     The second label is renamed on the way in, since both sides carry
     ``var_label`` and a suffix collision would pair a variable with itself —

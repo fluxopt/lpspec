@@ -32,12 +32,12 @@ logical plan streamed to a sink. Both paths provably mean the same thing. A
 *declared* memory ceiling is not something the package has; see [the memory
 axis](roadmap.md#where-it-is-going).
 
-**The producer of the AST is a different package.** `math_spec` parses, expands,
+**The producer of the AST is a different package.** `mathspec` parses, expands,
 resolves and judges a file, and this repository consumes what comes out. The
 widest fence in the drawing is `pyproject.toml`, the amber box labelled
-math-spec. Everything in it, the typesetter included, is that one package, and
+mathspec. Everything in it, the typesetter included, is that one package, and
 it cannot import anything here. **Its passes are named in the box and not
-drawn**; they are math-spec's architecture, documented and tested there. The
+drawn**; they are mathspec's architecture, documented and tested there. The
 rest is two directories, one per lane.
 
 **Data enters below the seam through one door, and both lanes enter by it.** The
@@ -61,7 +61,7 @@ flowchart TB
     Y[YAML file] --> SPEC
     DATA[("your data<br/>parquet · polars · any Arrow table")] --> SRC
 
-    subgraph MS["math-spec — another package, pinned in pyproject.toml: read · expand · resolve · judge · lower"]
+    subgraph MS["mathspec — another package, pinned in pyproject.toml: read · expand · resolve · judge · lower"]
         SPEC["<b>Spec</b> — what the file says<br/>fully resolved: names typed, dims checked, degree judged"]
         SPEC --> TS["typesetting/<br/>latex · typst · markdown<br/><i>a consumer, not a stage</i>"]
         SPEC -->|".program"| PLAN["<b>Program</b> — what it means, the narrow waist<br/>the plan both lanes build from<br/>closed from both sides"]
@@ -116,7 +116,7 @@ flowchart TB
     class ANS,MODEL out
 ```
 
-The diagram shows the whole pipeline: math-spec reads a file into a `Spec` and
+The diagram shows the whole pipeline: mathspec reads a file into a `Spec` and
 lowers it to the `Program`, `sources.py` turns your data into tidy tables, and
 each lane takes both.
 
@@ -156,7 +156,7 @@ back.
 flowchart LR
     Y(["your math, written once<br/>one YAML file"]) --> AST
     AST["<b>the whole model</b> — <code>Spec</code>, and the <code>Program</code> it lowers to<br/>names typed, dims checked, degree judged<br/><i>before a byte of data is read</i>"]
-    AST --> SHOW["<b>show it</b><br/>math_spec.typesetting · its CLI<br/><i>no data, no solver</i>"]
+    AST --> SHOW["<b>show it</b><br/>mathspec.typesetting · its CLI<br/><i>no data, no solver</i>"]
     AST --> CHECK["<b>check it</b><br/>parse → validate → lower<br/><i>no data, no solver</i>"]
     AST --> RUN["<b>run it</b><br/>solver · LP/MPS file · linopy"]
     DATA[("your data<br/>parquet · polars · any Arrow table")] --> RUN
@@ -184,7 +184,7 @@ renderer is a tree walk, a check is a pass with no data attached, and a new
 output format is one module in `relational/sinks/writers/`.
 
 **The renderer is that claim cashed, and it is not here.**
-`math_spec.typesetting` typesets any model the lanes can build, in one walk of
+`mathspec.typesetting` typesets any model the lanes can build, in one walk of
 the resolved AST. A `piecewise:` block prints as the curve it states, and its
 expansion as the rows. It lives in the package that owns the language, and this package does not
 depend on it. A consumer that reads the AST and nothing else needs no part of
@@ -213,15 +213,15 @@ needs no solver installed.
 
 **Loading a file and rendering one are not on this list.** `to_spec`,
 `SymbolTable`, the three `to_…` renderers and the shell front that runs them are
-`math_spec.`'s, counted in its own `__all__`. One name, one home. `check` hands
+`mathspec.`'s, counted in its own `__all__`. One name, one home. `check` hands
 back a `Program` and every verb accepts a `Spec`. Obtaining either means calling
-`math_spec`, so a caller annotating one is already in the package that owns it.
+`mathspec`, so a caller annotating one is already in the package that owns it.
 **The errors are the only exception**, because a caller meets them *without
 choosing to*: a `LanguageError` arrives unbidden out of `sps.solve`.
 
 **Nothing here reads a `Spec`.** Attaching, the guards and both lanes take the
 `Program`. A verb reads a `Spec` only for the `Program` it carries, through
-`lanes.lowered`. The model *as written* is `math_spec`'s side of the
+`lanes.lowered`. The model *as written* is `mathspec`'s side of the
 line: editing it, dumping it and typesetting it.
 
 **What a verb hands back is part of its signature.** A caller that *wraps* this
@@ -284,10 +284,10 @@ the language's rulebook.
    `Variable`/`Parameter`/`Dimension`. So a lane cannot hold its own opinion
    about what a name refers to. What a model *means* cannot depend on what is
    done with it, because the package that decides the meaning cannot import this
-   one ([above](#thesis)). **Our half of it is checked**: every `math_spec`
+   one ([above](#thesis)). **Our half of it is checked**: every `mathspec`
    import under `src/specsolve` names the package and never a module inside it
    (`test_the_language_is_imported_as_one_package`). So what this repository
-   depends on is the one `__all__` math-spec pins, never a private name a
+   depends on is the one `__all__` mathspec pins, never a private name a
    submodule path could carry.
 2. **The engine knows nothing about linopy, xarray or YAML.** `relational/` goes
    plan → engine → a solver sink → solver. It matches linopy's semantics as a
@@ -295,7 +295,7 @@ the language's rulebook.
    linopy builder. **The engine is a directory, not a convention.**
    `engines/polars/` is one implementation. Everything above it is what any
    implementation answers to: `sinks/`, `status.py`, and the plan vocabulary,
-   which is `math_spec.program`'s. An engine package is named for its engine;
+   which is `mathspec.program`'s. An engine package is named for its engine;
    nothing *inside* one is. The engine imports nothing from the package bar one
    declared leaf (`errors.py`, in `ENGINE_MAY_IMPORT`), which keeps the
    subpackage extractable. **`errors.py` is a leaf by name and not by cost**: it
@@ -337,7 +337,7 @@ the language's rulebook.
 lane. This table is what the file writes and what the relational lane's query
 does with it. The linopy call for each row is [what a construct
 becomes](linopy.md#what-a-construct-becomes). `tests/test_docs_site.py` holds it
-to `math_spec.program.Expression`'s own subclasses, so no node lacks a row.
+to `mathspec.program.Expression`'s own subclasses, so no node lacks a row.
 
 **The plan decides what is sayable; the engine only builds.** Every refusal
 about the shape of a file is the language's. It is made upstream when the spec
@@ -530,7 +530,7 @@ language does not restrict it to aligned. `x[i] * y[i, j]` broadcasts, and
 `x[i] * y[j] * a[i, j]` joins through a table. The replacement bound is one
 entry per pair the expression states, the `nnz` of whatever couples the
 factors, still a declared-shape quantity. What is not is the cross join of two
-reductions, the shape the language refuses (`math_spec.degree`).
+reductions, the shape the language refuses (`mathspec.degree`).
 
 **Whole is not the same as reloading.** A second `passHessian` lands on the
 model already loaded, replacing `Q` and leaving the LP standing. So a moved
@@ -541,7 +541,7 @@ is structure.
 
 | Module | Role |
 |---|---|
-| `math_spec` (a dependency) | the whole language, read, expanded, resolved, judged and lowered there; what crosses is a `Spec` and the `Program` it lowers to — [its own reference](https://math-spec.readthedocs.io/en/latest/reference/language/) |
+| `mathspec` (a dependency) | the whole language, read, expanded, resolved, judged and lowered there; what crosses is a `Spec` and the `Program` it lowers to — [its own reference](https://math-spec.readthedocs.io/en/latest/reference/language/) |
 | `api.py` | the runner: `check` / `build` / `solve` / `write`, and `load_result` / `scan_result` for an answer read back off disk; linopy-free |
 | `layout.py` | below every verb that solves: what an archive holds — `model.yaml`, `sources/`, `answer/`, `axis.json` — written as one zip or as a directory, because a solve is the one moment all three exist together |
 | `archive.py` | above the runner and the fold: `load_archive` / `scan_archive` and the two values they give back, `SolveArchive` and `SweepArchive`. It reads; it never writes |
@@ -603,13 +603,13 @@ arranged:
 > bug.**
 
 Every "one implementation each" rule in this file is that test applied, and the
-implementations are upstream. Names resolve once (`math_spec.resolution`). The
-operator set is closed (`math_spec.operators`). Lowering turns it into the
+implementations are upstream. Names resolve once (`mathspec.resolution`). The
+operator set is closed (`mathspec.operators`). Lowering turns it into the
 closed plan-node set both lanes dispatch on, so neither lane keeps a table of
 operator names. An operator's dim rule, its dim *set* and its verdict on an
 operand that lacks the dim being reduced along live only in
-`math_spec.dimensions`. Lowering **asks** for the verdict rather than deciding
-again. Degree lives only in `math_spec.degree`. `math_spec.piecewise` is
+`mathspec.dimensions`. Lowering **asks** for the verdict rather than deciding
+again. Degree lives only in `mathspec.degree`. `mathspec.piecewise` is
 upstream by the same test: a formulation emits declarations, and declarations
 are language.
 
@@ -624,10 +624,10 @@ should be arguable.
 
 ### Naming across the layers
 
-The same construct passes through three of math-spec's layers, and each names
+The same construct passes through three of mathspec's layers, and each names
 it in full with the layer as the suffix: `VariableBlock`, `VariableNode`,
 `Variable`. The table and the two rules a new construct keeps are
-[math-spec's](https://math-spec.readthedocs.io/en/latest/contributing/#naming-across-the-layers).
+[mathspec's](https://math-spec.readthedocs.io/en/latest/contributing/#naming-across-the-layers).
 A rename upstream that collides here is a thing to notice. The one place
 abbreviation survives on this side is column names inside the engine, which
 are not Python identifiers.
@@ -659,12 +659,12 @@ is the full list, and `tests/test_architecture.py` checks the shape off the
 path.
 
 **Add a consumer of the AST** (a renderer, a checker, a report): a package of
-its own, depending on `math-spec` and not on this one. It reads
-`math_spec.to_spec` and stops there. If it needs the plan it is a lane, not a
+its own, depending on `mathspec` and not on this one. It reads
+`mathspec.to_spec` and stops there. If it needs the plan it is a lane, not a
 consumer, and the ceiling doc is the conversation to have first.
 
 **Add an operator:** two repositories, in this order. First
-[in math-spec](https://math-spec.readthedocs.io/en/latest/contributing/#adding-an-operator),
+[in mathspec](https://math-spec.readthedocs.io/en/latest/contributing/#adding-an-operator),
 landed and tagged. Then **here**, against that tag: linopy implementation →
 compiler case → engine → differential test through a solver *and* the LP
 writer, and this file if structural. Nothing here can lower an operator the

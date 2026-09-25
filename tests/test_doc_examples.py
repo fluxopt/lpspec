@@ -49,7 +49,7 @@ from typing import Any, NamedTuple, get_args
 
 import pytest
 import yaml
-from math_spec import Spec, to_spec
+from mathspec import Spec, to_spec
 
 import specsolve as sps
 from specsolve.api import Model

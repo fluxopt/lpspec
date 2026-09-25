@@ -1,6 +1,6 @@
 """The curves the piecewise tests build against — this side's copy.
 
-`math-spec` judges what these expand to; here they are solved. Same reason as
+`mathspec` judges what these expand to; here they are solved. Same reason as
 `fixtures.py`: a test package is not shipped, so the load-time tests that moved
 took a copy rather than an import. About a hundred and fifty lines of model
 YAML, and the one duplication in this split that is a *model* rather than

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: math-spec Contributors
+# SPDX-FileCopyrightText: mathspec Contributors
 #
 # SPDX-License-Identifier: MIT
 
@@ -7,7 +7,7 @@
 Every parameter the files mark "data prep" is computed here, beside the plain
 renames — the prep half of how specsolve builds the corpus's specs, shown on
 the ladder page beside the tables it produces. `parity.py` is the caller and
-cuts the tables to what each spec declares; nothing here imports math_spec
+cuts the tables to what each spec declares; nothing here imports mathspec
 or specsolve — the mapping is pure PyPSA-and-pandas, handed over as polars frames.
 
 Sparseness is meaning: a table row left out is an absent value on the other

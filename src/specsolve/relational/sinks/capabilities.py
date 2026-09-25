@@ -1,6 +1,6 @@
 """What a sink can ingest — the axis that is not the ceiling.
 
-The ceiling is about streamability and is solver-independent (math-spec's
+The ceiling is about streamability and is solver-independent (mathspec's
 docs/about/limits.md); what a *sink* can take is separate. One descriptor per
 sink, so a construct the language says and a sink cannot take is a refusal
 naming both rather than a ``kError`` from inside a library.
@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Literal, get_args
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping
 
-    from math_spec.program import Program
+    from mathspec.program import Program
 
 #: What a model may need a sink to have. ``indicator`` and ``semi-continuous``
 #: are absent: they have rows in the benchmarks table but no spelling in the

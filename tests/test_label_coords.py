@@ -15,7 +15,7 @@ import warnings
 
 import polars as pl
 import pytest
-from math_spec import to_spec
+from mathspec import to_spec
 
 import specsolve as sps
 from specsolve.errors import DataError, SpecsolveError, SpecsolveWarning

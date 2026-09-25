@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
-from math_spec import program
+from mathspec import program
 
 from specsolve.errors import LaneError
 from specsolve.relational.engines.polars.attaching import AttachedSources

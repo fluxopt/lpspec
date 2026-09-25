@@ -449,7 +449,7 @@ P_{g} \in \mathbb{R} \qquad \forall\, g \in \mathcal{G} \,:\, \mathrm{ext}_{g}
     The network, `rung_15_multi_period.py` in the corpus — the spine plus what this rung adds:
 
     ```python
-    # SPDX-FileCopyrightText: math-spec Contributors
+    # SPDX-FileCopyrightText: mathspec Contributors
     #
     # SPDX-License-Identifier: MIT
 

@@ -1,7 +1,7 @@
 """Solving strategies: one plan per slice, folded.
 
 A plan cannot contain a loop; a *process* may loop over plans
-(math-spec's docs/about/limits.md). So a strategy is a driver above :mod:`specsolve.api`,
+(mathspec's docs/about/limits.md). So a strategy is a driver above :mod:`specsolve.api`,
 built from the public verbs — never a language or engine feature.
 
 Every strategy is the same fold: **partition → attach → solve → carry → stitch**.
@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 
 import polars as pl
-from math_spec.program import parameters_of
+from mathspec.program import parameters_of
 
 from specsolve import expressions
 from specsolve.api import build, check
@@ -76,8 +76,8 @@ if TYPE_CHECKING:
 
     import pandas as pd
     import xarray as xr
-    from math_spec import Spec
-    from math_spec.program import Expression, Program
+    from mathspec import Spec
+    from mathspec.program import Expression, Program
 
     from specsolve.api import Model
     from specsolve.lanes import Buildable, Label, Source
@@ -576,11 +576,11 @@ class EachWindow:
         """Refuse a window the program's rows cannot be whole inside, before one is taken.
 
         The program answers through
-        :attr:`~math_spec.program.Program.separability` and nothing here walks
+        :attr:`~mathspec.program.Program.separability` and nothing here walks
         it: a window needs ``into`` *windowable*, and its lookahead to cover
         what the rows read ahead. Where a reach is an offset the data decides,
         the parameter's least value is read off the data and
-        :meth:`~math_spec.program.Separability.resolved` folds it in.
+        :meth:`~mathspec.program.Separability.resolved` folds it in.
 
         What the rows read *behind* is not refused: it is what a window's
         first rows meet the edge policy with, the rolling-horizon seed the

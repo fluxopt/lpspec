@@ -1,8 +1,8 @@
 """The parity gate: every rung of the PyPSA corpus, as deep as the engines allow.
 
-    python differential/pypsa/parity.py <math-spec checkout>
+    python differential/pypsa/parity.py <mathspec checkout>
 
-The corpus is math-spec's — `examples/pypsa.yaml` and its quadratic sibling,
+The corpus is mathspec's — `examples/pypsa.yaml` and its quadratic sibling,
 and one `rung_*.py` per rung whose `build()` returns the PyPSA network with
 its data inline. `prep.py` beside this file is the prep: a network becomes
 the tables the file declares, every "data prep" parameter computed there.
@@ -15,7 +15,7 @@ locally is the workflow's own line, which installs nothing on disk:
 
     pixi exec -s uv uv run --with-editable ".[linopy]" \
         --with "pypsa==1.3.0" --with "highspy==1.15.1" --with "polars>=1.30" \
-        python differential/pypsa/parity.py ../math-spec
+        python differential/pypsa/parity.py ../mathspec
 
 Per rung, from the same network, three comparisons:
 
@@ -91,7 +91,7 @@ sys.path.insert(0, str(RUNGS))
 sys.path.insert(0, str(HERE))
 
 import linopy  # noqa: E402
-import math_spec  # noqa: E402
+import mathspec  # noqa: E402
 import prep  # noqa: E402  the prep, beside this file
 import projection  # noqa: E402
 import yaml  # noqa: E402
@@ -173,7 +173,7 @@ def flattened(name: str, table: object, dims: list[str]) -> object:
 
 def prepared(spec: Path, n, stem: str | None = None) -> dict[str, object]:
     """`prep.sources` cut to what *spec* declares — specsolve refuses a key the spec does not take; *stem* names the rung whose `OPTIMIZE` sizes the loss fan."""
-    declared = math_spec.to_spec(spec)
+    declared = mathspec.to_spec(spec)
     names = {*declared.dimensions, *declared.parameters, *declared.relations}
     losses = keywords(stem).get('transmission_losses', {}) if stem else {}
     segments = int(losses.get('segments', 0)) if isinstance(losses, dict) else int(losses or 0)
@@ -247,7 +247,7 @@ def conjunct_verdicts(built_model, program) -> dict[str, str]:
     carries: the counts behind it are never printed, and stamping them cost
     2023 integers and four thousand lines of a diff-gated artifact.
 
-    Positional, and the conjuncts are not named. :attr:`math_spec.program.Mask.conjuncts`
+    Positional, and the conjuncts are not named. :attr:`mathspec.program.Mask.conjuncts`
     is deterministic for a program, so the record says what happened and the
     file says what it is about — a rendered predicate here would make every
     rewording upstream a red run.
@@ -255,7 +255,7 @@ def conjunct_verdicts(built_model, program) -> dict[str, str]:
     This is what the *block-level* coverage cannot see. A mask of ``a AND b``
     is exercised as a whole the moment `a` varies, while `b` may be true at
     every coordinate of every rung — and a term guarded by `b` alone would
-    then be missing with nothing to say so (math-spec#312).
+    then be missing with nothing to say so (mathspec#312).
     """
     model = built_model._engine._model
     scope = Scope(model.program, model.attached, model.variables)
@@ -267,7 +267,7 @@ def conjunct_verdicts(built_model, program) -> dict[str, str]:
         dims = tuple(getattr(block, 'dims', ()) or ())
         whole = masked(scope, dims, None).select(pl.len()).collect().item()
         held = [
-            masked(scope, dims, math_spec.program.Mask(conjunct)).select(pl.len()).collect().item()
+            masked(scope, dims, mathspec.program.Mask(conjunct)).select(pl.len()).collect().item()
             for conjunct in where.conjuncts
         ]
         verdicts[name] = ''.join(
@@ -708,7 +708,7 @@ def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
         status, condition = n.optimize(solver_name='highs', **keywords(stem))
     assert status == 'ok', f'{stem}: pypsa did not solve — {status} / {condition}'
     spec = spec_of(stem)
-    declared = math_spec.to_spec(spec)
+    declared = mathspec.to_spec(spec)
     try:
         sources = prepared(spec, network(stem), stem)
         built_model = sps.build(spec, sources)
@@ -743,7 +743,7 @@ def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
         'attached_nonempty': sorted(
             name for name, table in sources.items() if not hasattr(table, '__len__') or len(table)
         ),
-        'conjuncts': conjunct_verdicts(built_model, math_spec.to_spec(spec).program),
+        'conjuncts': conjunct_verdicts(built_model, mathspec.to_spec(spec).program),
         'duals': duals(result, n, declared, gc_kinds, REASONS),
         'structure': {
             'rows': [
@@ -760,7 +760,7 @@ def lanes(stem: str) -> tuple[dict[str, object], dict[str, object], bool]:
         },
     }
     cut = projected(stem, spec, parity, n)
-    committed(stem, spec.name, math_spec.to_spec(cut), prepared(cut, n, stem))
+    committed(stem, spec.name, mathspec.to_spec(cut), prepared(cut, n, stem))
     try:
         ours = lpl.build(spec, sources)
     except Exception as error:
@@ -824,7 +824,7 @@ def coverage(stamped: dict[str, dict]) -> list[str]:
             continue
         by_file[stamped[stem]['parity']['spec']].append(stamped[stem]['parity'])
     for name, stamps in by_file.items():
-        declared = math_spec.to_spec(CORPUS / 'examples' / name)
+        declared = mathspec.to_spec(CORPUS / 'examples' / name)
         for kind, blocks in (('built_rows', declared.constraints), ('built_columns', declared.variables)):
             for block_name, block in blocks.items():
                 counts = [stamp[kind][block_name] for stamp in stamps]
@@ -839,13 +839,13 @@ def coverage(stamped: dict[str, dict]) -> list[str]:
         gaps.extend(
             f'{name}: no rung feeds {unfed}' for unfed in sorted({*declared.parameters, *declared.relations} - fed)
         )
-        gaps.extend(untested_conjuncts(name, math_spec.to_spec(CORPUS / 'examples' / name).program, stamps))
+        gaps.extend(untested_conjuncts(name, mathspec.to_spec(CORPUS / 'examples' / name).program, stamps))
     return gaps
 
 
 def main() -> int:
     ladder = rungs()
-    assert ladder, f'no rung scripts under {RUNGS} — is {CORPUS} a math-spec checkout?'
+    assert ladder, f'no rung scripts under {RUNGS} — is {CORPUS} a mathspec checkout?'
     committed = json.loads(RECORDS.read_text()) if RECORDS.exists() else {}
     for folder in (TABLES, PROJECTIONS):
         if folder.exists():

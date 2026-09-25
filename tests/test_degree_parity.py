@@ -1,11 +1,11 @@
 """Degree 1, checked against the oracle lane itself.
 
-The ceiling's own inventory is math-spec's and is swept there; the relational
+The ceiling's own inventory is mathspec's and is swept there; the relational
 lane relaying a refusal to a caller is `test_language_boundary.py`. This module
 checks the thing that actually mattered: that the *linopy* lane refuses it too,
 **in the same words**.
 
-The rule lives in ``math_spec.degree`` and this lane asks it. Where it kept a
+The rule lives in ``mathspec.degree`` and this lane asks it. Where it kept a
 hand-copy of the ``**`` sentence instead, no test compared the copy against the
 original; and for ``x * y`` it did not refuse at all — it multiplied and let
 linopy raise whatever linopy raises, so the user got a library's error instead

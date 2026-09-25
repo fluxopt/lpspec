@@ -13,7 +13,7 @@ from functools import cached_property
 from typing import TYPE_CHECKING, Any, get_args
 
 import polars as pl
-from math_spec import program
+from mathspec import program
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping

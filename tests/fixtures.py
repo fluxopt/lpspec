@@ -1,6 +1,6 @@
 """What a test builds a schema from — this side of the extraction's copy.
 
-`math-spec` owns the same four names, and this is the copy its own extraction
+`mathspec` owns the same four names, and this is the copy its own extraction
 predicted rather than an accident: a test package is not shipped, so nothing
 here can import them from the dependency. Thirty lines of dict-patching
 duplicated to keep one copy of every *rule* — the models and the language are
@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml as pyyaml
-from math_spec import Spec, to_spec
+from mathspec import Spec, to_spec
 
 #: The dispatch model as a dict, for tests that need to mutate a declaration
 #: rather than read a file. Deliberately the same math as

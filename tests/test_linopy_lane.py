@@ -29,7 +29,7 @@ from tests.oracle import builder, linopy, loader, pd, specsolve_linopy, where, x
 from tests.piecewise_models import curve_frame
 
 if TYPE_CHECKING:
-    from math_spec import Spec
+    from mathspec import Spec
 
 
 @pytest.fixture
@@ -268,7 +268,7 @@ def _lowered(text, parameters=('p_max',), dimensions=('g',)):
     the language's, and a model with the right names in it is the only handle
     this side of the seam has on one predicate.
     """
-    from math_spec import to_spec
+    from mathspec import to_spec
 
     spec = {
         'dimensions': {d: {'dtype': 'int' if d == 't' else 'str'} for d in dimensions},
@@ -752,7 +752,7 @@ def test_the_lane_values_an_expression_the_file_never_declared(yaml_file):
 
 def test_the_lane_refuses_an_expression_against_a_lowered_program(yaml_file):
     """A Program is what a model lowered to, and lowering does not run backwards."""
-    from math_spec import to_spec
+    from mathspec import to_spec
 
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
     m = specsolve_linopy.build(path, dict(EXPRESSION_DATA))

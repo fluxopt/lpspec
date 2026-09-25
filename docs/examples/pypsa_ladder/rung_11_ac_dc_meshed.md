@@ -680,7 +680,7 @@ F_{l} \in \mathbb{R} \qquad \forall\, l \in \mathcal{L} \,:\, \mathrm{ext}^{f}_{
     The network, `rung_11_ac_dc_meshed.py` in the corpus — the spine plus what this rung adds:
 
     ```python
-    # SPDX-FileCopyrightText: math-spec Contributors
+    # SPDX-FileCopyrightText: mathspec Contributors
     #
     # SPDX-License-Identifier: MIT
 

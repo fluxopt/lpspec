@@ -27,7 +27,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from math_spec import to_spec
+from mathspec import to_spec
 
 from tests.conftest import EXAMPLES_DIR
 

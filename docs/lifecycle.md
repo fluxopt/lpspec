@@ -15,7 +15,7 @@ site is built, and a block that raises fails the build.
 
 ```python exec="true" source="material-block" session="lifecycle"
 import polars as pl
-from math_spec import to_spec
+from mathspec import to_spec
 
 import specsolve as sps
 

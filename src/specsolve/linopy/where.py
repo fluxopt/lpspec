@@ -1,7 +1,7 @@
 """A ``where:`` predicate as a boolean array over the coordinates it masks.
 
 The other half of what a declaration says: ``builder.py`` builds the thing,
-this decides where it exists. A :class:`~math_spec.program.Predicate` in, one
+this decides where it exists. A :class:`~mathspec.program.Predicate` in, one
 ``xr.DataArray`` of booleans out, and :func:`as_linopy_mask` puts it in the
 shape linopy's ``mask=`` takes. Both lanes read the same node kinds, and
 ``relational/engines/polars/predicates.py`` answers each with a polars
@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, assert_never
 
 import numpy as np
 import xarray as xr
-from math_spec import program
+from mathspec import program
 
 from specsolve.errors import DataError, position_out_of_range_message, short_groups_message
 from specsolve.linopy import absence

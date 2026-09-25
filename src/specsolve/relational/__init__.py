@@ -5,7 +5,7 @@ programs in Python is not supported API.
 
 **Two layers, and the directory says which is which.** ``sinks/``,
 ``status.py`` and ``result.py`` are the contract: what an engine answers to and
-what a sink reads. What a model *is* is upstream of both — ``math_spec.program``
+what a sink reads. What a model *is* is upstream of both — ``mathspec.program``
 — which is why no module here declares it. ``engines/`` holds implementations
 of that contract, one per directory. A **solver's** own package is imported
 inside the function that calls it, so one a caller has not installed never

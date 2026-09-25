@@ -24,7 +24,7 @@ from specsolve.relational.parquet import METRICS_FILE, RECORD_FILE, consolidated
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
 
-    from math_spec import Spec
+    from mathspec import Spec
 
     from specsolve.lanes import Source
 

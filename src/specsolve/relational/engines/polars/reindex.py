@@ -28,7 +28,7 @@ from specsolve.relational.engines.polars.relations import GROUP_RANK, GROUP_SIZE
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-    from math_spec import program
+    from mathspec import program
 
     from specsolve.relational.engines.polars.scope import Scope
 

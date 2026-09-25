@@ -15,11 +15,12 @@ construct becomes is the table in ``docs/about/linopy.md``.
 from __future__ import annotations
 
 import functools
+import math
 import operator
 from typing import TYPE_CHECKING, Any, assert_never
 
 import numpy as np
-from math_spec import program
+from mathspec import program
 
 from specsolve.errors import DataError, LaneError, SpecsolveError, null_bounds_message
 from specsolve.lanes import LANES
@@ -80,8 +81,8 @@ def _build_variables(ctx: EvaluationContext) -> None:
             _check_bounds_are_defined(name, vdef, ctx.dataset, mask)
 
             ctx.model.add_variables(
-                lower=_bound(vdef.lower, ctx.dataset),
-                upper=_bound(vdef.upper, ctx.dataset),
+                lower=_bound(vdef.lower, ctx.dataset, -math.inf),
+                upper=_bound(vdef.upper, ctx.dataset, math.inf),
                 coords=coords,
                 name=name,
                 mask=as_linopy_mask(mask),
@@ -96,17 +97,20 @@ def _check_bounds_are_defined(name: str, vdef: program.VariableDeclaration, data
     Checked against the variable's own mask: a coordinate the variable does not
     occupy needs no bound.
     """
-    missing = sum(gaps_under(dataset[name], mask) for name in sorted(program.parameters_of(vdef.lower, vdef.upper)))
+    stated = [side for side in (vdef.lower, vdef.upper) if side is not None]
+    missing = sum(gaps_under(dataset[name], mask) for name in sorted(program.parameters_of(*stated)))
     if missing:
         raise DataError(null_bounds_message(name, missing))
 
 
-def _bound(bound: program.Expression, dataset: xr.Dataset) -> Any:
-    """A bound as linopy takes it: the literal, or the named parameter's array.
+def _bound(bound: program.Expression | None, dataset: xr.Dataset, open_side: float) -> Any:
+    """A bound as linopy takes it: the literal, the named parameter's array, or *open_side* where it is open.
 
     A gap is not filled here: absence's zero is a coefficient and never a
     bound, so a gap survives to :func:`_check_bounds_are_defined`.
     """
+    if bound is None:
+        return open_side
     if isinstance(bound, program.Constant):
         return bound.value
     if isinstance(bound, program.Parameter):

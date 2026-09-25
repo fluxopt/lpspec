@@ -1310,7 +1310,7 @@ def test_the_generated_declaration_model_is_the_language(label: str, tmp_path: P
     Every arm parses the same YAML, so a generated file the validator refuses
     would kill every rung of the sweep at once, and only at run time.
     """
-    from math_spec import to_spec
+    from mathspec import to_spec
 
     case = CASES['declarations']
     shape = case.shape(label)
@@ -1458,7 +1458,7 @@ def test_the_milp_case_lowers_with_both_domains() -> None:
     and nothing downstream would notice — every sink handles an all-continuous
     model happily.
     """
-    from math_spec import to_spec
+    from mathspec import to_spec
 
     program = to_spec(str(CASES['commitment'].spec)).program
     domains = {n: v.domain for n, v in program.variables.items()}

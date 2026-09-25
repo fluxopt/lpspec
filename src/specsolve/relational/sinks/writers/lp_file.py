@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, get_args
 
 import polars as pl
-from math_spec import program
+from mathspec import program
 
 from specsolve.relational.sinks.capabilities import Capabilities
 from specsolve.relational.sinks.handoff import SENSE_CODES

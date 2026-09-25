@@ -14,7 +14,7 @@ import dataclasses
 
 import polars as pl
 import pytest
-from math_spec.program import Add, Constant, Parameter, Power, Variable
+from mathspec.program import Add, Constant, Parameter, Power, Variable
 
 import specsolve as sps
 from specsolve.errors import LanguageError

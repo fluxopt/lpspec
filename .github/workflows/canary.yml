@@ -2,7 +2,7 @@
 # would the next bump hurt?
 #
 # It reports and never changes anything. The pin in `pyproject.toml` stays where
-# it is; this run resolves `math-spec` at `main` instead and runs the suite
+# it is; this run resolves `mathspec` at `main` instead and runs the suite
 # against it, so drift between the two repositories surfaces as a red nightly
 # rather than as a broken release. The things that would drift are real and
 # named: the dtype vocabulary and the variable domains are checked here against
@@ -13,7 +13,7 @@
 # that only ever reports is much harder to get wrong than one that opens pull
 # requests, and the bump it would open is a one-line edit to a tag whoever
 # reads the red nightly is already looking at.
-name: math-spec canary
+name: mathspec canary
 
 on:
   schedule:
@@ -45,10 +45,10 @@ jobs:
       # environment carrying the same package at a second ref does not resolve.
       # So this is a one-off tool invocation, like the build in publish.yaml —
       # `pixi exec` fetches uv, and `--with` overrides the pin for this run
-      # only, so nothing on disk is edited and a failure is about math-spec's
+      # only, so nothing on disk is edited and a failure is about mathspec's
       # `main` rather than about a half-applied bump.
-      - name: the suite, against math-spec at main
+      - name: the suite, against mathspec at main
         run: >
           pixi exec -s uv uv run
-          --with "math-spec @ git+https://github.com/energy-models/math-spec@main"
+          --with "mathspec @ git+https://github.com/energy-models/mathspec@main"
           pytest -q -n auto

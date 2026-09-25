@@ -16,7 +16,7 @@ is what it printed on this commit. A block that raises fails the build.
 
 ```python exec="true" source="material-block" session="loops"
 import polars as pl
-from math_spec import to_markdown, to_spec
+from mathspec import to_markdown, to_spec
 
 import specsolve as sps
 

@@ -52,7 +52,7 @@ parameters:
 variables:
   p:
     dims: [generator, period]
-    bounds: {lower: 0, upper: .inf}
+    bounds: {lower: 0}
     description: output of a generator in a period
 
 constraints:
