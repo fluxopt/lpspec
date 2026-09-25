@@ -7,6 +7,7 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
+- docs(sweeps): the sweep reference says how many sessions a sweep opens on a remote Gurobi ([#1771](https://github.com/fluxopt/specsolve/pull/1771))
 - docs: every link to the language's documentation points at mathspec.readthedocs.io ([#1764](https://github.com/fluxopt/specsolve/pull/1764))
 - fix: the PyPI page links the docs, issues and changelog, and a stale saved answer says the layout moves before 1.0 ([#1763](https://github.com/fluxopt/specsolve/pull/1763))
 
