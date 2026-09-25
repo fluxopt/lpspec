@@ -99,14 +99,14 @@ flowchart TB
 
     BUILD --> MODEL["<b>a linopy.Model</b> — the oracle stops here<br/>solved by the tests, and compared with the Result"]
 
-    classDef laneL fill:#fdf6ec,stroke:#b7791f,stroke-width:2px,color:#111
-    classDef laneR fill:#f0f7f0,stroke:#3a7d44,stroke-width:2px,color:#111
-    classDef laneE fill:#eef1fb,stroke:#4a5fc1,stroke-width:2px,color:#111
-    classDef laneT fill:#f7f0f7,stroke:#8b3a7d,stroke-width:2px,color:#111
-    classDef waist fill:#e9edfa,stroke:#4a5fc1,stroke-width:3px,color:#111
-    classDef flat fill:#fffdf5,stroke:#8a8578,stroke-width:2px,stroke-dasharray:4 3,color:#111
-    classDef data fill:#fdf4e8,stroke:#b7791f,stroke-width:1.5px,color:#111
-    classDef out fill:#eef6ee,stroke:#3a7d44,stroke-width:2px,color:#111
+    classDef laneL stroke:#b7791f,stroke-width:2px
+    classDef laneR stroke:#3a7d44,stroke-width:2px
+    classDef laneE stroke:#4a5fc1,stroke-width:2px
+    classDef laneT stroke:#8b3a7d,stroke-width:2px
+    classDef waist stroke:#4a5fc1,stroke-width:3px
+    classDef flat stroke:#8a8578,stroke-width:2px,stroke-dasharray:4 3
+    classDef data stroke:#b7791f,stroke-width:1.5px
+    classDef out stroke:#3a7d44,stroke-width:2px
     class MS laneL
     class REL laneR
     class LIN laneE
@@ -161,9 +161,9 @@ flowchart LR
     AST --> RUN["<b>run it</b><br/>solver · LP/MPS file"]
     DATA[("your data<br/>parquet · polars · any Arrow table")] --> RUN
     RUN --> ANS(["<b>your answers</b><br/>tables you can join"])
-    classDef built fill:#eef6ee,stroke:#3a7d44,stroke-width:1.5px,color:#111
-    classDef waist fill:#e9edfa,stroke:#4a5fc1,stroke-width:3px,color:#111
-    classDef data fill:#fdf4e8,stroke:#b7791f,stroke-width:1.5px,color:#111
+    classDef built stroke:#3a7d44,stroke-width:1.5px
+    classDef waist stroke:#4a5fc1,stroke-width:3px
+    classDef data stroke:#b7791f,stroke-width:1.5px
     class Y,SHOW,CHECK,RUN,ANS built
     class AST waist
     class DATA data
