@@ -15,7 +15,7 @@ snapshots. A study that models 2030 hourly and 2050 in four-hour blocks wants
 the opposite.
 
 So `snapshot` is one flat dimension carrying $\mathrm{period}$ as a
-[relation](https://math-spec.readthedocs.io/en/latest/reference/language/relations/), as `generator`
+[relation](https://mathspec.readthedocs.io/en/latest/reference/language/relations/), as `generator`
 carries $\mathrm{bus}$ in [transport](transport.md). Ragged periods then cost
 nothing: a relation is a per-row column, and four snapshots in 2030 beside two in
 2050 is a column with four of one value and two of another.
@@ -73,7 +73,7 @@ Least-cost investment and dispatch together: capacity is decided once per period
 | $`p`$ | `p` over $`\mathcal{T} \times \mathcal{G}`$ — output of a generator in a snapshot |
 | $`p^{\mathrm{nom}}`$ | `p_nom` over $`\mathcal{E} \times \mathcal{G}`$ — capacity a generator holds for the whole of a period |
 
-Upright is what the model is given — a parameter such as $`\mathrm{load}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the data supplies — a parameter such as $`\mathrm{load}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 

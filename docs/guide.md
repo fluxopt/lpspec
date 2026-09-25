@@ -2,8 +2,8 @@
 
 Five steps from `pip install` to an answer read back, on the dispatch model
 of [the home page](index.md): three generators meet a load over four
-snapshots at least cost. What a model file may contain is
-[the language's](https://math-spec.readthedocs.io/en/latest/reference/language/)
+snapshots at least cost. What a spec may contain is
+[the language's](https://mathspec.readthedocs.io/en/latest/reference/language/)
 to say.
 
 ## 1. Install
@@ -14,9 +14,9 @@ pip install specsolve
 
 That brings polars, HiGHS and the language.
 
-## 2. Save the model
+## 2. Save the spec
 
-Copy the YAML from [the home page](index.md#a-model-is-one-file)
+Copy the YAML from [the home page](index.md#a-spec-is-one-file)
 into `dispatch.yaml`. It is also
 [`examples/dispatch.yaml`](https://github.com/fluxopt/specsolve/blob/main/examples/dispatch.yaml)
 in the repository.
@@ -82,7 +82,7 @@ sps.write('dispatch.yaml', sources, 'dispatch.lp')
 | [Change a model](interactive.md) | the next lesson: new numbers, more rows, new math |
 | [Preparing the data](howto/data.md) | from files to the tables above |
 | [The verbs](reference/api.md) · [The data contract](reference/data.md) | what every call takes, returns and refuses |
-| [Language reference](https://math-spec.readthedocs.io/en/latest/reference/language/) · [the limits of the language](https://math-spec.readthedocs.io/en/latest/about/limits/) | what a file may contain, and where it stops |
+| [Language reference](https://mathspec.readthedocs.io/en/latest/reference/language/) · [the limits of the language](https://mathspec.readthedocs.io/en/latest/about/limits/) | what a file may contain, and where it stops |
 | [Debug a wrong answer](howto/debug.md) | when it solves and the number is wrong, or it does not solve |
 | [Examples](examples/index.md) | every model in the repository |
 | [Roadmap](about/roadmap.md) | what is refused on purpose |

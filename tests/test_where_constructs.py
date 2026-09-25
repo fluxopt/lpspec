@@ -68,9 +68,9 @@ def sources(p_min: dict[str, float] | None = None, live: dict[tuple[str, int], b
     }
 
 
-def both(model: dict[str, Any], data: dict[str, Any]) -> float:
+def both(written: dict[str, Any], data: dict[str, Any]) -> float:
     """The objective both lanes reach, the harness having asserted they agree."""
-    with differential(model, data) as run:
+    with differential(written, data) as run:
         return float(run.result.objective)
 
 

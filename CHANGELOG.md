@@ -7,7 +7,40 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
-- feat(api): a saved answer is stamped with layout 1 and the specsolve version that wrote it, and one written before 0.1.0 is refused by name ([#1765](https://github.com/fluxopt/specsolve/pull/1765))
+- feat(api)!: a saved answer is stamped with layout 1 and the specsolve version that wrote it, and one written by 0.1.0 or earlier is refused by name ([#1765](https://github.com/fluxopt/specsolve/pull/1765))
+- docs(sweeps): the sweep reference says how many sessions a sweep opens on a remote Gurobi ([#1771](https://github.com/fluxopt/specsolve/pull/1771))
+
+## 0.1.0 (2026-09-25)
+
+🎉 specsolve is officially on PyPI!
+
+```bash
+pip install specsolve
+```
+
+specsolve 0.1.0 requires mathspec 0.2.0 and uses its words. A **spec** is the
+problem a file states, with no data. A **model** is a spec with data attached,
+which `build` returns as a `Model`
+([glossary](https://specsolve.readthedocs.io/en/latest/reference/glossary/)).
+The messages and the docs use the two words in these senses.
+
+Since 0.1.0rc1, this release breaks three things:
+
+- An archive holds its spec as `spec.yaml`, not `model.yaml`. An archive that
+  0.1.0rc1 wrote is refused with a `LayoutError`. To read one, rename its
+  `model.yaml` member to `spec.yaml`.
+- specsolve requires mathspec 0.2.0. There, the first parameter of `to_spec`,
+  `advice` and the typesetting functions is `spec`, not `model`, and the module
+  `mathspec.model` is `mathspec.spec`. A call that passes `model=` by keyword
+  fails. A positional call works as before.
+- Messages say "spec" where they said "model" for the file. A test that
+  matches the old text fails.
+
+The pull requests since 0.1.0rc1:
+
+- docs: the site follows the reader's light or dark setting in its own violet colour, with code, diagrams and footnotes readable in both ([#1767](https://github.com/fluxopt/specsolve/pull/1767))
+- feat!: specsolve requires mathspec 0.2.0 and uses its words spec and model, so an archive holds its spec as spec.yaml ([#1768](https://github.com/fluxopt/specsolve/pull/1768))
+- docs: every link to the language's documentation points at mathspec.readthedocs.io ([#1764](https://github.com/fluxopt/specsolve/pull/1764))
 - fix: the PyPI page links the docs, issues and changelog, and a stale saved answer says the layout moves before 1.0 ([#1763](https://github.com/fluxopt/specsolve/pull/1763))
 
 ## 0.1.0rc1 (2026-09-25)

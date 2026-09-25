@@ -1892,8 +1892,8 @@ def test_a_key_that_collides_with_a_fixed_column_is_refused(key_name):
 
 
 @pytest.mark.parametrize('make_executor', EXECUTORS[:2])
-def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
-    """The model is parsed once per call, whichever executor runs the slices.
+def test_a_pooled_sweep_parses_the_spec_once(make_executor, monkeypatch):
+    """The spec is parsed once per call, whichever executor runs the slices.
 
     What a worker receives is the document already read, so no slice reads
     the YAML again. Counted at the language's own front door.
@@ -1905,10 +1905,10 @@ def test_a_pooled_sweep_parses_the_model_once(make_executor, monkeypatch):
     parsed: list[object] = []
     original = validation.to_spec
 
-    def spy(model):
-        if not isinstance(model, Spec):
-            parsed.append(model)
-        return original(model)
+    def spy(spec):
+        if not isinstance(spec, Spec):
+            parsed.append(spec)
+        return original(spec)
 
     monkeypatch.setattr(validation, 'to_spec', spy)
     monkeypatch.setattr(lanes, 'to_spec', spy)

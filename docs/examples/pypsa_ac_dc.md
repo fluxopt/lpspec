@@ -64,7 +64,7 @@ PyPSA linear optimal power flow on a meshed AC-DC network whose generators sit o
 | $`g`$ | `g` over $`\mathcal{T} \times \mathcal{I}`$ — flow on a link, signed towards the bus it delivers at — chosen, which is what makes it a link and not a line |
 | $`\mathit{link\_p\_nom}`$ | `link_p_nom` over $`\mathcal{I}`$ — link capacity to build |
 
-Upright is what the model is given — a parameter such as $`\mathrm{load}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the data supplies — a parameter such as $`\mathrm{load}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`p`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
@@ -475,7 +475,7 @@ The cycle basis carries impedance rather than reactance alone. PyPSA applies
 the voltage law with `x` inside an AC sub-network and `r` inside a DC one, and
 this network has one meshed loop of each. Which value belongs in the row is
 decided in data preparation, where
-[the limits](https://math-spec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
+[the limits](https://mathspec.readthedocs.io/en/latest/about/limits/#what-counts-as-data-preparation)
 put graph work; the language sees one incidence table either way.
 
 No new construct was needed.

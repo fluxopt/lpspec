@@ -59,7 +59,7 @@ A store that cycles inside each season rather than across the horizon, with seas
 | $`\mathit{soc}`$ | `soc` over $`\mathcal{T}`$ — energy held at the end of a snapshot |
 | $`\mathit{release}`$ | `release` over $`\mathcal{T}`$ — energy released in a snapshot |
 
-Upright is what the model is given — a parameter such as $`\mathrm{inflow}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{soc}`$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the data supplies — a parameter such as $`\mathrm{inflow}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{soc}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 $`t \ominus k`$ denotes cyclic translation: index $`t-k`$ taken modulo the size of the dimension (`roll`). Plain $`t-k`$ (`shift`) has no wraparound — terms translated past the edge are simply absent.
 
@@ -221,7 +221,7 @@ shape: (7, 2)
 
 A snapshot the table has no row for belongs to no season, so it reaches nothing
 and its row is not built. Absence reads the same way in
-[`sum(by=)`](https://math-spec.readthedocs.io/en/latest/reference/language/operators/).
+[`sum(by=)`](https://mathspec.readthedocs.io/en/latest/reference/language/operators/).
 
 Compare [monthly budget](monthly_budget.md), where such a column groups a *sum*,
 and [multi-period](multi_period.md), where it carries a capacity decision down

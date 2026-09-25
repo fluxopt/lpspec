@@ -306,7 +306,7 @@ def test_the_language_is_imported_as_one_package():
     name, it is not counted in the surface upstream pins in both directions,
     and it survives a refactor there that the package export would have caught.
     ``from mathspec import Spec`` fails loudly the day ``Spec`` stops being
-    exported; ``from mathspec.model import Spec`` keeps working until it does
+    exported; ``from mathspec.spec import Spec`` keeps working until it does
     not.
 
     A submodule ``__all__`` itself exports is not inside: ``mathspec.program``
@@ -685,8 +685,8 @@ def test_every_plan_node_is_handled_by_the_compiler():
         assert not unhandled, f'{qualifier} nodes unknown to {module.name}: {unhandled}'
 
 
-def test_the_model_argument_is_what_the_language_takes_minus_the_lowered_form():
-    """Every verb here opens a model the way ``to_spec`` does, and a lowered ``Program`` is not one of them.
+def test_the_spec_argument_is_what_the_language_takes_minus_the_lowered_form():
+    """Every verb here opens a spec the way ``to_spec`` does, and a lowered ``Program`` is not one of them.
 
     ``Buildable`` is what ``check``, ``build``, ``solve``, ``write``,
     ``solve_over``, ``Model`` and both linopy-lane verbs annotate their first
@@ -711,11 +711,11 @@ def test_the_model_argument_is_what_the_language_takes_minus_the_lowered_form():
     def members(annotation: str) -> set[str]:
         return {part.strip() for part in annotation.split('|')}
 
-    upstream = members(str(inspect.signature(to_spec).parameters['model'].annotation))
+    upstream = members(str(inspect.signature(to_spec).parameters['spec'].annotation))
     ours = members(type_alias_value(PKG / 'lanes.py', 'Buildable'))
     assert upstream == ours and 'Program' not in ours, (
         f'the language takes {sorted(upstream)} and specsolve.lanes.Buildable takes {sorted(ours)} — '
-        f'every shape the language reads a model from, and not the lowered Program'
+        f'every shape the language reads a spec from, and not the lowered Program'
     )
 
 

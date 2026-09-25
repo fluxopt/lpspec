@@ -68,7 +68,7 @@ The travelling salesman problem in the Miller-Tucker-Zemlin formulation: visit e
 | $`\mathit{travel}`$ | `travel` over $`\mathcal{F} \times \mathcal{T}`$ — is this arc on the tour? |
 | $`u`$ | `u` over $`\mathcal{C}`$ — position of a city in the tour — continuous, because the formulation needs only that the positions be orderable |
 
-Upright is what the model is given — a parameter such as $`\mathrm{distance}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{travel}`$. An index is italic too, being what a quantifier chooses, and a set is script.
+Upright is what the data supplies — a parameter such as $`\mathrm{distance}`$, a coordinate map, a label — and italic is what the solver chooses, such as $`\mathit{travel}`$. An index is italic too, being what a quantifier chooses, and a set is script.
 
 #### Objective
 
@@ -212,7 +212,7 @@ is a join, and a join does not care how many rows a group holds
 itself, `travel`'s `where` is that parameter, and absence spreads, so no row
 mentioning a self-arc is built. No `i ≠ j` guard is written anywhere.
 [Dimension-to-dimension comparison is not in the
-language](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#where-strings),
+language](https://mathspec.readthedocs.io/en/latest/reference/language/expressions/#where-strings),
 and here it is not needed.
 
 ## What it finds

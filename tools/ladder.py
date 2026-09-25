@@ -30,7 +30,7 @@ LADDER = ROOT / 'differential' / 'pypsa'
 RUNGS = LADDER / 'rungs'
 PAGES = ROOT / 'docs' / 'examples' / 'pypsa_ladder'
 INDEX = ROOT / 'docs' / 'examples' / 'pypsa_ladder.md'
-CORPUS_SITE = 'https://math-spec.readthedocs.io/en/latest/examples/'
+CORPUS_SITE = 'https://mathspec.readthedocs.io/en/latest/examples/'
 CORPUS_PAGE = f'{CORPUS_SITE}pypsa/'
 
 #: Where each rung sits on mathspec's PyPSA pages. The anchors are that site's

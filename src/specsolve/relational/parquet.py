@@ -35,10 +35,10 @@ KINDS = ('primal', 'dual', 'expression')
 LABELS = {'primal': 'variable', 'dual': 'constraint', 'expression': 'named expression'}
 
 
-#: What a result, a sweep and an archive write to disk look like. **1 is the
-#: layout 0.1.0 writes.** A change to any of them raises it, and the release
-#: notes name the change. No answer written before 0.1.0 carries a
-#: ``layout``. **Compared, never branched on.**
+#: What a result, a sweep and an archive write to disk look like. A change to
+#: any of them raises it, and the release notes name the change. No answer
+#: 0.1.0 or earlier wrote carries a ``layout``. **Compared, never branched
+#: on.**
 LAYOUT = 1
 FORMAT_FILE = 'format.json'
 
@@ -105,7 +105,7 @@ def digest_of(yaml: str) -> str:
     """A short, stable name for a spec — what two answers must share to be comparable.
 
     Over the YAML a ``Spec`` round-trips to, which is exactly what an archive
-    writes as ``model.yaml``: two answers carrying one digest answered the
+    writes as ``spec.yaml``: two answers carrying one digest answered the
     same document, byte for byte. Not the same *model* — that is the document
     with its data, and two scenarios of one spec share this and share nothing
     else. What an archive holds beside it says whether the data agreed too:

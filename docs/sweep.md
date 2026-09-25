@@ -10,7 +10,7 @@ is what it printed on this commit. A block that raises fails the build.
 ## 1. One solve per scenario
 
 The dispatch model of [Run a model](guide.md), with two load levels. The `load`
-table carries a `scenario` column, which the model does not declare.
+table carries a `scenario` column, which the spec does not declare.
 [`EachCoordinate('scenario')`](reference/sweeps.md#the-axes) solves the model
 once per label of that column:
 
@@ -131,4 +131,4 @@ runs one.
 |---|---|
 | [Sweeps and rolling horizons](reference/sweeps.md) | every axis, `carry`, `keep` and `spill_to=`, and how a sweep is read |
 | [Running a sweep in parallel](howto/parallel.md) | one slice per worker |
-| [Archiving a solve](howto/archiving.md) | the model, its data and every slice kept as one archive |
+| [Archiving a solve](howto/archiving.md) | the spec, its data and every slice kept as one archive |

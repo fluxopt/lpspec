@@ -3,7 +3,7 @@
 This page describes what each verb takes, returns, guarantees and refuses, for
 anyone who runs a spec from Python. A *spec* is the YAML file; what it may
 contain is
-[the language](https://math-spec.readthedocs.io/en/latest/reference/language/).
+[the language](https://mathspec.readthedocs.io/en/latest/reference/language/).
 
 ```python
 import specsolve as sps
@@ -37,7 +37,7 @@ tables that carry its numbers. The [glossary](glossary.md) defines *model*,
 | `sps.load_sweep(directory)` | a sweep `sweep.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Sweep` |
 | `sps.scan_archive` / `scan_result` / `scan_sweep` | the same three left on disk and read as they are asked for: [loading or scanning](#loading-or-scanning) |
 | `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
-| `mathspec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/) |
+| `mathspec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://mathspec.readthedocs.io/en/latest/reference/typeset/) |
 | `sps.Model` / `sps.Result` / `sps.Sweep` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `mathspec.Spec` |
 
 ## Errors and warnings
@@ -50,7 +50,7 @@ directory or an archive that is not a layout this package reads.
 accepts and specsolve cannot build raises `SpecsolveError` itself, and its
 message names the rewrite that builds the same model.
 Which one you get:
-[errors](https://math-spec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
+[errors](https://mathspec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
 
 **`SpecsolveWarning` is the one warning category**, and carries `check`'s advice.
 `warnings.simplefilter('error', sps.SpecsolveWarning)` makes a spec repository
@@ -77,7 +77,7 @@ to_spec(spec).to_yaml()  # the review copy — a dict-built spec still gets a fi
 to a verb is not read again.
 
 **A formulation is written out before a verb reads it.** A `piecewise:` block
-states rows nothing lowers, so specsolve refuses a model still carrying one, at
+states rows nothing lowers, so specsolve refuses a spec still carrying one, at
 every verb, rather than expanding it unasked, and names the way in: `to_spec(spec).expand('piecewise')` writes each
 curve out as the variables and constraints it states and keeps every `sos:`
 block, for a sink that branches on a set; `to_spec(spec).expand()` writes the
@@ -97,7 +97,7 @@ spec must be able to show you a file. Hand-written math still starts as one.
 
 **A dict-built spec still gets a file.** `to_dict()` and `to_yaml()` are the
 language's, and what they write is
-[its page](https://math-spec.readthedocs.io/en/latest/reference/reading/#writing-a-spec-back-out).
+[its page](https://mathspec.readthedocs.io/en/latest/reference/reading/#writing-a-spec-back-out).
 
 ## The sources argument
 
@@ -147,7 +147,7 @@ beside a variable `p` is accepted. The two are written under `dual/` and
 
 Whether a spec is *sayable* does not depend on the solver. Where it can *land*
 is
-[a separate question](https://math-spec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself),
+[a separate question](https://mathspec.readthedocs.io/en/latest/about/what-counts-as-language/#what-each-tool-decides-for-itself),
 and `sink=` asks it:
 
 ```python
@@ -222,7 +222,7 @@ the `Model`'s to answer.
 ### Reading one row
 
 `row` says what one constraint says at one *coordinate*, once the data is on
-it. `to_latex` renders the model before any data, and `result.dual('balance')`
+it. `to_latex` renders the spec before any data, and `result.dual('balance')`
 gives a row's number without its terms; `row` is the third question, and the
 one a wrong model is debugged by.
 
@@ -314,10 +314,10 @@ xarray, which specsolve does not install.
 | **reading with no primal raises** | `NoSolutionError`; `objective` is `nan`. `save` is the exception: it writes the record and no frames, an infeasible run being an answer a set of saved cases needs on disk |
 | **`dual_ray` is the one reader an infeasible solve answers** | a weight per row, `dual`'s shape, certifying that the rows cannot all hold: weight each row by its value and the combination demands more than the columns can deliver inside their bounds. It is what a Benders feasibility cut is built from ([decomposition](../about/decomposition.md#when-the-subproblem-is-infeasible)). **The sign is the row's own**, one convention across the sinks, so a driver never asks who solved. A solve that found an answer has nothing to certify and says so |
 | **a certificate is computed only where it was asked for** | `highs` always produces one. `gurobi` needs `solver_options={'InfUnbdInfo': 1}` and `xpress` needs `solver_options={'presolve': 0}`, both set before the solve; without them the model is still refused as infeasible, and `dual_ray` raises naming the option. A ray is live-only: `save` does not write one, and no sweep spills one |
-| **`evaluate` takes what an `expressions:` entry takes** | a name the file declares, an expression string, or the mapping that carries `cases:`. A declared name is the value of that [named expression](https://math-spec.readthedocs.io/en/latest/reference/language/named/#expressions) at the solution, aggregated to its own dimensions, served by the reader already holding it and compiled at the read, so unread expressions cost nothing. Anything else lowers the model again, which costs what `check` costs. It may use every name the solved model declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read |
+| **`evaluate` takes what an `expressions:` entry takes** | a name the file declares, an expression string, or the mapping that carries `cases:`. A declared name is the value of that [named expression](https://mathspec.readthedocs.io/en/latest/reference/language/named/#expressions) at the solution, aggregated to its own dimensions, served by the reader already holding it and compiled at the read, so unread expressions cost nothing. Anything else lowers the spec again, which costs what `check` costs. It may use every name the spec declares and only those; one it does not is a `LanguageError`, because a new parameter is a build rather than a read |
 | **an undeclared expression names nothing** | so it is not a *kind*: `save` does not write it and a sweep does not spill it. A declared expression is: `save` writes it under `expression/`, and it rides every bridge as `kind='expression'`. To keep a quantity, declare it under `expressions:` and read it by name |
 | **`dual` raises rather than zero-filling** | no values at all is `NoSolutionError`; values but no duals is `SpecsolveError`. Any integer or binary variable makes duals undefined |
-| **an expanded set makes a model mixed-integer** | an [`sos:`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set written out with `Spec.expand()` is binaries, so an otherwise continuous model solved that way has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
+| **an expanded set makes a model mixed-integer** | an [`sos:`](https://mathspec.readthedocs.io/en/latest/reference/language/piecewise/#sos) set written out with `Spec.expand()` is binaries, so an otherwise continuous model solved that way has no duals and says so. `gurobi` and `xpress` branch on the set itself and keep them |
 | **duals exist only where a solver ran** | a model written to LP and solved elsewhere never passes back through here. Reduced costs and slacks are not exposed |
 | **`to_dataset` costs what it says** | each variable arrives dense over its own dimensions. Name a subset, or use `save` |
 | **every bridge takes `kind=`** | `to_pandas(name, kind)`, `to_dataarray(name, kind)` and `to_dataset(*names, kind)` read `primal`, `dual` or `expression`, `primal` by default. One kind per call |
@@ -428,7 +428,7 @@ case.answer.primal('p')  # what came back
 sps.solve(case.spec, case.sources)  # the same question, asked again
 ```
 
-**An archive is the spec, its data and its answer**: `model.yaml`,
+**An archive is the spec, its data and its answer**: `spec.yaml`,
 `sources/<key>.parquet` for every key the file declares, `sources.parquet`
 digesting those members, `answer/` holding what `result.save` or `sweep.save`
 writes plus `answer/metrics.parquet`, and `axis.json` for a sweep.
@@ -457,10 +457,10 @@ The recipes are [archiving a solve](../howto/archiving.md) and
 
 | Rule | |
 |---|---|
-| **the spec is held as written** | `model.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in |
-| **anything outside the layout is refused** | a member the layout does not name, or no `model.yaml`. A zip is refused before it is unpacked |
-| **a saved answer is stamped with its layout** | `format.json` beside the frames: `{"layout": 1, "specsolve": "0.1.0"}`, the layout number and the version that wrote it. Layout 1 is what 0.1.0 writes; a release that changes what a result, a sweep or an archive writes raises it, and its notes say so. Nothing reads another layout back: the stamp turns a missing column into a sentence naming the way out, which is to solve the model again and save it |
-| **`spec_digest` says whether a comparison compares like with like** | a digest of the spec, written into every answer's record and checked when an archive is read back: an archive whose answer names another model is refused. Across the records of cases solved apart, one distinct non-null `spec_digest` is the claim that every row answered the same document |
+| **the spec is held as written** | `spec.yaml` is what the file said, so `archive.spec` reads back as one `Spec` whatever went in |
+| **anything outside the layout is refused** | a member the layout does not name, or no `spec.yaml`. A zip is refused before it is unpacked |
+| **a saved answer is stamped with its layout** | `format.json` beside the frames: `{"layout": 1, "specsolve": "<version>"}`, the layout number and the version that wrote it. A release that changes what a result, a sweep or an archive writes raises it, and its notes say so. An answer 0.1.0 or earlier wrote carries no `layout`, and nothing reads another layout back: the stamp turns a missing column into a sentence naming the way out, which is to solve the model again and save it |
+| **`spec_digest` says whether a comparison compares like with like** | a digest of the spec, written into every answer's record and checked when an archive is read back: an archive whose answer names another spec is refused. Across the records of cases solved apart, one distinct non-null `spec_digest` is the claim that every row answered the same document |
 | **the sources are digested, one row each** | `archive.source_digests` is `(run, source, digest)` for every member of `sources/`, held as `sources.parquet`. Two archives of one document over different numbers agree on `spec_digest` and differ here, and the rows that differ name the input that moved. The digest is of the parquet bytes the archive holds, so two polars versions can write one table to different digests. Reading an archive does not verify them |
 | **the metrics are the solve's, not `save`'s** | `archive.metrics` is a `Metrics` ([the attributes](#diagnostics)), held as `answer/metrics.parquet`. `result.save` writes none: the counters cover the model's whole life, and `solves` says how many solves that is. A sweep's are `archive.answer.metrics`, a `SliceMetrics` per slice |
 | **every row is stamped with `run`** | the archive's own name, on the record, the metrics and the digest table, so a directory of archives reads as one table without parsing paths |
@@ -495,7 +495,7 @@ case = sps.scan_archive('case.zip', 'case/')  # read as asked for, off 'case/'
 **The pairs are `load_archive` / `scan_archive`, `load_result` / `scan_result`
 and `load_sweep` / `scan_sweep`.** Each pair takes the same arguments, hands back
 the same type, and refuses the same things: a directory holding no answer, and
-an archive whose answer names another model. The one difference is the `into=`
+an archive whose answer names another spec. The one difference is the `into=`
 a zip needs, which the table above gives.
 
 **A loaded value is fixed and a scanned one is not.** A load leaves nothing to
@@ -511,7 +511,7 @@ any of them.
 | Field | |
 |---|---|
 | `columns`, `rows`, `nonzeros` | the shape the build produced; `check` cannot answer this, having no data |
-| `omissions` | rows a constraint declared but did not build ([absence](https://math-spec.readthedocs.io/en/latest/reference/language/absence/#rows-with-no-variable-terms)) |
+| `omissions` | rows a constraint declared but did not build ([absence](https://mathspec.readthedocs.io/en/latest/reference/language/absence/#rows-with-no-variable-terms)) |
 | `sparse_parameters` | `(parameter, coordinates, rows, missing)`, one row per parameter whose source is short of the coordinates its dimensions reach. Sparsity is how a model masks, so this reports rather than judges: a table that lost a row and a `where:` that removed one build the same model, and nothing else says which |
 | `coefficient_range` | `(constraint, smallest, largest)`, the coefficient **magnitudes** each block put in the matrix. `largest / smallest` over the table is the conditioning to compare against the solver's own |
 | `bound_range` | `(variable, smallest, largest)`, the **bound** magnitudes each variable block put on its columns, zero and infinity excluded. HiGHS reports this axis (`Consider scaling the bounds by …`) and does not repair it. A large `largest` is usually a big number standing in for "uncapped", and wants no upper bound rather than a rounder one |

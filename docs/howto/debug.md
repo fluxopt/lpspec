@@ -65,7 +65,7 @@ on, as in step 3.
 Rows that read right and a number you still believe is wrong mean the file
 says something other than what you meant. Render it as math and read the
 constraint as written:
-[typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/).
+[typeset](https://mathspec.readthedocs.io/en/latest/reference/typeset/).
 
 ## 6. When a loop of re-solves is slow
 

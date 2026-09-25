@@ -21,7 +21,7 @@ reference implementation. This directory is the source; that is the guided tour.
 
 | | |
 |---|---|
-| `dispatch.yaml` | least-cost generation against a load profile — the smallest complete model |
+| `dispatch.yaml` | least-cost generation against a load profile — the smallest complete spec |
 | `storage.yaml` | dispatch plus a cyclic battery (`shift(edge='wrap')`) |
 | `transport.yaml` | a network: coordinates on a dimension *are* the topology (`sum(by=)`) |
 | `piecewise.yaml` | per-generator convex cost curves (`piecewise:`) |
@@ -31,15 +31,15 @@ reference implementation. This directory is the source; that is the guided tour.
 | `monthly_budget.yaml` | a cap per calendar month: time grouped through a coordinate, exactly as a generator sits on a bus (`sum(by=)`) |
 | `multi_period.yaml` | capacity decided once per investment period and binding at every snapshot in it (`at()`) |
 | `reserves.yaml` | energy and reserves co-optimized on a two-bus grid: every many-to-many shape at once — a pair set reified as a dimension whose legs are relations, and weighted membership left as data (`relations:`, `at()`) |
-| `walkthrough.yaml` | the model `walkthrough.py` prints every pipeline stage for |
+| `walkthrough.yaml` | the spec `walkthrough.py` prints every pipeline stage for |
 | `rolling/` | a storage schedule solved a window at a time, and what the lookahead buys (`solve_over`, `EachWindow`) |
 | `myopic/` | an investment pathway over periods of typical days, each inheriting the last one's fleet (`solve_over`, `carry`) |
 | `benders/` | the problem split in two and reassembled, checked against the monolith it decomposes |
-| `operators/` | one minimal model per operator in [the operator reference](https://math-spec.readthedocs.io/en/latest/reference/language/operators/), which is where the math on that page comes from |
+| `operators/` | one minimal spec per operator in [the operator reference](https://mathspec.readthedocs.io/en/latest/reference/language/operators/), which is where the math on that page comes from |
 | `ports/` | 33 models somebody else already solved, checked against an optimum that did not come from us |
 
 `walkthrough.py` runs one model through YAML → schema → AST → plan → frames →
-LP text → solution, printing what each stage produces, then two models the
+LP text → solution, printing what each stage produces, then two specs the
 language refuses and why. Its output is committed as `walkthrough.out` and
 asserted, so it cannot drift from what the code does:
 
