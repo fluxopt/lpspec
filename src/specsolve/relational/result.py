@@ -787,6 +787,14 @@ class Result:
         from "no such name", which is the one thing [`dual`][] and
         [`evaluate`][] do say.
 
+        ``format.json`` stamps the directory with the layout it is written in
+        and the specsolve that wrote it: ``{"layout": 1, "specsolve": "…"}``.
+        A release that changes what a result, a sweep or an archive writes
+        raises the layout, and its notes say so. Nothing reads another layout
+        back, and an answer 0.1.0 or earlier wrote carries none, so every
+        reader refuses it with a [`LayoutError`][specsolve.errors.LayoutError]
+        that says to solve the model again and save it.
+
         A solve that left no values writes the record and nothing else. A run
         that came back infeasible is an answer a set of saved cases needs on
         disk, rather than a directory that does not exist.

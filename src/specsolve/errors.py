@@ -47,7 +47,8 @@ class LayoutError(SpecsolveError):
 
     The target is a directory or archive that ``save`` wrote, or did not. The
     fix is which path was named, or re-solving a model whose layout has moved
-    since it was written.
+    since it was written. The layout is the one
+    [`save`][specsolve.relational.result.Result.save] stamps.
     """
 
 

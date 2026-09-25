@@ -495,8 +495,8 @@ def test_an_archive_whose_metrics_are_short_of_a_column_is_refused_by_name(
 ) -> None:
     """A missing member is one refusal; a member short of a column is the other.
 
-    `format.json` is held at 0 while the layout moves, so neither is caught by
-    the stamp. Read as a frame, a short row would come back as a `Metrics`
+    The stamp says which layout an answer is in, not that every member of it is
+    whole, so neither is caught by it. Read as a frame, a short row would come back as a `Metrics`
     missing a field — a `TypeError` naming an argument, from inside a reader
     the caller did not call.
     """
@@ -863,26 +863,43 @@ def test_saved_cases_say_whether_they_are_comparable(dispatch_yaml: Path, dispat
     )
 
 
+def test_a_saved_answer_is_stamped_with_its_layout_and_the_specsolve_that_wrote_it(
+    dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
+) -> None:
+    """The version is what a later reader names when it refuses a layout it no longer reads."""
+    with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
+        out = solved.save(tmp_path / 'solution')
+
+    assert json.loads((out / 'format.json').read_text()) == {'layout': 1, 'specsolve': sps.__version__}, (
+        'the layout this package writes, beside the version that wrote it'
+    )
+
+
 def test_an_answer_in_another_layout_is_refused_by_name(
     dispatch_yaml: Path, dispatch_frame_inputs, tmp_path: Path
 ) -> None:
-    """The layout moves before 1.0, so a stale one says so.
+    """The layout moves before 1.0, so a stale one says so, and names the specsolve that wrote it.
 
     Nothing reads another layout back — there is no migration and there will
     not be one — so the stamp exists to turn a missing column into a sentence
-    naming what to do instead. The stamp stays zero while the layout moves, so
-    what it catches is an answer written before there was one; a number is
-    written here to reach the sentence from the other side too.
+    naming what to do instead. An answer 0.1.0 or earlier wrote has no `layout` at all.
     """
     with sps.solve(dispatch_yaml, dispatch_frame_inputs) as solved:
         out = solved.save(tmp_path / 'solution')
-    (out / 'format.json').write_text(json.dumps({'answer': 1}))
+    (out / 'format.json').write_text(json.dumps({'layout': 0, 'specsolve': '0.0.1a359'}))
 
-    with pytest.raises(sps.LayoutError, match='solve the model again and save it'):
+    with pytest.raises(sps.LayoutError, match='solve the model again and save it') as refused:
+        sps.load_result(out)
+    assert 'layout 0, written by specsolve 0.0.1a359, and this package reads layout 1' in str(refused.value), (
+        'the refusal names the layout it found and the version that wrote it'
+    )
+
+    (out / 'format.json').write_text(json.dumps({'answer': 0}))  # what 0.1.0 wrote
+    with pytest.raises(sps.LayoutError, match='with no layout stamp'):
         sps.load_result(out)
 
     (out / 'format.json').unlink()
-    with pytest.raises(sps.LayoutError, match='layout None'):
+    with pytest.raises(sps.LayoutError, match='with no layout stamp'):
         sps.load_result(out)
 
 
