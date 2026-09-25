@@ -120,3 +120,8 @@ right-hand side without a solve, and
 [debugging a wrong answer](howto/debug.md) is the recipe. The whole
 relationship is
 [relationship to linopy](https://github.com/fluxopt/specsolve/blob/main/docs/about/linopy.md).
+
+## Where next
+
+[Tables in, tables out](tables.md) feeds a model from parquet, reads the answer
+as tables and queries its archive.

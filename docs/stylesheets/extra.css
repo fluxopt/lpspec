@@ -230,12 +230,12 @@
   mask: center / contain no-repeat;
 }
 
-.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/howto/archiving/"])::before {
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/tables/"])::before {
   content: "";
   mask-image: url("icons/table-arrow-right.svg");
 }
 
-.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/reference/sweeps/"])::before {
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/sweep/"])::before {
   content: "";
   mask-image: url("icons/split.svg");
 }
