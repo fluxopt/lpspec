@@ -550,6 +550,7 @@ is structure.
 | `frames.py` | the boundary: caller tables in, via the Arrow PyCapsule protocol; read by the front door, the driver and the oracle |
 | `errors.py` | the run half, and the whole re-exported: what a caller catches off `sps.`; a wording lives here only where two modules raise it |
 | `strategy.py` | the driver above the runner: one plan per slice, folded — scenarios, rolling horizon, myopic pathways |
+| `projection.py` | the other driver: the feasible region on two named quantities, traced by re-solving one built model along directions until no edge has anything beyond it |
 | `relational/engines/polars/scope.py` | the scope a query is compiled in: the program, its attached data and the variable frames built so far; the product of its dimensions and the one row-major rule every index reads — what every helper takes, and the compiler holds |
 | `relational/engines/polars/compiler.py` | plan → lazy queries; pure, reads nothing |
 | `relational/engines/polars/relations.py` | a relation's table as a walk reads it, the one place a role becomes a column: the join a group or a pullback trades its dimensions through, and the grouping a partition ranks inside, the whole dimension being one group |

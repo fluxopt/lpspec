@@ -58,6 +58,19 @@ The fold and its two axes; [sweeps](sweeps.md) says how a sweep is cut and read.
     options:
       heading_level: 4
 
+### Look at a model
+
+What a model can do on two of its quantities, rather than what it should do.
+[See the feasible region](../region.md) traces one for a plant.
+
+::: specsolve.project
+    options:
+      heading_level: 4
+
+::: specsolve.Region
+    options:
+      heading_level: 4
+
 ### What comes back
 
 ::: specsolve.Model

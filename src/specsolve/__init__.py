@@ -32,6 +32,7 @@ from specsolve.errors import (
     SpecsolveError,
     SpecsolveWarning,
 )
+from specsolve.projection import Region, project
 from specsolve.relational.result import Result
 from specsolve.strategy import EachCoordinate, EachWindow, Sweep, load_sweep, scan_sweep, solve_over
 
@@ -44,6 +45,7 @@ __all__ = [
     'LayoutError',
     'Model',
     'NoSolutionError',
+    'Region',
     'Result',
     'SchemaError',
     'SolveArchive',
@@ -57,6 +59,7 @@ __all__ = [
     'load_archive',
     'load_result',
     'load_sweep',
+    'project',
     'scan_archive',
     'scan_result',
     'scan_sweep',

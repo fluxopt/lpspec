@@ -421,6 +421,7 @@ def test_every_repository_path_a_workflow_names_exists():
 PUBLIC_API = {
     'run it': {'build', 'check', 'evaluate', 'solve', 'write'},
     'run it many times': {'solve_over', 'EachCoordinate', 'EachWindow'},
+    'look at it': {'project'},
     'carry it': {
         'SolveArchive',
         'SweepArchive',
@@ -431,7 +432,7 @@ PUBLIC_API = {
         'scan_result',
         'scan_sweep',
     },
-    'name what came back': {'Model', 'Result', 'Sweep'},
+    'name what came back': {'Model', 'Result', 'Sweep', 'Region'},
     'catch it': {
         'SpecsolveError',
         'LanguageError',
