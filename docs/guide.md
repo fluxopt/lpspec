@@ -16,7 +16,7 @@ That brings polars, HiGHS and the language.
 
 ## 2. Save the model
 
-Copy the YAML from [the home page](index.md#the-whole-thing-in-one-model)
+Copy the YAML from [the home page](index.md#a-model-is-one-file)
 into `dispatch.yaml`. It is also
 [`examples/dispatch.yaml`](https://github.com/fluxopt/specsolve/blob/main/examples/dispatch.yaml)
 in the repository.

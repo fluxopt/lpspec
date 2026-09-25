@@ -8,14 +8,10 @@ hide:
 
 # specsolve
 
-**Self-documenting optimisation models — at any scale.**
+**Solve an optimisation model written in YAML. Attach your data as tables, and
+keep the solver loaded for quick updates and warm starts.**
 
-Write the math in YAML, attach data at runtime, solve.
-
-[![PyPI](https://img.shields.io/pypi/v/specsolve)](https://pypi.org/project/specsolve/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+--8<-- "README.md:badges"
 
 [Run a model](guide.md){ .md-button .md-button--primary }
 [Browse the examples](examples/index.md){ .md-button }
@@ -26,68 +22,24 @@ Write the math in YAML, attach data at runtime, solve.
 
 <div class="landing" markdown>
 
+--8<-- "README.md:intro"
+
+## What it is for
+
 <div class="grid cards" markdown>
 
--   :material-file-document-outline: __Declarative math__
-
-    ---
-
-    Readable without knowing the implementation, and self-contained: no Python
-    state changes what a file means. It diffs cleanly in review and travels as a
-    research artefact.
-
--   :material-grid: __Sparse by construction__
-
-    ---
-
-    A mask is an absent row, never a NaN in a dense array — a model pays for the
-    variables it has, not for its coordinate product. Labels *are* the solver's
-    own row and column indices.
-
--   :material-alert-octagon-outline: __Fail early, fail loud__
-
-    ---
-
-    Every expression, `where` string and *uncalled* macro template is
-    parsed and name-checked before a single source is attached. Errors name the
-    problem and its rewrite.
-
--   :material-fence: __A finite language, with no escape hatch__
-
-    ---
-
-    The ceiling is relational, and locality prices a new operator rather than
-    barring it. Math the language cannot express is a gap in the language, and
-    a gap closes as a macro, a primitive or a formulation.
-
--   :material-speedometer: __Straight to the solver__
-
-    ---
-
-    YAML and data in, a populated solver out, no LP file in between: 2–4x faster
-    than linopy on four of five benchmark cases, lower peak memory on
-    all five. [The numbers](about/benchmarks.md)
-
--   :material-check-decagram-outline: __Checked against somebody else__
-
-    ---
-
-    Every ported model matches an optimum this project did not compute — GAMS,
-    PyPSA, OSeMOSYS, OR-Library, TSPLIB — objectives *and*, where the reference
-    records them, shadow prices. [The corpus](examples/index.md)
+--8<-- "README.md:benefits"
 
 </div>
 
---8<-- "README.md:flow"
-
-## The whole thing, in one model
+## A model is one file
 
 --8<-- "README.md:model"
 
-### And that file says, exactly this
+## The math it states
 
-Generated from the YAML above, with no data and no solver. Only the notation
-is a choice, and **How** shows the one that was made here.
+Printed from the file above, with no data and no solver. **How** shows the
+call.
 
 <!-- home-math:begin -->
 === "The math"
@@ -217,80 +169,30 @@ is a choice, and **How** shows the one that was made here.
     and reads the same file this page solves.
 <!-- home-math:end -->
 
-### Then you solve it
+## Solve it
 
 --8<-- "README.md:solve"
 
 ## Where to next
 
-<div class="grid cards" markdown>
+- [Run a model](guide.md): a file and your tables to an answer, in five steps.
+- [Your data](howto/data.md): from the files an instance arrives in to one
+  table per parameter, and [what attaching refuses](reference/data.md).
+- [Python API](reference/api.md): attach, build, solve and read back, and
+  [sweep](reference/sweeps.md) one model over scenarios.
+- [The language](https://math-spec.readthedocs.io/en/latest/reference/language/):
+  what a file may contain, on math-spec's site.
+- [About](about/index.md): the architecture, the measured cost, and what will
+  never be built.
 
--   :material-school: __Run a model__
-
-    ---
-
-    A file and your tables to an answer you can read back, in five steps:
-    install, check, attach, solve, read.
-
-    [:octicons-arrow-right-24: The guide](guide.md)
-
--   :material-table-arrow-right: __Your data__
-
-    ---
-
-    The recipe from the files an instance arrives in to one table per
-    parameter, and the contract for what attaching accepts and refuses.
-
-    [:octicons-arrow-right-24: Preparing the data](howto/data.md) ·
-    [The contract](reference/data.md)
-
--   :material-view-gallery-outline: __Models__
-
-    ---
-
-    Every model in the repo, what each exercises, and which ones are checked
-    against an optimum from elsewhere.
-
-    [:octicons-arrow-right-24: The gallery](examples/index.md)
-
--   :material-book-open-page-variant: __Language reference__
-
-    ---
-
-    What a YAML file may contain, and what it means — ten rules, ten
-    declaration keys, one closed set of operators.
-
-    [:octicons-arrow-right-24: The language](https://math-spec.readthedocs.io/en/latest/reference/language/)
-
--   :material-code-braces: __Python API__
-
-    ---
-
-    Attach data, build, solve and read the answer back. Sweep the same model
-    over scenarios or a rolling horizon.
-
-    [:octicons-arrow-right-24: The API](reference/api.md) ·
-    [Sweeps](reference/sweeps.md) ·
-    [Typeset](https://math-spec.readthedocs.io/en/latest/reference/typeset/)
-
--   :material-source-branch: __Why it is shaped this way__
-
-    ---
-
-    The hard rules, the expressive ceiling, the measured cost, the module map,
-    and what will never be built.
-
-    [:octicons-arrow-right-24: About](about/index.md)
-
-</div>
+## Install it
 
 ```bash
-pip install specsolve  # the relational engine (polars, highspy)
-pip install "specsolve[linopy]"  # adds linopy + xarray + pandas: the lane, the
-                              # oracle, and to_pandas / to_dataarray
-pip install "specsolve[gurobi]"  # adds the gurobi sink: solver_name='gurobi'
-pip install "specsolve[xpress]"  # adds the xpress sink: solver_name='xpress'
+pip install specsolve
 ```
+
+[Installation](https://github.com/fluxopt/specsolve#installation) lists the
+extras.
 
 !!! warning "Alpha, pre-1.0"
 

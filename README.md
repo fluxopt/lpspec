@@ -1,66 +1,48 @@
 # specsolve
 
-**Self-documenting optimisation models — at any scale.**
+<!-- --8<-- [start:badges] -->
 
-Write the math in YAML, attach data at runtime, solve. Today that means linear and
-mixed-integer programs. The model is never a dense Python object: it is tidy
-tables — masks are absent rows, and a variable's label *is* the solver's own
-column index — assembled relationally and handed to the solver in batches.
+[![CI](https://img.shields.io/github/actions/workflow/status/fluxopt/specsolve/ci.yml?style=flat-square&branch=main)](https://github.com/fluxopt/specsolve/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/specsolve.svg?logo=pypi&logoColor=white&style=flat-square)](https://pypi.org/project/specsolve/)
+[![Python](https://img.shields.io/pypi/pyversions/specsolve?logo=python&logoColor=white&style=flat-square)](https://pypi.org/project/specsolve/)
+[![Docs](https://readthedocs.org/projects/specsolve/badge/?version=latest&style=flat-square)](https://specsolve.readthedocs.io)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg?style=flat-square)](https://github.com/fluxopt/specsolve/blob/main/LICENSE)
 
-The consequence worth the headline is **cost to a loaded solver** — YAML and
-data in, a populated solver out, no LP file anywhere in between. Measured
-against linopy's own best path to the same place, through HiGHS — the solver
-`sps.solve` reaches for when you name none
-([benchmarks](docs/about/benchmarks.md)):
+<!-- --8<-- [end:badges] -->
 
-- **1.01x to 1.29x faster**, on `dispatch` at 10M variables and `fleet` at 12M,
-  at 0.83x and 0.84x of linopy's peak memory.
-- **Most of what that measures is the solver, not either library.** Of specsolve's
-  1.51 s at 10M variables, 0.57 s is the build and 0.94 s is HiGHS taking the
-  model.
+**Solve an optimisation model written in YAML. Attach your data as tables, and
+keep the solver loaded for quick updates and warm starts.**
 
-**Through Gurobi the ranking holds and the margin narrows**, to 1.04x to 1.17x
-across four models at 0.73x to 0.98x of the peak. There is less of either
-library left in it. The same 10M-variable model costs 9.85 s to a loaded Gurobi
-and 1.51 s to a loaded HiGHS. Raw `gurobipy`, with no modelling layer at all,
-costs 9.31 s of that 9.85 s: specsolve adds 0.54 s to the floor and linopy adds
-1.98 s, so the libraries land 1.15x apart while what each adds is 3.7x apart.
-Read the sink you use; the page has a table per sink.
+<!-- --8<-- [start:intro] -->
 
-**Every case in that ladder is dense**: no mask in it removes a row, and a dense
-coordinate product is the shape an array engine is built for. Sparsity is what
-this engine is designed around, and nothing published measures it yet. The
-sparse cases are [on the list](docs/about/benchmarks.md#not-measured-yet).
+specsolve builds and solves [math-spec](https://github.com/energy-models/math-spec)
+models. The file states the math, and math-spec checks it before any data
+exists. specsolve attaches your tables, builds the model on polars, and hands it
+to HiGHS, Gurobi or Xpress. The same file can also build a `linopy.Model`
+([linopy](https://specsolve.readthedocs.io/en/latest/about/linopy/)).
 
-A third property is architectural rather than measured, and named here as such:
-**nothing accumulates between builds** — no process-wide state, no lifetime to
-leak — so the hundredth rolling-horizon window should cost what the first did.
-No benchmark pins that yet; it is [on the
-list](docs/about/benchmarks.md#not-measured-yet).
+<!-- --8<-- [end:intro] -->
 
-And because the math is a closed spec known before any data is touched, every
-name, dimension and expression is checked at load time — `check()` compiles a
-whole model repository in CI with nothing attached to it at all.
+<!-- --8<-- [start:benefits] -->
 
-<!-- --8<-- [start:flow] -->
-```mermaid
-flowchart LR
-    Y["YAML + data"] --> AST["core AST"]
-    AST --> R{"inside the<br/>language?"}
-    R -->|"no"| ERR["load error<br/>naming the construct + rewrite"]
-    R -->|"yes"| S["relational engine<br/>polars"]
-    S --> OUT["solver (batched) / LP file"]
-    R -->|"yes, and you asked<br/>for a linopy.Model"| E["specsolve.linopy"]
-    E --> LS["linopy.Model → solve"]
+- **Tables in, tables out.** Pass any Arrow table, such as polars, pandas or
+  DuckDB, or a parquet path. Results come back as tables, and an archive keeps
+  the model, its data and its results as parquet, ready for queries, plots or
+  BI. [Archiving a solve →](https://specsolve.readthedocs.io/en/latest/howto/archiving/)
+- **Sweeps and rolling horizons built in.** One call runs scenario sweeps,
+  rolling horizons and myopic pathways over the same model. Each window is
+  checked against how the model couples before it runs. [Sweeps →](https://specsolve.readthedocs.io/en/latest/reference/sweeps/)
+- **Fast, and hard to get wrong.** Tables hold only the rows that exist, so a
+  model's topology does not change its cost. The solver stays loaded:
+  `update()` puts new numbers on it, and `keep='progress'` warm-starts from the
+  last run. The API is a handful of verbs, with nothing to tune.
+  [Benchmarks →](https://specsolve.readthedocs.io/en/latest/about/benchmarks-scaling.html)
+- **Validated against PyPSA.** PyPSA's model is one file here, grown rung by
+  rung through storage, unit commitment, multi-period and stochastic runs. All
+  16 rungs match PyPSA's objective, and 12 match its duals row for row.
+  [The PyPSA ladder →](https://specsolve.readthedocs.io/en/latest/examples/pypsa_ladder/)
 
-    classDef stream fill:#f0f7f0,stroke:#3a7d44,stroke-width:2px,color:#111
-    classDef linopylane fill:#eef1fb,stroke:#4a5fc1,stroke-width:2px,color:#111
-    class S,OUT stream
-    class E,LS linopylane
-    class ERR err
-    classDef err fill:#fdf3e7,stroke:#b7791f,color:#111
-```
-<!-- --8<-- [end:flow] -->
+<!-- --8<-- [end:benefits] -->
 
 ## Example
 
@@ -90,6 +72,7 @@ objective:
 <!-- --8<-- [end:model] -->
 
 <!-- --8<-- [start:solve] -->
+
 ```python
 import specsolve as sps, polars as pl
 
@@ -104,108 +87,50 @@ sources = {
 
 result = sps.solve('dispatch.yaml', sources)
 print(result.objective)  # 1920.0
-print(result.primal('p'))  # a tidy table: (snapshot, generator, value)
-print(result.dual('power_balance'))  # the price at each snapshot
+print(result.primal('p'))
+print(result.dual('power_balance'))
 ```
 
-Sources can also be pandas or pyarrow objects, or parquet paths — anything
-exposing the Arrow PyCapsule protocol is accepted, and the recogniser imports
-none of them. Results come back as tables, so nothing has to be released and
-no dataframe library is a dependency: `result.to_pandas('p')`,
-`.to_dataarray('p')` and `.to_parquet(dir)` are the bridges out, each named for
-what it costs.
 <!-- --8<-- [end:solve] -->
 
-## Why
+## Documentation
 
-- **Declarative math** — readable without knowing the implementation, and
-  self-contained: no Python state changes what a file means. It diffs cleanly in
-  review and travels as a research artefact.
-- **Sparse by construction** — a mask is an absent row, never a NaN in a dense
-  array, so a model pays for the variables it has rather than for its coordinate
-  product. Labels *are* the solver's own row and column indices, with no mapping
-  in between, which is also what makes reading results a join.
-- **Fail early, fail loud** — every expression, `where` string and even *uncalled*
-  macro template is parsed and name-checked before a single source is attached.
-  Errors name the problem and its rewrite; nothing falls back silently.
-- **A finite language, with no escape hatch** — the ceiling is relational, and
-  locality prices a new operator rather than barring it. Math the language
-  cannot express is a gap in the language. A gap closes as a macro, a primitive
-  or a formulation.
+The documentation is at <https://specsolve.readthedocs.io>. What a file may
+contain is math-spec's
+[language reference](https://math-spec.readthedocs.io/en/latest/reference/language/).
 
-The second use case is taking the same file to [linopy](https://github.com/PyPSA/linopy)
-instead of solving it here. One import decides which lane builds it; the
-language, the data and the refusals are the same either way:
-
-```python
-from specsolve import linopy as specsolve_linopy
-
-m = specsolve_linopy.build('spec.yaml', sources={...})  # a linopy.Model you own
-m.solve()
-```
-
-linopy is **not a runtime dependency**. The lane above ships under the
-`[linopy]` extra, and the same install doubles as the **oracle** every language
-feature is differentially tested against — all three relationships are
-[one page](docs/about/linopy.md). There is no routing and no fallback: a
-construct outside the language is a load error naming its rewrite.
-
-## Docs
-
-Start with [**running a model**](docs/guide.md) — a file and your tables to an
-answer, with the language in five links. Then
-[preparing the data](docs/howto/data.md) and
-[what attaching refuses](docs/reference/data.md), the
-[Python API](docs/reference/api.md) for the verbs, and
-[the examples](docs/examples/index.md) to browse. What a file may contain is
-the [language reference](https://math-spec.readthedocs.io/en/latest/reference/language/),
-which lives with the language. Why it is shaped this
-way, what it costs and what is refused are together under
-[about](docs/about/index.md). All of it is indexed in [docs/](docs/README.md);
-to work on it,
-[CONTRIBUTING.md](CONTRIBUTING.md).
-
-To see it rather than read it, `python examples/walkthrough.py` runs one small
-model through every stage — YAML → schema → core AST → logical plan → model
-tables → LP text → solution — printing the artifact each stage produces. It
-also runs two models the language refuses, and says why. Its output is
-committed as [examples/walkthrough.out](examples/walkthrough.out), if you would
-rather read it than run it.
+## Installation
 
 ```bash
-pip install specsolve  # the relational engine (polars, highspy)
-pip install "specsolve[linopy]"  # adds linopy + xarray + pandas: the lane, the
-                              # oracle, and to_pandas / to_dataarray
-pip install "specsolve[gurobi]"  # adds the gurobi sink: solver_name='gurobi'
-pip install "specsolve[xpress]"  # adds the xpress sink: solver_name='xpress'
+pip install specsolve
 ```
 
-Not a solver wrapper, not a domain package, not a data-loading layer — bring
-polars, pandas or xarray objects, Arrow tables, or parquet paths. MIT licensed.
+That brings polars, HiGHS and the language. Add the `[linopy]` extra for the
+linopy lane and the pandas and xarray bridges, and `[gurobi]` or `[xpress]` for
+those solvers. To work on specsolve, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Prior art
 
-The surface — YAML math, a block per component, `dims:`, a `where:` string —
-comes from [Calliope](https://github.com/calliope-project/calliope);
-[linopy](https://github.com/PyPSA/linopy) supplies the shared vocabulary, the
-oracle and every benchmark denominator. What was taken from each, and how to
-cite them: [prior art and credit](docs/about/prior-art.md).
+The YAML surface comes from [Calliope](https://github.com/calliope-project/calliope),
+and [linopy](https://github.com/PyPSA/linopy) supplies the vocabulary, the
+oracle and every benchmark denominator.
+[Prior art and credit](docs/about/prior-art.md) says what came from each.
 
 ## Status
 
 Alpha, pre-1.0.
 
 <!-- --8<-- [start:status] -->
-**Breaking changes land without a deprecation cycle.** When a construct is
-named wrong, a default is wrong, or a permissive input turns out to hide a
-silent wrong answer, it gets fixed rather than aliased — carrying a
-compatibility shim for every earlier spelling would defeat the point of a small
-language.
 
-In practice: pin an exact version if you depend on this, and read the
-[changelog](https://github.com/fluxopt/specsolve/blob/main/CHANGELOG.md) before upgrading — every entry links the PR that
-describes the break, and a retired spelling fails at load naming its rewrite
-rather than drifting on silently. What exists is tested: real models round-trip
-through solve, differentially verified against linopy. It is the
-*surface* that is not yet frozen, not the behaviour.
+**Breaking changes land without a deprecation cycle.** Pin an exact version if
+you depend on this, and read the
+[changelog](https://github.com/fluxopt/specsolve/blob/main/CHANGELOG.md) before
+upgrading. A retired spelling fails at load and names its rewrite. Real models
+round-trip through solve and are tested against linopy. The accepted surface
+is not yet frozen.
+
 <!-- --8<-- [end:status] -->
+
+## Licence
+
+[MIT](LICENSE).
