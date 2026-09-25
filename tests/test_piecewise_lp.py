@@ -396,7 +396,7 @@ def test_a_curve_bound_to_a_path_is_checked_like_one_in_memory(tmp_path):
 
     The guard laid out what it could in process and skipped a path, so this
     concave curve was refused as a frame and reached the solver as parquet,
-    coming back optimal at 155 where the curve says 110 — and the eager lane,
+    coming back optimal at 155 where the curve says 110 — and the linopy lane,
     which loads a path before the guard runs, refused it all along (#1123).
     Both lanes now scan it, for the two columns `validate_curve_extent` already
     pays that I/O for.

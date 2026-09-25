@@ -16,7 +16,7 @@ columns rather than a composition.
 
 **The empty combination.** A (bus, technology) pair no generator sits on is a
 group with no members, and the two lanes reach it by different routes: the
-relational lane never emits a row, the eager lane's unstacked groupby invents
+relational lane never emits a row, the linopy lane's unstacked groupby invents
 one and fills it with linopy's own ``const: nan``. That NaN does not stay in
 the empty sum — it propagates through whatever the row adds next and takes the
 whole row with it, which is why the row here carries a second term.
@@ -151,7 +151,7 @@ def test_a_combination_no_member_lands_on_is_a_group_of_nothing():
 def test_an_empty_combination_does_not_take_its_row_with_it():
     """A row whose group is empty but whose *other* terms are not is still a row.
 
-    The eager lane reaches the combinations no member lands on by unstacking,
+    The linopy lane reaches the combinations no member lands on by unstacking,
     which invents them carrying linopy's own ``_fill_value`` — ``const: nan``.
     Left there, that NaN does not stay in the empty sum: it propagates through
     the addition, and linopy drops the whole row, `headroom` with it, leaving
@@ -190,7 +190,7 @@ def test_a_declared_order_the_groupby_would_not_pick():
 
     A groupby returns its groups sorted, the dim table keeps the declared
     order, and v1 arithmetic refuses to combine a shared dim ordered two ways.
-    So this model builds on both lanes only because the eager lane puts its
+    So this model builds on both lanes only because the linopy lane puts its
     result back into declared order.
     """
     sources = _inputs()
@@ -200,7 +200,7 @@ def test_a_declared_order_the_groupby_would_not_pick():
 
 
 # ---------------------------------------------------------------------------
-# the eager grouper
+# the linopy grouper
 # ---------------------------------------------------------------------------
 
 

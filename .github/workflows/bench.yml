@@ -30,7 +30,7 @@ on:
 
 env:
   # The regression slice of the ladder. There is one arm and no gate to skip;
-  # both flags were dropped with the eager arm.
+  # both flags were dropped with the linopy arm.
   #
   # It is the *budget* that is sized to the slice and not the other way round —
   # see `timeout-minutes` below, and shrink this only to buy minutes, knowing

@@ -1,7 +1,7 @@
 """The both-lanes harness: one model, two backends, one answer.
 
 The differential test is this project's central claim — the same YAML must
-mean the same thing on the eager linopy lane and on the streaming relational
+mean the same thing on the linopy lane and on the streaming relational
 one (docs/about/architecture.md, hard rule 3). Twelve tests made that claim by hand, in
 seven files, each rebuilding the same fifteen lines: build eagerly, solve,
 take the objective, re-parse the schema, lower it, attach sources, execute,
@@ -70,10 +70,10 @@ class Agreement:
     """What the two lanes produced, for tests that assert past the objective."""
 
     oracle: float
-    """The eager objective — the number both lanes had to reach."""
+    """The linopy objective — the number both lanes had to reach."""
 
     model: linopy.Model
-    """The eager model, for structural assertions (labels, masks, solution)."""
+    """The linopy model, for structural assertions (labels, masks, solution)."""
 
     result: Result
     """The relational solution; live until the ``with`` block exits."""
@@ -118,7 +118,7 @@ def differential(
         m.solve(solver_name='highs', output_flag=False)
         oracle = float(m.objective.value)
         if not np.isfinite(oracle):
-            raise NoFiniteAnswerError('the eager oracle is infeasible or unbounded — fix the data, not the tolerance')
+            raise NoFiniteAnswerError('the linopy oracle is infeasible or unbounded — fix the data, not the tolerance')
 
         program = lowered(model)
         with PolarsEngine() as engine:
@@ -126,7 +126,7 @@ def differential(
             result = engine.solve()
             assert result.is_ok, f'the relational lane reached no solution: {result.status}'
             assert result.objective == pytest.approx(oracle, rel=RTOL), (
-                f'the lanes disagree on the objective — relational {result.objective}, eager {oracle}'
+                f'the lanes disagree on the objective — relational {result.objective}, linopy {oracle}'
             )
             _same_shape(engine.diagnostics(), m)
 
@@ -144,7 +144,7 @@ def differential(
 def both_lanes_refuse(spec: str | Path | dict[str, Any], sources: Mapping[str, Any], match: str) -> str:
     """Both doors refuse *sources* with one sentence, returned for the cases that pin more of it.
 
-    Not a ``pytest.raises`` around :func:`differential`: the eager build runs
+    Not a ``pytest.raises`` around :func:`differential`: the linopy build runs
     first there and satisfies the raises on its own, so a lane that let the
     data through would go unnoticed — which is the divergence a data check is
     most likely to have. The two are built apart, and their sentences compared.
@@ -152,13 +152,13 @@ def both_lanes_refuse(spec: str | Path | dict[str, Any], sources: Mapping[str, A
     model = schema_of(spec).expand()
     with pytest.raises(DataError, match=match) as relational:
         sps.build(model, dict(sources)).close()
-    with pytest.raises(DataError, match=match) as eager:
+    with pytest.raises(DataError, match=match) as linopy_lane:
         specsolve_linopy.build(model, dict(sources))
-    assert str(relational.value) == str(eager.value), 'one defect, one sentence'
+    assert str(relational.value) == str(linopy_lane.value), 'one defect, one sentence'
     return str(relational.value)
 
 
-def _same_shape(diagnostics: Any, eager: Any) -> None:
+def _same_shape(diagnostics: Any, linopy_lane: Any) -> None:
     """The two lanes built the same *model*, not merely the same answer.
 
     An objective, a dual vector and a re-solved LP file are all invariant to a
@@ -166,16 +166,16 @@ def _same_shape(diagnostics: Any, eager: Any) -> None:
     true whatever the solver does. So a lane could materialise either and every
     other assertion here would still pass — which is not hypothetical, it is
     how a first draft of ``absence: zero`` shipped an extra column per absent
-    coordinate on the eager lane with the whole suite green.
+    coordinate on the linopy lane with the whole suite green.
 
     Counts rather than a set comparison: the two lanes name their columns
     differently by design (labels against a ``(name, coordinate)`` index), and
     the claim worth making is that the same declarations produced the same
     number of them.
     """
-    assert diagnostics.columns == eager.nvars, (
-        f'the lanes disagree on how many columns this model has — relational {diagnostics.columns}, eager {eager.nvars}'
+    assert diagnostics.columns == linopy_lane.nvars, (
+        f'the lanes disagree on how many columns this model has — relational {diagnostics.columns}, linopy {linopy_lane.nvars}'
     )
-    assert diagnostics.rows == eager.ncons, (
-        f'the lanes disagree on how many rows this model has — relational {diagnostics.rows}, eager {eager.ncons}'
+    assert diagnostics.rows == linopy_lane.ncons, (
+        f'the lanes disagree on how many rows this model has — relational {diagnostics.rows}, linopy {linopy_lane.ncons}'
     )

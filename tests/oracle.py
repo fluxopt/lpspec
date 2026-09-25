@@ -61,13 +61,13 @@ __all__ = [
     'operators',
     'pd',
     'specsolve_linopy',
-    'transport_eager_objective',
+    'transport_linopy_objective',
     'where',
     'xr',
 ]
 
 
-def transport_eager_objective(gens, lines, load) -> float:
+def transport_linopy_objective(gens, lines, load) -> float:
     gi = gens.set_index('generator')
     li = lines.set_index('line')
     snapshots = pd.Index(sorted(load['snapshot'].unique()), name='snapshot')

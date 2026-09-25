@@ -2,12 +2,12 @@
 
 ``test_ports.py`` asks whether the relational lane reaches an optimum somebody
 else published. This module asks the second question of the same corpus —
-whether the eager linopy lane builds the same model — and it is the same corpus
+whether the linopy lane builds the same model — and it is the same corpus
 because the data is already there: ``port_sources`` hands both lanes the same
 tidy frames, so a model added to ``references.json`` is swept here the day it
 lands rather than when someone remembers a glob.
 
-Per model the claim is the strong one, three routes at once: the eager
+Per model the claim is the strong one, three routes at once: the linopy
 objective, the relational objective, and the objective HiGHS reaches re-reading
 the written LP file. ``test_ports.py`` supplies the fourth from outside, so a
 model green in both modules has agreed with a published optimum four ways.
@@ -33,7 +33,7 @@ from tests.differential import differential
 #: does not declare — ``port_sources`` filters those out, as it should.
 PORTS_DATA = PORTS_DIR / 'data'
 
-#: What the eager lane accepts and cannot build, keyed by model. `LaneError` is
+#: What the linopy lane accepts and cannot build, keyed by model. `LaneError` is
 #: the point of the pair: it pins the xfail to *this* refusal, where the bare
 #: `ValueError` it used to name was satisfied by any bug that raised one.
 #: Strict, so the day linopy grows an objective-constant slot these XPASS, the
@@ -59,7 +59,7 @@ def test_both_lanes_and_the_lp_file_reach_one_objective(name: str) -> None:
     """
     with differential(port_spec(name), port_sources(name), lp=True) as run:
         _same_matrix(name, run)
-        _eager_matches_the_recorded_duals(name, run)
+        _linopy_matches_the_recorded_duals(name, run)
 
 
 def _same_matrix(name: str, run: Any) -> None:
@@ -86,7 +86,7 @@ def _same_matrix(name: str, run: Any) -> None:
         if not block.height:
             continue
         got = _canonical(tables.matrix_block(block.start, block.start + block.height))
-        want = _eager_matrix(run.model, constraint)
+        want = _linopy_matrix(run.model, constraint)
         assert [len(r) for r in got] == [len(r) for r in want], (
             f'{name}.{constraint}: the lanes wrote a different number of terms per row'
         )
@@ -102,7 +102,7 @@ def _canonical(matrix: pl.DataFrame) -> list[tuple[float, ...]]:
     return sorted(tuple(r) for r in rows)
 
 
-def _eager_matrix(eager: Any, constraint: str) -> list[tuple[float, ...]]:
+def _linopy_matrix(linopy_lane: Any, constraint: str) -> list[tuple[float, ...]]:
     """The same, off linopy's dense arrays — duplicate terms collapsed first.
 
     linopy stores ``x + 2 * x`` as two entries where the relational lane sums
@@ -111,7 +111,7 @@ def _eager_matrix(eager: Any, constraint: str) -> list[tuple[float, ...]]:
     """
     import numpy as np
 
-    c = eager.constraints[constraint]
+    c = linopy_lane.constraints[constraint]
     labels = np.asarray(c.labels).reshape(-1)
     variables = np.asarray(c.vars).reshape(len(labels), -1)
     coefficients = np.asarray(c.coeffs).reshape(len(labels), -1)
@@ -128,13 +128,13 @@ def _eager_matrix(eager: Any, constraint: str) -> list[tuple[float, ...]]:
     return sorted(rows)
 
 
-def _eager_matches_the_recorded_duals(name: str, run: Any) -> None:
-    """The eager lane against the price somebody else published, where there is one.
+def _linopy_matches_the_recorded_duals(name: str, run: Any) -> None:
+    """The linopy lane against the price somebody else published, where there is one.
 
     ``test_ports`` asks this of the relational lane and cannot ask it here: it is
     linopy-free on purpose, for the bare-install job. So the second half of the
     claim lives in this module, where the oracle is already built — and until it
-    did, the eager lane's duals were compared against nothing at all.
+    did, the linopy lane's duals were compared against nothing at all.
 
     Against the *recording* rather than against the other lane, because two lanes
     need not agree on a dual: an LP with alternative optima has many, and which
@@ -146,7 +146,7 @@ def _eager_matches_the_recorded_duals(name: str, run: Any) -> None:
 
 
 def _check_recorded_duals(name: str, entry: dict[str, Any], run: Any) -> None:
-    """*entry*'s recorded duals against the eager lane, split out so a probe can pass a wrong one."""
+    """*entry*'s recorded duals against the linopy lane, split out so a probe can pass a wrong one."""
     recorded = entry.get('duals')
     if not recorded:
         return
@@ -155,14 +155,14 @@ def _check_recorded_duals(name: str, entry: dict[str, Any], run: Any) -> None:
         dims = [c for c in want.columns if c != 'value']
         got = _tidy(run.model.constraints[constraint].dual, dims, want)
         want = want.with_columns(pl.col(d).cast(got.schema[d]) for d in dims).sort(dims)
-        assert got[dims].equals(want[dims]), f'{name}.{constraint}: the eager dual is keyed differently'
+        assert got[dims].equals(want[dims]), f'{name}.{constraint}: the linopy dual is keyed differently'
         assert got['value'].to_list() == pytest.approx(want['value'].to_list(), rel=entry['rtol'], abs=1e-9), (
-            f'{name}.{constraint}: the eager lane disagrees with {entry["provenance"]}'
+            f'{name}.{constraint}: the linopy lane disagrees with {entry["provenance"]}'
         )
 
 
 def _tidy(dual: Any, dims: list[str], like: pl.DataFrame) -> pl.DataFrame:
-    """An eager dual as ``(dims…, value)``, keyed and sorted like *like*."""
+    """A linopy dual as ``(dims…, value)``, keyed and sorted like *like*."""
     if not dims:
         return pl.DataFrame({'value': [float(dual.values.reshape(-1)[0])]})
     series = dual.to_series().dropna()
@@ -172,11 +172,11 @@ def _tidy(dual: Any, dims: list[str], like: pl.DataFrame) -> pl.DataFrame:
     return frame.with_columns(pl.col(d).cast(like.schema[d]) for d in dims).sort(dims)
 
 
-def test_the_eager_dual_check_would_notice_a_wrong_price() -> None:
+def test_the_linopy_dual_check_would_notice_a_wrong_price() -> None:
     """The probe the mutation table asked for.
 
     Deleting the comparison above leaves the suite green, because the comparison
-    *is* the assertion — nothing else reads the eager lane's duals. So the guard
+    *is* the assertion — nothing else reads the linopy lane's duals. So the guard
     needs a case that fails on purpose: a recording one entry away from the
     truth, which the check must refuse.
 

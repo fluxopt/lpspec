@@ -278,7 +278,7 @@ def test_a_reduction_restricts_by_existence_and_does_not_deduplicate():
 
 
 def test_sum_over_an_absent_dim_scales_by_that_dims_cardinality():
-    """Eager parity: summing a snapshot-only term over `generator` repeats it."""
+    """Linopy parity: summing a snapshot-only term over `generator` repeats it."""
     inner = program.Sum(program.Variable('p'), ('generator',))
     compiled = compiler().expression(program.Sum(inner, ('generator',)), 'test')
     assert '3' in query(compiled.terms[0].frame)

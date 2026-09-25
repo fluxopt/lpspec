@@ -101,14 +101,14 @@ def test_a_constant_side_is_asked_for_data_only_where_its_region_applies(hi, obj
         assert run.oracle == pytest.approx(objective, rel=RTOL), 'rows outside the region change nothing'
 
 
-@pytest.mark.parametrize('lane', ['relational', 'eager'])
+@pytest.mark.parametrize('lane', ['relational', 'linopy'])
 def test_a_hole_inside_the_region_is_still_refused_on_each_lane(lane):
     """Narrowing the question to the region must not stop it being asked there.
 
     Asserted lane by lane rather than through ``differential``: either lane
     refusing satisfies a ``pytest.raises`` around both of them, so a harness
     that runs the two together cannot tell which one spoke — and the first cut
-    exempted the relational side altogether while the eager side narrowed,
+    exempted the relational side altogether while the linopy side narrowed,
     which is exactly the divergence that hides behind the shared assertion.
     """
     sources = _frames(CAPPED_SOURCES | {'hi': {'t': [0], 'value': [40.0]}})
@@ -220,7 +220,7 @@ def test_a_region_that_claims_no_coordinate_does_not_unmake_the_row():
     between them carry every unit at the first position. A region's absence
     reaching out of the region it applies to took all four t == 0 rows out of
     the build, on both lanes and for different reasons — the relational one
-    through the shift's presence, the eager one through a NaN that survived
+    through the shift's presence, the linopy one through a NaN that survived
     being multiplied by a false mask.
     """
     with differential(CARRIED_IN, _carried_sources([False, True], [1.0, 0.0])) as run:
@@ -228,7 +228,7 @@ def test_a_region_that_claims_no_coordinate_does_not_unmake_the_row():
         assert rows.height == 8, 'every (t, g) coordinate has a ramp row, the first position included'
         assert sorted(set(rows.get_column('t'))) == [0, 1, 2, 3], 't == 0 is built like any other position'
         assert int((run.model.constraints['ramp'].labels == -1).sum()) == 0, (
-            'the eager lane masks out no ramp row either'
+            'the linopy lane masks out no ramp row either'
         )
 
 
@@ -277,11 +277,13 @@ def test_a_region_binding_tighter_makes_the_model_infeasible_on_both_lanes():
         path.write_text(yaml.safe_dump(CARRIED_IN))
 
         relational = sps.solve(path, sources, solver_name='highs').objective
-        eager = specsolve_linopy.build(path, dict(sources))
-        eager.solve(solver_name='highs', output_flag=False)
+        linopy_lane = specsolve_linopy.build(path, dict(sources))
+        linopy_lane.solve(solver_name='highs', output_flag=False)
 
     assert relational != relational, 'the relational lane reports no objective — peak is held to step 35'
-    assert eager.objective.value != eager.objective.value, 'and the eager lane reaches the same infeasibility'
+    assert linopy_lane.objective.value != linopy_lane.objective.value, (
+        'and the linopy lane reaches the same infeasibility'
+    )
 
 
 def test_a_region_that_claims_nothing_does_not_unmake_the_row():
@@ -294,7 +296,7 @@ def test_a_region_that_claims_nothing_does_not_unmake_the_row():
     ``otherwise`` is left claiming nothing at all, while its ``shift`` with no
     ``edge=`` is still absent at the first position. Letting that presence
     through unrelaxed took every first-position row out of the relational
-    build and left the eager one whole: 3570 against an infeasible model.
+    build and left the linopy one whole: 3570 against an infeasible model.
     """
     spec = CARRIED_IN | {
         'parameters': CARRIED_IN['parameters'] | {'everywhere': {'dims': [], 'dtype': 'bool'}},
@@ -312,7 +314,7 @@ def test_a_region_that_claims_nothing_does_not_unmake_the_row():
         rows = run.result.activity('ramp')
         assert rows.height == 8, 'every (t, g) coordinate has a ramp row, the first position included'
         assert int((run.model.constraints['ramp'].labels == -1).sum()) == 0, (
-            'the eager lane masks out no ramp row either'
+            'the linopy lane masks out no ramp row either'
         )
         assert run.oracle == pytest.approx(3990.0, rel=RTOL), (
             'carried is 1 everywhere, so the first position is held to step rather than first_step'
@@ -325,7 +327,7 @@ def test_one_parameter_answering_for_two_regions():
     The pairs a coverage walk collects are ``(name, mask)``, and one parameter
     under two regions makes the names equal and the masks differ. Ordering
     them by the pair rather than by the name asks whether one mask is less
-    than another, which an array answers with an array: the eager lane raised
+    than another, which an array answers with an array: the linopy lane raised
     numpy's ambiguous truth value where the relational lane built.
     """
     spec = CAPPED_BY_REGION | {
@@ -350,7 +352,7 @@ def test_a_divisor_is_asked_for_data_only_where_its_region_applies():
 
     The constant side's rule, one position over: the divisor check walks the
     same tree and had kept its own idea of which rows a piece owes data at, so
-    the eager lane refused a model the relational lane built.
+    the linopy lane refused a model the relational lane built.
     """
     spec = CAPPED_BY_REGION | {
         'expressions': {
@@ -450,7 +452,7 @@ def test_a_cased_quantity_summed_onto_a_constant_side_builds():
     Each region's piece has rows only inside its region by construction, so
     after the sum over `t` the `a` piece has no row at `k = b` and the
     `otherwise` piece none at `k = a`. The relational lane dropped the region
-    at the sum and read both as holes, refusing dense data the eager lane
+    at the sum and read both as holes, refusing dense data the linopy lane
     built (`parameter 'hi, lo' covers 2 fewer coordinates`). A region reading
     only dims the sum keeps still says whose coordinate a missing row is.
     """

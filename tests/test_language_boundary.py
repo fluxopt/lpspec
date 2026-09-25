@@ -96,4 +96,4 @@ def test_an_unknown_operator_names_its_context_and_teaches_the_rewrite():
     reason = str(exc.value)
     assert 'power_balance' in reason, 'the reason carries its context'
     assert 'escape' in reason, 'and the rewrite, rather than a pointer to another lane'
-    assert 'eager' not in reason.lower()
+    assert 'linopy' not in reason.lower()

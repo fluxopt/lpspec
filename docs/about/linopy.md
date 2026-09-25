@@ -73,7 +73,7 @@ expression written the way
 [`expressions:`](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions)
 writes one, a string or the mapping that carries `cases:`, on the solved model.
 It hands back linopy's native `.solution`. A name the file declares is such an
-expression. This is the eager half of `result.evaluate(...)`, which is what
+expression. This is the linopy half of `result.evaluate(...)`, which is what
 lets the differential suite hold the two lanes to one answer.
 
 **This lane constructs; it does not attach.** Math for a `linopy.Model` that

@@ -295,7 +295,7 @@ an afternoon. The retired `specsolve.linopy` lane is not this arm and is not
 measured.
 
 **A hand-written arm is a model somebody typed twice**, and nothing structural
-stops it being a *different* model that benchmarks beautifully. The eager arm
+stops it being a *different* model that benchmarks beautifully. The linopy arm
 never had that risk — it read the same YAML. So each dialect's smallest rung is
 solved against `specsolve`'s and the objectives compared, in
 `test_the_hand_written_arm...` under `bench/test_harness.py`, which CI runs on
@@ -312,7 +312,7 @@ every ratio drawn against it. Measuring only the LP path reports the wrong
 number for the common case, which is why both run by default.
 
 **What an arm's own defaults cost is the next arm's problem, and it is
-load-bearing.** The retired eager arm passed `set_names=False` because linopy
+load-bearing.** The retired linopy arm passed `set_names=False` because linopy
 names every variable and constraint while our sinks name nothing, and naming is
 **82% of linopy's HiGHS hand-off** (0.11s against 0.02s at 200k variables) and
 35% of its Gurobi one. Any arm added here answers the same question in its own
@@ -451,9 +451,9 @@ verdict off the SQL"), not to cover the language:
 |---|---|---|
 | `dispatch` | pointwise bounds + one `sum` per row | raw throughput, and the case a dense eager broadcast is best at — so our worst ratio |
 | `nodal` | `(snapshot, node, tech)`, `where: installed > 0` | sparsity as it actually occurs — see below |
-| `transport` | three `sum(by=)` joins per row | the mapping-table path, where the eager lane must materialise a bus x generator product |
+| `transport` | three `sum(by=)` joins per row | the mapping-table path, where the linopy lane must materialise a bus x generator product |
 | `sector` | dense snapshots x dense carriers x sparse portfolio | mixed density in one model — the shape a sector-coupled model actually has, and where the sparsity claim is visible |
-| `storage` | a cyclic `shift` recurrence | the self-join, and the only locality class with no eager cost analogue: xarray shifts an array, we join a term stream against itself on `snapshot.ord - 1` |
+| `storage` | a cyclic `shift` recurrence | the self-join, and the only locality class with no linopy cost analogue: xarray shifts an array, we join a term stream against itself on `snapshot.ord - 1` |
 | `commitment` | dispatch gated by a binary `u`, `p <= p_max * u` | the MILP — the only case whose `vtype` stream is not all-continuous, so integrality reaches every sink at scale |
 
 **`nodal` is the case worth explaining.** It is dispatch over nodes and
@@ -610,7 +610,7 @@ request's base and once against its head — and what it gates on.
 | arm | `ru_maxrss` | memray peak |
 |---|---|---|
 | specsolve | 309 MB | 211 MB |
-| the retired eager arm | 604 MB | **2967 MB** |
+| the retired linopy arm | 604 MB | **2967 MB** |
 
 memray counts polars' reserved arenas as allocated and does not count the
 interpreter or mapped libraries at all, so the bias points in *opposite*

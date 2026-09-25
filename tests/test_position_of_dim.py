@@ -11,7 +11,7 @@ which is why the relabel is the test that matters here, and why an
 out-of-range position is an error rather than a mask that is false everywhere.
 
 Both lanes read the position off the coordinate order they already hold: the
-dim table's ``ord`` relationally, the master index on the eager side. So the
+dim table's ``ord`` relationally, the master index on the linopy side. So the
 one thing a single-lane test could not see is whether the two orders agree,
 which every case below checks differentially.
 """

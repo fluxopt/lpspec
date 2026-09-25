@@ -17,7 +17,7 @@ others each ask something of the engine that the map did not:
 - **two columns over one dimension** name a line's two ends in one table.
 
 Every optimum here is hand-derived, and the written LP file re-solves to it,
-which is the second opinion this lane has where the eager one refuses the
+which is the second opinion this lane has where the linopy one refuses the
 shape (`test_conditioned_relations.py` holds what it does build). Each case
 carries a number a lane that walked the table wrongly would not reach.
 """

@@ -1,7 +1,7 @@
-"""What the eager lane builds of the language's relation, and what it refuses.
+"""What the linopy lane builds of the language's relation, and what it refuses.
 
 The relational lane builds every shape the language admits
-(`test_relation_shapes.py`). The eager lane builds the **single-valued map** —
+(`test_relation_shapes.py`). The linopy lane builds the **single-valued map** —
 one value column read at the key, a self-map included (`test_self_map.py`) —
 keyed by one column or several, and refuses the rest at its door with the
 relational lane named. So this module holds the differential cases, where both
@@ -11,7 +11,7 @@ A map keyed by several columns — a generator's zone that changes by period —
 is read *under a condition* the row already carries. `sum(by=)` groups per
 condition, `at(by=)` reads back per condition, and a `where:` tests the value
 at both key dimensions. Relationally the extra key column is one more
-equi-join column; on the eager lane the map is an array over the key's
+equi-join column; on the linopy lane the map is an array over the key's
 product, and grouping by a two-dimensional label array is what stands in for
 the one-dimensional coordinate a plain map assigns. A conditioned map leaves
 out a *pair* rather than a label, so nothing can be dropped along either axis:
@@ -189,7 +189,7 @@ def test_a_where_reads_a_conditioned_map_at_both_key_dimensions():
 
 
 # ---------------------------------------------------------------------------
-# what the eager lane refuses, and the relational lane builds
+# what the linopy lane refuses, and the relational lane builds
 # ---------------------------------------------------------------------------
 
 
@@ -228,7 +228,7 @@ def _shaped(relations: dict, expression: str, dims: list[str]) -> dict:
         ),
     ],
 )
-def test_the_eager_lane_refuses_a_shape_it_does_not_build_and_names_the_lane_that_does(
+def test_the_linopy_lane_refuses_a_shape_it_does_not_build_and_names_the_lane_that_does(
     relations: dict, expression: str, dims: list[str], match: str
 ) -> None:
     """A `LaneError` at the lane's door, before any data is read: the language admits the file, and `check` does.

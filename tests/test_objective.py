@@ -158,8 +158,8 @@ def test_a_model_with_no_objective_is_a_feasibility_problem(tmp_path):
 
     path = tmp_path / 'feasibility.yaml'
     path.write_text(pyyaml.safe_dump(FEASIBILITY_SPEC))
-    eager = specsolve_linopy.build(path, sources)
-    assert 'meet' in eager.constraints, 'the eager lane built the same file'
+    linopy_lane = specsolve_linopy.build(path, sources)
+    assert 'meet' in linopy_lane.constraints, 'the linopy lane built the same file'
 
     with sps.solve(FEASIBILITY_SPEC, sources) as result:
         assert result.is_ok, 'the constraints can be met, so this is not a failed solve'

@@ -238,7 +238,7 @@ def test_rebuild(benchmark: Any, paths: Any, ceiling: Any, builds: int, case_nam
     model and solves it — a fresh interpreter, and whatever lazy work each lane
     does on its first call lands here. **Steady** is what a rolling horizon pays
     for every model after the first. They differ by more than an order of
-    magnitude on the eager lane, so a single figure would misreport one of the
+    magnitude on the linopy lane, so a single figure would misreport one of the
     two use cases whichever it was.
 
     Deliberately **not** `isolate=True`, and deliberately sink-free: repeated

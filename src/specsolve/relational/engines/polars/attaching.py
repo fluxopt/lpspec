@@ -89,7 +89,7 @@ def _ordinal_frame(d: str, index: pl.LazyFrame) -> pl.LazyFrame:
     """A dimension's ``(val, ord)`` from its index.
 
     Ordinals follow the source's own order — a label's position is the row it
-    first appears at — so a translation moves by position exactly as the eager
+    first appears at — so a translation moves by position exactly as the linopy
     lane does, even for string labels.
     """
     return (

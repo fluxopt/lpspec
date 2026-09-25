@@ -93,7 +93,7 @@ def test_a_sparse_constant_side_is_refused_on_both_lanes():
     which binds rather than vanishing, and the solve reports optimal. Nothing in
     the model said so: a table left sparse is compression, not a claim.
 
-    Refused on both lanes, in the same words, because a rule the eager lane did
+    Refused on both lanes, in the same words, because a rule the linopy lane did
     not share would be a parity break rather than a language rule (hard rule 3).
     """
     with (
@@ -117,7 +117,7 @@ def test_the_same_hole_is_refused_however_far_it_stands_from_the_row(constraint)
     `sum` reads a missing coordinate as no summand rather than as a gap — the
     relational lane sums each constant piece per coordinate before asking the
     assembled constant for its nulls, so the answer came back complete and
-    `<= 9` stood where the data said nothing. The eager lane asks the
+    `<= 9` stood where the data said nothing. The linopy lane asks the
     parameter, which is the only shape a reduction cannot flatten, and both
     lanes now do (#1465).
     """
@@ -144,7 +144,7 @@ def test_a_constant_piece_beside_a_term_is_refused_on_both_lanes():
     """A parameter added beside a variable term is a constant piece, not skipped (#1521).
 
     `w * x + c <= 100` reads `w * x <= 100` where the file says `w * x <= 100 - c`,
-    the missing `c` filled with the zero that is a bound. The eager check asked
+    the missing `c` filled with the zero that is a bound. The linopy check asked
     its question of a side carrying no variable, so a piece beside a term went
     unasked and the lane built the wrong row in silence; the relational lane,
     asking of every constant fragment, refused alone.
@@ -157,7 +157,7 @@ def test_a_constant_piece_beside_a_term_is_refused_through_a_reduction():
     """The same piece under a sum, where both lanes were blind (#1521).
 
     `sum(w * x, over=t) + sum(c, over=t) <= 100` sums the gap away before either
-    lane's per-coordinate check can see it — the eager lane skipped the side for
+    lane's per-coordinate check can see it — the linopy lane skipped the side for
     its variable, the relational lane could not see the hole through the sum
     (#1465's mechanism) — so the parameter is asked directly, of both lanes now.
     """
@@ -354,7 +354,7 @@ def test_a_term_whose_variable_is_absent_drops_the_row_on_both_lanes():
     and v1 §12 drops the row instead, so ``x`` is left free at ``f=b`` and bounded only
     by its own declaration.
 
-    The oracle is the point: the eager lane gets this from linopy's own v1
+    The oracle is the point: the linopy lane gets this from linopy's own v1
     semantics, the relational lane from carrying variable presence apart from
     the term stream. Two independent implementations, one answer.
     """

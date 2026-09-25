@@ -9,7 +9,7 @@ three quarters are what the case measures.
 shape of the argument is the point: the mask is node x tech where the variable
 is snapshot x node x tech. Structural sparsity is time-invariant, so linopy
 broadcasts one plane along the snapshot axis rather than storing the product —
-the eager lane's best case for this shape, not a handicap arranged for it.
+the linopy lane's best case for this shape, not a handicap arranged for it.
 
 **`fillna(0)` is what makes the sum mean what the YAML means**, and it is the
 line to read twice. An absent slot contributes zero to `sum(p, over=tech)`,

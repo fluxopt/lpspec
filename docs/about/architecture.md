@@ -575,8 +575,8 @@ is structure.
 | `linopy/loader.py` | the crossing into pandas and xarray: `tidy_sources`' tables as master coords, an `xr.Dataset`, and one array per relation; refuses the relation shapes the lane does not build, naming the relational lane |
 | `linopy/coverage.py` | the two positions an absent row has no reading for: a divisor and a constant side |
 | `linopy/absence.py` | the four positions an absent value is spelled differently in; absence is positional in this lane |
-| `linopy/builder.py` | eager backend: core AST → `linopy.Model` |
-| `linopy/operators.py` | the eager evaluation of every built-in, on xarray and linopy |
+| `linopy/builder.py` | linopy backend: core AST → `linopy.Model` |
+| `linopy/operators.py` | every built-in, evaluated on xarray and linopy |
 | `linopy/where.py` | a resolved `where:` as a boolean array, in the shape linopy's `mask=` takes |
 | `linopy/_notes.py` | attach context to an exception on the way out; no package imports, no opinions |
 

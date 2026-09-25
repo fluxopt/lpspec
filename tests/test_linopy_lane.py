@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def yaml_file(tmp_path):
-    """Write YAML text to a file — the only shape the eager lane accepts."""
+    """Write YAML text to a file — the only shape the linopy lane accepts."""
 
     def write(text: str, name: str = 'm.yaml'):
         path = tmp_path / name
@@ -250,7 +250,7 @@ class TestLoadParameters:
 
 
 # ---------------------------------------------------------------------------
-# where.evaluate_where: the eager reading of a lowered predicate
+# where.evaluate_where: the linopy reading of a lowered predicate
 # ---------------------------------------------------------------------------
 
 
@@ -462,8 +462,8 @@ def test_the_two_lanes_agree_about_a_masked_variable_without_the_harness(tmp_pat
         print(float(m.objective.value), native.objective)
     """)
     out = subprocess.run([sys.executable, '-c', probe], capture_output=True, text=True, check=True)
-    eager, native = (float(v) for v in out.stdout.split())
-    assert eager == pytest.approx(native), f'lanes disagree outside the harness: {eager} vs {native}'
+    linopy_lane, native = (float(v) for v in out.stdout.split())
+    assert linopy_lane == pytest.approx(native), f'lanes disagree outside the harness: {linopy_lane} vs {native}'
     assert native == pytest.approx(125.0), 'the masked row should be dropped, leaving x[b] at its bound'
 
 
@@ -600,9 +600,9 @@ def test_the_two_lanes_agree_on_an_absent_slot_declared_zero_under_a_nonlinear_r
     path = yaml_file(ZERO_ABSENCE_YAML, 'zero_absence.yaml')
     with differential(path, ZERO_ABSENCE_DATA) as run:
         tidy = run.result.evaluate('grown')
-        eager = specsolve_linopy.evaluate(run.model, path, 'grown', dict(ZERO_ABSENCE_DATA))
+        linopy_lane = specsolve_linopy.evaluate(run.model, path, 'grown', dict(ZERO_ABSENCE_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
-        want = {int(k): float(v) for k, v in eager.to_series().items()}
+        want = {int(k): float(v) for k, v in linopy_lane.to_series().items()}
         assert got == pytest.approx(want), 'the two lanes disagree about an absent slot declared zero'
         assert all(v == pytest.approx(1.0) for v in want.values()), (
             'each snapshot reads 1, the absent generator as 0.5 ** 0, plus a term below double precision from the present one'
@@ -640,16 +640,16 @@ def test_the_two_lanes_agree_on_a_named_expression(yaml_file, name):
 
     Including the standalone case: the rules for named expressions guarantees a never-referenced
     expression is parsed and name-checked, and #562 makes it readable — on
-    the eager lane by evaluating the declared expression at the solved model's
+    the linopy lane by evaluating the declared expression at the solved model's
     `.solution` and `.dual` arrays, which is what lets an entry of any degree,
     and one reading a dual, be read on both lanes.
     """
     path = yaml_file(EXPRESSION_YAML, 'expressions.yaml')
     with differential(path, EXPRESSION_DATA) as run:
         tidy = run.result.evaluate(name)
-        eager = specsolve_linopy.evaluate(run.model, path, name, dict(EXPRESSION_DATA))
+        linopy_lane = specsolve_linopy.evaluate(run.model, path, name, dict(EXPRESSION_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
-        want = {int(k): float(v) for k, v in eager.to_series().items()}
+        want = {int(k): float(v) for k, v in linopy_lane.to_series().items()}
         assert got == pytest.approx(want), f"the two lanes disagree about named expression '{name}'"
 
 
@@ -727,9 +727,9 @@ def test_a_named_expression_reads_off_a_masked_curve(yaml_file):
     path = yaml_file(MASKED_CURVE_YAML, 'masked_curve.yaml')
     with differential(path, MASKED_CURVE_DATA) as run:
         tidy = run.result.evaluate('spend')
-        eager = specsolve_linopy.evaluate(run.model, expanded(path), 'spend', dict(MASKED_CURVE_DATA))
+        linopy_lane = specsolve_linopy.evaluate(run.model, expanded(path), 'spend', dict(MASKED_CURVE_DATA))
         got = {int(k): v for k, v in zip(tidy['snapshot'], tidy['value'], strict=True)}
-        want = {int(k): float(v) for k, v in eager.to_series().items()}
+        want = {int(k): float(v) for k, v in linopy_lane.to_series().items()}
         assert got == pytest.approx(want), 'the two lanes disagree about a named expression over a masked curve'
 
 
@@ -775,7 +775,7 @@ def test_one_set_of_tables_reaches_both_lanes(dispatch_yaml, dispatch_frame_inpu
 
     with differential(dispatch_yaml, sources) as run:
         assert run.result.primal('p').height, 'the relational lane built no rows'
-        assert float(run.model.variables['p'].labels.count()), 'the eager lane built no variables'
+        assert float(run.model.variables['p'].labels.count()), 'the linopy lane built no variables'
 
 
 @pytest.mark.parametrize(
@@ -831,10 +831,10 @@ def test_a_construct_the_streaming_lane_refuses_is_refused_here_too():
 
     with pytest.raises(LanguageError, match='vacated positions') as native:
         sps.check(_BARE_SHIFT)
-    with pytest.raises(LanguageError, match='vacated positions') as eager:
+    with pytest.raises(LanguageError, match='vacated positions') as linopy_lane:
         specsolve_linopy.build(_BARE_SHIFT, {'eff': {0: 1.0, 1: 2.0, 2: 3.0}})
 
-    assert str(native.value) == str(eager.value), 'one refusal, one wording, whichever lane was asked'
+    assert str(native.value) == str(linopy_lane.value), 'one refusal, one wording, whichever lane was asked'
 
 
 #: The one construct this lane accepts and cannot build: a bare parameter term
@@ -926,9 +926,9 @@ def test_a_file_that_declares_no_labels_at_all_is_refused_on_both_lanes():
 
     with pytest.raises(DataError, match="dimension 'g' has no index") as native:
         sps.build(spec, sources).close()
-    with pytest.raises(DataError, match="dimension 'g' has no index") as eager:
+    with pytest.raises(DataError, match="dimension 'g' has no index") as linopy_lane:
         specsolve_linopy.build(spec, sources)
-    assert str(native.value) == str(eager.value), 'one refusal, one wording'
+    assert str(native.value) == str(linopy_lane.value), 'one refusal, one wording'
 
     indexed = {**sources, 'g': pd.DataFrame({'g': ['wind', 'gas']})}
     assert 'x' in specsolve_linopy.build(spec, indexed).variables
@@ -961,8 +961,8 @@ def test_dispatch_yaml_agrees_variable_by_variable(dispatch_inputs):
     data = dispatch_inputs
 
     with differential(EXAMPLES_DIR / 'dispatch.yaml', data, lp=True) as run:
-        eager_p = run.model.solution['p'].to_dataframe(name='value').reset_index()
+        linopy_p = run.model.solution['p'].to_dataframe(name='value').reset_index()
         rel_p = run.result.to_pandas('p')
-        merged = eager_p.merge(rel_p, on=['snapshot', 'generator'], suffixes=('_eager', '_rel'))
+        merged = linopy_p.merge(rel_p, on=['snapshot', 'generator'], suffixes=('_linopy', '_rel'))
         assert len(merged) == len(rel_p), 'nothing is masked here, so the rows align 1:1'
-        assert np.allclose(merged['value_eager'], merged['value_rel'], atol=1e-6)
+        assert np.allclose(merged['value_linopy'], merged['value_rel'], atol=1e-6)
