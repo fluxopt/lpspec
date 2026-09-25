@@ -40,7 +40,7 @@ class SolveStatus:
     #: Exactly what the solver called it, for a message a user can search for.
     solver_wording: str = ''
     #: Whether the solver reports an actual primal, which the termination
-    #: condition does not tell you — see :attr:`is_readable`.
+    #: condition does not tell you — see [`is_readable`][].
     has_primal: bool = True
 
     @property
@@ -52,7 +52,7 @@ class SolveStatus:
         """The linopy rollup: the run is not an error, an abort or a refusal.
 
         Kept exactly as linopy defines it. It is *not* the question "can I read
-        values" — see :attr:`is_readable`.
+        values" — see [`is_readable`][].
         """
         return self.status == 'ok'
 

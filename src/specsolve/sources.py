@@ -9,7 +9,7 @@ columns, is it single-valued per coordinate, are its labels real, are its values
 present and of the declared type — is asked here, once.
 
 The guard that needs the numbers rather than the shapes is
-:mod:`specsolve.assumptions`, which :func:`tidy_sources` calls on the way through.
+[`specsolve.assumptions`][], which [`tidy_sources`][] calls on the way through.
 """
 
 from __future__ import annotations
@@ -42,15 +42,15 @@ def attachable(program: Program) -> dict[str, ParameterDeclaration | DimensionDe
 def tidy_sources(program: Program, data: Mapping[str, Source]) -> dict[str, pl.LazyFrame]:
     """Read the caller's ``sources`` into the frames both lanes build against.
 
-    Every source comes back as an in-memory :class:`polars.LazyFrame`: a
+    Every source comes back as an in-memory `polars.LazyFrame`: a
     parameter as tidy ``(dims…, value)``, a dimension's index as the table it
     arrived as with the labels under the dimension's own name, a relation as
     the table it declares, one column per column under the column's own name
     and one row per row it holds. Dimensions are read first, because the
-    plain-Python parameter shapes :func:`_spread` accepts are spread over
+    plain-Python parameter shapes [`_spread`][] accepts are spread over
     their labels. What the model assumes of all of it is checked last, once
     every frame is there to check it against
-    (:func:`~specsolve.assumptions.validate_assumptions`).
+    ([`validate_assumptions`][specsolve.assumptions.validate_assumptions]).
 
     Args:
         program: The lowered spec.
@@ -354,7 +354,7 @@ def _parameter_frame(
     """The caller's object for one parameter as a lazy frame, whatever shape it took.
 
     Raises:
-        DataError: A shape neither a table reader nor :func:`_spread` accepts.
+        DataError: A shape neither a table reader nor [`_spread`][] accepts.
     """
     if is_dense_array(obj):
         raise DataError(
@@ -377,14 +377,14 @@ def _parameter_frame(
 def least_value(name: str, p: ParameterDeclaration, obj: Source) -> float | None:
     """The least value one parameter's source holds, read without any dimension's labels.
 
-    Every shape :func:`tidy_sources` accepts has a least value that does not
+    Every shape [`tidy_sources`][] accepts has a least value that does not
     depend on where its numbers land, so a caller may ask how small a
     parameter goes before the indices it is over have been read — which is
     what lets a sweep resolve how far the model reaches along an axis it is
-    about to cut. Only the two shapes :func:`_spread` places *by position* are
+    about to cut. Only the two shapes [`_spread`][] places *by position* are
     read here — a number and a sequence, which it cannot spread without an
     index; a ``{label: value}`` map carries its own placement and goes through
-    :func:`_parameter_frame` with the rest.
+    [`_parameter_frame`][] with the rest.
 
     Returns:
         The least value, or ``None`` where the source holds no rows.

@@ -7,11 +7,11 @@ built first and the frame read after.
 
 A closed vocabulary of its own — comparisons against a parameter, a dimension
 label, a position along a dimension, a relation, and the three connectives. It
-takes the :class:`~specsolve.relational.engines.polars.scope.Scope` as an
-argument and holds nothing. :func:`masked` is the product a declaration is
+takes the [`Scope`][specsolve.relational.engines.polars.scope.Scope] as an
+argument and holds nothing. [`masked`][] is the product a declaration is
 instantiated over, cut by its mask: the one place the two meet.
 
-:class:`Carrier` lives here too, and the bounds walk imports it: both walks
+[`Carrier`][] lives here too, and the bounds walk imports it: both walks
 that read parameters build an expression over columns they are joining on as
 they go.
 """
@@ -41,8 +41,8 @@ if TYPE_CHECKING:
 class Carrier:
     """A frame a walk joins onto, each attachment made at most once.
 
-    Both walks that read parameters — the mask (:func:`compile_predicate`)
-    and the bounds (:meth:`~specsolve.relational.engines.polars.compiler.PolarsCompiler.bounds`)
+    Both walks that read parameters — the mask ([`compile_predicate`][])
+    and the bounds ([`bounds`][specsolve.relational.engines.polars.compiler.PolarsCompiler.bounds])
     — build an expression over columns they are joining on as they go, so the
     frame and the set of aliases already attached travel together.
     """
@@ -119,7 +119,7 @@ def compile_predicate(
 
     **A name the mask is certain of is joined rather than left-joined**,
     and a certain variable is semi-joined and never read
-    (:func:`_certain_names`). An atom over a missing value reads as false
+    ([`_certain_names`][]). An atom over a missing value reads as false
     either way, so the strategies differ only in *where* the row is dropped.
 
     ``VariableDefined`` is the one atom answered by a join rather than a
@@ -127,7 +127,7 @@ def compile_predicate(
     dims the dim rule has already checked are inside this frame.
 
     No join here maintains order: consumers verify where they read
-    (:func:`labels.in_position_order`), so a shuffle costs a sort
+    ([`labels.in_position_order`][]), so a shuffle costs a sort
     downstream at worst, never a wrong label.
     """
     certain = _certain_names(mask)
@@ -297,7 +297,7 @@ def _values(scope: Scope, side: program.Expression) -> tuple[pl.LazyFrame, tuple
     translations and groupings included, and a second reading of it would
     drift from the one the rows are built with. Its pieces are added so that
     a null spreads, which a row's constant side reads as a zero instead; a
-    side with no value is the false :func:`falsy_if_null` reads out of it.
+    side with no value is the false [`falsy_if_null`][] reads out of it.
     """
     # in-function: the compiler imports this module
     from specsolve.relational.engines.polars.compiler import PolarsCompiler
@@ -369,7 +369,7 @@ def _certain_names(mask: program.Mask) -> frozenset[str]:
 def _refuse_short_groups(p: program.DimensionPosition, grouping: Grouping) -> None:
     """Refuse a position no coordinate of some group occupies.
 
-    The ungrouped counterpart is :func:`_position_ordinal`, and the reason is
+    The ungrouped counterpart is [`_position_ordinal`][], and the reason is
     the same one construct-wide: a boundary clause that silently seeds no row
     leaves that group's recurrence unanchored. Grouping only multiplies the
     chance — one short period is enough — so it is checked per group.

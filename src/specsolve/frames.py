@@ -99,7 +99,7 @@ def is_multi_indexed(obj: Source) -> bool:
 def _series_to_frame(series: PandasSeries, dims: Sequence[str]) -> pd.DataFrame | None:
     """A pandas Series with its one index level promoted to a column.
 
-    One level is all a Series can carry here — :func:`is_multi_indexed` refuses
+    One level is all a Series can carry here — [`is_multi_indexed`][] refuses
     the rest — so it runs along one dimension as a dict and a sequence do, and
     any other arity is declined rather than reported.
 

@@ -60,18 +60,18 @@ class ArrowTable(Protocol):
 
 
 #: A pandas Series of any dtype a source may carry: an index's
-#: (:data:`mathspec.program.DimensionDtype`) or a parameter's values'
-#: (:data:`~mathspec.program.ParameterDtype`), which is where ``bool`` comes
+#: (`mathspec.program.DimensionDtype`) or a parameter's values'
+#: (`ParameterDtype`), which is where ``bool`` comes
 #: from. Spelled out because pandas types ``Series`` invariantly: a bare
 #: ``pd.Series`` is ``Series[Any]``, and no single parameter stands for the five.
 type PandasSeries = pd.Series[float] | pd.Series[int] | pd.Series[bool] | pd.Series[str] | pd.Series[datetime]
 
 #: A label along a dimension, and so a slice's key: the Python type of each
-#: dtype an index may declare (:data:`mathspec.program.DimensionDtype`).
+#: dtype an index may declare (`mathspec.program.DimensionDtype`).
 type Label = int | float | str | datetime
 
 #: Anything a verb takes under one name of ``sources``. A parameter: a parquet
-#: path, a table — polars, pandas, or any :class:`ArrowTable` — or one of the
+#: path, a table — polars, pandas, or any [`ArrowTable`][] — or one of the
 #: plain-Python shapes a hand-written model reaches for, a ``{label: value}``
 #: map, a sequence in the dimension's own label order, and one number for
 #: every coordinate. A dimension's index: a table carrying a column named
@@ -123,8 +123,8 @@ def _case_collision(program: Program) -> str | None:
 def lowered(spec: Buildable) -> Program:
     """*spec* as a program, refusing what this package cannot build or keep apart.
 
-    Every door lowers through here, so what :func:`check` refuses
-    :func:`build` and an archive refuse too. Nothing is expanded here: a spec
+    Every door lowers through here, so what [`check`][] refuses
+    [`build`][] and an archive refuse too. Nothing is expanded here: a spec
     still carrying a ``piecewise:`` block is refused, naming ``Spec.expand``,
     because which formulations to write out is the caller's to say.
 

@@ -1,7 +1,7 @@
 """The ``mps_file`` sink: the model as MPS text.
 
 The format the other half of the world reads, and it differs from
-:mod:`~specsolve.relational.sinks.writers.lp_file` in one way that shapes the
+[`lp_file`][specsolve.relational.sinks.writers.lp_file] in one way that shapes the
 whole module: **MPS is column-major.** It hands a reader each column with its
 whole column of the matrix, where LP walks the matrix by row. So this is the
 one writer that sorts — CSR is row-major, and no engine frame holds a column

@@ -57,9 +57,9 @@ class Scope:
         **Folded in reverse, then projected back.** polars' streaming engine
         walks a cross join right-major, so folding backwards makes the product
         arrive in declaration row-major order — label order.
-        :func:`labels.frame` verifies that rather than trusting it.
+        [`labels.frame`][] verifies that rather than trusting it.
 
-        The empty product is one *real* row carrying only :data:`UNIT`: a
+        The empty product is one *real* row carrying only [`UNIT`][]: a
         ``where`` on a scalar declaration filters this frame, and nothing
         survives a filter.
         """
@@ -89,7 +89,7 @@ class Scope:
 
         *how* is ``left`` for a bound, where a missing value is a fact to
         report rather than a row to drop. ``inner`` is the mask walk's story
-        (:func:`~specsolve.relational.engines.polars.predicates.compile_predicate`).
+        ([`compile_predicate`][specsolve.relational.engines.polars.predicates.compile_predicate]).
 
         *maintain_order* is asked for only by the bounds, which become ``cols``
         and are read in order; every other consumer verifies order where it
@@ -111,7 +111,7 @@ class Scope:
         empty product's one row. *ordinals* says how the frame in hand carries a
         dim's ordinal — a product frame has the column beside the label, a
         built variable frame kept only the label and reads it through
-        :meth:`ordinal_of`.
+        [`ordinal_of`][].
         """
         position: pl.Expr = pl.lit(0, dtype=pl.Int64)
         for d in dims:

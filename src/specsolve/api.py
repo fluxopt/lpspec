@@ -2,10 +2,10 @@
 
 Math is defined in YAML only — there is no Python API for constructing specs,
 and the logical plan is internal. Five verbs take a spec: ``check``, ``build``
-(YAML + sources → a :class:`Model`), ``solve``, ``write``, and ``evaluate`` for a
+(YAML + sources → a [`Model`][]), ``solve``, ``write``, and ``evaluate`` for a
 spec with no variables. ``load_result`` reads back an
-answer :meth:`Result.save` wrote and ``scan_result`` leaves it on disk; the
-question and the answer as one archive is :class:`specsolve.archive.SolveArchive`.
+answer [`Result.save`][] wrote and ``scan_result`` leaves it on disk; the
+question and the answer as one archive is [`specsolve.archive.SolveArchive`][].
 
 A spec is validated at load time, lowered to the plan, and executed
 relationally (docs/about/architecture.md).
@@ -72,27 +72,40 @@ __all__ = ['build', 'check', 'evaluate', 'load_result', 'scan_result', 'solve', 
 def check(spec: Buildable, sink: str | None = None) -> Program:
     """Parse, validate and lower a spec; attach no data.
 
+    The CI verb: with no data and no solver, a spec repository validates every
+    commit. Every other verb reads the spec through the same door, so what this
+    refuses they refuse too.
+
     With *sink*, also: **will that sink take it?** Bare ``check`` says nothing
     about portability. The answer is read off a declared table with no data
-    attached, so it needs no solver installed. The solver-independent advice
-    is issued either way.
+    attached, so it needs no solver installed, and [`solve`][] and
+    [`write`][] read the same table, so the refusal comes whether or not it was
+    asked for. The solver-independent advice is issued either way.
 
     Args:
-        spec: A YAML path, a mapping, or a ``Spec``.
+        spec: A YAML path, a mapping, or a ``Spec`` — what ``mathspec.to_spec``
+            takes, so a framework that emits declarations passes the mapping
+            and writes no file. A ``Spec`` is not read again. A lowered
+            ``Program`` is not taken. A ``piecewise:`` block is written out
+            first: ``to_spec(spec).expand('piecewise')`` keeps every ``sos:``
+            set for a sink that takes one, and ``to_spec(spec).expand()``
+            writes the sets out too, as binaries every sink takes.
         sink: A solver name (``highs``, ``gurobi``, ``xpress``) or an output
             suffix (``.lp``, ``.mps``). ``None`` asks only whether the spec is
             sayable.
 
     Returns:
-        The lowered program: what a build reads rows off, and what every verb
-        here takes back without parsing the file again. It is the language's
-        own type — typeset it, or read its declarations, through
-        :mod:`mathspec`.
+        The lowered program: what a build reads rows off, for reading the plan.
+        No verb takes it back; keep the ``Spec`` for that. It is the
+        language's own type — typeset it, or read its declarations, through
+        `mathspec`.
 
     Raises:
-        LanguageError: A construct outside the streaming language.
-        SpecsolveError: A *sink* that cannot take this spec, or a name belonging
-            to no sink.
+        LanguageError: A construct outside the streaming language, or a
+            ``piecewise:`` block still to be written out.
+        SpecsolveError: A *sink* that cannot take this spec, naming the
+            construct and the sinks that do; a name belonging to no sink; or
+            two declarations whose names differ only by case.
         ValueError: A schema or expression that does not parse.
 
     Warns:
@@ -110,11 +123,11 @@ def check(spec: Buildable, sink: str | None = None) -> Program:
 
 
 def _refuse_a_decision(program: Program) -> None:
-    """Refuse a spec that declares a decision — :func:`evaluate` is arithmetic, not a solve.
+    """Refuse a spec that declares a decision — [`evaluate`][] is arithmetic, not a solve.
 
     A variable has no value until a solver picks one, so an expression over one
     cannot be evaluated as arithmetic, and a constraint or an objective is a law
-    that picks it rather than a quantity to read. Naming :func:`solve` is the
+    that picks it rather than a quantity to read. Naming [`solve`][] is the
     whole rewrite.
 
     Raises:
@@ -145,17 +158,17 @@ def evaluate(spec: Buildable, sources: Mapping[str, Source], expression: str | M
     dimensions, parameters, relations and ``expressions:``. Each expression reads
     only the attached data, so it has a value with no solve and no chosen point.
     This attaches *sources* and values one expression, the way
-    :meth:`~specsolve.relational.result.Result.evaluate` does at a solution. The
+    [`evaluate`][specsolve.relational.result.Result.evaluate] does at a solution. The
     language it is read through — what loads, what is refused, how a construct
     prints and lowers — is the one a spec that solves is read through; only the
     variables are absent.
 
-    A spec that declares variables is a problem to solve, and belongs to :func:`solve`: an
+    A spec that declares variables is a problem to solve, and belongs to [`solve`][]: an
     expression over a decision has no value until the decision is made.
 
     Args:
-        spec: As :func:`check` takes it — a YAML path, a mapping, or a ``Spec``.
-        sources: As :func:`build` takes them: parameter names to tables or
+        spec: As [`check`][] takes it — a YAML path, a mapping, or a ``Spec``.
+        sources: As [`build`][] takes them: parameter names to tables or
             parquet paths, and dimension names to their labels.
         expression: What one ``expressions:`` entry takes — a name the spec
             declares, an expression string, or the mapping carrying ``cases:``
@@ -184,24 +197,23 @@ def evaluate(spec: Buildable, sources: Mapping[str, Source], expression: str | M
 
 
 class Model:
-    """A spec with your data attached to it — what :func:`build` returns.
+    """A spec with your data attached to it — what [`build`][] returns.
 
     Three nouns, each arrow adding one thing: a ``Program`` is the math,
-    a ``Model`` is the math with your data, a ``Result`` is one answer.
+    a ``Model`` is the math with your data, a ``Result`` is one answer:
+    ``check`` → ``Program`` → ``build`` → ``Model`` → ``solve`` → ``Result``.
 
-        ``check`` → ``Program`` → ``build`` → ``Model`` → ``solve`` → ``Result``
-
-    One build feeds any number of sinks — :meth:`solve` and :meth:`write` on
-    the same object — :meth:`update` puts new numbers on it without re-reading
-    the YAML or re-lowering the plan, and :meth:`diagnostics` says what it did.
-    Nothing has to be released; :meth:`close` hands a large model back early.
+    One build feeds any number of sinks — [`solve`][] and [`write`][] on
+    the same object — [`update`][] puts new numbers on it without re-reading
+    the YAML or re-lowering the plan, and [`diagnostics`][] says what it did.
+    Nothing has to be released; [`close`][] hands a large model back early.
     """
 
     def __init__(self, spec: Buildable, sources: Mapping[str, Source]) -> None:
         self._spec = declared(spec)
         self._program = lowered(self._spec)
         #: Which *document* this answers, so two answers can be told to have
-        #: answered the same one. The data is :meth:`_model_digest`.
+        #: answered the same one. The data is [`_model_digest`][].
         self._spec_digest = digest_of(self._spec.to_yaml())
         self._sources = dict(sources)
         self._engine = PolarsEngine()
@@ -239,15 +251,19 @@ class Model:
         ``build(spec, sources | x)`` answers, whatever changed. Data that moves
         a mask renumbers labels, so the model is rebuilt and solved cold
         instead of pushed onto a loaded solver, and
-        :attr:`~specsolve.relational.result.Diagnostics.loads` says which ran.
+        [`loads`][specsolve.relational.result.Diagnostics.loads] says which ran.
 
         Results taken before the update keep reading: each owns the frames it
         reads, and an update builds new ones rather than touching those. A
         retained result keeps its build's label frames alive until it is
-        dropped or :meth:`~specsolve.relational.result.Result.close` is called.
+        dropped or [`close`][specsolve.relational.result.Result.close] is called.
+
+        A loop whose next numbers depend on the last answer is this; a sweep, a
+        rolling horizon or a myopic pathway is [`solve_over`][specsolve.strategy.solve_over],
+        which runs the loop.
 
         Args:
-            sources: Only what changed; the rest keeps what :func:`build`
+            sources: Only what changed; the rest keeps what [`build`][]
                 attached. A dimension's labels as well as a parameter, which is
                 how a coordinate set grows.
 
@@ -255,7 +271,9 @@ class Model:
             This object, so a driver can chain.
 
         Raises:
-            DataError: A name the spec does not declare.
+            DataError: A name the spec does not declare, since an update that
+                named nothing would solve the old numbers again. An update that
+                raises releases the model, as a build that raises does.
         """
         _refuse_unknown(sources, attachable(self._program))
         self._sources.update(sources)
@@ -276,15 +294,20 @@ class Model:
         model skips the hand-off and only its numbers are pushed. Whether the
         *work* that solver did is kept too is *keep*, off by default. How much
         this solve actually kept is its
-        :attr:`~specsolve.relational.result.Result.kept`.
+        [`kept`][specsolve.relational.result.Result.kept].
 
         Args:
-            solver_name: ``highs``, which ships with the package, or
-                ``gurobi``, which needs the ``[gurobi]`` extra.
+            solver_name: ``highs``, which ships with the package; ``gurobi``,
+                which needs the ``[gurobi]`` extra; or ``xpress``, which needs
+                the ``[xpress]`` extra. The caller chooses: nothing in the spec
+                names a solver.
             solver_options: Forwarded to the solver verbatim, in its own
-                vocabulary (``{'time_limit': 60}``).
-            keep: How much of the session this solve may keep — one of
-                :data:`~specsolve.relational.result.KEEPS`. ``solver``, the
+                vocabulary, so a time limit is ``time_limit``, ``TimeLimit`` or
+                ``timelimit``. Gurobi's are applied when its environment is
+                created, so ``ComputeServer``, ``TokenServer`` and
+                ``WLSAccessID`` reach it too.
+            keep: How much of the session this solve may keep: ``solver``,
+                ``progress`` or ``nothing``. ``solver``, the
                 default, reuses the solver holding the model and discards the
                 work it did; ``progress`` keeps that work too, which is what
                 an iterating driver moving one step at a time wants;
@@ -294,19 +317,22 @@ class Model:
                 moved is loaded again whatever was asked.
             archive: Where to write the whole thing — the spec, the data
                 attached to it **now**, and this answer — so that
-                :func:`~specsolve.archive.load_archive` gives all three back and
+                [`load_archive`][specsolve.archive.load_archive] gives all three back and
                 the model solves again from the file alone. A ``.zip`` suffix
                 packs it into one file and anything else is a directory. What
                 the build and its solves have spent goes in beside the answer,
-                as :class:`~specsolve.relational.parquet.Metrics`.
+                as [`Metrics`][specsolve.relational.parquet.Metrics]. The
+                sources go in through the door [`build`][] reads them through:
+                a parquet path is copied as its own bytes, anything else is
+                written as the table it stands for, and members are stored
+                uncompressed.
 
         Returns:
             The solution, holding this model.
 
         Raises:
             SpecsolveError: A solver name nothing serves, one this environment
-                cannot run, or a *keep* outside
-                :data:`~specsolve.relational.result.KEEPS`.
+                cannot run, or a *keep* other than those three.
             LayoutError: An *archive* directory that already holds something,
                 refused before the solve rather than after it.
         """
@@ -331,7 +357,7 @@ class Model:
         """Write this model, what is attached to it now, and *answered* to *out*.
 
         The metrics row is written beside the answer here rather than by
-        :meth:`Result.save`: a result is one solve, and the diagnostics the
+        [`Result.save`][]: a result is one solve, and the diagnostics the
         metrics come from span the model's whole life.
         """
         with beside(out) as scratch:
@@ -347,7 +373,7 @@ class Model:
         Raises:
             ValueError: A suffix nothing writes.
             SpecsolveError: A construct the format has no section for, the same as
-                :func:`check`'s ``sink=`` answer.
+                [`check`][]'s ``sink=`` answer.
         """
         self._engine.write(path)
 
@@ -356,7 +382,7 @@ class Model:
 
         The verb for *this row is wrong and I do not know why*. ``to_latex``
         and its siblings render the spec as math before any data, and
-        :meth:`~specsolve.relational.result.Result.dual` gives a row's number
+        [`dual`][specsolve.relational.result.Result.dual] gives a row's number
         without its terms; this gives the row the build actually produced, at
         the coordinate you name.
 
@@ -364,7 +390,8 @@ class Model:
         that never reached a solver — and it is the built row, so a term whose
         variable was absent is missing from it and a row a ``where`` masked out
         is not there at all. It shows what the model says rather than what the
-        file appears to say.
+        file appears to say. A column has no reader: a variable's bounds are in
+        the spec, and its coefficients are this read transposed.
 
         Args:
             name: A declared constraint. Positional, so that a dimension may
@@ -378,8 +405,9 @@ class Model:
 
         Raises:
             KeyError: No constraint is called *name*.
-            SpecsolveError: The coordinate names the wrong dims, matches no row
-                the build produced, or the model has been closed.
+            SpecsolveError: The coordinate names the wrong dims, holds a label
+                its dimension cannot hold, matches no row the build produced,
+                or the model has been closed.
 
         Example:
             >>> print(model.row('balance', snapshot=1))  # doctest: +SKIP
@@ -395,7 +423,7 @@ class Model:
     ) -> Callable[[str | Mapping[str, object]], pl.DataFrame]:
         """An ad-hoc expression reader over a *saved* solution, put back against this build.
 
-        What an archive and a sweep hand :meth:`~specsolve.relational.result.Result.evaluate`
+        What an archive and a sweep hand [`evaluate`][specsolve.relational.result.Result.evaluate]
         for a quantity the file never named: the saved frames are laid back in
         this build's label order, and the reader is the one a live solve gives.
         A build, never a solve.
@@ -414,7 +442,7 @@ class Model:
         """Which model this build *is* — the document and the data attached to it now.
 
         What a saved answer carries as
-        :attr:`~specsolve.relational.parquet.Record.model_digest`, and what one read
+        [`model_digest`][specsolve.relational.parquet.Record.model_digest], and what one read
         back is checked against. Over the built tables, so it is an identity for
         the pair rather than an invariant of the mathematics: the same program
         over a differently ordered dimension builds a different label order and
@@ -425,7 +453,7 @@ class Model:
     def diagnostics(self) -> Diagnostics:
         """What this build and its solves did that the answer does not show.
 
-        Answerable after :meth:`close`, and after a build that raised: every
+        Answerable after [`close`][], and after a build that raised: every
         field is a count, a clock or a small frame the engine keeps, not a read
         of the model it releases. A raise leaves the sizes at zero — they are
         taken once a model is whole — and everything measured before it stands.
@@ -454,10 +482,13 @@ def build(spec: Buildable, sources: Mapping[str, Source]) -> Model:
     """Attach *sources* to *spec* and build it — the model with your data on it.
 
     Args:
-        spec: As :func:`check` takes it.
+        spec: As [`check`][] takes it.
         sources: Parameter names to parquet paths or in-memory tables, and
             dimension names to their labels — an index table, a parquet path,
-            or a bare sequence — wherever the YAML declares none.
+            or a bare sequence — wherever the YAML declares none. The whole
+            of the build's input: the shapes a value may take, and what
+            attaching refuses, are
+            [the data contract](https://specsolve.readthedocs.io/en/latest/reference/data/).
 
     Returns:
         The built model. It feeds any number of sinks — ``model.solve()`` and
@@ -482,22 +513,20 @@ def solve(
     """Build *spec* and solve it in one call.
 
     The one-shot spelling: a caller who will solve the same spec again with
-    new numbers wants :func:`build` and :meth:`Model.update`.
+    new numbers wants [`build`][] and [`Model.update`][].
 
     There is no ``keep`` here — this builds the model it solves, so the solve
     is the first of that model's life and
-    :attr:`~specsolve.relational.result.Result.kept` is always ``nothing``.
-    Choosing what to keep is :meth:`Model.solve`.
+    [`kept`][specsolve.relational.result.Result.kept] is always ``nothing``.
+    Choosing what to keep is [`Model.solve`][].
 
     Args:
-        spec: As :func:`check` takes it.
-        sources: As :func:`build` takes them.
-        solver_name: ``highs``, which ships with the package, or ``gurobi``,
-            which needs the ``[gurobi]`` extra.
-        solver_options: Forwarded to the solver verbatim, in its own
-            vocabulary (``{'time_limit': 60}``).
+        spec: As [`check`][] takes it.
+        sources: As [`build`][] takes them.
+        solver_name: As [`Model.solve`][] takes it.
+        solver_options: As [`Model.solve`][] takes them.
         archive: Where to write the spec, its data and this answer, as
-            :meth:`Model.solve` takes it — a ``.zip``, or a directory.
+            [`Model.solve`][] takes it — a ``.zip``, or a directory.
 
     Returns:
         The solution, self-contained: it owns the frames it reads, so the built
@@ -523,9 +552,10 @@ def write(
     """Build *spec* and stream it to a file, in the format *out*'s suffix names.
 
     Args:
-        spec: As :func:`check` takes it.
-        sources: As :func:`build` takes them.
-        out: Where to write; ``.lp`` and ``.mps`` are what ship.
+        spec: As [`check`][] takes it.
+        sources: As [`build`][] takes them.
+        out: Where to write; ``.lp`` and ``.mps`` are what ship. The two
+            describe one model and name its columns and rows the same way.
 
     Returns:
         The path written.
@@ -543,16 +573,16 @@ def write(
 
 
 def _whole(file: Path) -> pl.LazyFrame:
-    """*file* read into memory, behind the :class:`polars.LazyFrame` a saved frame is held as.
+    """*file* read into memory, behind the `polars.LazyFrame` a saved frame is held as.
 
-    The :data:`Reading` a ``load_`` uses: the bytes are here when it returns.
+    The [`Reading`][] a ``load_`` uses: the bytes are here when it returns.
     """
     return pl.read_parquet(file).lazy()
 
 
 #: How a saved frame is read — the one difference between ``load_`` and
-#: ``scan_``. :func:`_whole` reads it now, so what comes back owes the
-#: directory nothing; :func:`polars.scan_parquet` reads it at the first
+#: ``scan_``. [`_whole`][] reads it now, so what comes back owes the
+#: directory nothing; `polars.scan_parquet` reads it at the first
 #: collect, so the directory has to outlive what was read off it.
 type Reading = Callable[[Path], pl.LazyFrame]
 
@@ -582,7 +612,7 @@ def _absent(reason: str) -> Callable[[], pl.DataFrame]:
 
 
 def load_result(directory: str | Path) -> Result:
-    """Read back an answer :meth:`Result.save` wrote — a solve, off disk.
+    """Read back an answer [`Result.save`][] wrote — a solve, off disk.
 
     Every reader answers what it answered in the session that solved: the
     values, the duals and activities, each named expression, and the reason
@@ -592,21 +622,21 @@ def load_result(directory: str | Path) -> Result:
     one solved today.
 
     Two things do not come back, both being facts about a session rather than
-    about an answer: :attr:`~specsolve.relational.result.Result.kept` reads
+    about an answer: [`kept`][specsolve.relational.result.Result.kept] reads
     ``nothing``, this result holding no solver, and the solver's verbatim
     wording behind a refusal is not recorded — the termination condition is. A
     solve that reached no objective wrote null and reads back as ``nan``,
-    which is what :attr:`~specsolve.relational.result.Result.objective` has to
+    which is what [`objective`][specsolve.relational.result.Result.objective] has to
     return, being a float.
 
     Args:
-        directory: Where :meth:`~specsolve.relational.result.Result.save` wrote
+        directory: Where [`save`][specsolve.relational.result.Result.save] wrote
             it. One that came out of an archive is
-            :func:`~specsolve.archive.load_archive`'s to find.
+            [`load_archive`][specsolve.archive.load_archive]'s to find.
 
     Returns:
         The result, read whole: the frames are in memory when this returns, so
-        it owes *directory* nothing. :func:`scan_result` is the same answer left
+        it owes *directory* nothing. [`scan_result`][] is the same answer left
         on disk.
 
     Raises:
@@ -620,20 +650,21 @@ def load_result(directory: str | Path) -> Result:
 def scan_result(directory: str | Path) -> Result:
     """The answer under *directory*, read as its readers are called rather than now.
 
-    :func:`load_result`'s other half, and the same value: every reader answers
+    [`load_result`][]'s other half, and the same value: every reader answers
     what that one's does. What differs is when the bytes move — each frame is
-    a :func:`polars.scan_parquet` of the file it lies in, so an answer far
+    a `polars.scan_parquet` of the file it lies in, so an answer far
     larger than memory is readable a name at a time, and one whose names go
     unread costs nothing to open.
 
     The files stay where they are, so **they have to outlive the result**: a
-    name read after the directory is gone raises where the scan is collected.
+    name read after the directory is gone raises where the scan is collected,
+    and a file rewritten underneath it comes back changed.
 
     Args:
-        directory: As :func:`load_result` takes it.
+        directory: As [`load_result`][] takes it.
 
     Raises:
-        LayoutError: As :func:`load_result` raises it.
+        LayoutError: As [`load_result`][] raises it.
     """
     return _answer_under(Path(directory), pl.scan_parquet)
 
@@ -641,7 +672,7 @@ def scan_result(directory: str | Path) -> Result:
 def _answer_under(out: Path, read: Reading) -> Result:
     """The saved answer under *out*, its frames read *read*'s way.
 
-    Shared body of :func:`load_result` and :func:`scan_result`; only the
+    Shared body of [`load_result`][] and [`scan_result`][]; only the
     reading differs.
     """
     record_file = out / RECORD_FILE
@@ -702,13 +733,13 @@ def _refuse_another_model(answer: Result, model: Model) -> None:
 
 
 def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source]) -> Result:
-    """*answer* with an undeclared expression readable through :meth:`~specsolve.relational.result.Result.evaluate`, over *spec* and *sources* rebuilt.
+    """*answer* with an undeclared expression readable through [`evaluate`][specsolve.relational.result.Result.evaluate], over *spec* and *sources* rebuilt.
 
     Reading a quantity the file never named lowers the spec as written, so the
     model is rebuilt (a build, never a solve) and the saved primal and dual put
     back in order against it. **The rebuild is checked against the answer**: one
     built from other data than the solve ran on is refused rather than read
-    (:func:`_refuse_another_model`). The declared readers a save wrote are untouched;
+    ([`_refuse_another_model`][]). The declared readers a save wrote are untouched;
     only an expression outside them reaches the rebuilt evaluator. *answer* is
     returned unchanged where the solve left no values.
 
@@ -716,10 +747,10 @@ def attach_readers(answer: Result, spec: Buildable, sources: Mapping[str, Source
     and cached.
 
     Args:
-        answer: A saved solve, as :func:`load_result` or :func:`scan_result`
+        answer: A saved solve, as [`load_result`][] or [`scan_result`][]
             read it back.
-        spec: The model the answer solved, as :func:`build` takes it.
-        sources: What it was solved with, as :func:`build` takes them.
+        spec: The model the answer solved, as [`build`][] takes it.
+        sources: What it was solved with, as [`build`][] takes them.
     """
     if not answer._primals:
         return answer

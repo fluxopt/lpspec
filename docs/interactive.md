@@ -166,7 +166,7 @@ print(f'{fleet.diagnostics().columns} columns became {short.diagnostics().column
 
 `p[3, gas]` is missing from the second row: six columns went with the
 `where`, and `power_balance` asks two generators for a load of 180. The line
-is [linopy's shape](reference/api.md#reading-one-row). No solver output names
+is [linopy's shape](reference/api.md#specsolve.relational.result.ConstraintRow). No solver output names
 this fault. Where a mask takes every row of a declaration,
 `diagnostics().omissions` counts them.
 
@@ -182,5 +182,5 @@ print(to_spec(spec).to_yaml())
 
 [Fix, relax, remove](lifecycle.md) spells `fix`, `relax` and "remove that
 constraint" as these three loops.
-[How much of the session a solve keeps](reference/api.md#how-much-of-the-session-a-solve-keeps)
-is the one choice made for you here: `keep='solver'`.
+[`keep=`](reference/api.md#specsolve.Model.solve) is the one choice made for
+you here: `'solver'`.

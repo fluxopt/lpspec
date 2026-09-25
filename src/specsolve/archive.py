@@ -1,10 +1,10 @@
 """Reading an archive back: the spec, the data it was solved with, and what came back.
 
-:func:`load_archive` reads it whole; :func:`scan_archive` leaves the frames on
+[`load_archive`][] reads it whole; [`scan_archive`][] leaves the frames on
 disk and reads each at the call that asks for it. Either gives back a
-:class:`SolveArchive` for one solve, or a :class:`SweepArchive` where the
+[`SolveArchive`][] for one solve, or a [`SweepArchive`][] where the
 sources were cut. Nothing here writes one: ``archive=`` on the verbs that
-solve does, through :mod:`specsolve.layout`.
+solve does, through [`specsolve.layout`][].
 """
 
 from __future__ import annotations
@@ -50,15 +50,17 @@ class SolveArchive:
     ``sps.solve(archive.spec, archive.sources)`` asks the question again.
 
     Attributes:
-        spec: The spec as written.
+        spec: The spec as written, read back as one ``Spec`` whatever went in.
         sources: What was attached, keyed as the file declares it: a table
-            from :func:`load_archive`, the path to one from :func:`scan_archive`.
+            from [`load_archive`][], the path to one from [`scan_archive`][].
         answer: What came back.
         source_digests: ``(run, source, digest)``, one row per source, so two
             archives of one spec over different numbers name the input that
-            moved.
+            moved. A digest is of the parquet bytes the archive holds, so two
+            polars versions can write one table to different digests, and
+            reading an archive does not verify them.
         metrics: What reaching the answer took, as one
-            :class:`~specsolve.relational.parquet.Metrics`.
+            [`Metrics`][specsolve.relational.parquet.Metrics].
     """
 
     spec: Spec
@@ -78,13 +80,13 @@ class SweepArchive:
     Attributes:
         spec: The spec as written.
         sources: What the sweep was given, uncut. A table or a path, as
-            :class:`SolveArchive` holds them.
+            [`SolveArchive`][] holds them.
         axis: What cut them.
         carry: ``{parameter: variable}`` the slices were chained with, empty
             where they were not.
         answer: Every slice's answer, keyed by slice. Held from
-            :func:`load_archive`, spilled from :func:`scan_archive`.
-        source_digests: As :class:`SolveArchive` holds it, of the uncut
+            [`load_archive`][], spilled from [`scan_archive`][].
+        source_digests: As [`SolveArchive`][] holds it, of the uncut
             sources.
     """
 
@@ -107,8 +109,8 @@ def load_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
             archive, which is read where it lies.
 
     Returns:
-        A :class:`SweepArchive` where the archive carries an axis, a
-        :class:`SolveArchive` where it does not.
+        A [`SweepArchive`][] where the archive carries an axis, a
+        [`SolveArchive`][] where it does not.
 
     Raises:
         LanguageError: A ``spec.yaml`` the language does not accept.
@@ -130,7 +132,7 @@ def scan_archive(path: str | Path, into: str | Path | None = None) -> SolveArchi
     """Read an archive back off disk: the sources as paths, each frame read at the call that asks for it.
 
     The members have to outlive the value, so *into* is required for a zip
-    and kept. The same values and the same errors as :func:`load_archive`,
+    and kept. The same values and the same errors as [`load_archive`][],
     and ``LayoutError`` for a zip with no *into*.
     """
     return _read(opened(path, into), whole=False)

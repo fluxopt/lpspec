@@ -130,7 +130,7 @@ inputs.sort('run').with_columns(before=pl.col('digest').shift().over('source')).
 `sources/load.parquet` gives the row back. Two archives of the same data
 written by different versions of polars can differ, and reading an archive
 does not verify the digests
-([the rule](../reference/api.md#archiving-a-model)).
+([the rule](../reference/api.md#specsolve.SolveArchive)).
 
 ## See what the runs cost
 
@@ -143,7 +143,7 @@ metrics.select('run', 'rows', 'nonzeros', 'build_seconds', 'solve_seconds').sort
 )
 ```
 
-The columns are [the metrics](../reference/api.md#diagnostics). A sweep
+The columns are [the metrics](../reference/api.md#specsolve.relational.parquet.Metrics). A sweep
 records a `SliceMetrics` per slice instead, keyed by the axis and stamped
 with `run` like any other row
 ([reading a sweep](../reference/sweeps.md#reading-a-sweep)).

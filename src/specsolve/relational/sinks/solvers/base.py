@@ -1,7 +1,7 @@
 """What every solver is: a loaded model, and the rule for keeping it.
 
 A solver sink holds the model it was given and outlives the solve it was loaded
-for, so that an updated model (:meth:`~specsolve.api.Model.update`) has its new
+for, so that an updated model ([`update`][specsolve.api.Model.update]) has its new
 numbers *pushed* onto what the solver already has and re-solves from the basis
 the last one ended on.
 
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 class WarmStart:
     """What one solve leaves for a later session: a basis, or an incumbent.
 
-    Read with :meth:`Solver.warm_start`, applied with :meth:`Solver.warm`.
+    Read with [`Solver.warm_start`][], applied with [`Solver.warm`][].
     Which fields are filled is the reading solver's decision: an LP leaves its
     simplex basis (both status vectors, paired), a mixed-integer solve leaves
     no valid basis anywhere and carries its incumbent instead.
@@ -48,7 +48,7 @@ class WarmStart:
     #: left no valid basis.
     column_statuses: Any | None
     #: Basis status per row in label order; filled exactly when
-    #: :attr:`column_statuses` is.
+    #: [`column_statuses`][] is.
     row_statuses: Any | None
     #: Primal value per column in label order — a mixed-integer incumbent —
     #: or ``None`` where the basis carries the start instead.
@@ -82,7 +82,7 @@ class SolveAnswer:
     dual: pl.Series | None
     activity: pl.Series | None
     #: A weight per row certifying that the constraints cannot all hold, in
-    #: the sign convention of :meth:`Solver.dual_ray`, or ``None`` where the
+    #: the sign convention of [`Solver.dual_ray`][], or ``None`` where the
     #: solve was not infeasible or the solver produced none.
     dual_ray: pl.Series | None = None
 
@@ -98,7 +98,7 @@ class SolveAnswer:
 class Solver(ABC):
     """One solver, holding one model. Subclassed once per member of ``SOLVERS``.
 
-    A driver never constructs one directly: :func:`~specsolve.relational.sinks.solvers.loaded`
+    A driver never constructs one directly: [`loaded`][specsolve.relational.sinks.solvers.loaded]
     is the whole of "reuse or load again", and what it hands back is run and,
     eventually, closed::
 
@@ -120,13 +120,13 @@ class Solver(ABC):
         #: The options the loaded model was told, set at the load.
         self._options = dict(solver_options or {})
         self._load(handoff, batch_rows)
-        #: The build's own frames, until :meth:`structure` reads their digest
+        #: The build's own frames, until [`structure`][] reads their digest
         #: and lets them go.
         self._handoff: Handoff | None = handoff
         #: The digest of everything a re-solve may not change, or ``None``
-        #: before :meth:`structure` is first asked. Read through it, never here.
+        #: before [`structure`][] is first asked. Read through it, never here.
         self._structure: bytes | None = None
-        #: The loaded model's spans, read by :meth:`_takes` alone.
+        #: The loaded model's spans, read by [`_takes`][] alone.
         self._columns = handoff.column_count
         self._rows = handoff.row_count
 
@@ -136,10 +136,10 @@ class Solver(ABC):
 
     #: What this member can ingest, and what it refuses in combination. A
     #: member states it; the family acts on it
-    #: (:func:`~specsolve.relational.sinks.refusal`).
+    #: ([`refusal`][specsolve.relational.sinks.refusal]).
     capabilities: ClassVar[Capabilities]
 
-    #: What to tell a caller when :meth:`is_available` says no — which package
+    #: What to tell a caller when [`is_available`][] says no — which package
     #: is missing, and whether it ships or needs an extra.
     unavailable_message: ClassVar[str]
 
@@ -160,7 +160,7 @@ class Solver(ABC):
 
     @classmethod
     def imported(cls) -> Any:
-        """Every package in :attr:`requires`, imported — or :attr:`unavailable_message`.
+        """Every package in [`requires`][], imported — or [`unavailable_message`][].
 
         Returns the first, the member's own library; the rest are imported only
         to fail here.
@@ -209,7 +209,7 @@ class Solver(ABC):
         """
 
     def warm(self, ws: WarmStart) -> None:
-        """Start the next :meth:`run` from *ws* instead of from scratch.
+        """Start the next [`run`][] from *ws* instead of from scratch.
 
         The caller vouches that *ws* was read from a model with this one's
         label set; what is checked here is what can be — the sink it came
@@ -258,9 +258,9 @@ class Solver(ABC):
     def _warm(self, ws: WarmStart) -> None:
         """Apply *ws* onto the loaded model, its spans already checked.
 
-        Reached only through :meth:`warm`, so a member may assume the vectors
+        Reached only through [`warm`][], so a member may assume the vectors
         span the model it holds and that filled fields pair the way
-        :class:`WarmStart` says they do.
+        [`WarmStart`][] says they do.
         """
 
     def run(self, handoff: Handoff) -> SolveAnswer:
@@ -300,8 +300,8 @@ class Solver(ABC):
 
         *handoff* is asked only for what has no column and so was never loaded —
         the objective's constant. When either vector may be ``None`` is
-        :class:`SolveAnswer`'s docstring. An infeasible solve calls
-        :meth:`dual_ray` and returns what it gives.
+        [`SolveAnswer`][]'s docstring. An infeasible solve calls
+        [`dual_ray`][] and returns what it gives.
         """
 
     def dual_ray(self) -> pl.Series | None:
@@ -328,7 +328,7 @@ class Solver(ABC):
     def forget(self) -> None:
         """Discard the work the last solve did, keeping the model loaded.
 
-        The middle rung of :data:`~specsolve.relational.result.KEEPS`: the matrix
+        The middle rung of [`KEEPS`][specsolve.relational.result.KEEPS]: the matrix
         stays handed over, and the next run begins as if it had never been
         solved. A member with nothing to discard implements this as a no-op.
         """
@@ -340,7 +340,7 @@ class Solver(ABC):
 
         The library's own model — what ``build_<solver>`` gives a caller who
         stops at the hand-off, and what a test reads the load back through.
-        Owned by this holder: the caller does not release it, :meth:`close`
+        Owned by this holder: the caller does not release it, [`close`][]
         does.
         """
 
@@ -348,7 +348,7 @@ class Solver(ABC):
     def close(self) -> None:
         """Release the loaded model, and anything outside this process with it.
 
-        Idempotent. Afterwards :attr:`handle` is ``None``.
+        Idempotent. Afterwards [`handle`][] is ``None``.
 
         **The same release happens to a holder dropped without closing.** A
         member whose library releases its object on collection has that for
