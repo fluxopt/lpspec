@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-    from specsolve.lanes import PandasSeries, Source
+    from specsolve.lanes import Source
 
 
 __all__ = ['as_frame', 'is_dense_array', 'is_multi_indexed', 'to_pandas']
@@ -65,12 +65,14 @@ def as_frame(obj: Source, dims: Sequence[str] = ()) -> pl.LazyFrame | None:
     if isinstance(obj, pl.DataFrame):
         return obj.lazy()
 
-    pd = sys.modules.get('pandas')
-    if pd is not None and isinstance(obj, pd.Series):
-        frame = _series_to_frame(obj, dims)
-        return _from_pandas(frame) if frame is not None else None
-    if pd is not None and isinstance(obj, pd.DataFrame):
-        return _from_pandas(obj)
+    if 'pandas' in sys.modules:
+        import pandas as pd
+
+        if isinstance(obj, pd.Series):
+            frame = _series_to_frame(obj, dims)
+            return _from_pandas(frame) if frame is not None else None
+        if isinstance(obj, pd.DataFrame):
+            return _from_pandas(obj)
 
     if isinstance(obj, ArrowTable):
         try:
@@ -92,11 +94,14 @@ def is_multi_indexed(obj: Source) -> bool:
     """Whether *obj* is a pandas Series carrying more than one index level."""
     import sys
 
-    pd = sys.modules.get('pandas')
-    return pd is not None and isinstance(obj, pd.Series) and obj.index.nlevels > 1
+    if 'pandas' not in sys.modules:
+        return False
+    import pandas as pd
+
+    return isinstance(obj, pd.Series) and obj.index.nlevels > 1
 
 
-def _series_to_frame(series: PandasSeries, dims: Sequence[str]) -> pd.DataFrame | None:
+def _series_to_frame(series: pd.Series, dims: Sequence[str]) -> pd.DataFrame | None:
     """A pandas Series with its one index level promoted to a column.
 
     One level is all a Series can carry here — [`is_multi_indexed`][] refuses
