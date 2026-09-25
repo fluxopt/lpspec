@@ -7,6 +7,7 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 
 ## Upcoming version
 
+- feat(api)!: a saved answer is stamped with layout 1 and the specsolve version that wrote it, and one written by 0.1.0 or earlier is refused by name ([#1765](https://github.com/fluxopt/specsolve/pull/1765))
 - docs: each fact about the Python API is stated once, in the docstring of the name it belongs to ([#1769](https://github.com/fluxopt/specsolve/pull/1769))
 - docs: the Python API page renders every public name from its docstring ([#1766](https://github.com/fluxopt/specsolve/pull/1766))
 - docs(sweeps): the sweep reference says how many sessions a sweep opens on a remote Gurobi ([#1771](https://github.com/fluxopt/specsolve/pull/1771))
