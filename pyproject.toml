@@ -1,21 +1,15 @@
 [build-system]
-requires = ["hatchling>=1.27", "hatch-vcs"]  # 1.27 is the first with PEP 639 license fields
+# 1.27 is the first hatchling with PEP 639 license fields.
+requires = ["hatchling>=1.27", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "specsolve"
-# the git tag is the version — see RELEASING.md. Never hardcode it here.
 dynamic = ["version"]
-# "at any scale" and "streaming" were true of the duckdb engine, which built
-# under a configured memory ceiling and could exceed RAM. This one holds the
-# model it builds (ROADMAP Track 5), so the description says what is still true:
-# built relationally, sparse, and handed to the solver without a file.
 description = "Self-documenting optimisation models: declarative LP/MILP, built relationally and handed straight to the solver"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-# YAML lives here rather than in the description: it is the format we ship, not
-# the contract (that is MathSchema), but it is still how people search.
 keywords = [
     "optimisation", "optimization", "linear-programming", "mixed-integer",
     "declarative", "yaml", "polars", "highs", "operations-research",
@@ -28,87 +22,27 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    # The language: the two public states, the two grammars, resolution, the dim
-    # rules, the degree check and the lowering — everything decidable before a
-    # byte of data is read. Extracted
-    # to its own repository so a second consumer costs nothing (docs/about/architecture.md);
-    # this package is the first one, and PyPSA is the next.
     "mathspec>=0.1.0",
-    # the relational engine: every frame a model is built from, and the parquet
-    # reader that fills them. Arrow-backed, so a result frame exports the
-    # PyCapsule protocol and any consumer takes it without this package
-    # depending on their library.
     "polars>=1.30",
-    # the solver_direct sink's own arithmetic: `searchsorted` builds the CSR
-    # row starts HiGHS wants, and the batch coercions are its dtypes. Array
-    # work at the solver boundary, not a dataframe dependency.
     "numpy>=1.26",
-    # 1.13 is where `changeRowsBounds` arrives — the bulk form the loaded
-    # solver pushes an updated model's right-hand sides through. 1.10 has only
-    # the per-row `changeRowBounds`, which is a Python call per constraint.
+    # 1.13 is the first highspy with the bulk `changeRowsBounds`.
     "highspy>=1.13",
 ]
 
 [project.optional-dependencies]
-# linopy + xarray power the linopy lane (specsolve.linopy): YAML math
-# on a Python-built linopy.Model, plus the differential-test oracle.
-# The relational engine never imports them, and the `default` environment names
-# this extra as a feature rather than repeating it — one place for the pins, so
-# what CI tests the lane against is what a user of the extra gets.
-#
-# linopy is a git requirement because the v1 arithmetic convention this lane
-# requires is in no release: PyPSA/linopy#717 merged to master on 2026-08-19
-# and no release carries it yet — 0.9.1 predates the merge and ships without
-# `options['semantics']`. `specsolve/linopy/__init__.py` sets that option on
-# import and does not guard — its docstring says what legacy semantics would
-# answer instead — so a released linopy turns the import into a bare
-# `KeyError: semantics is not a valid setting`, which no version floor
-# prevents, every release being above a 0.8 dev version.
-#
-# Master, not a rev: this tracks active upstream work, and a stale rev would
-# quietly measure the lane against a spec that has since moved. It was
-# `feat/arithmetic-convention` until that branch was deleted on merge, and
-# every job in the repo went red at once resolving a ref that had gone.
-#
-# A direct reference is metadata PyPI refuses, so this pin and a PyPI release
-# cannot both stand — see RELEASING.md. When v1 ships, this becomes an
-# ordinary floor on the release that carries it (#463).
 linopy = [
+    # Master: linopy's v1 arithmetic convention is in no release yet (#463).
     "linopy @ git+https://github.com/PyPSA/linopy@master",
     "xarray>=2024.2.0",
-    # also what `Result.to_pandas` / `to_dataarray` need. Declared here rather
-    # than as a runtime dependency: pandas is a bridge out of the engine, not
-    # a part of it, and the bare-install CI job proves the engine builds,
-    # solves and reads results back without it.
     "pandas>=2.2",
 ]
-# The `gurobi` sink (relational/sinks/gurobi.py). Opt-in, and the only sink
-# with a licence question: gurobipy's own wheel carries a size-limited licence
-# that solves small models out of the box, which is what the tests run on.
-#
-# scipy is not a convenience here. gurobipy's matrix API takes a *matrix
-# object* where HiGHS takes the three CSR arrays, so `scipy.sparse.csr_matrix`
-# is the only way to hand over a block of rows without one Python call per
-# row. Only the long-stable `csr_matrix` constructor is used, so its floor is
-# the oldest release we would test against rather than a feature; gurobipy's
-# is 11, the release whose status codes the sink's condition map is written
-# against — 17 is `MEM_LIMIT` from that version on.
 gurobi = [
+    # 11 is the release whose status codes the sink maps.
     "gurobipy>=11",
     "scipy>=1.11",
 ]
-# The `xpress` sink (relational/sinks/solvers/xpress.py). Opt-in, and the
-# second sink with a licence question, answered the same way: the wheel
-# carries a Community licence that is active on import — no file, no signup —
-# and refuses a model whose rows plus columns exceed 5000, which is what the
-# tests here stay under.
-#
-# The floor is where the API this sink calls settled: 9.5 is the release that
-# renamed the read-back to `getDuals`/`getSlacks` and deprecated the old
-# spellings, and the `SolStatus` enum the condition map is keyed by is 9.x.
-# Nothing here uses the modelling layer — the sink hands over the same CSR
-# arrays HiGHS takes — so no numpy floor of its own.
 xpress = [
+    # 9.5 is the release that renamed the read-back to `getDuals` and `getSlacks`.
     "xpress>=9.5",
 ]
 
@@ -117,11 +51,9 @@ repository = "https://github.com/fluxopt/specsolve"
 
 [tool.hatch.version]
 source = "vcs"
-# only hit when building outside a git checkout (e.g. an sdist of an sdist)
 fallback-version = "0.0.0"
 
-# What lets the `linopy` extra name a git branch; hatchling refuses a direct
-# reference otherwise. The extra says why it needs one.
+# The `linopy` extra's git reference needs this.
 [tool.hatch.metadata]
 allow-direct-references = true
 
@@ -132,65 +64,16 @@ packages = ["src/specsolve"]
 include = ["/src"]
 
 [dependency-groups]
-# The benchmark suite (bench/). Its own group, not `dev`: this pulls memray in
-# and the test suite needs none of it. pytest-benchmem is the harness now — it
-# supplies the timing (through pytest-benchmark), the memray peak, and the
-# whole-process `rss` the published comparison is built on.
-# `pixi run refresh` re-measures the published ladder with it.
-#
-# The floor is a behavioural one: 0.5 is the first release whose isolated pass
-# reports `rss` correctly on Linux — it reads the child's own resident
-# high-water, keeps the warmup out of it, and runs setup before the measured
-# region rather than inside it. Every number this suite publishes comes from
-# `benchmem(isolate=True)`, so below that floor the `rss` column means
-# something else.
 bench = [
+    # 0.5 is the first release that reports `rss` correctly on Linux.
     "pytest-benchmem>=0.5.5",
 ]
-# The same suite (bench/), measured by CodSpeed instead. Its own group rather
-# than a share of `bench`, for the same reason `bench` is not a share of `dev`:
-# pytest-benchmem brings pytest-benchmark, whose `benchmark` fixture is the one
-# pytest-codspeed replaces, and a second benchmarking plugin loaded into the
-# process being measured is a confounder bought for nothing.
-#
-# Pinned exactly, unlike `pytest-benchmem>=0.5.5`: CodSpeed keeps the baseline
-# across commits, so the plugin version is part of the measurement rather than
-# part of the environment — a floor would let a bump land as a regression.
-#
-# pandas and pyarrow are here because `bench/cases.py` writes the parquet inputs
-# with them. Declaring them is what lets the `codspeed` environment leave `dev`
-# out and skip resolving linopy from a git branch for a job that never builds a
-# linopy model.
 codspeed = [
+    # Exact: CodSpeed compares across commits, so the plugin version is part of the measurement.
     "pytest-codspeed==5.0.3",
     "pandas>=2.2",
     "pyarrow>=16",
 ]
-# The published site (mkdocs.yml). Its own group, not `dev`: nothing in the
-# test suite imports any of it, and a contributor running `pixi run test` should
-# not pay for a docs toolchain. `pixi run docs` serves it locally.
-#
-# Deliberately no mkdocstrings: the public surface is a declared model, not a
-# Python API (ARCHITECTURE hard rule 5), and an autogenerated API reference
-# would contradict that in the nav.
-#
-# markdown-exec runs the `python exec="true"` blocks on `docs/interactive.md`
-# and `docs/lifecycle.md` during the build — so this group is the one place the
-# site needs the package importable, which is why the `docs` environment carries
-# the project alongside it. It needs no kernel, which is what retired
-# mkdocs-jupyter, ipykernel and nbconvert along with the two notebooks.
-#
-# zensical replaced mkdocs, mkdocs-material and mkdocs-include-markdown-plugin:
-# it reads the same `mkdocs.yml`, carries the theme, the search index and the
-# renderer in one package, and runs neither hooks nor an unsupported plugin.
-# Pinned exactly, like everything else here, and more so: it is pre-1.0, and
-# what a 0.0.x bump changes is the gate's own output.
-#
-# pytest is here for `docs-test`, which is the two assertions that need a
-# renderer: that every math span a page prints reaches MathJax, and that the
-# rewrite leaves a fence alone. They cannot join `pixi run test`, because the
-# renderer is the docs toolchain and a contributor running the suite should not
-# pay for it — so they run in the environment that already has it.
 docs = [
     "zensical==0.0.62",
     "markdown-exec==1.12.3",
@@ -201,133 +84,45 @@ docs = [
 dev = [
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
-    # `-n auto` for the suite — what CI passes and what the loop in
-    # CONTRIBUTING.md documents. Deliberately not in `addopts`: `-x`,
-    # `--pdb` and readable single-test output all want one process, and a
-    # run of one test file pays the worker startup for nothing.
     "pytest-xdist==3.8.0",
     "ruff==0.16.1",
     "pyrefly==1.2.0",
     "pre-commit==4.6.1",
-    # The tools, and only the tools. The three extras a dev environment also
-    # wants — the linopy lane and the two opt-in solver sinks — are named by the
-    # `default` environment below rather than repeated here as `specsolve[…]`: a
-    # self-reference and a path dependency are two definitions of one package,
-    # and pixi has to be given one. The pins stay in the extras, so a
-    # contributor and a `pip install specsolve[linopy]` still get the same
-    # versions, and the sinks' own tests still skip where a package is absent.
-    #
-    # how pandas reads parquet, which the benchmark harness's linopy arm does
-    # as part of the cost it is there to measure. Not needed by the engine —
-    # the bare-install job runs the suite without it.
     "pyarrow>=16",
     "typst>=0.15.0",
-    # The benchmark harness's pyomo arm (bench/models/<case>/pyomo.py). In `dev`
-    # rather than in `bench` beside pytest-benchmem, because what makes a
-    # hand-written arm trustworthy is the objective check in
-    # `bench/test_harness.py`, and that runs in *this* environment on every pull
-    # request. An arm nobody checks is worse than no arm. Pure Python, so it
-    # costs a contributor nothing but the download.
     "pyomo>=6.7",
 ]
 
 # ---------------------------------------------------------------------------
 # pixi — the environments, and one name per command
 # ---------------------------------------------------------------------------
-# Everything above stays ordinary packaging metadata: `[project]`, its extras
-# and `[dependency-groups]` are what pip installs and what the wheel declares.
-# pixi reads them as they are — an extra and a dependency group each become a
-# *feature* of the same name — so nothing below repeats a version.
-#
-# What is new is the composition. Each environment a gate or a contributor
-# needs is named here once — which features it is made of, and which interpreter
-# it runs on — and a caller picks one rather than assembling it at the call
-# site: `pixi run -e docs …`. Two callers wanting the same environment name the
-# same environment, so they cannot quietly disagree about what is in it.
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
-# Nothing here is platform-specific — the interpreter comes from conda-forge and
-# every other dependency is a PyPI wheel — so this list is who contributes plus
-# where a gate runs, and `linux-aarch64` is the second kind. CodSpeed's macro
-# runner is bare-metal ARM64, it is the only machine that measures wall time,
-# and pixi solves the whole workspace from the host it is invoked on: with the
-# host's own platform undeclared it cannot build the metadata of the project it
-# is asked to install, and `pixi install -e codspeed` fails before the job
-# reaches a benchmark.
+# linux-aarch64 is for CodSpeed's ARM64 runner.
 platforms = ["linux-64", "linux-aarch64", "osx-arm64", "win-64"]
-# The floor is a real one, like every other in this file: `choices` on a task
-# argument (`typecheck` below) arrived in 0.65.0.
+# `choices` on a task argument arrived in 0.65.
 requires-pixi = ">=0.65"
 
-# There is no `pixi.lock` in this tree; .gitignore keeps it out.
-# A lock is pixi's usual default and the reason to refuse it is specific: the
-# `linopy` extra above resolves a *branch*, deliberately, and a lockfile pins
-# the branch to the commit it was locked at. The lane would then be measured
-# against a spec that has since moved — the exact failure the extra's comment
-# was written to prevent. The declared floors are checked instead, by the
-# `floors` environment below, which is a stronger claim than a lock makes.
+# There is no pixi.lock: a lock would pin the `linopy` extra's branch to one commit.
 
-# The interpreter, in one place, which is the answer to "which Python does this
-# gate run on?" for every environment and every workflow at once.
-#
-# 3.12 is the floor and the only version the gates test. If it works on the
-# oldest supported interpreter it almost certainly works on the newer ones; the
-# common real breakage is reaching for a 3.13+ stdlib feature, which is exactly
-# what this catches. That leaves the 3.13 classifier above as an untested claim
-# — see the early-development section of RELEASING.md.
 [tool.pixi.dependencies]
 python = "3.12.*"
 
-# The project itself, editable, in every environment that does not say
-# otherwise — `floors` is the one that does.
 [tool.pixi.pypi-dependencies]
 specsolve = { path = ".", editable = true }
 
-# The same project with the three extras a development environment wants: the
-# linopy lane and the two opt-in solver sinks. A feature that redeclares the
-# project overrides the line above for the environments that name it, so the
-# extras reach `default`, `bench` and `publish` and reach nothing else — `docs`
-# and `codspeed` stay as narrow as their comments below claim. The pins live in
-# the extras, so this cannot drift from `pip install specsolve[linopy]`.
 [tool.pixi.feature.dev.pypi-dependencies]
 specsolve = { path = ".", editable = true, extras = ["linopy", "gurobi", "xpress"] }
 
-# The shipped shape, at the declared floors: what `[project.dependencies]`
-# above promises, pinned to the version it names, and nothing else on disk.
-# Two claims:
-#   1. the relational engine runs with no linopy, xarray, pandas or pyarrow —
-#      this environment contains none of them, and `test-floors` checks it;
-#   2. the lower bounds are real rather than decorative.
-#
-# Pinned exactly rather than resolved low, because pixi resolves what it is
-# asked for. The pins are not a second home for those numbers:
-# `tests/test_tooling_pins.py` fails when one disagrees with the floor it
-# mirrors, so a raised floor above is a raised floor here.
-#
-# `no-default-feature` in the environment, so specsolve is installed from the
-# built wheel rather than editable — a packaging error (a subpackage missing
-# from the wheel) is one of the things this gate is for.
-#
-# pytest and pytest-xdist are unconstrained: they run the suite, they are not
-# under test, and execnet is all xdist adds to the shipped shape.
-# Linux only. Not a portability claim being dodged: the floors are the *shipped
-# shape*, and pyyaml reaches win-64 as an sdist that does not build there, so
-# declaring that platform would assert something no job checks and that is in
-# fact false. The environments a contributor actually uses keep every platform
-# above.
-#
-# `linux-aarch64` is here for pixi rather than for a gate. Any `pixi install`
-# solves *every* environment in the workspace, and solving one whose platforms
-# the invoking machine cannot run fails on the metadata build — so a single
-# environment left off the ARM64 platform takes the wall-time job down with it,
-# whatever environment that job asked for. Its own gate is still linux-64.
 [tool.pixi.feature.floors]
+# pyyaml has no win-64 wheel. linux-aarch64 lets `pixi install` solve on the CodSpeed runner.
 platforms = ["linux-64", "linux-aarch64"]
 
 [tool.pixi.feature.floors.dependencies]
 python = "3.12.*"
 
+# Each pin is the floor `[project.dependencies]` declares; tests/test_tooling_pins.py checks it.
 [tool.pixi.feature.floors.pypi-dependencies]
 specsolve = { path = "." }
 polars = "==1.30"
@@ -339,37 +134,18 @@ pytest-xdist = "*"
 
 [tool.pixi.environments]
 default = ["dev"]
-# The site, and the only environment `.readthedocs.yaml` builds — the same one
-# CI builds strictly, which is what stops the two from drifting. No `dev`: the
-# docs toolchain plus the project is the whole of what the site needs, and
-# markdown-exec runs the blocks on docs/interactive.md, which import specsolve.
 docs = ["docs"]
-# The ladder measures specsolve against linopy, so the benchmark environment is
-# the dev one plus the harness.
 bench = ["dev", "bench"]
-# Deliberately without `dev`: nothing measured here builds a linopy model, and
-# the group declares the parquet writer bench/cases.py needs.
 codspeed = ["codspeed"]
 floors = { features = ["floors"], no-default-feature = true }
 
-# The commands. A command that more than one caller runs is a task, so CI and a
-# contributor cannot run different things by the same name; a command that runs
-# in one place with its reasoning beside it — bench.yml's selection, codspeed's
-# rungs — stays there and is invoked with `pixi run -e <env> …`.
 [tool.pixi.tasks]
 test = { cmd = "pytest -q -n auto", description = "The suite, across cores" }
-# `testpaths` is `tests`, so the line above says nothing about `bench/`. Its own
-# task rather than a wider `testpaths`: these are the harness's *own* tests, they
-# want no plugin the default environment lacks, and they take nine seconds.
 test-bench = { cmd = "pytest bench/test_harness.py -q", description = "The harness measures what it says it measures" }
 lint = { cmd = "ruff check .", description = "Lint" }
 format = { cmd = "ruff format .", description = "Format in place" }
 format-check = { cmd = "ruff format --check .", description = "Formatting has not drifted" }
 
-# Both configs, because the reference scripts carry annotations the gallery
-# shows and a wrong one there teaches a wrong type on the site.
-# `--output-format` is an argument rather than two tasks: CI wants `github`, so
-# a finding lands as an annotation on the diff, and a terminal wants prose.
 [tool.pixi.tasks.typecheck]
 description = "Types, over the package and the linopy reference scripts"
 args = [{ arg = "format", default = "min-text", choices = [
@@ -381,55 +157,28 @@ pyrefly check --output-format={{ format }} &&
 pyrefly check --output-format={{ format }} -c examples/ports/references/linopy/pyrefly.toml examples/ports/references/linopy
 """
 
-# What `ci` requires, in one command. Named after the gate rather than after
-# the tools, so it stays true when one of them is replaced.
 [tool.pixi.tasks.check]
 description = "Everything the required check runs: lint, format, types, suite"
 depends-on = ["lint", "format-check", "typecheck", "test"]
 
-# `shard` is `i/n`: every n-th case of both sweeps, offset by i. The default
-# runs all of them, so `pixi run sweep` is unchanged; sweep.yml passes one leg
-# per matrix entry, and `tests/test_pixi_tasks.py` refuses a matrix that
-# disagrees with the `n` it names.
 [tool.pixi.tasks.sweep]
 description = "Every expression to depth three, both lanes"
 args = [{ arg = "shard", default = "0/1" }]
 cmd = "pytest tests/test_expression_sweep.py -q -n auto --sweep-depth 3 --sweep-shard {{ shard }}"
 
-# `python -m zensical`, not the `zensical` console script: the site enables
-# `tools.mdx_github_math`, and only `-m` puts the project root on `sys.path` for
-# python-markdown to import it from. The script form fails with
-# `No module named 'tools'`.
+# `python -m` puts the project root on sys.path, which `tools.mdx_github_math` needs.
 [tool.pixi.feature.docs.tasks]
 docs = { cmd = "python -m zensical serve", description = "The site at 127.0.0.1:8000, live-reloading" }
 docs-build = { cmd = "python -m zensical build --strict", description = "The site, built the way CI builds it" }
 docs-test = { cmd = "pytest tests/test_docs_math.py -q", description = "The site's math, rendered — what a strict build does not check" }
 
-# The published ladder, one rung per task and `refresh` for all of it. The flags
-# live here rather than in three documents that each quoted them: bench/README.md
-# explains what each measures, and quotes the task name.
 [tool.pixi.feature.bench.tasks]
 density = { cmd = "pytest bench --benchmark-memory --sizes d100 d50 d25 d08 --benchmark-json=bench/results/density.json", description = "The density sweep" }
 declarations = { cmd = "pytest bench --benchmark-memory --sizes n002 n008 n032 n128 n008m n128m --benchmark-json=bench/results/declarations.json", description = "The declaration-count sweep, dense and masked" }
 report = { cmd = "python -m bench.report --write", description = "Write every table into its fence in docs/about/benchmarks.md. Drop --write to print instead" }
 plot = { cmd = "python -m bench.plot", description = "The figures, and the chart page's numbers" }
-# The same three files as `report`, rendered with no opinions: a row per number,
-# so a question the renderers do not answer is a filter rather than a patch.
-# Prints; nothing commits it. The CSV is a *reduction* — the minimum plus its
-# spread — where the JSON beside it keeps every round, so the archive is the
-# JSON and this is the interface. A committed copy would be a cache of a pure
-# function, free to drift, and nothing here reads it back.
 table = { cmd = "python -m bench.tidy bench/results", description = "Every measurement as one long CSV on stdout; --runs for the fingerprint" }
 
-# The published selection, and the only place it is written down. A run that
-# retypes it is a number whose fingerprint no longer describes it, so
-# `bench/reproduce.py` reads this string out of here, and
-# `published-benchmark.yml` calls the task rather than the pytest line inside it.
-#
-# The arguments exist for a *narrower* run — a smoke test, or the subset a CI
-# runner can take without a Gurobi licence. Their defaults are the published
-# selection, so `pixi run ladder` with no arguments is what the page is taken
-# with.
 [tool.pixi.feature.bench.tasks.ladder]
 description = "Every model the page publishes, in every library that can express it"
 args = [
@@ -449,62 +198,13 @@ pytest bench --benchmark-memory --builds {{ builds }} \
   --benchmark-json={{ out }}
 """
 
-# What a runner takes: everything, one sink per job.
-#
-# A probe on `ubuntu-24.04` built ten million columns and rows in 17.96 s on the
-# licence gurobipy's wheel ships — the cap is on `optimize()`, which the harness
-# never calls. So the sink is affordable; the wall clock is what is not.
-#
-# A hosted runner measures this tree 2.33x slower than the laptop the tables
-# were taken on, and a job there is capped at six hours. Both sinks in one job
-# projects past that cap, and a job killed on timeout loses every column it had
-# already measured, including the sink that finished. Split by sink and each
-# half fits with hours to spare, a bad runner costs one sink rather than the
-# run, and `bench.report` merges the two files because it already reads a
-# directory. Numbers and method: #1315.
-#
-# A shared host still cannot resolve every comparison, and that is what the
-# bands are for. Of the eleven specsolve-vs-rival margins on the `gurobi` sink, six
-# are 1.3x to 4.1x and survive any host; five sit between 1.04x and 1.23x and do
-# not. Leaving the sink out to protect the five costs the six — including the
-# `gurobipy-loop` against `gurobipy-matrix` pair, 3x apart, which is the whole
-# how-you-write-it finding. Overlapping bands say "these two cannot be told
-# apart", which is true and is the page's stated reading.
-#
-# `sink` has no default on purpose: a `ladder-ci` that quietly measured half the
-# published columns is the failure this task exists to make impossible.
-# One pytest per case, not one for the lot. A single process does not return
-# freed memory to the OS on glibc, so it carried 8.7 GB of finished cases into
-# `transport/w100` — which needs 14 GB of its own and an isolated child that
-# needs it again — and took a 32 GB box down. Four processes start empty; the
-# readers already take a directory, so nothing merges them by hand.
-#
-# A case that dies is recorded rather than fatal, and the ladder still fails at
-# the end. `|| exit 1` gave the three cases after the dead one nothing: the run
-# came back with no results at all rather than with the three it could still
-# have taken.
-#
-# The case list is here and in `ladder`'s default, which
-# `test_the_ci_ladder_covers_every_published_case` keeps equal.
 [tool.pixi.feature.bench.tasks.ladder-ci]
 description = "One sink of the published ladder, a process per case"
 args = [{ arg = "sink" }, { arg = "cases", default = "dispatch transport storage fleet" }]
-# `bash -c` because pixi's own shell has no `for`.
-# `--builds` only on `highs`: `test_rebuild` is not parametrised by sink, so
-# running it in both invocations measures the same 98 cells twice — 16 minutes
-# of a run, for a second copy of a number that cannot differ.
+# `bash -c` because the pixi shell has no `for`.
+# `--builds` only on highs, because `test_rebuild` does not vary by sink.
 cmd = '''bash -c 'bash bench/memory-watchdog.sh & watchdog=$!; trap "kill $watchdog 2>/dev/null || true" EXIT; memory="${BENCH_MEMORY_BUDGET:-16}"; sizes="${BENCH_SIZES:-xs s m l w1 w10 w100 w1000}"; builds=0; lost=""; [ "{{ sink }}" = highs ] && builds=5; for case in {{ cases }}; do pixi run -e bench ladder "$case" "$sizes" "{{ sink }}" "specsolve linopy pyomo gurobipy-loop gurobipy-matrix highspy-matrix" "bench/results/latest-{{ sink }}-$case.json" "$builds" "$memory" || lost="$lost $case"; done; [ -z "$lost" ] || { echo "cases that did not finish:$lost"; exit 1; }' '''
 
-# The narrow run the `ladder` arguments exist for: one rung, one sink, two arms.
-# It measures nothing worth publishing and proves everything around it — that a
-# box came up, that a runner claimed the job, that the environment solves, that
-# the writers render and the artifact lands. Minutes against the ladder's hours,
-# which is the difference between finding a mistyped runner label cheaply and
-# finding it after a full run.
-#
-# Here rather than spelled into the workflow, for the reason every selection is
-# here: one home, and `test_every_repository_path_a_workflow_names_exists` reads
-# workflows for paths that must already exist, which an output file never does.
 [tool.pixi.feature.bench.tasks.ladder-smoke]
 description = "One rung, to prove the machinery rather than to measure anything"
 depends-on = [
@@ -520,63 +220,57 @@ depends-on = [
 description = "Re-measure the published ladder and rewrite the tables and the chart page"
 depends-on = ["ladder", "density", "declarations", "report", "plot"]
 
-# The suite against the floors, across cores like the default one — and the
-# absence check first, because a green suite with linopy on disk would be
-# testing the wrong environment.
 [tool.pixi.feature.floors.tasks]
 test-floors = { cmd = "python -c \"import importlib.util as u, sys; sys.exit(u.find_spec('linopy') is not None)\" && pytest -q -n auto", description = "The suite on the shipped shape, at the declared floors" }
 
 [tool.ruff]
 target-version = "py312"
 line-length = 120
-# The rung pages are generated and embed committed files verbatim; formatting the python
-# inside their fences would make the page differ from what tools.ladder regenerates.
+# Generated pages that embed committed files verbatim.
 extend-exclude = ["docs/examples/pypsa_ladder"]
 
 [tool.ruff.lint]
 select = [
-    "E",     # pycodestyle errors
-    "F",     # Pyflakes
-    "W",     # pycodestyle warnings
-    "I",     # isort
-    "B",     # flake8-bugbear
-    "N",     # pep8-naming
-    "UP",    # pyupgrade
-    "FA",    # flake8-future-annotations
-    "TC",    # flake8-type-checking
-    "SIM",   # flake8-simplify
-    "RUF",   # Ruff-specific rules
-    "PERF",  # perflint
-    "C4",    # flake8-comprehensions
-    "PIE",   # flake8-pie
-    "RET",   # flake8-return
-    "FLY",   # flynt (f-string)
-    "FURB",  # refurb
-    "T20",   # flake8-print
-    "T10",   # flake8-debugger
-    "PLC",   # pylint conventions
-    "PLE",   # pylint errors
-    "D",     # pydocstyle
+    "E",
+    "F",
+    "W",
+    "I",
+    "B",
+    "N",
+    "UP",
+    "FA",
+    "TC",
+    "SIM",
+    "RUF",
+    "PERF",
+    "C4",
+    "PIE",
+    "RET",
+    "FLY",
+    "FURB",
+    "T20",
+    "T10",
+    "PLC",
+    "PLE",
+    "D",
 ]
 ignore = [
-    "E501",     # line too long (handled by formatter)
-    "RET504",   # unnecessary assignment before return
-    "PLC0415",  # import not at top level (lazy imports are load-bearing here)
-    "D1",       # missing docstring — AGENTS.md decides where one earns its place
+    "E501",     # the formatter owns line length
+    "RET504",
+    "PLC0415",  # lazy imports are load-bearing here
+    "D1",       # AGENTS.md decides where a docstring earns its place
 ]
 extend-fixable = ["B", "SIM", "RUF", "C4", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
-# `D` is off outside the package: the Google convention is for what a *caller*
-# reads, and elsewhere a docstring argues for one assertion or narrates a
-# script, where a summary line it has to fit in is the worse sentence.
-"examples/**/*.py" = ["T20", "D"]  # the walkthrough's whole output is its point
-"docs/**/*.md" = ["T20"]  # an executed block prints to show its answer
-"bench/**/*.py" = ["T20", "D"]  # a harness reports by printing; stdout is its interface
-"tools/**/*.py" = ["T20", "D"]  # same: a generator says what it wrote
-"differential/**/*.py" = ["T20", "D"]  # same: the parity runner reports by printing
+# T20: these files report by printing. D: the docstring rules gate src/ only.
+"examples/**/*.py" = ["T20", "D"]
+"docs/**/*.md" = ["T20"]
+"bench/**/*.py" = ["T20", "D"]
+"tools/**/*.py" = ["T20", "D"]
+"differential/**/*.py" = ["T20", "D"]
 "tests/**/*.py" = ["D"]
-"tests/typeset/golden/__main__.py" = ["T20", "D"]  # likewise a generator, and only reachable as a command
+"tests/typeset/golden/__main__.py" = ["T20", "D"]
 
 [tool.ruff.format]
 quote-style = "single"
@@ -590,27 +284,16 @@ convention = "google"
 keep-runtime-typing = false
 
 [tool.ruff.lint.flake8-type-checking]
-# pydantic models evaluate annotations at runtime to build validators, so imports
-# used only in annotations must stay at runtime (not moved to TYPE_CHECKING).
 runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--strict-markers", "--strict-config", "-ra"]
-# bench/ is not on testpaths and is run explicitly; the marker is declared here
-# because --strict-markers rejects unknown ones when it is — and it has to be
-# declared even where pytest-benchmem is absent, because the CodSpeed job runs
-# the same marked tests without it.
 markers = ["benchmem: pytest-benchmem settings for a benchmark (bench/, needs --group bench)"]
 xfail_strict = true
 filterwarnings = ["error"]
 
 [tool.coverage.run]
-# Settings for an ad-hoc local `pytest --cov`; no CI job runs one (AGENTS.md).
-# `branch` because the line number flatters — a guard whose false arm no test
-# takes is a fully covered line, and that is exactly the guard worth finding.
-# Deliberately not in `addopts`: the bare-install job installs pytest alone, and
-# an unknown `--cov` there is a usage error rather than a skipped measurement.
 branch = true
 source = ["specsolve"]
 
@@ -619,40 +302,12 @@ skip_covered = true
 show_missing = true
 
 [tool.pyrefly]
-# check against the *lowest* supported interpreter, so 3.13+ syntax and stdlib
-# additions are caught here rather than by the 3.12 leg of the CI matrix.
 python-version = "3.12"
 project-includes = ["src/specsolve"]
 preset = "strict"
 
-# Warn-by-default rules promoted to error, so a regression fails CI instead of
-# scrolling past. All of these are already clean; each one is a gate, not a TODO.
-#
-# Where a rule is genuinely wrong about one line, suppress that line with
-# `# pyrefly: ignore[rule-name]` and a reason — do not turn the rule off here.
-#
-# Deliberately NOT promoted:
-#   deprecated   — currently only fires on typeshed's `contextlib.contextmanager`
-#                  overload.
-#
-# `explicit-any` is promoted, and off in the two trees that exist to hold a
-# foreign library's objects: `specsolve/linopy` holds linopy's and xarray's, and
-# `relational/sinks/solvers` holds gurobipy's, highspy's and xpress's. Neither
-# publishes a type this package can name, so `Any` is what those signatures
-# say. Everywhere else the rule is on, and a line that still needs `Any` says
-# so with `# pyrefly: ignore[explicit-any]` and a reason — `unused-ignore`
-# retires such a pragma the day the line stops needing it.
-#
-# `implicit-any-lambda` is left on and suppressed per line where a lambda's
-# parameter is a pair the caller can already see, such as `sorted(key=...)` in
-# the assembly. A lambda takes no annotation, so the rule is kept on rather
-# than switched off, and one anywhere else still has to say what it takes.
 [tool.pyrefly.errors]
-# Off, and the reason it was off has expired: `typing.override` is 3.12, and the
-# floor moved there with the language extraction, so it costs no dependency now.
-# Left off in that PR rather than turned on inside it — the sink family's
-# overrides are held to their base by `@abstractmethod` and
-# `tests/test_architecture.py`, so this buys a second guard rather than a first.
+# `@abstractmethod` and tests/test_architecture.py already hold overrides to their base.
 missing-override-decorator = false
 explicit-any = true
 implicit-import = true
@@ -670,7 +325,7 @@ untyped-import = true
 unused-ignore = true
 variance-mismatch = true
 
-# The two trees the comment above names. Every other rule still holds in them.
+# These trees hold objects of libraries that publish no types this package can name.
 [[tool.pyrefly.sub-config]]
 matches = "src/specsolve/linopy/**"
 errors = { explicit-any = false }
