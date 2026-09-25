@@ -147,6 +147,7 @@ A database that reads parquet runs the same query. The SQL for DuckDB is on
 
 | | |
 |---|---|
+| [Sweep a model](sweep.md) | the next tutorial: one model once per scenario, then window by window |
 | [The data contract](reference/data.md) | what each key in `sources` accepts and refuses |
 | [Archiving a solve](howto/archiving.md) | zips, sweeps and archives too big to hold |
 | [Reading a directory of runs](howto/warehouse.md) | many archives as one table |

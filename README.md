@@ -31,7 +31,7 @@ to HiGHS, Gurobi or Xpress. The same file can also build a `linopy.Model`
   BI. [Tables in, tables out →](https://specsolve.readthedocs.io/en/latest/tables/)
 - **Sweeps and rolling horizons built in.** One call runs scenario sweeps,
   rolling horizons and myopic pathways over the same model. Each window is
-  checked against how the model couples before it runs. [Sweeps →](https://specsolve.readthedocs.io/en/latest/reference/sweeps/)
+  checked against how the model couples before it runs. [Sweep a model →](https://specsolve.readthedocs.io/en/latest/sweep/)
 - **Fast, and hard to get wrong.** Tables hold only the rows that exist, so a
   model's topology does not change its cost. The solver stays loaded:
   `update()` puts new numbers on it, and `keep='progress'` warm-starts from the
