@@ -1,8 +1,5 @@
 name: Reap the benchmark box
 
-# The teardown in published-benchmark.yml never running at all — a cancelled
-# workflow, an incident — leaves a 32 GB server billing by the hour.
-
 on:
   schedule:
     - cron: '0 6 * * *'

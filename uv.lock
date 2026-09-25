@@ -517,12 +517,16 @@ wheels = [
 
 [[package]]
 name = "mathspec"
-version = "0.0.0a127"
-source = { git = "https://github.com/energy-models/mathspec?rev=v0.0.0-alpha.127#f9c51b34a8a20fe1b94bd15dabbd9ef3eee3ebfb" }
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyparsing" },
     { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/34/20/85803dceab6dc37ae08067d2388106427c942e60891462c9526e24023b64/mathspec-0.1.0.tar.gz", hash = "sha256:368725fbb337e7c682af7352b3ec38828027730fc36f145ff36aeb6bb808aa65", size = 151186, upload-time = "2026-09-25T10:59:39.646Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e4/f2/2359d581003d138cc1fcb7646569fa0936c4f875e7ba119f4d2bd3fe0f94/mathspec-0.1.0-py3-none-any.whl", hash = "sha256:babf3d173806ff7462590af9c9691ad62b4560fec2e5ee8b23a021cdf69a89c1", size = 157744, upload-time = "2026-09-25T10:59:37.747Z" },
 ]
 
 [[package]]
@@ -1385,10 +1389,6 @@ gurobi = [
     { name = "gurobipy" },
     { name = "scipy" },
 ]
-xarray = [
-    { name = "pandas" },
-    { name = "xarray" },
-]
 xpress = [
     { name = "xpress" },
 ]
@@ -1404,6 +1404,7 @@ codspeed = [
 ]
 dev = [
     { name = "linopy" },
+    { name = "pandas" },
     { name = "pre-commit" },
     { name = "pyarrow" },
     { name = "pyomo" },
@@ -1413,6 +1414,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "typst" },
+    { name = "xarray" },
 ]
 docs = [
     { name = "markdown-exec" },
@@ -1426,15 +1428,13 @@ docs = [
 requires-dist = [
     { name = "gurobipy", marker = "extra == 'gurobi'", specifier = ">=11" },
     { name = "highspy", specifier = ">=1.13" },
-    { name = "mathspec", git = "https://github.com/energy-models/mathspec?rev=v0.0.0-alpha.127" },
+    { name = "mathspec", specifier = ">=0.1.0" },
     { name = "numpy", specifier = ">=1.26" },
-    { name = "pandas", marker = "extra == 'xarray'", specifier = ">=2.2" },
     { name = "polars", specifier = ">=1.30" },
     { name = "scipy", marker = "extra == 'gurobi'", specifier = ">=1.11" },
-    { name = "xarray", marker = "extra == 'xarray'", specifier = ">=2024.2.0" },
     { name = "xpress", marker = "extra == 'xpress'", specifier = ">=9.5" },
 ]
-provides-extras = ["gurobi", "xarray", "xpress"]
+provides-extras = ["gurobi", "xpress"]
 
 [package.metadata.requires-dev]
 bench = [{ name = "pytest-benchmem", specifier = ">=0.5.5" }]
@@ -1445,6 +1445,7 @@ codspeed = [
 ]
 dev = [
     { name = "linopy", git = "https://github.com/PyPSA/linopy?rev=master" },
+    { name = "pandas", specifier = ">=2.2" },
     { name = "pre-commit", specifier = "==4.6.1" },
     { name = "pyarrow", specifier = ">=16" },
     { name = "pyomo", specifier = ">=6.7" },
@@ -1454,6 +1455,7 @@ dev = [
     { name = "pytest-xdist", specifier = "==3.8.0" },
     { name = "ruff", specifier = "==0.16.1" },
     { name = "typst", specifier = ">=0.15.0" },
+    { name = "xarray", specifier = ">=2024.2.0" },
 ]
 docs = [
     { name = "markdown-exec", specifier = "==1.12.3" },

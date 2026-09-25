@@ -2,30 +2,8 @@ version: 2
 
 build:
   os: ubuntu-24.04
-  # `commands:` takes the build over entirely: no `tools.python` for Read the
-  # Docs to install and no virtualenv for an install step to be pointed at. pixi
-  # brings its own interpreter, so the environment the site is built in here is
-  # the environment named in pyproject.toml and nothing else.
-  #
-  # `docs` is the same environment `ci` builds strictly, so a page that builds
-  # there builds here, and a dependency one of them needs cannot be one the
-  # other lacks — the environment is named, not assembled twice.
-  #
-  # The docs environment carries the project as well as the toolchain, because
-  # mkdocs.yml runs the `python exec="true"` blocks on `docs/interactive.md`
-  # during the build and the first of them imports specsolve. A page whose outputs
-  # are this build's own is what that buys, and there is no way to have it
-  # without running the package here.
-  #
-  # The installer is one request, unpinned, matching `prefix-dev/setup-pixi` in
-  # the workflows: pixi floats there or nowhere. It is invoked by path because
-  # each command runs in its own shell, so what the installer appended to the
-  # profile is not in scope for the next line.
-  #
-  # `zensical build` takes no site directory, so the site lands in `site_dir`
-  # from mkdocs.yml and is copied from there. Read the Docs publishes whatever
-  # is under $READTHEDOCS_OUTPUT/html.
   commands:
+    # Unpinned, like `prefix-dev/setup-pixi` in the workflows.
     - curl -fsSL https://pixi.sh/install.sh | bash
     - ~/.pixi/bin/pixi run docs-build
     - mkdir -p "$READTHEDOCS_OUTPUT" && cp -a site "$READTHEDOCS_OUTPUT/html"
