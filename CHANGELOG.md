@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.355](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.354...v0.0.1-alpha.355) (2026-09-25)
+
+
+### Features
+
+* **api:** a result hands back how its solve terminated as one Record ([#1738](https://github.com/fluxopt/specsolve/issues/1738)) ([c6ffe74](https://github.com/fluxopt/specsolve/commit/c6ffe7483d3f94c736d3853557e52b06b2d67f8b))
+
 ## [0.0.1-alpha.354](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.353...v0.0.1-alpha.354) (2026-09-25)
 
 
