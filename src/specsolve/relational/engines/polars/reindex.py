@@ -185,7 +185,7 @@ def translate_fragment(scope: Scope, p: TermFragment, s: program.Translate, cont
 
     Both joins are on a dim-table key, so the row count is unchanged and an
     out-of-range ordinal does not join. No window function; bounded-halo
-    locality. The operand's *presences* are [`travelled_presences`][] below.
+    locality. The operand's *presences* are ``travelled_presences`` below.
 
     Every fill over a *constant* is written, ``0`` included: the
     arithmetic is unchanged, but the slot now has a value, so asking for
@@ -300,7 +300,7 @@ class _Edge:
         the translation itself walks: a coordinate reaches outside its own
         group exactly where it would have reached outside the dimension. A
         coordinate in no group is neither — it is absent, the reading
-        [`_Order.placed`][] gives it, so it is not in the table at all. A
+        [`Grouping.placed`][] gives it, so it is not in the table at all. A
         per-group offset reaches it by the group column rather than by a
         cross join, one lag standing for the whole group.
         """

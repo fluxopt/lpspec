@@ -170,7 +170,7 @@ cmd = "pytest tests/test_expression_sweep.py -q -n auto --sweep-depth 3 --sweep-
 [tool.pixi.feature.docs.tasks]
 docs = { cmd = "python -m zensical serve", description = "The site at 127.0.0.1:8000, live-reloading" }
 docs-build = { cmd = "python -m zensical build --strict", description = "The site, built the way CI builds it" }
-docs-test = { cmd = "pytest tests/test_docs_math.py -q", description = "The site's math, rendered — what a strict build does not check" }
+docs-test = { cmd = "pytest tests/test_docs_math.py tests/test_docstring_links.py -q", description = "The site's math, rendered, and every docstring link — what a strict build does not check" }
 
 [tool.pixi.feature.bench.tasks]
 density = { cmd = "pytest bench --benchmark-memory --sizes d100 d50 d25 d08 --benchmark-json=bench/results/density.json", description = "The density sweep" }

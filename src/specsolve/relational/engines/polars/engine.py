@@ -51,7 +51,7 @@ def _no_built_model(doing: str) -> str:
 
 
 class PolarsEngine:
-    """Build a [`Program`][] into polars frames, then sink it."""
+    """Build a ``Program`` into polars frames, then sink it."""
 
     def __init__(self) -> None:
         #: The build, or ``None`` where there is not one — closed, released by

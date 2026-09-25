@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 _EVALUATED = '_evaluated'
 
 #: The one section a caller may hand in. Every other declaration needs data or
-#: builds rows, and neither is a read — see [`_entries`][].
+#: builds rows, and neither is a read — see [`_splice`][].
 _SECTION = 'expressions'
 
 

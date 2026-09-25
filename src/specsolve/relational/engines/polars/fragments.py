@@ -160,7 +160,7 @@ class TermFragment:
     in ``x + hi`` or in ``sum(x) + sum(hi)``. A parameter a variable stands with
     in a product is a coefficient instead, and a sparse coefficient is a zero
     the absence rules allow, so a term carries none and a product strips the
-    factor that stood beside a variable ([`PolarsCompiler.expression`][]).
+    factor that stood beside a variable ([`PolarsCompiler.expression`][specsolve.relational.engines.polars.compiler.PolarsCompiler.expression]).
     A divisor is never owed here either: it has its own check.
     """
 
@@ -464,7 +464,7 @@ def join_quad(a: TermFragment, b: TermFragment) -> TermFragment:
 
     Nothing is canonicalised here: which of ``x * y`` and ``y * x`` a pair is
     depends on column labels, which fragments do not carry until the engine
-    places them ([`Assembly._build_objective`][]).
+    places them ([`Assembly._build_objective`][specsolve.relational.engines.polars.assembly.Assembly._build_objective]).
     """
     shared = [d for d in a.dims if d in b.dims]
     out_dims = a.dims + tuple(d for d in b.dims if d not in a.dims)

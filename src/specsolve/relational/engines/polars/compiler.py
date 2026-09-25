@@ -139,7 +139,7 @@ class PolarsCompiler:
     ) -> pl.LazyFrame | None:
         """*frame* with *param* attached **by position**, or ``None`` to join.
 
-        Each parameter row's slot is its [`row_major`][] position and its
+        Each parameter row's slot is its [`row_major`][specsolve.relational.engines.polars.scope.Scope.row_major] position and its
         value is scattered there — the table's row order is nothing, and
         ``_scattered`` refuses a product any slot of which nothing wrote.
 
@@ -504,7 +504,7 @@ class PolarsCompiler:
         """Const *fragments* added per coordinate onto *carrier* — its columns, then ``cval``.
 
         *carrier* is the coordinate product the sum stands over, one row per
-        coordinate of [`spanned`][], restricted by the caller to where every
+        coordinate of [`spanned`][specsolve.relational.engines.polars.scope.Scope.spanned], restricted by the caller to where every
         variable under the fragments exists — the rows a constraint over the
         same expression would keep. *absent* is what a piece with no value at
         a coordinate adds: ``zero``, what a read reports; ``hole``, the same
