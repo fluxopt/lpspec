@@ -62,7 +62,7 @@ parameters. Which labels an axis has is data's to say, and that rule is
 [the language's](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/).
 
 **A relation goes under
-[its own name](https://math-spec.readthedocs.io/en/latest/reference/language/dimensions/#how-the-map-is-supplied)**,
+[its own name](https://math-spec.readthedocs.io/en/latest/reference/language/relations/#the-data-contract)**,
 as a table of the rows it has, one column per column it declares. Attach reads
 every column against the labels its dimension's index supplied: a key no row
 mentions is unmapped, and a value matching no label is refused as a typo. A

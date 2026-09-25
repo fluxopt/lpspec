@@ -3,8 +3,8 @@
 The one definition of each name this project uses. The rest hang off one
 distinction:
 
-> A **spec** is the math you write. A **model** is that spec with your data on
-> it. A **result** is one answer read back.
+> A **spec** is the model you write: the math, with no data. A **`Model`** is
+> that model with your data attached. A **result** is one answer read back.
 
 ```
 spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
@@ -28,7 +28,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   lowering has no inverse, so keep the `Spec`
   ([the spec argument](api.md#the-spec-argument)). The two states are the
   language's
-  ([reading a loaded model](https://math-spec.readthedocs.io/en/latest/reference/language/reading/#two-states-and-the-difference-between-them)).
+  ([`Spec` and `Program`](https://math-spec.readthedocs.io/en/latest/reference/reading/#spec-and-program)).
 
 **Formulation**
 : A block that states rows nothing lowers, `piecewise:` today. Every verb
@@ -37,10 +37,11 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   ([the spec argument](api.md#the-spec-argument)).
 
 **Model**
-: A spec with data attached: what [`build`](api.md) returns (`specsolve.Model`).
-  One model feeds any sink through `solve()` or `write(path)`; `row(...)` and
-  `diagnostics()` read it without solving. `update(...)` puts new numbers on
-  it in place.
+: The optimisation problem a spec states, with no data: math-spec's meaning of
+  the word. `specsolve.Model`, what [`build`](api.md) returns, is that model
+  with data attached. One `Model` feeds any sink through `solve()` or
+  `write(path)`; `row(...)` and `diagnostics()` read it without solving.
+  `update(...)` puts new numbers on it in place.
 
 **Result**
 : One answer read back from a solve: `objective`, `primal(name)`,
@@ -116,7 +117,7 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 : One point of a declaration's dimensions: one snapshot for one generator. A
   parameter has a value at each coordinate it covers, or no row there. The
   language calls the dimensions themselves the declaration's *frame*
-  ([named expressions](https://math-spec.readthedocs.io/en/latest/reference/language/expressions/#named-expressions)).
+  ([named expressions](https://math-spec.readthedocs.io/en/latest/reference/language/named/#expressions)).
 
 **Table**
 : A polars `DataFrame` with one column per dimension, a `value` column and one

@@ -386,7 +386,7 @@ coefficient here takes a name or a number, the same reason
 [storage units](pypsa_storage.md) ships `soc_max` rather than a ratio. This
 port needs no construct the language lacks.
 
-[`method: lp`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#lp-the-one-that-declares-nothing)
+[`method: lp`](https://math-spec.readthedocs.io/en/latest/reference/language/piecewise/#method)
 emits rows of this shape, one linear row per piece and no auxiliary variable,
 but it is not a drop-in here. It states the lines through consecutive
 breakpoints, which for a convex curve lie above it; PyPSA's tangents lie
