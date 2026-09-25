@@ -1,7 +1,7 @@
 """Logical plan → polars. Lazy: nothing is read, nothing is executed.
 
 The language compiles a spec to a plan; this compiles the plan to a query,
-in the :class:`~specsolve.relational.engines.polars.scope.Scope` the model's names
+in the [`Scope`][specsolve.relational.engines.polars.scope.Scope] the model's names
 resolve in.
 
 Column conventions, relied on by the engine:
@@ -96,9 +96,9 @@ class PolarsCompiler:
     """Turn plan nodes into polars queries over the model's tidy frames.
 
     ``scope`` is what every query is written against
-    (:class:`~specsolve.relational.engines.polars.scope.Scope`). ``solution`` is
+    ([`Scope`][specsolve.relational.engines.polars.scope.Scope]). ``solution`` is
     set on the compiler a read builds and on no other: with it every variable
-    and every ``dual(c)`` compiles to a value (:class:`Solution`).
+    and every ``dual(c)`` compiles to a value ([`Solution`][]).
     """
 
     scope: Scope
@@ -139,7 +139,7 @@ class PolarsCompiler:
     ) -> pl.LazyFrame | None:
         """*frame* with *param* attached **by position**, or ``None`` to join.
 
-        Each parameter row's slot is its :meth:`row_major` position and its
+        Each parameter row's slot is its [`row_major`][] position and its
         value is scattered there — the table's row order is nothing, and
         ``_scattered`` refuses a product any slot of which nothing wrote.
 
@@ -205,7 +205,7 @@ class PolarsCompiler:
             A constant piece of the product owes a factor's parameters only
             where the *other* factor carries no variable: a parameter a
             variable stands with in a product is a coefficient, whichever
-            piece it lands in (:attr:`TermFragment.parameters`).
+            piece it lands in ([`TermFragment.parameters`][]).
             """
             assert not ((a.quads and b.terms) or (b.quads and a.terms) or (a.quads and b.quads)), (
                 f'in {context}: a product of degree 3 reached the compiler'
@@ -272,7 +272,7 @@ class PolarsCompiler:
 
             An output row of a node that is not one-to-one mixes several input
             slots, so absence has to reach the operand before the rewrite
-            consumes it (:func:`propagate_absence`); :func:`fan_in` says which.
+            consumes it ([`propagate_absence`][]); [`fan_in`][] says which.
             """
             inner = ev(e.operand)
             if fan_in(e) != 'one-to-one':
@@ -345,7 +345,7 @@ class PolarsCompiler:
             out: the language proved them apart before any data attached, so a
             coordinate is carried by exactly one of them and the rest are
             empty there. Adding is therefore the whole of it, and the same
-            concatenation :class:`~mathspec.program.Add` does.
+            concatenation `Add` does.
             """
             built = [region(r) for r in e.regions]
             return CompiledExpression(
@@ -422,7 +422,7 @@ class PolarsCompiler:
 
         ``keyed_by`` is stated rather than left to its ``None`` default,
         because dims are rewritten downstream while the presence frame is not
-        — the hazard :class:`Presence` names.
+        — the hazard [`Presence`][] names.
         """
         dims = self.scope.program.variables[name].dims
         frame = self.scope.variables[name].frame.select(
@@ -464,7 +464,7 @@ class PolarsCompiler:
 
         Raises:
             SpecsolveError: The solve left no duals — the sentence
-                :meth:`~specsolve.relational.result.Result.dual` gives.
+                [`dual`][specsolve.relational.result.Result.dual] gives.
         """
         solution = self.solution
         assert solution is not None
@@ -504,7 +504,7 @@ class PolarsCompiler:
         """Const *fragments* added per coordinate onto *carrier* — its columns, then ``cval``.
 
         *carrier* is the coordinate product the sum stands over, one row per
-        coordinate of :meth:`spanned`, restricted by the caller to where every
+        coordinate of [`spanned`][], restricted by the caller to where every
         variable under the fragments exists — the rows a constraint over the
         same expression would keep. *absent* is what a piece with no value at
         a coordinate adds: ``zero``, what a read reports; ``hole``, the same
@@ -556,7 +556,7 @@ class PolarsCompiler:
         relation fans out instead — a member related to several targets lands
         a term in each — which is the many-to-many sum the language reads it
         as. A group is a sum, so it constructs rather than ``replace``s — see
-        :meth:`_sum_fragment`.
+        [`_sum_fragment`][].
 
         Several reads ride the same join.
         """
@@ -574,7 +574,7 @@ class PolarsCompiler:
 
         A group with no members contributes nothing, so on a constant side it
         holds a *value* — the empty sum — and not a hole. The two are the same
-        missing row to :func:`coverage.constant_side`'s check,
+        missing row to [`coverage.constant_side`][]'s check,
         which reads what the fragment produced and cannot see why a label is
         absent, so the value is written down here where the reason is known.
 
@@ -601,7 +601,7 @@ class PolarsCompiler:
     def _at_fragment(self, p: TermFragment, a: program.Pullback, context: str) -> TermFragment:
         """Spread the consumed dims back out over the produced ones — the adjoint of a group.
 
-        The same mapping table as :meth:`_group_fragment`, joined on the other
+        The same mapping table as [`_group_fragment`][], joined on the other
         columns, so the join **fans out**: one row per consumed tuple lands on
         every produced tuple sharing it. Still one equi-join against a table
         the frame holds, so the locality class does not move.
@@ -622,7 +622,7 @@ class PolarsCompiler:
     def _pulled_back_presences(self, p: TermFragment, a: program.Pullback) -> tuple[Presence, ...]:
         """Where a pullback's variables exist, keyed by the fine dims they now span.
 
-        Two absences reach the fine coordinate and :meth:`_remap_fragment`'s
+        Two absences reach the fine coordinate and [`_remap_fragment`][]'s
         inner join swallows both — the operand's own, and the **relation's**,
         where the map has no row for the key. Unreported, the term merely
         vanishes and its row survives to assert `x <= 0` where the model said
@@ -632,7 +632,7 @@ class PolarsCompiler:
         rather than a restriction admitting everything. The key is stated
         rather than left implied because a later product widens the fragment's
         dims while this frame keeps the columns that matter — the hazard
-        :class:`Presence` names.
+        [`Presence`][] names.
         """
         joined = a.direction.joined_dims
         fine = (*joined, *a.direction.produced_dims)
@@ -658,10 +658,10 @@ class PolarsCompiler:
     def _remap_fragment(self, p: TermFragment, node: program.GroupSum | program.Pullback) -> TermFragment:
         """Trade the dims *node*'s direction consumes for the ones it produces, through its relation.
 
-        One inner equi-join against :func:`mapping`, keyed as :func:`walk_join`
+        One inner equi-join against [`mapping`][], keyed as [`walk_join`][]
         says. A group consumes the dims its direction is over
-        (:meth:`_group_fragment`); a pullback reads the same table backwards
-        (:meth:`_at_fragment`).
+        ([`_group_fragment`][]); a pullback reads the same table backwards
+        ([`_at_fragment`][]).
         """
         frame, dims = walk_join(p.frame, mapping(self.scope.data.relations, node.direction), node, p.dims, p.carried)
         return TermFragment(dims, frame, p.kind, region=region_over(p.region, dims), parameters=p.parameters)

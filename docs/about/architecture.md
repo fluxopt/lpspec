@@ -207,7 +207,9 @@ reaches the plan. The names, by role:
 - the three types a verb hands back, `Model`, `Result` and `Sweep`;
 - the error tree under `SpecsolveError`, `NoSolutionError` and `SpecsolveWarning`.
 
-What each one takes and returns is [the Python API](../reference/api.md).
+What each one takes and returns is its docstring, which
+[the Python API](../reference/api.md) renders. The docstrings are the reference,
+so there is no second hand-written copy of it to drift.
 `evaluate`, which reads a spec of parameters and expressions as arithmetic,
 needs no solver installed.
 

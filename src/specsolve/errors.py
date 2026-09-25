@@ -1,10 +1,10 @@
 """The run half of the exception hierarchy, and the whole of it re-exported.
 
-The spec half — :class:`LanguageError` and what derives from it, decidable at
+The spec half — `LanguageError` and what derives from it, decidable at
 load time with no data attached — belongs to ``mathspec`` and is re-exported here,
 so one ``except`` clause covers the package. The run half is defined here:
-:class:`DataError` is a fine file with the wrong thing attached to it, and
-:class:`NoSolutionError` a solve with nothing to read back.
+[`DataError`][] is a fine file with the wrong thing attached to it, and
+[`NoSolutionError`][] a solve with nothing to read back.
 
 A message lives here only where the engine and the test oracle both raise it.
 One raiser keeps its message beside itself.
@@ -55,7 +55,7 @@ class NoSolutionError(SpecsolveError):
     """The solve returned no values to read — infeasible, unbounded, errored.
 
     A scenario sweep catches this and records the outcome; a
-    :class:`LanguageError` instead means the file needs editing.
+    `LanguageError` instead means the file needs editing.
     """
 
 

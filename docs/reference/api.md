@@ -1,8 +1,7 @@
 # Python API
 
-This page describes what each verb takes, returns, guarantees and refuses, for
-anyone who runs a spec from Python. A *spec* is the YAML file; what it may
-contain is
+This page is the reference for running a spec from Python: every public name,
+rendered from its docstring. A *spec* is the YAML file; what it may contain is
 [the language](https://mathspec.readthedocs.io/en/latest/reference/language/).
 
 ```python
@@ -16,45 +15,158 @@ result.primal('p')  # a polars.DataFrame
 result.dual('power_balance')
 ```
 
-## The verbs
+## Reference
 
-Every verb takes the spec first and, except `check`, the *sources* second: the
-tables that carry its numbers. The [glossary](glossary.md) defines *model*,
-*result*, *sink* and the other house terms this page uses.
+Every public name, rendered from its docstring. The [glossary](glossary.md)
+defines *model*, *result*, *sink* and the other house terms the entries use.
 
-| | |
-|---|---|
-| `sps.check(spec, sink=None)` | parse, validate and lower; attach no data. With a `sink`, also say whether that sink takes it. Returns the lowered `Program`, for reading the plan — no verb takes one back |
-| `mathspec.to_spec(spec)` | the file as written, for editing and typesetting; the language's own verb |
-| `sps.build(spec, sources)` | attach data and build; returns a `Model` |
-| `sps.solve(spec, sources, solver_name='highs', solver_options=None)` | build and solve in one call; returns a `Result` |
-| `sps.evaluate(spec, sources, expression)` | a spec of parameters and expressions, no variables: one expression read as arithmetic, with no solver; returns its frame |
-| `sps.solve_over(spec, sources, axis, ...)` | solve once per slice and fold the answers: [sweeps](sweeps.md) |
-| `sps.write(spec, sources, out)` | build and stream to a file; the suffix picks the format |
-| `archive=` on `sps.solve`, `model.solve`, `sps.solve_over` | write the spec, its data and this answer as one zip: [Archiving a model](#archiving-a-model) |
-| `sps.load_archive(path, into=None)` | an archive back whole as a `SolveArchive`, or a `SweepArchive` where its sources were cut |
-| `sps.load_result(directory)` | an answer `result.save(dir)` wrote, back as a `Result` |
-| `sps.load_sweep(directory)` | a sweep `sweep.save(dir)` or `solve_over(spill_to=)` wrote, back as a `Sweep` |
-| `sps.scan_archive` / `scan_result` / `scan_sweep` | the same three left on disk and read as they are asked for: [loading or scanning](#loading-or-scanning) |
-| `model.row(name, **coordinate)` | one built constraint row: terms, comparison, right-hand side |
-| `mathspec.to_latex` / `to_typst` / `to_markdown` | the math as a document: [typeset](https://mathspec.readthedocs.io/en/latest/reference/typeset/) |
-| `sps.Model` / `sps.Result` / `sps.Sweep` | the types the verbs hand back, importable so a wrapper can annotate its signature. The spec going *in* is `mathspec.Spec` |
+### Run a spec
 
-## Errors and warnings
+::: specsolve.check
+    options:
+      heading_level: 4
 
-**Every error is one tree, rooted at `SpecsolveError`.** `LanguageError` (with
-`SchemaError`, `DimensionError`) is a fault in the
-spec. `DataError` is a fault in the data attached to it. `LayoutError` is a
-directory or an archive that is not a layout this package reads.
-`NoSolutionError` is a solve that left nothing to read. A spec the language
+::: specsolve.build
+    options:
+      heading_level: 4
+
+::: specsolve.solve
+    options:
+      heading_level: 4
+
+::: specsolve.write
+    options:
+      heading_level: 4
+
+::: specsolve.evaluate
+    options:
+      heading_level: 4
+
+### Run it many times
+
+The fold and its two axes; [sweeps](sweeps.md) says how a sweep is cut and read.
+
+::: specsolve.solve_over
+    options:
+      heading_level: 4
+
+::: specsolve.EachCoordinate
+    options:
+      heading_level: 4
+
+::: specsolve.EachWindow
+    options:
+      heading_level: 4
+
+### What comes back
+
+::: specsolve.Model
+    options:
+      heading_level: 4
+
+::: specsolve.Result
+    options:
+      heading_level: 4
+
+::: specsolve.Sweep
+    options:
+      heading_level: 4
+
+The rows and frames those hand back: how a solve terminated, what the build
+and its solves took, and what a slice of a sweep took.
+
+::: specsolve.relational.result.Diagnostics
+    options:
+      heading_level: 4
+
+::: specsolve.relational.parquet.Record
+    options:
+      heading_level: 4
+
+::: specsolve.relational.parquet.Metrics
+    options:
+      heading_level: 4
+
+::: specsolve.relational.parquet.SliceMetrics
+    options:
+      heading_level: 4
+
+### Carry an answer
+
+::: specsolve.SolveArchive
+    options:
+      heading_level: 4
+
+::: specsolve.SweepArchive
+    options:
+      heading_level: 4
+
+::: specsolve.load_archive
+    options:
+      heading_level: 4
+
+::: specsolve.load_result
+    options:
+      heading_level: 4
+
+::: specsolve.load_sweep
+    options:
+      heading_level: 4
+
+::: specsolve.scan_archive
+    options:
+      heading_level: 4
+
+::: specsolve.scan_result
+    options:
+      heading_level: 4
+
+::: specsolve.scan_sweep
+    options:
+      heading_level: 4
+
+### Errors and warnings
+
+Every error is one tree, rooted at `SpecsolveError`. A spec the language
 accepts and specsolve cannot build raises `SpecsolveError` itself, and its
-message names the rewrite that builds the same model.
-Which one you get:
-[errors](https://mathspec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
+message names the rewrite. `LanguageError`, with `SchemaError` and
+`DimensionError`, is a fault in the spec, and is the language's own:
+[which error you get](https://mathspec.readthedocs.io/en/latest/reference/language/errors/#which-error-you-get).
 
-**`SpecsolveWarning` is the one warning category**, and carries `check`'s advice.
-`warnings.simplefilter('error', sps.SpecsolveWarning)` makes a spec repository
-fail CI on it.
+::: specsolve.SpecsolveError
+    options:
+      heading_level: 4
+
+::: specsolve.LanguageError
+    options:
+      heading_level: 4
+
+::: specsolve.SchemaError
+    options:
+      heading_level: 4
+
+::: specsolve.DimensionError
+    options:
+      heading_level: 4
+
+The rest are specsolve's:
+
+::: specsolve.DataError
+    options:
+      heading_level: 4
+
+::: specsolve.LayoutError
+    options:
+      heading_level: 4
+
+::: specsolve.NoSolutionError
+    options:
+      heading_level: 4
+
+::: specsolve.SpecsolveWarning
+    options:
+      heading_level: 4
+
 
 ## The spec argument
 

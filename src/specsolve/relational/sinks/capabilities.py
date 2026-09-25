@@ -74,7 +74,7 @@ class Capabilities:
     def missing(self, required: Collection[Capability]) -> list[Capability]:
         """Those of *required* this sink cannot take at all.
 
-        In :data:`CAPABILITIES` order rather than the caller's.
+        In [`CAPABILITIES`][] order rather than the caller's.
         """
         return [c for c in CAPABILITIES if c in required and self.support(c) == 'absent']
 
@@ -83,7 +83,7 @@ class Capabilities:
 
         Returns:
             The excluded set, or ``None``. Each member is one the sink supports
-            on its own; one it simply lacks is :meth:`missing`'s answer.
+            on its own; one it simply lacks is [`missing`][]'s answer.
         """
         for combination in self.excludes:
             if combination <= set(required):

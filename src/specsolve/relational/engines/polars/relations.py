@@ -1,15 +1,15 @@
 """A relation's table as a call reads it — the one place a role becomes a column.
 
-The plan's :class:`~mathspec.program.Direction` names *roles*: which columns of
+The plan's `Direction` names *roles*: which columns of
 a relation an operator consumes, produces and joins on. The engine reads by
 *dimension*, since an operand carries its coordinates under the dimensions'
 names. Everything here is that translation, spelled once:
 
 - a group or a pullback trades the dimensions its direction consumes for the
-  ones it produces through :func:`walk_join`, against the :func:`mapping`
+  ones it produces through [`walk_join`][], against the [`mapping`][]
   table;
-- a :class:`~mathspec.program.Partition` ranks the dimension it steps along
-  inside a :class:`Grouping`.
+- a `Partition` ranks the dimension it steps along
+  inside a [`Grouping`][].
 
 Nothing here reads data or holds state: every function takes the attached
 frames and returns a lazy query.
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
     from specsolve.relational.engines.polars.attaching import AttachedSources
 
-#: What a :class:`Grouping` adds to a dimension table: a coordinate's rank
+#: What a [`Grouping`][] adds to a dimension table: a coordinate's rank
 #: inside its group, and the group's size — the position and span a
 #: partitioned walk reads.
 GROUP_RANK = '__pos in group__'
@@ -47,7 +47,7 @@ def landing(dim: str) -> str:
 
 
 def group_column(role: str) -> str:
-    """The column a :class:`Grouping` carries one group-making value column of the relation under.
+    """The column a [`Grouping`][] carries one group-making value column of the relation under.
 
     Named for the role rather than its dimension, since a group may hold two
     columns over one dimension, and kept apart from the dimension's own name,
@@ -65,7 +65,7 @@ def mapping(relations: Mapping[str, pl.LazyFrame], direction: program.Direction)
     """The table a group or a pullback joins against — the relation, read as the direction names it.
 
     Consumed and joined columns arrive under their dimensions, produced ones
-    under :func:`landing`. A key the direction does not map has no row in the
+    under [`landing`][]. A key the direction does not map has no row in the
     relation and so none here, which is what "reaches no slot" means.
     """
     table = relations[direction.name]
@@ -100,7 +100,7 @@ def walk_join(
 
     Args:
         frame: The operand, carrying *have* and *columns*.
-        mapping: :func:`mapping` for the node's direction.
+        mapping: [`mapping`][] for the node's direction.
         node: The group or the pullback, whose direction says what is
             consumed, what is produced and what is joined on.
         have: The dimensions *frame* carries.
@@ -129,7 +129,7 @@ class Grouping:
 
     A group is the partition's group columns at each coordinate of its joined
     dimensions — a season per generator, where the relation is keyed by both.
-    The inner join behind :attr:`table` is where "this coordinate is in no
+    The inner join behind [`table`][] is where "this coordinate is in no
     group" comes from: it has no row in the relation, so it has none here,
     and every rank, span and neighbour a partitioned call reads sees only
     coordinates that are in one.
@@ -138,7 +138,7 @@ class Grouping:
         dimension: The dimension stepped along.
         joined: The partition's other key dimensions, which the operand carries.
         groups: The group-making columns, one per group column, under
-            :func:`group_column`.
+            [`group_column`][].
         grouped: The dimension each group column is over, in the same order.
         table: ``(val, ord, joined…, groups…, GROUP_RANK, GROUP_SIZE)``, one
             row per coordinate the partition places in a group.
@@ -201,7 +201,7 @@ class Grouping:
         return bool(self.groups)
 
     def placed(self) -> pl.LazyFrame:
-        """The coordinates the partition places in some group, under :attr:`keys`.
+        """The coordinates the partition places in some group, under [`keys`][].
 
         The rest belong to none, so a partitioned call reaches nothing for
         them and their rows are not built — the reading ``sum(by=)`` gives a

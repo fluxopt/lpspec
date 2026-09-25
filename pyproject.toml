@@ -69,6 +69,9 @@ codspeed = [
 ]
 docs = [
     "zensical==0.0.62",
+    "mkdocstrings==1.0.6",
+    "mkdocstrings-python==2.0.9",
+    "griffe-sphinx==0.3.0",
     "markdown-exec==1.12.3",
     "pymdown-extensions==11.0.1",
     "pygments==2.20.0",

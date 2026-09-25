@@ -196,6 +196,32 @@ markdown_extensions:
 plugins:
   - search
   - markdown-exec
+  - autorefs
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          # The language's errors are re-exported from mathspec, and render from its source.
+          load_external_modules: true
+          options:
+            # The tree documents attributes with `#:` comments.
+            extensions:
+              - griffe_sphinx
+            docstring_style: google
+            docstring_section_style: spacy
+            filters:
+              - "!^_"
+            merge_init_into_class: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: false
+            show_bases: false
+            show_if_no_docstring: true
+            signature_crossrefs: true
+            scoped_crossrefs: true
+            show_signature_annotations: false
+            separate_signature: true
 
 extra_css:
   - stylesheets/extra.css

@@ -6,14 +6,14 @@ identity: two builds of one model must agree on it integer for integer
 (docs/about/architecture.md, "The relational lane").
 
 Variables and constraint rows are the same operation over different frames, so
-:func:`frame` is written once — one rule, sort the survivors into declaration
+[`frame`][] is written once — one rule, sort the survivors into declaration
 order and number them from *start*. A mask, a restriction or neither produce
 the same shape down to the schema.
 
 The one split kept is *how much product is materialised*. A mask that cannot
 see the leading dims removes the same coordinates under every one of their
 values, so the survivors are a rectangle and only the masked suffix needs rows
-(:func:`_factored`).
+([`_factored`][]).
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ class Labelled:
     """One declaration's labelled frame, and the contiguous run of labels it owns.
 
     The frame and its run move together — a dropped row renumbers both.
-    :func:`frame` numbers a declaration's survivors contiguously from
+    [`frame`][] numbers a declaration's survivors contiguously from
     ``start``, which is what makes its share of a solver vector a slice.
     """
 
@@ -75,12 +75,12 @@ def frame(
     still occurs. Which rows they remove is unknown until data is read, so a
     restriction takes the counted path whatever the mask looks like.
 
-    No dims means the carrier is :data:`UNIT`, selected because selecting
+    No dims means the carrier is [`UNIT`][], selected because selecting
     nothing would drop the one row of the empty coordinate product.
 
     **Nothing sorts unless the data says it must.** The product is *produced*
     in declaration order, a filter keeps it and a semi-join usually does, so
-    :func:`in_position_order` verifies linearly and sorts only when the engine
+    [`in_position_order`][] verifies linearly and sorts only when the engine
     emitted another order.
 
     **Nothing renumbers unless a row was dropped**, either. With neither mask
@@ -125,7 +125,7 @@ def frame(
 def declared_height(scope: Scope, dims: tuple[str, ...], where: program.Mask | None) -> int:
     """How many rows a declaration *asks* for: its coord product under its own mask.
 
-    The count :func:`frame` would return if no variable's absence restricted it,
+    The count [`frame`][] would return if no variable's absence restricted it,
     so the difference between the two is the rows a propagated absence removed —
     which nothing else records, a restricted row never existing to be counted.
 
@@ -162,7 +162,7 @@ def _factored(
 
     **The survivors go on the left of the cross join**, so survivors turning
     over within each head coordinate is label order and
-    :func:`in_position_order` permutes nothing. Which side cycles is polars'
+    [`in_position_order`][] permutes nothing. Which side cycles is polars'
     own business, asserted nowhere: the verify is what makes it safe to exploit.
     """
     head, kept = dims[:free], dims[free:]
@@ -206,7 +206,7 @@ def _free_prefix(dims: tuple[str, ...], touched: frozenset[str]) -> int:
 
 
 def _row_major(scope: Scope, dims: tuple[str, ...]) -> pl.Expr:
-    """:meth:`Scope.row_major` over a product frame, which carries its ordinals."""
+    """[`Scope.row_major`][] over a product frame, which carries its ordinals."""
     return scope.row_major(dims, lambda d: pl.col(ordinal(d)))
 
 

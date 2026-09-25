@@ -1,6 +1,6 @@
 """The ``xpress`` solver: the model in two calls, straight into the Optimizer.
 
-The same hand-off as :mod:`~specsolve.relational.sinks.solvers.highs`, reading the
+The same hand-off as [`highs`][specsolve.relational.sinks.solvers.highs], reading the
 same ``dense_columns``, ``dense_rows`` and ``row_blocks``, so no two sinks can
 disagree about the model they load. What differs:
 
@@ -12,7 +12,7 @@ disagree about the model they load. What differs:
   attribute for it.
 - **Forgetting is a control, not a call.** ``problem.reset()`` clears the whole
   problem here, so what discards the last solve's work is ``keepbasis``; see
-  :meth:`Xpress.forget`.
+  [`Xpress.forget`][].
 
 ``xpress`` is imported inside the functions, so importing this module stays
 free for a caller who never solves with it.
@@ -49,7 +49,7 @@ _CONDITION_OF_SOL_STATUS = {
 
 #: Which solution statuses carry values worth reading. ``FEASIBLE`` is an
 #: incumbent found before the run stopped, so it does; ``NOTFOUND`` is the
-#: case :attr:`~specsolve.relational.status.SolveStatus.is_readable` exists for.
+#: case [`is_readable`][specsolve.relational.status.SolveStatus.is_readable] exists for.
 _HAS_PRIMAL = frozenset({1, 2})
 
 #: ``SolveStatus.FAILED`` and ``SolveStatus.UNSTARTED``, by value. The second
@@ -65,22 +65,22 @@ def build_xpress(
     batch_rows: int | None = None,
     solver_options: Mapping[str, Any] | None = None,
 ) -> Xpress:
-    """Load the model into an :class:`xpress.problem` and stop there.
+    """Load the model into an `xpress.problem` and stop there.
 
-    :func:`~specsolve.relational.sinks.solvers.highs.build_highs`'s seam.
+    [`build_highs`][specsolve.relational.sinks.solvers.highs.build_highs]'s seam.
 
     Returns:
-        The :class:`Xpress` holding the problem, at ``.handle``. The problem
+        The [`Xpress`][] holding the problem, at ``.handle``. The problem
         owns its licence and releases it when it is collected.
     """
     return Xpress(handoff, batch_rows, solver_options)
 
 
 class Xpress(Solver):
-    """FICO Xpress, holding one model — :class:`Solver`'s member for the second opt-in sink.
+    """FICO Xpress, holding one model — [`Solver`][]'s member for the second opt-in sink.
 
-    :class:`~specsolve.relational.sinks.solvers.highs.Highs`'s twin in how the
-    model is handed over and :class:`~specsolve.relational.sinks.solvers.gurobi.Gurobi`'s
+    [`Highs`][specsolve.relational.sinks.solvers.highs.Highs]'s twin in how the
+    model is handed over and [`Gurobi`][specsolve.relational.sinks.solvers.gurobi.Gurobi]'s
     in what it costs to hold. Three things are the Optimizer's shape:
 
     - **A push writes by index**, whole vectors through ``chgBounds`` /
@@ -88,7 +88,7 @@ class Xpress(Solver):
       the read-back.
     - **Nothing pushes a row's comparison.** A sense comes from the YAML and no
       data can move it, so a model whose senses differ is one
-      :attr:`~specsolve.relational.sinks.handoff.Handoff.structure` has already
+      [`structure`][specsolve.relational.sinks.handoff.Handoff.structure] has already
       sent back to be loaded again.
     - **Duals are refused rather than zero-filled** on a model that has none,
       as on Gurobi, so the refusal is the answer.
@@ -142,7 +142,7 @@ class Xpress(Solver):
         and is what is loaded a MIP.
 
         Xpress hands the basis back as ``(rows, columns)``, the opposite order
-        to :class:`WarmStart`'s fields.
+        to [`WarmStart`][]'s fields.
         """
         import numpy as np
 
@@ -164,7 +164,7 @@ class Xpress(Solver):
     def _warm(self, ws: WarmStart) -> None:
         """``loadBasis`` for a basis, ``addMipSol`` for an incumbent.
 
-        ``keepbasis`` goes back on with the basis; :meth:`forget` is what turns
+        ``keepbasis`` goes back on with the basis; [`forget`][] is what turns
         it off.
         """
         if (basis := ws.basis()) is not None:
@@ -213,7 +213,7 @@ class Xpress(Solver):
 
         ``problem.reset()`` on Xpress clears the whole problem, the model with
         it. The control is durable, so it tracks the caller's ``keep=`` across
-        re-solves; :meth:`_warm` turns it back on.
+        re-solves; [`_warm`][] turns it back on.
         """
         self._p.controls.keepbasis = 0
 
@@ -236,7 +236,7 @@ def _built(
 
     Columns arrive with no entries — ``start`` is all zeros — because the
     matrix goes in row-wise afterwards, which is the form
-    :meth:`~specsolve.relational.sinks.handoff.Handoff.row_blocks` already
+    [`row_blocks`][specsolve.relational.sinks.handoff.Handoff.row_blocks] already
     hands over.
 
     ``chgColType`` is called only when some column is integral.
@@ -299,7 +299,7 @@ _XPRESS_SENSE = {'<=': 'L', '>=': 'G', '==': 'E'}
 
 
 def _xpress() -> Any:
-    """The optional dependency, or :attr:`Xpress.unavailable_message`."""
+    """The optional dependency, or [`Xpress.unavailable_message`][]."""
     return Xpress.imported()
 
 

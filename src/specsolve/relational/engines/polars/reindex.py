@@ -8,10 +8,10 @@ ordinal arithmetic, the scratch columns below, and the question no other
 operator has to answer: what happens at the edge, where the walk runs out of
 dimension.
 
-Both take the :class:`~specsolve.relational.engines.polars.scope.Scope` and
+Both take the [`Scope`][specsolve.relational.engines.polars.scope.Scope] and
 hold nothing. They read three things off it — ``data``, ``program`` and
 ``widen`` — and everything else here is their own, built once per operator
-as an :class:`_Order`.
+as an [`_Order`][].
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ class _Order:
     """
 
     #: The groups the walk stays inside — the whole dimension as one group
-    #: where no ``by=`` was written (:meth:`Grouping.whole`).
+    #: where no ``by=`` was written ([`Grouping.whole`][]).
     grouping: Grouping
     incoming: pl.LazyFrame
     outgoing: pl.LazyFrame
@@ -108,7 +108,7 @@ def translate_rows(
 ) -> pl.LazyFrame:
     """*frame*'s rows moved *offset* positions along *along*, the end the move vacates dropped.
 
-    The predicate form of :func:`translate_fragment`: no partition, no named
+    The predicate form of [`translate_fragment`][]: no partition, no named
     offset, no wrap and nothing to fill, since false is what a missing row
     already means in a mask. *carried* is the columns that travel with the
     coordinates.
@@ -127,7 +127,7 @@ def window_fragment(scope: Scope, p: TermFragment, s: program.WindowSum, context
     The lag table is built to the widest window the data asks for; a named
     width then keeps only the lags that entity reaches. Every join is still
     on a dim-table key or the width's own dims, so the reach stays a relation
-    and the locality class is the one :meth:`translate_fragment` has.
+    and the locality class is the one [`translate_fragment`][] has.
 
     Unlike a shift this vacates nothing: the window at the first position
     is short rather than empty, since it always contains that position
@@ -138,7 +138,7 @@ def window_fragment(scope: Scope, p: TermFragment, s: program.WindowSum, context
 
     Under ``by=`` the walk is inside the group: positions are the within-group
     rank rather than the ``ord`` along the whole dimension, and a wrap closes on the group's
-    own size, exactly as :func:`translate_fragment` walks a partitioned shift.
+    own size, exactly as [`translate_fragment`][] walks a partitioned shift.
     """
     if s.along not in p.dims:
         refuse_a_fragment_without_the_dims(p, [s.along], context, f'sum_back(along={s.along!r})')
@@ -185,7 +185,7 @@ def translate_fragment(scope: Scope, p: TermFragment, s: program.Translate, cont
 
     Both joins are on a dim-table key, so the row count is unchanged and an
     out-of-range ordinal does not join. No window function; bounded-halo
-    locality. The operand's *presences* are :func:`travelled_presences` below.
+    locality. The operand's *presences* are [`travelled_presences`][] below.
 
     Every fill over a *constant* is written, ``0`` included: the
     arithmetic is unchanged, but the slot now has a value, so asking for
@@ -225,7 +225,7 @@ def translate_fragment(scope: Scope, p: TermFragment, s: program.Translate, cont
         An existing presence **travels**: the coordinate set goes through
         the same map the rows did, and the inner join drops whatever the
         edge vacated. Under a fill the vacated positions go back in
-        (:meth:`_vacated`) — a filled slot counts as present. A narrow
+        ([`_vacated`][]) — a filled slot counts as present. A narrow
         presence is widened first when the shift moves a dim it is silent
         about, since there is no column to remap otherwise.
 
@@ -260,7 +260,7 @@ def translate_fragment(scope: Scope, p: TermFragment, s: program.Translate, cont
 
 @dataclass(frozen=True)
 class _Edge:
-    """The edge of an acyclic shift along an :class:`_Order`: which coordinates it vacates, and what keys them.
+    """The edge of an acyclic shift along an [`_Order`][]: which coordinates it vacates, and what keys them.
 
     Keyed by the translated dimension, a named offset's own dims and the
     partition's joined dims, each once. How far back a row reaches decides
@@ -292,7 +292,7 @@ class _Edge:
         return tuple(dict.fromkeys((self.order.grouping.dimension, *self.offset_dims, *self.order.grouping.joined)))
 
     def coordinates(self, *, vacated: bool) -> pl.LazyFrame:
-        """The coordinates the shift vacates, or keeps, under :attr:`keys`.
+        """The coordinates the shift vacates, or keeps, under [`keys`][].
 
         Exact complements: a fill and the presence set it implies must not
         disagree about which coordinates the edge is. Under a partition the
@@ -300,7 +300,7 @@ class _Edge:
         the translation itself walks: a coordinate reaches outside its own
         group exactly where it would have reached outside the dimension. A
         coordinate in no group is neither — it is absent, the reading
-        :meth:`_Order.placed` gives it, so it is not in the table at all. A
+        [`_Order.placed`][] gives it, so it is not in the table at all. A
         per-group offset reaches it by the group column rather than by a
         cross join, one lag standing for the whole group.
         """
