@@ -8,6 +8,7 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/specsolve/bl
 ## Upcoming version
 
 - docs: every link to the language's documentation points at mathspec.readthedocs.io ([#1764](https://github.com/fluxopt/specsolve/pull/1764))
+- fix: the PyPI page links the docs, issues and changelog, and a stale saved answer says the layout moves before 1.0 ([#1763](https://github.com/fluxopt/specsolve/pull/1763))
 
 ## 0.1.0rc1 (2026-09-25)
 
