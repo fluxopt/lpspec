@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.1-alpha.356](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.355...v0.0.1-alpha.356) (2026-09-25)
+
+
+### Documentation
+
+* the glossary says a model holds no data, as math-spec uses the word, and every link into math-spec's docs resolves ([#1740](https://github.com/fluxopt/specsolve/issues/1740)) ([da3f211](https://github.com/fluxopt/specsolve/commit/da3f211f0a073880d3b9bb37c62afe27fcc52a0d))
+
 ## [0.0.1-alpha.355](https://github.com/fluxopt/specsolve/compare/v0.0.1-alpha.354...v0.0.1-alpha.355) (2026-09-25)
 
 
