@@ -117,14 +117,17 @@ pip install specsolve
 
 That brings polars, HiGHS and the language. Add the `[gurobi]` or `[xpress]`
 extra for those solvers. The bridges out of a result, `to_pandas` and
-`to_dataarray`, need pandas and xarray, which you install yourself. To work on specsolve, see [CONTRIBUTING.md](CONTRIBUTING.md).
+`to_dataarray`, need pandas and xarray, which you install yourself. To work on
+specsolve, see
+[CONTRIBUTING.md](https://github.com/fluxopt/specsolve/blob/main/CONTRIBUTING.md).
 
 ## Prior art
 
 The YAML surface comes from [Calliope](https://github.com/calliope-project/calliope),
 and [linopy](https://github.com/PyPSA/linopy) supplies the vocabulary, the
 oracle and every benchmark denominator.
-[Prior art and credit](docs/about/prior-art.md) says what came from each.
+[Prior art and credit](https://specsolve.readthedocs.io/en/latest/about/prior-art/)
+says what came from each.
 
 ## Status
 
