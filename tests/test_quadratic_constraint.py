@@ -275,7 +275,7 @@ def test_the_linopy_lane_refuses_it_in_the_languages_own_words(tmp_path):
     from tests.linopy_lane.loader import OracleCannotBuildError
     from tests.oracle import specsolve_linopy
 
-    path = tmp_path / 'model.yaml'
+    path = tmp_path / 'spec.yaml'
     path.write_text(pyyaml.safe_dump(SPEC))
     with pytest.raises(OracleCannotBuildError, match='linopy lane cannot build'):
         specsolve_linopy.build(path, SOURCES)

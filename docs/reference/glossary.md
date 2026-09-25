@@ -3,8 +3,9 @@
 The one definition of each name this project uses. The rest hang off one
 distinction:
 
-> A **spec** is the model you write: the math, with no data. A **`Model`** is
-> that model with your data attached. A **result** is one answer read back.
+> A **spec** is what you write: the math, with no data. A **model** is a spec
+> with your data attached, a `Model` in Python. A **result** is one answer read
+> back.
 
 ```
 spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
@@ -16,8 +17,9 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
 ## The chain
 
 **Spec**
-: The math before any data: a YAML file, a mapping, or a `Spec` from
-  `mathspec.to_spec`. It carries no numbers, and every verb takes it first.
+: Short for specification. The math before any data: a YAML file, a
+  mapping, or a `Spec` from `mathspec.to_spec`. It carries no numbers, and
+  every verb takes it first.
   A `Spec` carries its own program, so one handed back to a verb is not read
   again. What it may contain is
   [the language](https://mathspec.readthedocs.io/en/latest/reference/language/).
@@ -37,10 +39,12 @@ spec ──▶ build ──▶ Model ──▶ solve ──▶ Result
   ([the spec argument](api.md#the-spec-argument)).
 
 **Model**
-: The optimisation problem a spec states, with no data: mathspec's meaning of
-  the word. `specsolve.Model`, what [`build`](api.md) returns, is that model
-  with data attached. One `Model` feeds any sink through `solve()` or
-  `write(path)`; `row(...)` and `diagnostics()` read it without solving.
+: A spec with data attached, the language's own meaning of the word
+  ([glossary](https://mathspec.readthedocs.io/en/latest/reference/glossary/)).
+  These docs use it in no other sense. `specsolve.Model`, what
+  [`build`](api.md) returns, is one. One `Model` feeds any sink through
+  `solve()` or `write(path)`; `row(...)` and `diagnostics()` read it without
+  solving.
   `update(...)` puts new numbers on it in place.
 
 **Result**

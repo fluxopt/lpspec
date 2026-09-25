@@ -1,6 +1,6 @@
 """The archive's layout: a spec, its data and its answer as a directory, or that directory zipped.
 
-``model.yaml``, one ``sources/<key>.parquet`` per key the file declares,
+``spec.yaml``, one ``sources/<key>.parquet`` per key the file declares,
 ``sources.parquet`` digesting them, ``answer/`` in the layout both answers
 save, and ``axis.json`` where the sources are cut. A directory archive is read
 where it lies; a zip is unpacked first.
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 #: The archive's one layout. ``axis.json`` is also what says which kind an
 #: archive holds, a sweep being the one whose sources are cut.
-MODEL_MEMBER = 'model.yaml'
+SPEC_MEMBER = 'spec.yaml'
 AXIS_MEMBER = 'axis.json'
 DIGESTS_MEMBER = 'sources.parquet'
 SOURCES_DIR = 'sources'
@@ -86,7 +86,7 @@ def write_archive(
             directory named ``run=<name>`` is stamped ``<name>``, so a
             reader taking the run from the path and one taking it from the
             column read one name.
-        spec: The spec as written, held as ``model.yaml``.
+        spec: The spec as written, held as ``spec.yaml``.
         sources: What was attached, keyed as the file declares. A parquet path
             is copied as its own bytes; anything else is written as *tables*
             has it.
@@ -108,7 +108,7 @@ def write_archive(
     tree = staging / 'tree' if zipped else part
     try:
         (tree / SOURCES_DIR).mkdir(parents=True)
-        (tree / MODEL_MEMBER).write_bytes(spec.to_yaml().encode())
+        (tree / SPEC_MEMBER).write_bytes(spec.to_yaml().encode())
         digests: dict[str, str] = {}
         for name, given in sources.items():
             member = tree / SOURCES_DIR / f'{name}.parquet'
@@ -172,7 +172,7 @@ def opened(path: str | Path, into: str | Path | None) -> Path:
         *path* for a directory archive, *into* for a zip.
 
     Raises:
-        LayoutError: A member outside the layout, no ``model.yaml``, a zip
+        LayoutError: A member outside the layout, no ``spec.yaml``, a zip
             with no *into*, or an *into* given for a directory. Nothing is
             unpacked.
         zipfile.BadZipFile: A file that is not a zip archive.
@@ -203,14 +203,14 @@ def _check_the_layout(named: Path, members: Iterable[str]) -> None:
     strays = [
         member
         for member in found
-        if member not in {MODEL_MEMBER, AXIS_MEMBER, DIGESTS_MEMBER}
+        if member not in {SPEC_MEMBER, AXIS_MEMBER, DIGESTS_MEMBER}
         and not member.startswith(f'{ANSWER_DIR}/')
         and not (member.startswith(f'{SOURCES_DIR}/') and member.endswith('.parquet') and member.count('/') == 1)
     ]
-    if strays or MODEL_MEMBER not in found:
-        what = f'holds {strays}' if strays else f'has no {MODEL_MEMBER!r}'
+    if strays or SPEC_MEMBER not in found:
+        what = f'holds {strays}' if strays else f'has no {SPEC_MEMBER!r}'
         raise LayoutError(
             f'{named} is not an archive: it {what}. One that archive= writes holds exactly '
-            f"'model.yaml', one 'sources/<key>.parquet' per key the file declares, 'sources.parquet' digesting "
+            f"'spec.yaml', one 'sources/<key>.parquet' per key the file declares, 'sources.parquet' digesting "
             f"them, 'answer/' holding what the solve returned, and 'axis.json' where its sources are sliced."
         )

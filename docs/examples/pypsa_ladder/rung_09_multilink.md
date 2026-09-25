@@ -29,7 +29,7 @@ One rung of [the PyPSA corpus](https://mathspec.readthedocs.io/en/latest/example
 <details markdown="1">
 <summary>The same model, as math</summary>
 
-The model a plain `n.optimize()` builds, stated in one file. Every declaration is named `Component_attribute` after the PyPSA statement it stands for, and each constraint's description opens with the linopy name PyPSA gives that row, so the two can be read side by side. PyPSA's regimes — extendable, committable — are data columns and become `where:` masks. Bounds are the explicit rows PyPSA writes, so their duals are row duals. Parameters no PyPSA table carries verbatim are computed in data prep and say so in their description.
+The spec of the model a plain `n.optimize()` builds, in one file. Every declaration is named `Component_attribute` after the PyPSA statement it stands for, and each constraint's description opens with the linopy name PyPSA gives that row, so the two can be read side by side. PyPSA's regimes — extendable, committable — are data columns and become `where:` masks. Bounds are the explicit rows PyPSA writes, so their duals are row duals. Parameters no PyPSA table carries verbatim are computed in data prep and say so in their description.
 
 #### Sets
 
@@ -147,12 +147,12 @@ f_{t,l} \in \mathbb{R} \qquad \forall\, t \in \mathcal{T},\ l \in \mathcal{L}
     The spec, `differential/pypsa/rungs/rung_09_multilink.yaml` — the file projected onto what this rung builds:
 
     ```yaml
-    description: The model a plain `n.optimize()` builds, stated in one file. Every declaration is named `Component_attribute`
-      after the PyPSA statement it stands for, and each constraint's description opens with the linopy name
-      PyPSA gives that row, so the two can be read side by side. PyPSA's regimes — extendable, committable
-      — are data columns and become `where:` masks. Bounds are the explicit rows PyPSA writes, so their duals
-      are row duals. Parameters no PyPSA table carries verbatim are computed in data prep and say so in their
-      description.
+    description: The spec of the model a plain `n.optimize()` builds, in one file. Every declaration is named
+      `Component_attribute` after the PyPSA statement it stands for, and each constraint's description opens
+      with the linopy name PyPSA gives that row, so the two can be read side by side. PyPSA's regimes — extendable,
+      committable — are data columns and become `where:` masks. Bounds are the explicit rows PyPSA writes,
+      so their duals are row duals. Parameters no PyPSA table carries verbatim are computed in data prep and
+      say so in their description.
     dimensions:
       snapshot: {description: dispatch periods, dtype: datetime}
       bus: {description: network nodes}
